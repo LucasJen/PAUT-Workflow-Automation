@@ -1,0 +1,27 @@
+{
+    "client information": {
+        "nde_provider": "Mistras",
+        "client_company": "Flint Hills Resources",
+        "location": "Rosemount, Minnesota"
+    },
+
+    "technician_information": {
+        "technician_name": "Lucas Jennings",
+        "tehcnician_certifications": "Ultrasonics Level II",
+        "assistant_name": "",
+        "assistant_certifications": ""        
+    },
+
+    "project_information": {
+        "procedure": "100-UT-031 Rev 1",
+        "project_type": "Level C HIC",
+        "project_number": "N/A",
+        "work_order_number": "WO5382118"
+    },
+
+    "paths": {
+        "template": "templates/long_form_input_v1.docx.docx",
+        "images": "images/"
+    }
+
+}
