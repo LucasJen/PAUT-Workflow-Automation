@@ -1,0 +1,407 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}Create HIC Report - NDT Report Automation{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h2">Create HIC Report</h1>
+                    <p class="text-muted">Hydrogen-Induced Cracking Inspection</p>
+                </div>
+                <div>
+                    <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to Home
+                    </a>
+                </div>
+            </div>
+
+            <!-- Main Form -->
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <!-- Section 1: Report Information -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-info-circle"></i> Report Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="vessel_name" class="form-label">Vessel Name *</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="vessel_name" 
+                                    name="vessel_name" 
+                                    placeholder="e.g., Stripper OVHD Condenser 31E-64"
+                                    required
+                                >
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="work_order" class="form-label">Work Order *</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="work_order" 
+                                    name="work_order" 
+                                    placeholder="e.g., WO5382118"
+                                    required
+                                >
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="test_date" class="form-label">Test Date *</label>
+                                <input 
+                                    type="date" 
+                                    class="form-control" 
+                                    id="test_date" 
+                                    name="test_date" 
+                                    required
+                                >
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="location" class="form-label">Location</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="location" 
+                                    name="location" 
+                                    placeholder="e.g., West of B street"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="examination_scope" class="form-label">Examination Scope</label>
+                            <textarea 
+                                class="form-control" 
+                                id="examination_scope" 
+                                name="examination_scope" 
+                                rows="3"
+                                placeholder="Describe the examination scope..."
+                            ></textarea>
+                            <div class="form-text">
+                                Example: Mistras conducted a non-intrusive Phased Array ultrasonic examination...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Equipment Information -->
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-tools"></i> Equipment Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="scope_model" class="form-label">Scope Model</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="scope_model" 
+                                    name="scope_model" 
+                                    placeholder="e.g., Olympus OmniScan X3 64"
+                                >
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="scope_serial" class="form-label">Scope Serial Number</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="scope_serial" 
+                                    name="scope_serial" 
+                                    placeholder="e.g., QC-0082535"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="probe_model" class="form-label">Probe Model</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="probe_model" 
+                                    name="probe_model" 
+                                    placeholder="e.g., 7.5MHz HydroFORM"
+                                >
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="probe_serial" class="form-label">Probe Serial Number</label>
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    id="probe_serial" 
+                                    name="probe_serial" 
+                                    placeholder="e.g., U1490"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Scan Data -->
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-grid"></i> Scan Data
+                        </h5>
+                        <button type="button" class="btn btn-sm btn-light" id="addScanBtn">
+                            <i class="bi bi-plus-circle"></i> Add Scan
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="scansContainer">
+                            <!-- Individual scan rows will be added here -->
+                            <div class="scan-row border rounded p-3 mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0">Scan #1</h6>
+                                    <button type="button" class="btn btn-sm btn-danger remove-scan-btn">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Scan ID *</label>
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            name="scan_id[]" 
+                                            placeholder="e.g., Circ 1 East"
+                                            required
+                                        >
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Axial Range</label>
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            name="axial_range[]" 
+                                            placeholder="e.g., 0 - 2.4&quot;"
+                                        >
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Circumferential Range</label>
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            name="circ_range[]" 
+                                            placeholder="e.g., 15 - 82&quot;"
+                                        >
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Min Thickness (in)</label>
+                                        <input 
+                                            type="number" 
+                                            class="form-control" 
+                                            name="min_thickness[]" 
+                                            step="0.001"
+                                            placeholder="0.000"
+                                        >
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Avg Thickness (in)</label>
+                                        <input 
+                                            type="number" 
+                                            class="form-control" 
+                                            name="avg_thickness[]" 
+                                            step="0.001"
+                                            placeholder="0.000"
+                                        >
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Image</label>
+                                        <input 
+                                            type="file" 
+                                            class="form-control" 
+                                            name="scan_image[]"
+                                            accept="image/png,image/jpeg"
+                                        >
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Results / Findings</label>
+                                    <textarea 
+                                        class="form-control" 
+                                        name="scan_results[]" 
+                                        rows="2"
+                                        placeholder="Describe findings for this scan..."
+                                    ></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 
+                            Click "Add Scan" to add more scan areas to this report.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: Summary -->
+                <div class="card mb-4">
+                    <div class="card-header bg-warning">
+                        <h5 class="mb-0">
+                            <i class="bi bi-file-text"></i> Executive Summary
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="executive_summary" class="form-label">Summary of Results</label>
+                            <textarea 
+                                class="form-control" 
+                                id="executive_summary" 
+                                name="executive_summary" 
+                                rows="4"
+                                placeholder="Summarize the overall findings..."
+                            ></textarea>
+                            <div class="form-text">
+                                Include overall findings, minimum thickness observed, corrosion severity, etc.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="bi bi-file-earmark-check"></i> Generate Report
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-lg ms-2">
+                                    <i class="bi bi-save"></i> Save Draft
+                                </button>
+                            </div>
+                            <div>
+                                <a href="{% url 'home' %}" class="btn btn-outline-danger">
+                                    Cancel
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Dynamic Scan Rows -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let scanCounter = 1;
+    
+    // Add new scan row
+    document.getElementById('addScanBtn').addEventListener('click', function() {
+        scanCounter++;
+        
+        const scanTemplate = `
+            <div class="scan-row border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">Scan #${scanCounter}</h6>
+                    <button type="button" class="btn btn-sm btn-danger remove-scan-btn">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Scan ID *</label>
+                        <input type="text" class="form-control" name="scan_id[]" placeholder="e.g., Circ 1 East" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Axial Range</label>
+                        <input type="text" class="form-control" name="axial_range[]" placeholder="e.g., 0 - 2.4&quot;">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Circumferential Range</label>
+                        <input type="text" class="form-control" name="circ_range[]" placeholder="e.g., 15 - 82&quot;">
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Min Thickness (in)</label>
+                        <input type="number" class="form-control" name="min_thickness[]" step="0.001" placeholder="0.000">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Avg Thickness (in)</label>
+                        <input type="number" class="form-control" name="avg_thickness[]" step="0.001" placeholder="0.000">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Image</label>
+                        <input type="file" class="form-control" name="scan_image[]" accept="image/png,image/jpeg">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Results / Findings</label>
+                    <textarea class="form-control" name="scan_results[]" rows="2" placeholder="Describe findings for this scan..."></textarea>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('scansContainer').insertAdjacentHTML('beforeend', scanTemplate);
+    });
+    
+    // Remove scan row (using event delegation)
+    document.getElementById('scansContainer').addEventListener('click', function(e) {
+        if (e.target.closest('.remove-scan-btn')) {
+            if (confirm('Remove this scan?')) {
+                e.target.closest('.scan-row').remove();
+                updateScanNumbers();
+            }
+        }
+    });
+    
+    // Update scan numbers after removal
+    function updateScanNumbers() {
+        const scanRows = document.querySelectorAll('.scan-row');
+        scanRows.forEach((row, index) => {
+            row.querySelector('h6').textContent = `Scan #${index + 1}`;
+        });
+        scanCounter = scanRows.length;
+    }
+});
+</script>
+
+<style>
+.scan-row {
+    background-color: #f8f9fa;
+    transition: background-color 0.2s;
+}
+
+.scan-row:hover {
+    background-color: #e9ecef;
+}
+
+.remove-scan-btn {
+    opacity: 0.7;
+}
+
+.remove-scan-btn:hover {
+    opacity: 1;
+}
+</style>
+
+{% endblock %}

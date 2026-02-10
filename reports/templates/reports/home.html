@@ -1,73 +1,63 @@
-<!-- reports/templates/reports/home.html -->
+{% extends 'reports/base.html' %}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NDT Report Automation</title>
-    <!-- Tailwind CSS CDN (for development) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-12">
-        <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
-            <!-- Header -->
-            <div class="border-b-4 border-blue-500 pb-4 mb-6">
-                <h1 class="text-4xl font-bold text-gray-800">NDT Report Automation</h1>
-                <p class="text-gray-600 mt-2">Phased Array Ultrasonic Testing Reports</p>
-            </div>
+{% block title %}Home - NDT Report Automation{% endblock %}
 
-            <!-- Welcome Message -->
-            <div class="mb-8">
-                <h2 class="text-2xl font-semibold text-gray-700 mb-3">Welcome</h2>
-                <p class="text-gray-600">
-                    Streamline your PAUT reporting workflow with automated document generation.
-                </p>
-            </div>
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card shadow-lg">
+                <div class="card-body p-5">
+                    <!-- Header -->
+                    <div class="border-bottom border-primary border-3 pb-4 mb-6">
+                        <h1 class="text-4xl font-bold text-gray-800">NDT Report Automation</h1>
+                        <p class="text-gray-600 mt-2">Phased Array Ultrasonic Testing Reports</p>
+                    </div>
 
-            <!-- Status Card -->
-            <div class="bg-blue-50 border-l-4 border-blue-500 p-6 mb-8">
-                <h3 class="text-lg font-semibold text-blue-900 mb-3">System Status</h3>
-                <ul class="space-y-2">
-                    <li class="flex items-center text-gray-700">
-                        <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
-                        Django is running
-                    </li>
-                    <li class="flex items-center text-gray-700">
-                        <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
-                        Templates are working
-                    </li>
-                    <li class="flex items-center text-gray-700">
-                        <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
-                        Ready to build
-                    </li>
-                </ul>
-            </div>
+                    <!-- Welcome Message -->
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-semibold text-gray-700 mb-3">Welcome</h2>
+                        <p class="text-gray-600">
+                            Streamline your PAUT reporting workflow with automated document generation.
+                        </p>
+                    </div>
 
-            <!-- Info Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-6 text-white">
-                    <h3 class="text-xl font-semibold mb-2">Quick Start</h3>
-                    <p class="text-blue-100">Create your first report in minutes</p>
+                    <!-- Quick Actions -->
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3">
+                            <div class="card bg-primary text-white h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="bi bi-file-earmark-plus"></i> Create HIC Report
+                                    </h5>
+                                    <p class="card-text">Start a new Hydrogen-Induced Cracking inspection report</p>
+                                    <a href="{% url 'create_hic_report' %}" class="btn btn-light mt-2">
+                                        Get Started →
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="card bg-success text-white h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="bi bi-list-ul"></i> View Reports
+                                    </h5>
+                                    <p class="card-text">Browse and manage existing reports</p>
+                                    <a href="#" class="btn btn-light mt-2">
+                                        View All →
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Footer -->
+                    <div class="text-center text-muted small">
+                        <p>Current time: <strong>{{ current_time }}</strong></p>
+                    </div>
                 </div>
-                <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-6 text-white">
-                    <h3 class="text-xl font-semibold mb-2">Automated</h3>
-                    <p class="text-green-100">Save hours on report generation</p>
-                </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="text-center text-gray-500 text-sm">
-                <p>Current time: <span class="font-semibold">{{ current_time }}</span></p>
             </div>
         </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}
