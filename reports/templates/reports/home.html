@@ -8,5 +8,14 @@
 <body>
     <h1>PAUT Report Homepage</h1>
     <p>This web app is used to generate reports using uniform inputs.</p>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <label for="technician_name">Technician name:</label>
+        <input type="text" id="technician_name" name="technician_name" required>
+
+        <button type="submit">Submit</button>
+    </form>
 </body>
 </html>
