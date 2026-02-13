@@ -1,11 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
+{% extends "reports/base.html" %}
+
+{% block content %}
+
     <h1>PAUT Report Homepage</h1>
     <p>This web app is used to generate reports using uniform inputs.</p>
 
@@ -17,7 +13,7 @@
         <h2> Technician Information </h2>
 
         <label for="technician_name">Technician name:</label>
-        <input type="text" id="technician_name" name="technician_name" required>
+        <input type="text" id="technician_name" name="technician_name" value="Lucas Jennings" required>
 
         <br>
 
@@ -64,9 +60,7 @@
 
         <!-- TODO: add button to create another calibration table-->
 
-        
-        
+
         <button type="submit">Submit</button>
     </form>
-</body>
-</html>
+{% endblock %}
