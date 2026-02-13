@@ -1,5 +1,4 @@
 from docx import Document
-import re
 import os
 
 class WordTemplateProcessor:

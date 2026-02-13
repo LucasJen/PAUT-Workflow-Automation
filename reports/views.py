@@ -7,9 +7,9 @@ def home(request):
     if request.method == 'POST':
         # List of all user inputs to be replaced: 
         technician_name = request.POST.get('technician_name')
-        
-        # print("FORM SUBMITTED!")
-        # print(f"Technician Name: {technician_name}")
+       
+        print("FORM SUBMITTED!")
+        print(f"Technician Name: {technician_name}")
 
         #input template
         template_path = os.path.join(

@@ -12,9 +12,52 @@
     <form method="POST">
         {% csrf_token %}
 
+        <!-- All inputs from user to be used for find and replace -->
+        
+        <h2> Technician Information </h2>
+
         <label for="technician_name">Technician name:</label>
         <input type="text" id="technician_name" name="technician_name" required>
 
+        <br>
+
+        <label for="certification">Certification and Level:</label>
+        <input type="text" id="certification" name="certification" required>
+        
+        <br>
+        
+        <h2> Client and Job Information </h2>
+
+        <label for="client">Client:</label>
+        <input type="text" id="client" name="client" required>
+        
+        <br>
+        
+        <label for="location">Location:</label>
+        <input type="text" id="location" name="location" required>
+        
+        <br>
+        
+        <label for="work_order">Work Order #:</label>
+        <input type="text" id="work_order" name="work_order" required>
+        
+        <br>
+        
+        <label for="project_number">Project #:</label>
+        <input type="text" id="project_number" name="project_number" required>
+        
+        <br>
+        
+        <label for="test_date">Test Date:</label>
+        <input type="text" id="test_date" name="test_date" required>
+        
+        <br>
+
+        <label for="document_title">Document Title:</label>
+        <input type="text" id="document_title" name="document_title" required>
+        
+        <br>
+        
         <button type="submit">Submit</button>
     </form>
 </body>
