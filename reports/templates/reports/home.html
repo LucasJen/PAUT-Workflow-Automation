@@ -3,6 +3,9 @@
 <div class="container mt-2">
     <h1 class="mb-3">PAUT Report Homepage</h1>
     <p>This web app is used to generate reports using uniform inputs.</p>
+
+    <button class="btn btn-primary mt-3" type="submit">Generate Report</button>
+    <button class="btn btn-warning mt-3 ms-2" type="button" onclick="clearFormData()">Clear All Data</button>
     
     <form method="POST">
         {% csrf_token %}
@@ -116,86 +119,189 @@
         </div>
         
         <h2 class="mt-4">UT Equipment and Calibration Information</h2>
-        <div class="row">
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label class="form-label">Manufacturer</label>
-                    <input class="form-control" name="manufacturer" required>
+        <button type="button" class="btn btn-secondary mb-3" id="add-setup-btn">Add Setup</button>
+        <button type="button" class="btn btn-danger mb-3 ms-2" id="remove-setup-btn">Remove Setup</button>
+        <div id="setups-container">
+            <div class="setup-section" data-setup-number="1">
+                <h5>Setup 1</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Manufacturer</label>
+                            <input class="form-control" name="manufacturer_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Scope Model</label>
+                            <input class="form-control" name="scope_model_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">X Resolution</label>
+                            <input class="form-control" name="x_res_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Y Resolution</label>
+                            <input class="form-control" name="y_res_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Transducer Model</label>
+                            <input class="form-control" name="transducer_model_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Transducer Serial</label>
+                            <input class="form-control" name="transducer_serial_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Focal Depth</label>
+                            <input class="form-control" name="foc_depth_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Wave Propagation</label>
+                            <input class="form-control" name="wave_propogation_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Frequency</label>
+                            <input class="form-control" name="freq_1">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Elements</label>
+                            <input class="form-control" name="elements_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Calibration Material</label>
+                            <input class="form-control" name="cal_material_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Scope Serial</label>
+                            <input class="form-control" name="scope_serial_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Material Temperature</label>
+                            <input class="form-control" name="material_temp_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Calibration Block Type</label>
+                            <input class="form-control" name="cal_block_type_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Calibration Block Serial</label>
+                            <input class="form-control" name="cal_block_serial_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Surface Prep</label>
+                            <input class="form-control" name="surface_prep_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">TR Min</label>
+                            <input class="form-control" name="tr_min_1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">TR Max</label>
+                            <input class="form-control" name="tr_max_1">
+                        </div>
+                    </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Scope Model</label>
-                    <input class="form-control" name="scope_model" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">X Resolution</label>
-                    <input class="form-control" name="x_res" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Y Resolution</label>
-                    <input class="form-control" name="y_res" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Transducer Model</label>
-                    <input class="form-control" name="transducer_model" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Transducer Serial</label>
-                    <input class="form-control" name="transducer_serial" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Focal Depth</label>
-                    <input class="form-control" name="foc_depth" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Wave Propagation</label>
-                    <input class="form-control" name="wave_propogation" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Frequency</label>
-                    <input class="form-control" name="freq" required>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="mb-3">
-                    <label class="form-label">Elements</label>
-                    <input class="form-control" name="elements" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Calibration Material</label>
-                    <input class="form-control" name="cal_material" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Scope Serial</label>
-                    <input class="form-control" name="scope_serial" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Material Temperature</label>
-                    <input class="form-control" name="material_temp" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Calibration Block Type</label>
-                    <input class="form-control" name="cal_block_type" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Calibration Block Serial</label>
-                    <input class="form-control" name="cal_block_serial" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Surface Prep</label>
-                    <input class="form-control" name="surface_prep" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">TR Min</label>
-                    <input class="form-control" name="tr_min" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">TR Max</label>
-                    <input class="form-control" name="tr_max" required>
-                </div>
+                <hr>
             </div>
         </div>
-        
+
+
+
         <button class="btn btn-primary mt-3" type="submit">Generate Report</button>
+
+        <script>
+            let setupCount = 1;
+
+            document.getElementById('add-setup-btn').addEventListener('click', function() {
+                if (setupCount >= 5) {
+                    alert('Maximum of 5 setups allowed');
+                    return;
+                }
+                
+                setupCount++;
+                
+                let container = document.getElementById('setups-container');
+                let firstSetup = document.querySelector('.setup-section');
+                let newSetup = firstSetup.cloneNode(true);
+                
+                newSetup.setAttribute('data-setup-number', setupCount);
+                newSetup.querySelector('h5').textContent = 'Setup ' + setupCount;
+                
+                let inputs = newSetup.querySelectorAll('input');
+                inputs.forEach(function(input) {
+                    let baseName = input.name.replace(/_\d+$/, '');
+                    input.name = baseName + '_' + setupCount;
+                    input.value = '';
+                });
+                
+                container.appendChild(newSetup);
+            });
+
+            document.getElementById('remove-setup-btn').addEventListener('click', function() {
+                if (setupCount <= 1) {
+                    alert('Must have at least one setup');
+                    return;
+                }
+                
+                let container = document.getElementById('setups-container');
+                let allSetups = container.querySelectorAll('.setup-section');
+                let lastSetup = allSetups[allSetups.length - 1];
+                
+                container.removeChild(lastSetup);
+                setupCount--;
+            });
+
+        const formId = 'paut-report-form';
+
+        function saveFormData() {
+            let formData = {};
+            let form = document.querySelector('form');
+            let inputs = form.querySelectorAll('input, textarea');
+            
+            inputs.forEach(function(input) {
+                formData[input.name] = input.value;
+            });
+            
+            formData['setupCount'] = setupCount;
+            localStorage.setItem(formId, JSON.stringify(formData));
+        }
+
+        function loadFormData() {
+            let savedData = localStorage.getItem(formId);
+            if (!savedData) return;
+            
+            let formData = JSON.parse(savedData);
+            
+            if (formData.setupCount && formData.setupCount > 1) {
+                for (let i = 2; i <= formData.setupCount; i++) {
+                    document.getElementById('add-setup-btn').click();
+                }
+            }
+            
+            let inputs = document.querySelectorAll('input, textarea');
+            inputs.forEach(function(input) {
+                if (formData[input.name]) {
+                    input.value = formData[input.name];
+                }
+            });
+        }
+
+        function clearFormData() {
+            localStorage.removeItem(formId);
+            let inputs = document.querySelectorAll('input, textarea');
+            inputs.forEach(function(input) {
+                input.value = '';
+            });
+            location.reload();
+        }
+
+        document.querySelectorAll('input, textarea').forEach(function(input) {
+            input.addEventListener('input', saveFormData);
+        });
+
+        window.addEventListener('load', loadFormData);
+        </script>
     </form>
 </div>
 {% endblock %}
