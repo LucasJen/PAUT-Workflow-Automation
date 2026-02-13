@@ -3,9 +3,30 @@
 <div class="container mt-2">
     <h1 class="mb-3">PAUT Report Homepage</h1>
     <p>This web app is used to generate reports using uniform inputs.</p>
-
     <button class="btn btn-primary mt-3" type="submit">Generate Report</button>
     <button class="btn btn-warning mt-3 ms-2" type="button" onclick="clearFormData()">Clear All Data</button>
+
+    <hr class="mt-4">
+    <h3>Presets</h3>
+    <div class="row mt-3">
+        <div class="col-md-6">
+            <label class="form-label">Save Current Data as Preset</label>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" id="preset-name" placeholder="Enter preset name">
+                <button class="btn btn-success" type="button" onclick="savePreset()">Save Preset</button>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Load Preset</label>
+            <div class="input-group mb-3">
+                <select class="form-select" id="preset-select">
+                    <option value="">Select a preset...</option>
+                </select>
+                <button class="btn btn-primary" type="button" onclick="loadPreset()">Load</button>
+                <button class="btn btn-danger" type="button" onclick="deletePreset()">Delete</button>
+            </div>
+        </div>
+    </div>
     
     <form method="POST">
         {% csrf_token %}
@@ -206,8 +227,6 @@
             </div>
         </div>
 
-
-
         <button class="btn btn-primary mt-3" type="submit">Generate Report</button>
 
         <script>
@@ -252,26 +271,104 @@
                 setupCount--;
             });
 
-        const formId = 'paut-report-form';
+            const formId = 'paut-report-form';
 
-        function saveFormData() {
+            function saveFormData() {
+                let formData = {};
+                let form = document.querySelector('form');
+                let inputs = form.querySelectorAll('input, textarea');
+                
+                inputs.forEach(function(input) {
+                    formData[input.name] = input.value;
+                });
+                
+                formData['setupCount'] = setupCount;
+                localStorage.setItem(formId, JSON.stringify(formData));
+            }
+
+            function loadFormData() {
+                let savedData = localStorage.getItem(formId);
+                if (!savedData) return;
+                
+                let formData = JSON.parse(savedData);
+                
+                if (formData.setupCount && formData.setupCount > 1) {
+                    for (let i = 2; i <= formData.setupCount; i++) {
+                        document.getElementById('add-setup-btn').click();
+                    }
+                }
+                
+                let inputs = document.querySelectorAll('input, textarea');
+                inputs.forEach(function(input) {
+                    if (formData[input.name]) {
+                        input.value = formData[input.name];
+                    }
+                });
+            }
+
+            function clearFormData() {
+                localStorage.removeItem(formId);
+                let inputs = document.querySelectorAll('input, textarea');
+                inputs.forEach(function(input) {
+                    input.value = '';
+                });
+                location.reload();
+            }
+
+            document.querySelectorAll('input, textarea').forEach(function(input) {
+                input.addEventListener('input', saveFormData);
+            });
+
+            window.addEventListener('load', loadFormData);
+            function savePreset() {
+            
+            // functions to deploy and save report presets
+            
+            let presetName = document.getElementById('preset-name').value.trim();
+
+            if (!presetName) {
+                alert('Please enter a preset name');
+                return;
+            }
+            
             let formData = {};
-            let form = document.querySelector('form');
-            let inputs = form.querySelectorAll('input, textarea');
+            let inputs = document.querySelectorAll('input, textarea');
             
             inputs.forEach(function(input) {
-                formData[input.name] = input.value;
+                if (input.id !== 'preset-name') {
+                    formData[input.name] = input.value;
+                }
             });
             
             formData['setupCount'] = setupCount;
-            localStorage.setItem(formId, JSON.stringify(formData));
+            
+            let presets = JSON.parse(localStorage.getItem('presets') || '{}');
+            presets[presetName] = formData;
+            localStorage.setItem('presets', JSON.stringify(presets));
+            
+            document.getElementById('preset-name').value = '';
+            updatePresetDropdown();
+            alert('Preset "' + presetName + '" saved successfully');
         }
 
-        function loadFormData() {
-            let savedData = localStorage.getItem(formId);
-            if (!savedData) return;
+        function loadPreset() {
+            let presetName = document.getElementById('preset-select').value;
+            if (!presetName) {
+                alert('Please select a preset');
+                return;
+            }
             
-            let formData = JSON.parse(savedData);
+            let presets = JSON.parse(localStorage.getItem('presets') || '{}');
+            let formData = presets[presetName];
+            
+            if (!formData) {
+                alert('Preset not found');
+                return;
+            }
+            
+            while (setupCount > 1) {
+                document.getElementById('remove-setup-btn').click();
+            }
             
             if (formData.setupCount && formData.setupCount > 1) {
                 for (let i = 2; i <= formData.setupCount; i++) {
@@ -285,22 +382,51 @@
                     input.value = formData[input.name];
                 }
             });
+            
+            saveFormData();
+            alert('Preset "' + presetName + '" loaded successfully');
         }
 
-        function clearFormData() {
-            localStorage.removeItem(formId);
-            let inputs = document.querySelectorAll('input, textarea');
-            inputs.forEach(function(input) {
-                input.value = '';
+        function deletePreset() {
+            let presetName = document.getElementById('preset-select').value;
+            if (!presetName) {
+                alert('Please select a preset to delete');
+                return;
+            }
+            
+            if (!confirm('Delete preset "' + presetName + '"?')) {
+                return;
+            }
+            
+            let presets = JSON.parse(localStorage.getItem('presets') || '{}');
+            delete presets[presetName];
+            localStorage.setItem('presets', JSON.stringify(presets));
+            
+            updatePresetDropdown();
+            alert('Preset "' + presetName + '" deleted');
+        }
+
+        function updatePresetDropdown() {
+            let presets = JSON.parse(localStorage.getItem('presets') || '{}');
+            let select = document.getElementById('preset-select');
+            
+            select.innerHTML = '<option value="">Select a preset...</option>';
+            
+            Object.keys(presets).sort().forEach(function(name) {
+                let option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
             });
-            location.reload();
         }
 
-        document.querySelectorAll('input, textarea').forEach(function(input) {
-            input.addEventListener('input', saveFormData);
+        window.addEventListener('load', function() {
+            loadFormData();
+            updatePresetDropdown();
         });
 
-        window.addEventListener('load', loadFormData);
+
+
         </script>
     </form>
 </div>
