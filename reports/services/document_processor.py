@@ -1,39 +1,38 @@
 from docx import Document
+import re
 import os
 
 class WordTemplateProcessor:
+
     def __init__(self, template_path, output_path):
         self.template_path = template_path
         self.output_path = output_path
         self.document = Document(template_path)
 
     def replace_text_in_paragraphs(self, paragraph, placeholder, replacement):
-    # Replace placeholders with input text
-        
         if placeholder in paragraph.text:
             for run in paragraph.runs:
                 if placeholder in run.text:
                     run.text = run.text.replace(placeholder, replacement)
-                    print(f"\"{placeholder}\" replaced with \"{replacement}\"")
-    
-    def replace(self, placeholder, replacement):
-    # Search for matching placeholders with the text of the document.
-    # Call replace function on matches
 
-        # Search Paragraphs
+    def replace(self, placeholder, replacement):
         for paragraph in self.document.paragraphs:
             self.replace_text_in_paragraphs(paragraph, placeholder, replacement)
 
-        # Search Tables
+        self.replace_in_table_cells_split_runs(placeholder, replacement)
+
+    def replace_in_table_cells_split_runs(self, placeholder, replacement):
         for table in self.document.tables:
             for row in table.rows:
                 for cell in row.cells:
                     for paragraph in cell.paragraphs:
-                        self.replace_text_in_paragraphs(paragraph, placeholder, replacement)
+                        full_text = "".join(run.text for run in paragraph.runs)
+                        if placeholder in full_text:
+                            new_text = full_text.replace(placeholder, replacement)
+                            for run in paragraph.runs:
+                                run.text = ""
+                            paragraph.runs[0].text = new_text
 
     def save(self):
-    # Save document to output path
         os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
         self.document.save(self.output_path)
-
-

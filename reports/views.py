@@ -5,12 +5,11 @@ import os
 
 def home(request):
     if request.method == 'POST':
+        # List of all user inputs to be replaced: 
         technician_name = request.POST.get('technician_name')
         
         # print("FORM SUBMITTED!")
         # print(f"Technician Name: {technician_name}")
-        
-        # Define paths for the input document and output location.
 
         #input template
         template_path = os.path.join(
@@ -23,14 +22,15 @@ def home(request):
         )
         print(output_path)
         
-        # Open and modify document
+
+        # # Open and modify document
+
         processor = WordTemplateProcessor(template_path, output_path)
         print('object created')
+
         processor.replace("{{TECHNICIAN_NAME}}", technician_name)
-        print('replacer ran')
-        #save changes to output location
+
         processor.save()
-        print('document saved')
 
         
     return render(request, 'reports/home.html')
