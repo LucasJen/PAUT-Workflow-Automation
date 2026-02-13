@@ -36,5 +36,5 @@ def home(request):
     return render(request, 'reports/home.html')
 
 
-def defaults(request):
-    return render(request, 'reports/defaults.html')
+def presets(request):
+    return render(request, 'reports/presets.html')

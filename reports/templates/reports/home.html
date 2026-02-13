@@ -2,65 +2,74 @@
 
 {% block content %}
 
-    <h1>PAUT Report Homepage</h1>
-    <p>This web app is used to generate reports using uniform inputs.</p>
+<div class="container mt-2">
 
+    <h1 class="mb-3">PAUT Report Homepage</h1>
+    <p>This web app is used to generate reports using uniform inputs.</p>
+    
     <form method="POST">
         {% csrf_token %}
 
-        <!-- All inputs from user to be used for find and replace -->
-        
-        <h2> Technician Information </h2>
+        <h2 class="mt-4">Technician Information</h2>
 
-        <label for="technician_name">Technician name:</label>
-        <input type="text" id="technician_name" name="technician_name" value="Lucas Jennings" required>
+        <div class="row">
 
-        <br>
+            <!-- LEFT COLUMN -->
+            <div class="col-md-6">
 
-        <label for="certification">Certification and Level:</label>
-        <input type="text" id="certification" name="certification" required>
-        
-        <br>
-        
-        <h2> Client and Job Information </h2>
+                <div class="mb-3">
+                    <label class="form-label">Technician Name</label>
+                    <input class="form-control" name="technician_name" value="Lucas Jennings" required>
+                </div>
 
-        <label for="client">Client:</label>
-        <input type="text" id="client" name="client" required>
-        
-        <br>
-        
-        <label for="location">Location:</label>
-        <input type="text" id="location" name="location" required>
-        
-        <br>
-        
-        <label for="work_order">Work Order #:</label>
-        <input type="text" id="work_order" name="work_order" required>
-        
-        <br>
-        
-        <label for="project_number">Project #:</label>
-        <input type="text" id="project_number" name="project_number" required>
-        
-        <br>
-        
-        <label for="test_date">Test Date:</label>
-        <input type="text" id="test_date" name="test_date" required>
-        
-        <br>
+                <div class="mb-3">
+                    <label class="form-label">Certification and Level</label>
+                    <input class="form-control" name="certification" required>
+                </div>
 
-        <label for="document_title">Document Title:</label>
-        <input type="text" id="document_title" name="document_title" required>
-        
-        <br>
+                <div class="mb-3">
+                    <label class="form-label">Client</label>
+                    <input class="form-control" name="client" required>
+                </div>
 
-        <h2> Introduction and Scan References </h2>
+                <div class="mb-3">
+                    <label class="form-label">Location</label>
+                    <input class="form-control" name="location" required>
+                </div>
 
-        <h2> Equipment Information </h2>
+            </div>
 
-        <!-- TODO: add button to create another calibration table-->
+            <!-- RIGHT COLUMN -->
+            <div class="col-md-6">
 
+                <div class="mb-3">
+                    <label class="form-label">Work Order #</label>
+                    <input class="form-control" name="work_order" required>
+                </div>
 
-        <button type="submit">Submit</button>
+                <div class="mb-3">
+                    <label class="form-label">Project #</label>
+                    <input class="form-control" name="project_number" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Test Date</label>
+                    <input class="form-control" name="test_date" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Document Title</label>
+                    <input class="form-control" name="document_title" required>
+                </div>
+
+            </div>
+
+        </div>
+
+        <button class="btn btn-primary mt-3" type="submit">Generate Report</button>
+
     </form>
+
+</div>
+
 {% endblock %}
