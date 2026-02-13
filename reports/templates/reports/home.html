@@ -1,75 +1,201 @@
 {% extends "reports/base.html" %}
-
 {% block content %}
-
 <div class="container mt-2">
-
     <h1 class="mb-3">PAUT Report Homepage</h1>
     <p>This web app is used to generate reports using uniform inputs.</p>
     
     <form method="POST">
         {% csrf_token %}
-
-        <h2 class="mt-4">Technician Information</h2>
-
+        
+        <h2 class="mt-4">Project Information</h2>
         <div class="row">
-
-            <!-- LEFT COLUMN -->
             <div class="col-md-6">
-
-                <div class="mb-3">
-                    <label class="form-label">Technician Name</label>
-                    <input class="form-control" name="technician_name" value="Lucas Jennings" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Certification and Level</label>
-                    <input class="form-control" name="certification" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Client</label>
-                    <input class="form-control" name="client" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Location</label>
-                    <input class="form-control" name="location" required>
-                </div>
-
-            </div>
-
-            <!-- RIGHT COLUMN -->
-            <div class="col-md-6">
-
-                <div class="mb-3">
-                    <label class="form-label">Work Order #</label>
-                    <input class="form-control" name="work_order" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Project #</label>
-                    <input class="form-control" name="project_number" required>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Test Date</label>
-                    <input class="form-control" name="test_date" required>
-                </div>
-
                 <div class="mb-3">
                     <label class="form-label">Document Title</label>
                     <input class="form-control" name="document_title" required>
                 </div>
-
+                <div class="mb-3">
+                    <label class="form-label">Client</label>
+                    <input class="form-control" name="client" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Location</label>
+                    <input class="form-control" name="location" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Work Order #</label>
+                    <input class="form-control" name="work_order" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Project #</label>
+                    <input class="form-control" name="project_number" required>
+                </div>
             </div>
-
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Report Date</label>
+                    <input class="form-control" type="date" name="report_date" value="{% now 'Y-m-d' %}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Test Date</label>
+                    <input class="form-control" type="date" name="test_date" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Project Type</label>
+                    <input class="form-control" name="project_type" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Procedure</label>
+                    <input class="form-control" name="procedure" required>
+                </div>
+            </div>
         </div>
-
+        
+        <h2 class="mt-4">Technician Information</h2>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Technician Name</label>
+                    <input class="form-control" name="technician_name" value="Lucas Jennings" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Certification and Level</label>
+                    <input class="form-control" name="certification" required>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="mt-4">Executive Summary and Summary of Results</h2>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Examination Scope</label>
+                    <textarea class="form-control" name="examination_scope" rows="3" required></textarea>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Executive Summary</label>
+                    <textarea class="form-control" name="executive_summary" rows="3" required></textarea>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="mt-4">Scope and References and Method</h2>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Equipment ID</label>
+                    <input class="form-control" name="equipment_id" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Equipment Overview</label>
+                    <textarea class="form-control" name="equipment_overview" rows="2" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Work Scope</label>
+                    <textarea class="form-control" name="work_scope" rows="2" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">X-Axis Reference</label>
+                    <input class="form-control" name="x_axis_reference" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Y-Axis Reference</label>
+                    <input class="form-control" name="y_axis_reference" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">UT Method</label>
+                    <input class="form-control" name="ut_method" required>
+                </div>
+            </div>
+        </div>
+        
+        <h2 class="mt-4">UT Equipment and Calibration Information</h2>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Manufacturer</label>
+                    <input class="form-control" name="manufacturer" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Scope Model</label>
+                    <input class="form-control" name="scope_model" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">X Resolution</label>
+                    <input class="form-control" name="x_res" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Y Resolution</label>
+                    <input class="form-control" name="y_res" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Transducer Model</label>
+                    <input class="form-control" name="transducer_model" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Transducer Serial</label>
+                    <input class="form-control" name="transducer_serial" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Focal Depth</label>
+                    <input class="form-control" name="foc_depth" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Wave Propagation</label>
+                    <input class="form-control" name="wave_propogation" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Frequency</label>
+                    <input class="form-control" name="freq" required>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label">Elements</label>
+                    <input class="form-control" name="elements" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Calibration Material</label>
+                    <input class="form-control" name="cal_material" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Scope Serial</label>
+                    <input class="form-control" name="scope_serial" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Material Temperature</label>
+                    <input class="form-control" name="material_temp" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Calibration Block Type</label>
+                    <input class="form-control" name="cal_block_type" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Calibration Block Serial</label>
+                    <input class="form-control" name="cal_block_serial" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Surface Prep</label>
+                    <input class="form-control" name="surface_prep" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">TR Min</label>
+                    <input class="form-control" name="tr_min" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">TR Max</label>
+                    <input class="form-control" name="tr_max" required>
+                </div>
+            </div>
+        </div>
+        
         <button class="btn btn-primary mt-3" type="submit">Generate Report</button>
-
     </form>
-
 </div>
-
 {% endblock %}
