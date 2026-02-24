@@ -3,8 +3,6 @@
 <div class="container mt-2">
     <h1 class="mb-3">PAUT Report Homepage</h1>
     <p>This web app is used to generate reports using uniform inputs.</p>
-    <button class="btn btn-primary mt-3" type="submit">Generate Report</button>
-    <button class="btn btn-warning mt-3 ms-2" type="button" onclick="clearFormData()">Clear All Data</button>
 
     <hr class="mt-4">
     <h3>Presets</h3>
@@ -30,6 +28,8 @@
     
     <form method="POST">
         {% csrf_token %}
+        <button class="btn btn-primary mt-3" type="submit">Generate Report</button>
+        <button class="btn btn-warning mt-3 ms-2" type="button" onclick="clearFormData()">Clear All Data</button>
         
         <h2 class="mt-4">Project Information</h2>
         <div class="row">
