@@ -1,0 +1,10 @@
+Create a setup model
+
+Create a report preset model
+
+Use templates to make report user inputs scalable
+
+create one service to query and manipulate each model
+
+
+
