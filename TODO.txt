@@ -1,10 +1,26 @@
-Create a setup model
 
-Create a report preset model
+Preset data management:
 
-Use templates to make report user inputs scalable
+    Create a setup model
 
-create one service to query and manipulate each model
+    Create a report preset model
+
+    Use templates to make report user inputs scalable
+
+    create one service to query and manipulate each model
+
+document find and replace:
+
+    ...
+
+NDE file manipulation:
+
+    service to separate setup information from inspection data
+    
+
+
+
+
 
 
 
