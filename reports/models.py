@@ -23,7 +23,7 @@ class Report(models.Model):
     examination_scope = models.TextField()
     executive_summary = models.TextField()
 
-    # Scope, References and Method
+    # Job Scope, References and Method
     equipment_id = models.CharField(max_length=200)
     equipment_overview = models.TextField()
     work_scope = models.TextField()
