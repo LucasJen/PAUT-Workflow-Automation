@@ -4,17 +4,21 @@
 
 let setupCount = 1;
 
+
 document.getElementById('add-setup-btn').addEventListener('click', function() {
+    let setupNum = document.querySelector('#num-setups')
     if (setupCount >= 5) {
         alert('Maximum of 5 setups allowed');
         return;
     }
     
     setupCount++;
-    
+    setupNum.value = setupCount;
+
     let container = document.getElementById('setups-container');
     let firstSetup = document.querySelector('.setup-section');
     let newSetup = firstSetup.cloneNode(true);
+
     
     newSetup.setAttribute('data-setup-number', setupCount);
     newSetup.querySelector('h5').textContent = 'Setup ' + setupCount;
@@ -38,7 +42,9 @@ document.getElementById('remove-setup-btn').addEventListener('click', function()
     let container = document.getElementById('setups-container');
     let allSetups = container.querySelectorAll('.setup-section');
     let lastSetup = allSetups[allSetups.length - 1];
-    
+    let setupNum = document.querySelector('#num-setups')
+
     container.removeChild(lastSetup);
     setupCount--;
+    setupNum.value = setupCount;
 });

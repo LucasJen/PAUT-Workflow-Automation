@@ -16,6 +16,22 @@ document find and replace:
 NDE file manipulation:
 
     service to separate setup information from inspection data
+
+UX styles
+
+    modernize UI layout
+
+    adjust color scheme
+
+    add images / styles
+
+
+Maybes: 
+
+
+UX redesign
+
+    Real-time preview of document creation.
     
 
 

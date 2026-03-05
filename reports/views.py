@@ -23,6 +23,8 @@ def home(request):
         }
 
         print(replacements)
+        num_setups = int(request.POST.get("num_setups"))
+        print(f'{num_setups} setups')
         # List of all user inputs to be replaced: 
 
 
