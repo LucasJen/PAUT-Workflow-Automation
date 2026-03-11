@@ -1,0 +1,37 @@
+{% extends "reports/base.html" %}
+
+{% block content %}
+
+<h1>Reports</h1>
+<a href="{% url 'create-report' %}">+ New Report</a>
+
+{% if reports %}
+<table>
+    <thead>
+        <tr>
+            <th>Document Title</th>
+            <th>Client</th>
+            <th>Location</th>
+            <th>Work Order</th>
+            <th>Report Date</th>
+            <th>Technician</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for report in reports %}
+        <tr>
+            <td>{{ report.document_title }}</td>
+            <td>{{ report.client }}</td>
+            <td>{{ report.location }}</td>
+            <td>{{ report.work_order }}</td>
+            <td>{{ report.report_date }}</td>
+            <td>{{ report.technician_name }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No reports found. <a href="{% url 'create-report' %}">Create one.</a></p>
+{% endif %}
+
+{% endblock %}
