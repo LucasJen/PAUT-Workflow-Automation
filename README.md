@@ -1,4 +1,10 @@
 # PAUT-Workflow-Consolidation
-This reposity will contain tools for streamlining and consolidating the workflows required to conduct Phased Array NDT analysis and reports.
+This repository will contain tools for consolidating the Phased Array NDT reporting process.
 
 Author: Lucas Jennings
+
+## Requirements
+
+- Python 3.12+
+- Django 6.0.2
+

@@ -1,0 +1,76 @@
+@font-face {
+    font-family: 'Vulf';
+    src: url("{% static 'reports/fonts/VulfSansDemo-Light.otf' %}") format('opentype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Vulf Header';
+    src: url("{% static 'reports/fonts/VulfSansDemo-MediumItalic.otf' %}") format('opentype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'Vulf', monospace;
+    background: #f3f4f6;
+}
+
+.sidebar {
+    background: #ffffff;
+    border-left: 1px solid #e5e7eb;
+    min-height: 100vh;
+    padding: 1.5rem;
+    width: 240px;
+}
+
+.sidebar a {
+    display: block;
+    padding: .5rem 0;
+    color: #1f2933;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.sidebar a:hover {
+    color: #2563eb;
+}
+
+.app-header {
+    background: white;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 1rem 2rem;
+}
+
+.app-title {
+    font-family: 'Vulf Header', monospace;
+    color: #2563eb;
+    font-weight: 600;
+    margin: 0;
+}
+
+.content-wrapper {
+    padding: 2rem;
+}
+
+.card {
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,.05);
+}
+
+footer {
+    text-align: center;
+    padding: 1rem;
+    color: #6b7280;
+    font-size: .8rem;
+}
+
+@media (max-width: 991px) {
+    .sidebar {
+        min-height: auto;
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid #e5e7eb;
+    }
+}
