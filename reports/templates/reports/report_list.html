@@ -9,6 +9,7 @@
 <table>
     <thead>
         <tr>
+            <th>ID</th>
             <th>Document Title</th>
             <th>Client</th>
             <th>Location</th>
@@ -20,6 +21,7 @@
     <tbody>
         {% for report in reports %}
         <tr>
+            <td>{{ report.pk }}</td>
             <td>{{ report.document_title }}</td>
             <td>{{ report.client }}</td>
             <td>{{ report.location }}</td>
