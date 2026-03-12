@@ -35,6 +35,12 @@ def create_report(request):
         'setups': setups
     })
 
+def generate_report(request, pk):
+    report = get_object_or_404(Report, pk=pk)
+    setup = report.setups.first()
+    # find and replace logic will go here
+    return redirect('report-list')
+
 def setup_list(request):
     """
     View all setups that are currently in the database
