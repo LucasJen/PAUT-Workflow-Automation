@@ -1,20 +1,22 @@
 from django.shortcuts import render, redirect
 from django.conf import settings
 from .services.document_processor import WordTemplateProcessor
-from .services.document_config import DOCUMENT_CONFIGS
 import os
-from .forms import ReportForm
+from .forms import ReportForm, SetupForm
 from .models import Report
 
 def create_report(request):
     if request.method == 'POST':
         form = ReportForm(request.POST)
-        if form.is_valid():
+        setup_form = SetupForm(request.POST)
+        if form.is_valid() and setup_form.is_valid():
             form.save()
+            setup_form.save()
             return redirect('report-list')
     else:
         form = ReportForm()
-    return render(request, 'reports/create_report.html', {'form': form})
+        setup_form = SetupForm()
+    return render(request, 'reports/create_report.html', {'form': form, 'setup_form': setup_form})
         
         
         # report_type = "long_form"
@@ -46,8 +48,8 @@ def create_report(request):
     # return render(request, 'reports/home.html')
 
 
-def presets(request):
-    return render(request, 'reports/presets.html')
+def setups(request):
+    return render(request, 'reports/setups.html')
 
 def report_list(request):
     reports = Report.objects.all()
