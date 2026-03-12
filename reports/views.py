@@ -13,22 +13,27 @@ def home(request):
     return render(request, 'reports/home.html')
 
 def create_report(request):
-    """
-    Create new full report
-    """
     if request.method == 'POST':
         form = ReportForm(request.POST)
         setup_form = SetupForm(request.POST)
         if form.is_valid() and setup_form.is_valid():
-            report = form.save()                      
-            setup = setup_form.save(commit=False)     
-            setup.report = report                     
-            setup.save()                              
+            report = form.save()
+            setup = setup_form.save(commit=False)
+            setup.report = report
+            setup.save()
             return redirect('report-list')
     else:
         form = ReportForm()
         setup_form = SetupForm()
-    return render(request, 'reports/create_report.html', {'form': form, 'setup_form': setup_form})
+    
+    reports = Report.objects.all()
+    setups = Setup.objects.all()
+    return render(request, 'reports/create_report.html', {
+        'form': form,
+        'setup_form': setup_form,
+        'reports': reports,
+        'setups': setups
+    })
 
 def setup_list(request):
     """

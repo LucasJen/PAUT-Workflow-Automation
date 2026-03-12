@@ -15,7 +15,38 @@
 
 <form method="post">
     {% csrf_token %}
-
+    <div class="card">
+        <div class="section-title">Load Existing Report</div>
+        <select id="report-select">
+            <option value="">-- Select a report --</option>
+            {% for report in reports %}
+            <option value="{{ report.pk }}"
+                data-document_title="{{ report.document_title }}"
+                data-client="{{ report.client }}"
+                data-location="{{ report.location }}"
+                data-work_order="{{ report.work_order }}"
+                data-project_number="{{ report.project_number }}"
+                data-report_date="{{ report.report_date }}"
+                data-test_date="{{ report.test_date }}"
+                data-project_type="{{ report.project_type }}"
+                data-procedure="{{ report.procedure }}"
+                data-technician_name="{{ report.technician_name }}"
+                data-certification="{{ report.certification }}"
+                data-assistant_name="{{ report.assistant_name }}"
+                data-assistant_certification="{{ report.assistant_certification }}"
+                data-examination_scope="{{ report.examination_scope }}"
+                data-executive_summary="{{ report.executive_summary }}"
+                data-equipment_id="{{ report.equipment_id }}"
+                data-equipment_overview="{{ report.equipment_overview }}"
+                data-work_scope="{{ report.work_scope }}"
+                data-x_axis_reference="{{ report.x_axis_reference }}"
+                data-y_axis_reference="{{ report.y_axis_reference }}"
+                data-ut_method="{{ report.ut_method }}">
+                {{ report }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
     <!-- Project Information -->
     <div class="card">
         <div class="section-title">Project Information</div>
@@ -152,7 +183,37 @@
             </div>
         </div>
     </div>
-    
+
+    <div class="card">
+        <div class="section-title">Load Existing Setup</div>
+        <select id="setup-select">
+            <option value="">-- Select a setup --</option>
+            {% for setup in setups %}
+            <option value="{{ setup.pk }}"
+                data-manufacturer="{{ setup.manufacturer }}"
+                data-scope_model="{{ setup.scope_model }}"
+                data-scope_serial="{{ setup.scope_serial }}"
+                data-transducer_model="{{ setup.transducer_model }}"
+                data-transducer_serial="{{ setup.transducer_serial }}"
+                data-foc_depth="{{ setup.foc_depth }}"
+                data-wave_propogation="{{ setup.wave_propogation }}"
+                data-freq="{{ setup.freq }}"
+                data-elements="{{ setup.elements }}"
+                data-x_res="{{ setup.x_res }}"
+                data-y_res="{{ setup.y_res }}"
+                data-cal_material="{{ setup.cal_material }}"
+                data-material_temp="{{ setup.material_temp }}"
+                data-cal_block_type="{{ setup.cal_block_type }}"
+                data-cal_block_serial="{{ setup.cal_block_serial }}"
+                data-surface_prep="{{ setup.surface_prep }}"
+                data-tr_min="{{ setup.tr_min }}"
+                data-tr_max="{{ setup.tr_max }}">
+                {{ setup }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
 <!-- UT Equipment Information -->
     <div class="card">
         <div class="section-title">UT Equipment Information</div>
@@ -268,9 +329,40 @@
         <a href="{% url 'report-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
         <button type="submit" class="btn btn-primary">Save Report</button>
     </div>
-
 </form>
+<script>
+    document.getElementById('report-select').addEventListener('change', function() {
+        const selected = this.options[this.selectedIndex];
+        if (!selected.value) return;
+        const fields = [
+            'document_title', 'client', 'location', 'work_order', 'project_number',
+            'report_date', 'test_date', 'project_type', 'procedure', 'technician_name',
+            'certification', 'assistant_name', 'assistant_certification',
+            'examination_scope', 'executive_summary', 'equipment_id',
+            'equipment_overview', 'work_scope', 'x_axis_reference',
+            'y_axis_reference', 'ut_method'
+        ];
+        fields.forEach(field => {
+            const el = document.getElementById('id_' + field);
+            if (el) el.value = selected.dataset[field] || '';
+        });
+    });
 
+    document.getElementById('setup-select').addEventListener('change', function() {
+        const selected = this.options[this.selectedIndex];
+        if (!selected.value) return;
+        const fields = [
+            'manufacturer', 'scope_model', 'scope_serial', 'transducer_model',
+            'transducer_serial', 'foc_depth', 'wave_propogation', 'freq',
+            'elements', 'x_res', 'y_res', 'cal_material', 'material_temp',
+            'cal_block_type', 'cal_block_serial', 'surface_prep', 'tr_min', 'tr_max'
+        ];
+        fields.forEach(field => {
+            const el = document.getElementById('id_' + field);
+            if (el) el.value = selected.dataset[field] || '';
+        });
+    });
+</script>
 </body>
 
 {% endblock %}
