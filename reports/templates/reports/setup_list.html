@@ -6,58 +6,103 @@
 <h1 class="page-title">Setups</h1>
 
 {% if setups %}
-<table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Manufacturer</th>
-            <th>Scope Model</th>
-            <th>Scope Serial</th>
-            <th>Transducer Model</th>
-            <th>Transducer Serial</th>
-            <th>FOC Depth</th>
-            <th>Wave Propagation</th>
-            <th>Frequency</th>
-            <th>Elements</th>
-            <th>X Res</th>
-            <th>Y Res</th>
-            <th>Cal Material</th>
-            <th>Material Temp</th>
-            <th>Cal Block Type</th>
-            <th>Cal Block Serial</th>
-            <th>Surface Prep</th>
-            <th>TR Min</th>
-            <th>TR Max</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for setup in setups %}
-        <tr>
-            <td><a href="{% url 'edit-setups' setup.pk %}">{{ setup.pk }}</a></td>
-            <td>{{ setup.manufacturer }}</td>
-            <td>{{ setup.scope_model }}</td>
-            <td>{{ setup.scope_serial }}</td>
-            <td>{{ setup.transducer_model }}</td>
-            <td>{{ setup.transducer_serial }}</td>
-            <td>{{ setup.foc_depth }}</td>
-            <td>{{ setup.wave_propogation }}</td>
-            <td>{{ setup.freq }}</td>
-            <td>{{ setup.elements }}</td>
-            <td>{{ setup.x_res }}</td>
-            <td>{{ setup.y_res }}</td>
-            <td>{{ setup.cal_material }}</td>
-            <td>{{ setup.material_temp }}</td>
-            <td>{{ setup.cal_block_type }}</td>
-            <td>{{ setup.cal_block_serial }}</td>
-            <td>{{ setup.surface_prep }}</td>
-            <td>{{ setup.tr_min }}</td>
-            <td>{{ setup.tr_max }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<form method="post">
+    {% csrf_token %}
+
+    <div id="action-bar" style="display:none; margin-bottom: 1rem;">
+        <!--Action bar is used to delete, edit, or duplicate the selected entries 
+            Buttons are hidden until a row is selected-->
+        <button type="submit" name="delete" class="btn btn-danger">Delete Selected</button>
+        <button type="submit" name="edit" class="btn btn-primary" id="edit-btn">Edit Selected</button>
+        <button type="submit" name="duplicate" class="btn btn-secondary" id="duplicate-btn">Duplicate Selected</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="select-all"></th>
+                <th>ID</th>
+                <th>Manufacturer</th>
+                <th>Scope Model</th>
+                <th>Scope Serial</th>
+                <th>Transducer Model</th>
+                <th>Transducer Serial</th>
+                <th>FOC Depth</th>
+                <th>Wave Propagation</th>
+                <th>Frequency</th>
+                <th>Elements</th>
+                <th>X Res</th>
+                <th>Y Res</th>
+                <th>Cal Material</th>
+                <th>Material Temp</th>
+                <th>Cal Block Type</th>
+                <th>Cal Block Serial</th>
+                <th>Surface Prep</th>
+                <th>TR Min</th>
+                <th>TR Max</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for setup in setups %}
+            <tr>
+                <td><input type="checkbox" name="selected_setups" value="{{ setup.pk }}" class="row-check"></td>
+                <td>{{ setup.pk }}</td>
+                <td>{{ setup.manufacturer }}</td>
+                <td>{{ setup.scope_model }}</td>
+                <td>{{ setup.scope_serial }}</td>
+                <td>{{ setup.transducer_model }}</td>
+                <td>{{ setup.transducer_serial }}</td>
+                <td>{{ setup.foc_depth }}</td>
+                <td>{{ setup.wave_propogation }}</td>
+                <td>{{ setup.freq }}</td>
+                <td>{{ setup.elements }}</td>
+                <td>{{ setup.x_res }}</td>
+                <td>{{ setup.y_res }}</td>
+                <td>{{ setup.cal_material }}</td>
+                <td>{{ setup.material_temp }}</td>
+                <td>{{ setup.cal_block_type }}</td>
+                <td>{{ setup.cal_block_serial }}</td>
+                <td>{{ setup.surface_prep }}</td>
+                <td>{{ setup.tr_min }}</td>
+                <td>{{ setup.tr_max }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</form>
+
 {% else %}
 <p>No setups found.</p>
 {% endif %}
+
+<script>
+    const checkboxes = document.querySelectorAll('.row-check');
+    const selectAll = document.getElementById('select-all');
+    const actionBar = document.getElementById('action-bar');
+    const editBtn = document.getElementById('edit-btn');
+
+    function updateActionBar() {
+        const checked = document.querySelectorAll('.row-check:checked');
+        actionBar.style.display = checked.length > 0 ? 'block' : 'none';
+        editBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', updateActionBar));
+
+    selectAll.addEventListener('change', () => {
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        updateActionBar();
+    });
+
+    function updateActionBar() {
+    // updates action bar when checkbox is toggled
+    const checked = document.querySelectorAll('.row-check:checked');
+    actionBar.style.display = checked.length > 0 ? 'block' : 'none';
+    editBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
+    duplicateBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
+}
+
+    const duplicateBtn = document.getElementById('duplicate-btn');
+</script>
 
 {% endblock %}

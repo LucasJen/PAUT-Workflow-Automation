@@ -35,6 +35,18 @@ def setup_list(request):
     View all setups that are currently in the database
     """
     setups = Setup.objects.all()
+    if request.method == 'POST':
+        selected_pks = request.POST.getlist('selected_setups')
+        if 'delete' in request.POST:
+            Setup.objects.filter(pk__in=selected_pks).delete()
+            return redirect('setup-list')
+        if 'edit' in request.POST and len(selected_pks) == 1:
+            return redirect('edit-setup', pk=selected_pks[0])
+        if 'duplicate' in request.POST and len(selected_pks) == 1:
+            original = get_object_or_404(Setup, pk=selected_pks[0])
+            original.pk = None  # clears the pk, forcing a new row on save
+            original.save()
+            return redirect('setup-list')
     return render(request, 'reports/setup_list.html', {'setups': setups})
 
 def edit_setup(request, pk):
