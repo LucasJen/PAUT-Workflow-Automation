@@ -152,6 +152,117 @@
             </div>
         </div>
     </div>
+    
+<!-- UT Equipment Information -->
+    <div class="card">
+        <div class="section-title">UT Equipment Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ setup_form.manufacturer.label_tag }}
+                {{ setup_form.manufacturer }}
+                {{ setup_form.manufacturer.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.scope_model.label_tag }}
+                {{ setup_form.scope_model }}
+                {{ setup_form.scope_model.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.scope_serial.label_tag }}
+                {{ setup_form.scope_serial }}
+                {{ setup_form.scope_serial.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.transducer_model.label_tag }}
+                {{ setup_form.transducer_model }}
+                {{ setup_form.transducer_model.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.transducer_serial.label_tag }}
+                {{ setup_form.transducer_serial }}
+                {{ setup_form.transducer_serial.errors }}
+            </div>
+        </div>
+    </div>
+
+    <!-- UT Setup Information -->
+    <div class="card">
+        <div class="section-title">UT Setup Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ setup_form.foc_depth.label_tag }}
+                {{ setup_form.foc_depth }}
+                {{ setup_form.foc_depth.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.wave_propogation.label_tag }}
+                {{ setup_form.wave_propogation }}
+                {{ setup_form.wave_propogation.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.freq.label_tag }}
+                {{ setup_form.freq }}
+                {{ setup_form.freq.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.elements.label_tag }}
+                {{ setup_form.elements }}
+                {{ setup_form.elements.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.x_res.label_tag }}
+                {{ setup_form.x_res }}
+                {{ setup_form.x_res.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.y_res.label_tag }}
+                {{ setup_form.y_res }}
+                {{ setup_form.y_res.errors }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Calibration Information -->
+    <div class="card">
+        <div class="section-title">Calibration Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ setup_form.cal_material.label_tag }}
+                {{ setup_form.cal_material }}
+                {{ setup_form.cal_material.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.material_temp.label_tag }}
+                {{ setup_form.material_temp }}
+                {{ setup_form.material_temp.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.cal_block_type.label_tag }}
+                {{ setup_form.cal_block_type }}
+                {{ setup_form.cal_block_type.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.cal_block_serial.label_tag }}
+                {{ setup_form.cal_block_serial }}
+                {{ setup_form.cal_block_serial.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.surface_prep.label_tag }}
+                {{ setup_form.surface_prep }}
+                {{ setup_form.surface_prep.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.tr_min.label_tag }}
+                {{ setup_form.tr_min }}
+                {{ setup_form.tr_min.errors }}
+            </div>
+            <div class="field">
+                {{ setup_form.tr_max.label_tag }}
+                {{ setup_form.tr_max }}
+                {{ setup_form.tr_max.errors }}
+            </div>
+        </div>
+    </div>
 
     <div class="actions">
         <a href="{% url 'report-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>

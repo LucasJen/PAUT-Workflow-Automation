@@ -9,4 +9,4 @@ class ReportForm(ModelForm):
 class SetupForm(ModelForm):
     class Meta:
         model = Setup
-        fields = '__all__'
+        exclude = ['report']
