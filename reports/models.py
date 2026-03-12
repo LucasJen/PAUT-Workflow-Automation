@@ -18,6 +18,8 @@ class Report(models.Model):
     # Technician Information
     technician_name = models.CharField(max_length=200)
     certification = models.CharField(max_length=200)
+    assistant_name = models.CharField(max_length=200, blank=True)
+    assistant_certification = models.CharField(max_length=200, blank=True)
 
     # Executive Summary
     examination_scope = models.TextField()
