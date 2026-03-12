@@ -10,7 +10,6 @@
     <thead>
         <tr>
             <th>ID</th>
-            <th>Report</th>
             <th>Manufacturer</th>
             <th>Scope Model</th>
             <th>Scope Serial</th>
@@ -34,8 +33,7 @@
     <tbody>
         {% for setup in setups %}
         <tr>
-            <td>{{ setup.pk }}</td>
-            <td>{{ setup.report }}</td>
+            <td><a href="{% url 'edit-setups' setup.pk %}">{{ setup.pk }}</a></td>
             <td>{{ setup.manufacturer }}</td>
             <td>{{ setup.scope_model }}</td>
             <td>{{ setup.scope_serial }}</td>
