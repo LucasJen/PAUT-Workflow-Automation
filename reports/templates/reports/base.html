@@ -31,23 +31,20 @@
             <footer>
                 © {% now "Y" %} No touchy
             </footer>
-
         </div>
 
         <!-- Navigation Sidebar -->
         <div class="col-lg-auto sidebar">
 
             <h6 class="text-uppercase text-muted mb-3">Navigation</h6>
-
+            
+            <a href="{% url 'home'%}">Home</a>
             <a href="{% url 'create-report' %}">Long Form Report</a>
             <a href="{% url 'report-list'%}">Report list</a>
-            <a href="{% url 'setups'%}">Setups</a>
-
+            <a href="{% url 'setup-list'%}">Setups</a>
 
             <hr>
-
         </div>
-
     </div>
 </div>
 

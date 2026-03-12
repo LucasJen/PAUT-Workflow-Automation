@@ -1,9 +1,13 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.conf import settings
 from .services.document_processor import WordTemplateProcessor
 import os
 from .forms import ReportForm, SetupForm
-from .models import Report
+from .models import Report, Setup
+
+
+def home(request):
+    return render(request, 'reports/home.html')
 
 def create_report(request):
     if request.method == 'POST':
@@ -46,9 +50,23 @@ def create_report(request):
         
     # return render(request, 'reports/home.html')
 
+def setup_list(request):
+    setups = Setup.objects.all()
+    return render(request, 'reports/setup_list.html', {'setups': setups})
 
-def setups(request):
-    return render(request, 'reports/setups.html')
+def edit_setups(request):
+    setup = get_object_or_404(Setup, pk=pk)
+    if request.method == 'POST':
+        if 'delete' in request.POST:
+            setup.delete()
+            return redirect('report-list')
+        form = SetupForm(request.POST, instance=setup)
+        if form.is_valid():
+            form.save()
+            return redirect('report-list')
+    else:
+        form = SetupForm(instance=setup)
+    return render(request, 'reports/edit_setups.html', {'form': form, 'setup': setup})
 
 def report_list(request):
     reports = Report.objects.all()
