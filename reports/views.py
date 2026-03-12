@@ -12,7 +12,6 @@ def create_report(request):
         if form.is_valid() and setup_form.is_valid():
             form.save()
             setup_form.save()
-            return redirect('report-list')
     else:
         form = ReportForm()
         setup_form = SetupForm()
