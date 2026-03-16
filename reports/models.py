@@ -4,6 +4,9 @@ class Report(models.Model):
     """
     The reports model is used to store user input data with specific job information.
     """
+    # Project File Name
+    document_filename = models.CharField(max_length=200)
+
     # Project Information
     document_title = models.CharField(max_length=200)
     client = models.CharField(max_length=200)

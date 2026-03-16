@@ -12,6 +12,15 @@
 <form method="post">
     {% csrf_token %}
 
+    <!-- Project Filename-->
+    <div class="card">
+        <div class="field">
+            {{ form.document_filename.label_tag }}
+            {{ form.document_filename }}
+            {{ form.document_filename.errors }}
+        </div>
+    </div>
+    
     <!-- Project Information -->
     <div class="card">
         <div class="section-title">Project Information</div>
