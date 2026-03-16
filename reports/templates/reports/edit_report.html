@@ -1,0 +1,154 @@
+{% extends 'reports/base.html' %}
+{% load static %}
+
+{% block styles %}
+<link rel="stylesheet" href="{% static 'reports/css/create_report_styles.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<h1 class="page-title">Edit Report</h1>
+
+<form method="post">
+    {% csrf_token %}
+
+    <!-- Project Information -->
+    <div class="card">
+        <div class="section-title">Project Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.document_title.label_tag }}
+                {{ form.document_title }}
+                {{ form.document_title.errors }}
+            </div>
+            <div class="field">
+                {{ form.client.label_tag }}
+                {{ form.client }}
+                {{ form.client.errors }}
+            </div>
+            <div class="field">
+                {{ form.location.label_tag }}
+                {{ form.location }}
+                {{ form.location.errors }}
+            </div>
+            <div class="field">
+                {{ form.work_order.label_tag }}
+                {{ form.work_order }}
+                {{ form.work_order.errors }}
+            </div>
+            <div class="field">
+                {{ form.project_number.label_tag }}
+                {{ form.project_number }}
+                {{ form.project_number.errors }}
+            </div>
+            <div class="field">
+                {{ form.project_type.label_tag }}
+                {{ form.project_type }}
+                {{ form.project_type.errors }}
+            </div>
+            <div class="field">
+                {{ form.report_date.label_tag }}
+                {{ form.report_date }}
+                {{ form.report_date.errors }}
+            </div>
+            <div class="field">
+                {{ form.test_date.label_tag }}
+                {{ form.test_date }}
+                {{ form.test_date.errors }}
+            </div>
+            <div class="field">
+                {{ form.procedure.label_tag }}
+                {{ form.procedure }}
+                {{ form.procedure.errors }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Technician Information -->
+    <div class="card">
+        <div class="section-title">Technician Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.technician_name.label_tag }}
+                {{ form.technician_name }}
+                {{ form.technician_name.errors }}
+            </div>
+            <div class="field">
+                {{ form.certification.label_tag }}
+                {{ form.certification }}
+                {{ form.certification.errors }}
+            </div>
+            <div class="field">
+                {{ form.assistant_name.label_tag }}
+                {{ form.assistant_name }}
+                {{ form.assistant_name.errors }}
+            </div>
+            <div class="field">
+                {{ form.assistant_certification.label_tag }}
+                {{ form.assistant_certification }}
+                {{ form.assistant_certification.errors }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <div class="card">
+        <div class="section-title">Executive Summary</div>
+        <div class="field">
+            {{ form.examination_scope.label_tag }}
+            {{ form.examination_scope }}
+            {{ form.examination_scope.errors }}
+        </div>
+        <div class="field">
+            {{ form.executive_summary.label_tag }}
+            {{ form.executive_summary }}
+            {{ form.executive_summary.errors }}
+        </div>
+    </div>
+
+    <!-- Job Scope, References and Method -->
+    <div class="card">
+        <div class="section-title">Job Scope, References and Method</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.equipment_id.label_tag }}
+                {{ form.equipment_id }}
+                {{ form.equipment_id.errors }}
+            </div>
+            <div class="field">
+                {{ form.ut_method.label_tag }}
+                {{ form.ut_method }}
+                {{ form.ut_method.errors }}
+            </div>
+            <div class="field">
+                {{ form.x_axis_reference.label_tag }}
+                {{ form.x_axis_reference }}
+                {{ form.x_axis_reference.errors }}
+            </div>
+            <div class="field">
+                {{ form.y_axis_reference.label_tag }}
+                {{ form.y_axis_reference }}
+                {{ form.y_axis_reference.errors }}
+            </div>
+        </div>
+        <div class="field">
+            {{ form.equipment_overview.label_tag }}
+            {{ form.equipment_overview }}
+            {{ form.equipment_overview.errors }}
+        </div>
+        <div class="field">
+            {{ form.work_scope.label_tag }}
+            {{ form.work_scope }}
+            {{ form.work_scope.errors }}
+        </div>
+    </div>
+
+    <div class="actions">
+        <button type="submit" name="delete" class="btn btn-danger">Delete Report</button>
+        <a href="{% url 'report-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+
+</form>
+
+{% endblock %}

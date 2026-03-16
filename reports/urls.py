@@ -8,4 +8,5 @@ urlpatterns = [
     path('setup/<int:pk>/edit/', views.edit_setup, name='edit-setup'),
     path('reports/', views.report_list, name='report-list'),
     path('report/<int:pk>/generate/', views.generate_report, name='generate-report'),
+    path('reports/<int:pk>/edit/', views.edit_existing_report, name='edit-report'),
 ]
