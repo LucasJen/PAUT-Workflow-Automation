@@ -13,6 +13,9 @@ def home(request):
     return render(request, 'reports/home.html')
 
 def create_report(request):
+    """
+    Takes user input to either save the input as report and setup information or to generate a report
+    """
     if request.method == 'POST':
         form = ReportForm(request.POST)
         setup_form = SetupForm(request.POST)
@@ -21,6 +24,8 @@ def create_report(request):
             setup = setup_form.save(commit=False)
             setup.report = report
             setup.save()
+            print("setup save")
+            print(setup)
             return redirect('report-list')
     else:
         form = ReportForm()
@@ -36,6 +41,9 @@ def create_report(request):
     })
 
 def generate_report(request, pk):
+    """
+    Calls find and replace functions to act on a report template
+    """
     report = get_object_or_404(Report, pk=pk)
     setup = report.setups.first()
     # find and replace logic will go here

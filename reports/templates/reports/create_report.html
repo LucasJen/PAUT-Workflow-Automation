@@ -11,8 +11,14 @@
 
 <form method="post">
     {% csrf_token %}
-    <input type="text" name="document_filename" value="-- New Report -- " class="form-control form-control-lg fw-bold mb-3" style="font-size: 2rem;">
-
+        <div class="form-control form-control-lg fw-bold mb-3" value="New Report">
+            {{ form.document_filename.label_tag }}
+        <input type="text"
+            name="document_filename"
+            value="{{ form.document_filename.value|default:'-- New Report --' }}"
+            class="form-control form-control-lg fw-bold mb-3">
+            {{ form.document_filename.errors }}
+        </div>
     <div class="card">
         <div class="section-title">Load Existing Report</div>
         <div style="display:flex; gap: 0.75rem; align-items: center;">
@@ -20,6 +26,7 @@
             <option value="">-- Select a report --</option>
             {% for report in reports %}
             <option value="{{ report.pk }}"
+                data-document_filename="{{ report.document_filename}}"
                 data-document_title="{{ report.document_title }}"
                 data-client="{{ report.client }}"
                 data-location="{{ report.location }}"
