@@ -21,11 +21,14 @@ class WordTemplateProcessor:
         self.replace_in_table_cells_split_runs(placeholder, replacement)
 
     def replace_text_in_paragraphs(self, paragraph, placeholder, replacement):
-    # Replaces text in paragraphs
-        if placeholder in paragraph.text:
+        full_text = "".join(run.text for run in paragraph.runs)
+        if placeholder in full_text:
+            new_text = full_text.replace(placeholder, replacement)
             for run in paragraph.runs:
-                if placeholder in run.text:
-                    run.text = run.text.replace(placeholder, replacement)
+                run.text = ""
+            if paragraph.runs:
+                paragraph.runs[0].text = new_text
+                print(f'Replaced {placeholder} with {replacement}')
 
     def replace_in_table_cells_split_runs(self, placeholder, replacement):
     # Replaces text in tables, accounts for text in split rows, which can happen when cells are merged.
@@ -36,6 +39,7 @@ class WordTemplateProcessor:
                         full_text = "".join(run.text for run in paragraph.runs)
                         if placeholder in full_text:
                             new_text = full_text.replace(placeholder, replacement)
+                            print(f'Replaced {replacement}')
                             for run in paragraph.runs:
                                 run.text = ""
                             paragraph.runs[0].text = new_text
