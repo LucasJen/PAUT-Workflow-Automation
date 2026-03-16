@@ -1,9 +1,9 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.conf import settings
 from .services.document_processor import WordTemplateProcessor
-import os
 from .forms import ReportForm, SetupForm
 from .models import Report, Setup
+import os
 
 
 def home(request):
@@ -46,12 +46,31 @@ def generate_report(request, pk):
     """
     report = get_object_or_404(Report, pk=pk)
     setup = report.setups.first()
-    # find and replace logic will go here
-    return redirect('report-list')
+
+    template_path = os.path.join(settings.BASE_DIR, 'templates', 'documents', 'long_form_templates.docx') # TODO: tweak dir location
+    output_path = os.path.join(settings.BASE_DIR, 'output' f'{report.document_filename}.docx')
+
+    # Creates object to define the input document and output location
+    # TODO will likely make this selectable by user to allow different report formats.
+    processor = WordTemplateProcessor(template_path, output_path)
+
+    # Excluded fields are not ran during the find and replace function.
+    excluded_fields = {'id', 'document_filename'}
+
+    # uses the model's meta object to match field names to their respective placeholder
+    for field in report._meta.get_fields():
+        if field.name in excluded_fields:
+            continue
+        value = getattr(report, field.name, '')
+        placeholder = f'{{{{{field.name}}}}}' # Placeholder format: {{example_placeholder}}
+        processor.replace(placeholder, str(value) if value else '')
+
+    processor.save()
+    return redirect('create-report')
 
 def setup_list(request):
     """
-    View all setups that are currently in the database
+    View all setups that are currently in the database, references Setup model
     """
     setups = Setup.objects.all()
     if request.method == 'POST':
