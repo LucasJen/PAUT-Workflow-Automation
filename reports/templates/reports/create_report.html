@@ -15,9 +15,11 @@
 
 <form method="post">
     {% csrf_token %}
+
     <div class="card">
         <div class="section-title">Load Existing Report</div>
-        <select id="report-select">
+        <div style="display:flex; gap: 0.75rem; align-items: center;">
+            <select id="report-select" style="flex: 1;">
             <option value="">-- Select a report --</option>
             {% for report in reports %}
             <option value="{{ report.pk }}"
@@ -46,7 +48,10 @@
             </option>
             {% endfor %}
         </select>
+        <button type="button" class="btn btn-secondary clear-btn" data-fields="document_title,client,location,work_order,project_number,report_date,test_date,project_type,procedure,technician_name,certification,assistant_name,assistant_certification,examination_scope,executive_summary,equipment_id,equipment_overview,work_scope,x_axis_reference,y_axis_reference,ut_method">Clear All</button>
+        </div>
     </div>
+
     <!-- Project Information -->
     <div class="card">
         <div class="section-title">Project Information</div>
@@ -186,7 +191,8 @@
 
     <div class="card">
         <div class="section-title">Load Existing Setup</div>
-        <select id="setup-select">
+        <div style="display:flex; gap: 0.75rem; align-items: center;">
+            <select id="setup-select" style="flex: 1;">
             <option value="">-- Select a setup --</option>
             {% for setup in setups %}
             <option value="{{ setup.pk }}"
@@ -212,9 +218,11 @@
             </option>
             {% endfor %}
         </select>
+        <button type="button" class="btn btn-secondary clear-btn" data-fields="manufacturer,scope_model,scope_serial,transducer_model,transducer_serial,foc_depth,wave_propogation,freq,elements,x_res,y_res,cal_material,material_temp,cal_block_type,cal_block_serial,surface_prep,tr_min,tr_max">Clear All</button>
+        </div>
     </div>
 
-<!-- UT Equipment Information -->
+    <!-- UT Equipment Information -->
     <div class="card">
         <div class="section-title">UT Equipment Information</div>
         <div class="grid-2">
@@ -328,8 +336,10 @@
     <div class="actions">
         <a href="{% url 'report-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
         <button type="submit" class="btn btn-primary">Save Report</button>
+        <button type="submit" name="generate" class="btn btn-success">Generate Report</button>
     </div>
 </form>
+
 <script>
     document.getElementById('report-select').addEventListener('change', function() {
         const selected = this.options[this.selectedIndex];
@@ -360,6 +370,15 @@
         fields.forEach(field => {
             const el = document.getElementById('id_' + field);
             if (el) el.value = selected.dataset[field] || '';
+        });
+    });
+
+    document.querySelectorAll('.clear-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.dataset.fields.split(',').forEach(field => {
+                const el = document.getElementById('id_' + field);
+                if (el) el.value = '';
+            });
         });
     });
 </script>
