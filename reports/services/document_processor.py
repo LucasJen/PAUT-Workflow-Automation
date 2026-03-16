@@ -23,8 +23,10 @@ class WordTemplateProcessor:
     def replace_text_in_paragraphs(self, paragraph, placeholder, replacement):
     # Replaces text in paragraphs
         if placeholder in paragraph.text:
+            print(f'Found {placeholder} in paragraph but runs are:')
             for run in paragraph.runs:
                 if placeholder in run.text:
+                    print(f'Replaced {replacement}')
                     run.text = run.text.replace(placeholder, replacement)
 
     def replace_in_table_cells_split_runs(self, placeholder, replacement):
@@ -36,6 +38,7 @@ class WordTemplateProcessor:
                         full_text = "".join(run.text for run in paragraph.runs)
                         if placeholder in full_text:
                             new_text = full_text.replace(placeholder, replacement)
+                            print(f'Replaced {replacement}')
                             for run in paragraph.runs:
                                 run.text = ""
                             paragraph.runs[0].text = new_text

@@ -26,6 +26,9 @@ def create_report(request):
             setup.save()
             print("setup save")
             print(setup)
+            # If generate report button is pressed, will run the generate report view
+            if 'generate' in request.POST:
+                return redirect('generate-report', pk=report.pk)
             return redirect('report-list')
     else:
         form = ReportForm()
@@ -47,8 +50,8 @@ def generate_report(request, pk):
     report = get_object_or_404(Report, pk=pk)
     setup = report.setups.first()
 
-    template_path = os.path.join(settings.BASE_DIR, 'templates', 'documents', 'long_form_templates.docx') # TODO: tweak dir location
-    output_path = os.path.join(settings.BASE_DIR, 'output' f'{report.document_filename}.docx')
+    template_path = os.path.join(settings.BASE_DIR, 'word_templates', 'long_form_template.docx')
+    output_path = os.path.join(settings.BASE_DIR, 'outputs', f'{report.document_filename}.docx')
 
     # Creates object to define the input document and output location
     # TODO will likely make this selectable by user to allow different report formats.
@@ -58,12 +61,21 @@ def generate_report(request, pk):
     excluded_fields = {'id', 'document_filename'}
 
     # uses the model's meta object to match field names to their respective placeholder
-    for field in report._meta.get_fields():
+    for field in report._meta.concrete_fields:
         if field.name in excluded_fields:
             continue
         value = getattr(report, field.name, '')
-        placeholder = f'{{{{{field.name}}}}}' # Placeholder format: {{example_placeholder}}
+        placeholder = f'{{{{{field.name.upper()}}}}}' # Placeholder format: {{example_placeholder}}
         processor.replace(placeholder, str(value) if value else '')
+        print(f'Replaced {field.name}')
+
+    for setup_field in setup._meta.concrete_fields:
+        if setup_field.name in excluded_fields:
+            continue
+        setup_value = getattr(setup, setup_field.name)
+        setup_placeholder = f'{{{{{setup_field.name.upper()}}}}}' # Placeholder format: {{example_placeholder}}
+        processor.replace(setup_placeholder, str(setup_value) if setup_value else '')
+        print(f'Replaced {setup_field.name}')
 
     processor.save()
     return redirect('create-report')
