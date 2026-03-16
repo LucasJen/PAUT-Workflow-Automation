@@ -77,9 +77,38 @@ def edit_setup(request, pk):
         form = SetupForm(instance=setup)
     return render(request, 'reports/edit_setup.html', {'form': form, 'setup': setup})
 
+def edit_existing_report(request, pk):
+    """
+    Edit a single report from the report list
+    """
+    report = get_object_or_404(Report, pk=pk)
+    if request.method == 'POST':
+        if 'delete' in request.POST:
+            report.delete()
+            return redirect('report-list')
+        form = ReportForm(request.POST, instance=report)
+        if form.is_valid():
+            form.save()
+            return redirect('report-list')
+    else:
+        form = ReportForm(instance=report)
+    return render(request, 'reports/edit_report.html', {'form': form, 'report': report})
+
 def report_list(request):
     """
     View all report information stored within the database
     """
     reports = Report.objects.all()
+    if request.method == 'POST':
+        selected_pks = request.POST.getlist('selected_reports')
+        if 'delete' in request.POST:
+            Report.objects.filter(pk__in=selected_pks).delete()
+            return redirect('report-list')
+        if 'edit' in request.POST and len(selected_pks) == 1:
+            return redirect('edit-report', pk=selected_pks[0])
+        if 'duplicate' in request.POST and len(selected_pks) == 1:
+            original = get_object_or_404(Report, pk=selected_pks[0])
+            original.pk = None
+            original.save()
+            return redirect('report-list')
     return render(request, 'reports/report_list.html', {'reports': reports})

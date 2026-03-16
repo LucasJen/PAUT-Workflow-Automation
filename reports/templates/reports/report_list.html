@@ -2,38 +2,101 @@
 
 {% block content %}
 
-<h1>Reports</h1>
-<a href="{% url 'create-report' %}">+ New Report</a>
-
 {% if reports %}
-<table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Document Title</th>
-            <th>Client</th>
-            <th>Location</th>
-            <th>Work Order</th>
-            <th>Report Date</th>
-            <th>Technician</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for report in reports %}
-        <tr>
-            <td>{{ report.pk }}</td>
-            <td>{{ report.document_title }}</td>
-            <td>{{ report.client }}</td>
-            <td>{{ report.location }}</td>
-            <td>{{ report.work_order }}</td>
-            <td>{{ report.report_date }}</td>
-            <td>{{ report.technician_name }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<form method="post">
+{% csrf_token %}
+<div class="d-flex align-items-center gap-3 mb-3">
+    <h1 class="page-title mb-0">Reports</h1>
+    <div id="action-bar" style="visibility:hidden;">
+        <button type="submit" name="delete" class="btn btn-danger">Delete Selected</button>
+        <button type="submit" name="edit" class="btn btn-primary" id="edit-btn">Edit Selected</button>
+        <button type="submit" name="duplicate" class="btn btn-secondary" id="duplicate-btn">Duplicate Selected</button>
+    </div>
+    <a href="{% url 'create-report' %}" class="btn btn-success ms-auto">+ New Report</a>
+</div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped table-hover align-middle setup-table">
+            <thead class="table-dark">
+                <tr>
+                    <th><input type="checkbox" id="select-all"></th>
+                    <th>ID</th>
+                    <th>Document Title</th>
+                    <th>Client</th>
+                    <th>Location</th>
+                    <th>Work Order</th>
+                    <th>Report Date</th>
+                    <th>Technician</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in reports %}
+                <tr class="setup-row">
+                    <td><input type="checkbox" name="selected_reports" value="{{ report.pk }}" class="row-check"></td>
+                    <td>{{ report.pk }}</td>
+                    <td>{{ report.document_title }}</td>
+                    <td>{{ report.client }}</td>
+                    <td>{{ report.location }}</td>
+                    <td>{{ report.work_order }}</td>
+                    <td>{{ report.report_date }}</td>
+                    <td>{{ report.technician_name }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</form>
+
 {% else %}
+<div class="d-flex align-items-center gap-3 mb-3">
+    <h1 class="page-title mb-0">Reports</h1>
+    <a href="{% url 'create-report' %}" class="btn btn-success">+ New Report</a>
+</div>
 <p>No reports found. <a href="{% url 'create-report' %}">Create one.</a></p>
 {% endif %}
+
+<style>
+    .setup-table thead th {
+        white-space: nowrap;
+        font-size: 0.85rem;
+        letter-spacing: 0.04em;
+    }
+    .setup-table tbody td {
+        font-size: 0.9rem;
+    }
+    .setup-row.selected {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+    }
+</style>
+
+<script>
+    const checkboxes = document.querySelectorAll('.row-check');
+    const selectAll = document.getElementById('select-all');
+    const actionBar = document.getElementById('action-bar');
+    const editBtn = document.getElementById('edit-btn');
+    const duplicateBtn = document.getElementById('duplicate-btn');
+
+    function updateActionBar() {
+        const checked = document.querySelectorAll('.row-check:checked');
+        actionBar.style.visibility = checked.length > 0 ? 'visible' : 'hidden';
+        editBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
+        duplicateBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            cb.closest('tr').classList.toggle('selected', cb.checked);
+            updateActionBar();
+        });
+    });
+
+    selectAll.addEventListener('change', () => {
+        checkboxes.forEach(cb => {
+            cb.checked = selectAll.checked;
+            cb.closest('tr').classList.toggle('selected', cb.checked);
+        });
+        updateActionBar();
+    });
+</script>
 
 {% endblock %}
