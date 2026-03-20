@@ -115,6 +115,13 @@ def edit_setup(request, pk):
         form = SetupForm(instance=setup)
     return render(request, 'reports/edit_setup.html', {'form': form, 'setup': setup})
 
+def new_report(request):
+    """
+    Creates a blank report and redirects to the edit view
+    """
+    report = Report.objects.create()
+    return redirect('edit-report', pk=report.pk)
+
 def edit_existing_report(request, pk):
     """
     Edit a single report from the report list
