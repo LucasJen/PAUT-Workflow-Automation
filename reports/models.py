@@ -8,7 +8,7 @@ class Report(models.Model):
     document_filename = models.CharField(max_length=200, blank=True)
 
     # Project Information
-    document_title = models.CharField(max_length=200, blank=True)
+    document_title = models.TextField(blank=True)
     client = models.CharField(max_length=200, blank=True)
     location = models.CharField(max_length=200, blank=True)
     work_order = models.CharField(max_length=100, blank=True)

@@ -1,4 +1,4 @@
-from django.forms import ModelForm, DateInput
+from django.forms import ModelForm, DateInput, Textarea
 from .models import Report, Setup
 from datetime import date
 
@@ -7,6 +7,7 @@ class ReportForm(ModelForm):
         model = Report
         fields = '__all__'
         widgets = {
+            'document_title': Textarea(attrs={'rows': 1, 'style': 'min-height: 0; resize: vertical;'}),
             'report_date': DateInput(attrs={'type': 'date', 'value': date.today().isoformat()}),
             'test_date': DateInput(attrs={'type': 'date'}),
         }

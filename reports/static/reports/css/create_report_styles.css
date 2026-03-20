@@ -53,6 +53,32 @@ body {
     gap: 0.3rem;
 }
 
+.setup-card .field {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.setup-card .field label {
+    min-width: 130px;
+    flex-shrink: 0;
+}
+
+.setup-card .field input,
+.setup-card .field select {
+    flex: 1;
+    min-width: 0;
+}
+
+.setup-card .field .errorlist {
+    flex-basis: 100%;
+}
+
+.setup-card .section-title:not(:first-child) {
+    margin-top: 1.25rem;
+}
+
 label {
     font-size: 0.8rem;
     font-weight: 600;
