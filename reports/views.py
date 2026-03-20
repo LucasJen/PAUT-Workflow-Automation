@@ -32,7 +32,7 @@ def create_report(request):
         form = ReportForm()
         setup_form = SetupForm()
     
-    reports = Report.objects.all()
+    reports = Report.objects.order_by('-pk')
     setups = Setup.objects.all()
     return render(request, 'reports/create_report.html', {
         'form': form,
@@ -98,6 +98,13 @@ def setup_list(request):
             return redirect('setup-list')
     return render(request, 'reports/setup_list.html', {'setups': setups})
 
+def new_setup(request):
+    """
+    Creates a blank setup and redirects to the edit view
+    """
+    setup = Setup.objects.create()
+    return redirect('edit-setup', pk=setup.pk)
+
 def edit_setup(request, pk):
     """
     Edit a single setup from the setup list
@@ -114,6 +121,13 @@ def edit_setup(request, pk):
     else:
         form = SetupForm(instance=setup)
     return render(request, 'reports/edit_setup.html', {'form': form, 'setup': setup})
+
+def new_report(request):
+    """
+    Creates a blank report and redirects to the edit view
+    """
+    report = Report.objects.create()
+    return redirect('edit-report', pk=report.pk)
 
 def edit_existing_report(request, pk):
     """

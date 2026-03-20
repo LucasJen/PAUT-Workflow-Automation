@@ -12,7 +12,8 @@
         <button type="submit" name="edit" class="btn btn-primary" id="edit-btn">Edit Selected</button>
         <button type="submit" name="duplicate" class="btn btn-secondary" id="duplicate-btn">Duplicate Selected</button>
     </div>
-    <a href="{% url 'create-report' %}" class="btn btn-success ms-auto">+ New Report</a>
+    <input type="text" id="keyword-search" class="form-control" placeholder="Search..." style="max-width: 250px;">
+    <a href="{% url 'new-report' %}" class="btn btn-success ms-auto">+ New Report</a>
 </div>
 
     <div class="table-responsive">
@@ -20,13 +21,10 @@
             <thead class="table-dark">
                 <tr>
                     <th><input type="checkbox" id="select-all"></th>
-                    <th>ID</th>
-                    <th>Document Title</th>
-                    <th>Client</th>
-                    <th>Location</th>
-                    <th>Work Order</th>
-                    <th>Report Date</th>
-                    <th>Technician</th>
+                    <th class="sortable" data-col="0">ID <span class="sort-indicator"></span></th>
+                    <th class="sortable" data-col="1">Filename <span class="sort-indicator"></span></th>
+                    <th class="sortable" data-col="2">Report Date <span class="sort-indicator"></span></th>
+                    <th class="sortable" data-col="3">Technician <span class="sort-indicator"></span></th>
                 </tr>
             </thead>
             <tbody>
@@ -34,10 +32,7 @@
                 <tr class="setup-row">
                     <td><input type="checkbox" name="selected_reports" value="{{ report.pk }}" class="row-check"></td>
                     <td>{{ report.pk }}</td>
-                    <td>{{ report.document_title }}</td>
-                    <td>{{ report.client }}</td>
-                    <td>{{ report.location }}</td>
-                    <td>{{ report.work_order }}</td>
+                    <td>{{ report.document_filename }}</td>
                     <td>{{ report.report_date }}</td>
                     <td>{{ report.technician_name }}</td>
                 </tr>
@@ -50,7 +45,7 @@
 {% else %}
 <div class="d-flex align-items-center gap-3 mb-3">
     <h1 class="page-title mb-0">Reports</h1>
-    <a href="{% url 'create-report' %}" class="btn btn-success">+ New Report</a>
+    <a href="{% url 'new-report' %}" class="btn btn-success">+ New Report</a>
 </div>
 <p>No reports found. <a href="{% url 'create-report' %}">Create one.</a></p>
 {% endif %}
@@ -67,6 +62,20 @@
     .setup-row.selected {
         background-color: rgba(13, 110, 253, 0.1) !important;
     }
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+    .sortable:hover {
+        background-color: #343a40;
+    }
+    .sort-indicator {
+        font-size: 0.75rem;
+        margin-left: 0.25rem;
+        opacity: 0.5;
+    }
+    .sortable.asc .sort-indicator::after { content: '▲'; opacity: 1; }
+    .sortable.desc .sort-indicator::after { content: '▼'; opacity: 1; }
 </style>
 
 <script>
@@ -96,6 +105,46 @@
             cb.closest('tr').classList.toggle('selected', cb.checked);
         });
         updateActionBar();
+    });
+
+    // Keyword search
+    document.getElementById('keyword-search').addEventListener('input', function () {
+        const keyword = this.value.toLowerCase();
+        document.querySelectorAll('.setup-table tbody tr').forEach(row => {
+            const matches = Array.from(row.cells).some(cell => cell.textContent.toLowerCase().includes(keyword));
+            row.style.display = matches ? '' : 'none';
+        });
+    });
+
+    // Column sorting
+    let sortCol = null;
+    let sortAsc = true;
+
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = parseInt(th.dataset.col) + 1; // +1 for checkbox column
+            if (sortCol === col) {
+                sortAsc = !sortAsc;
+            } else {
+                sortCol = col;
+                sortAsc = true;
+            }
+
+            document.querySelectorAll('.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+            th.classList.add(sortAsc ? 'asc' : 'desc');
+
+            const tbody = document.querySelector('.setup-table tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            rows.sort((a, b) => {
+                const aText = a.cells[col]?.textContent.trim() ?? '';
+                const bText = b.cells[col]?.textContent.trim() ?? '';
+                const aNum = parseFloat(aText);
+                const bNum = parseFloat(bText);
+                if (!isNaN(aNum) && !isNaN(bNum)) return sortAsc ? aNum - bNum : bNum - aNum;
+                return sortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+            });
+            rows.forEach(row => tbody.appendChild(row));
+        });
     });
 </script>
 

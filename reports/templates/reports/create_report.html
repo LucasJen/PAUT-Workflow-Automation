@@ -11,14 +11,6 @@
 
 <form method="post">
     {% csrf_token %}
-        <div class="form-control form-control-lg fw-bold mb-3" value="New Report">
-            {{ form.document_filename.label_tag }}
-        <input type="text"
-            name="document_filename"
-            value="{{ form.document_filename.value|default:'-- New Report --' }}"
-            class="form-control form-control-lg fw-bold mb-3">
-            {{ form.document_filename.errors }}
-        </div>
     <div class="card">
         <div class="section-title">Load Existing Report</div>
         <div style="display:flex; gap: 0.75rem; align-items: center;">
@@ -56,15 +48,26 @@
         </div>
     </div>
 
+    <div class="form-control form-control-lg fw-bold mb-3">
+        {{ form.document_filename.label_tag }}
+        <input type="text"
+            name="document_filename"
+            value="{{ form.document_filename.value|default:'-- New Report --' }}"
+            class="form-control form-control-lg fw-bold mb-3">
+        {{ form.document_filename.errors }}
+    </div>
+
     <!-- Project Information -->
     <div class="card">
         <div class="section-title">Project Information</div>
-        <div class="grid-2">
+        <div class="grid-1">
             <div class="field">
                 {{ form.document_title.label_tag }}
                 {{ form.document_title }}
                 {{ form.document_title.errors }}
             </div>
+        </div>
+        <div class="grid-2">
             <div class="field">
                 {{ form.client.label_tag }}
                 {{ form.client }}
@@ -226,8 +229,8 @@
         </div>
     </div>
 
-    <!-- UT Equipment Information -->
-    <div class="card">
+    <!-- Setup Information -->
+    <div class="card setup-card">
         <div class="section-title">UT Equipment Information</div>
         <div class="grid-2">
             <div class="field">
@@ -256,10 +259,7 @@
                 {{ setup_form.transducer_serial.errors }}
             </div>
         </div>
-    </div>
 
-    <!-- UT Setup Information -->
-    <div class="card">
         <div class="section-title">UT Setup Information</div>
         <div class="grid-2">
             <div class="field">
@@ -293,10 +293,7 @@
                 {{ setup_form.y_res.errors }}
             </div>
         </div>
-    </div>
 
-    <!-- Calibration Information -->
-    <div class="card">
         <div class="section-title">Calibration Information</div>
         <div class="grid-2">
             <div class="field">

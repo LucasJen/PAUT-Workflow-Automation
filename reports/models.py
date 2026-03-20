@@ -8,7 +8,7 @@ class Report(models.Model):
     document_filename = models.CharField(max_length=200, blank=True)
 
     # Project Information
-    document_title = models.CharField(max_length=200, blank=True)
+    document_title = models.TextField(blank=True)
     client = models.CharField(max_length=200, blank=True)
     location = models.CharField(max_length=200, blank=True)
     work_order = models.CharField(max_length=100, blank=True)
@@ -37,14 +37,14 @@ class Report(models.Model):
     ut_method = models.CharField(max_length=200, blank=True)
 
     def __str__(self):
-        return f"{self.document_title} - {self.client}"
+        return f"{self.pk} | {self.document_filename}"
 
 
 class Setup(models.Model):
     """
     The setup model will store equipment specific information to be recalled as needed.
     """
-    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='setups')
+    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='setups', null=True, blank=True)
 
     # UT Equipment Information
     manufacturer = models.CharField(max_length=200, blank=True)
