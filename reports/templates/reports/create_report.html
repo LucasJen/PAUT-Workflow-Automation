@@ -206,7 +206,7 @@
                 data-transducer_model="{{ setup.transducer_model }}"
                 data-transducer_serial="{{ setup.transducer_serial }}"
                 data-foc_depth="{{ setup.foc_depth }}"
-                data-wave_propogation="{{ setup.wave_propogation }}"
+                data-wave_propagation="{{ setup.wave_propagation }}"
                 data-freq="{{ setup.freq }}"
                 data-elements="{{ setup.elements }}"
                 data-x_res="{{ setup.x_res }}"
@@ -222,7 +222,7 @@
             </option>
             {% endfor %}
         </select>
-        <button type="button" class="btn btn-secondary clear-btn" data-fields="manufacturer,scope_model,scope_serial,transducer_model,transducer_serial,foc_depth,wave_propogation,freq,elements,x_res,y_res,cal_material,material_temp,cal_block_type,cal_block_serial,surface_prep,tr_min,tr_max">Clear All</button>
+        <button type="button" class="btn btn-secondary clear-btn" data-fields="manufacturer,scope_model,scope_serial,transducer_model,transducer_serial,foc_depth,wave_propagation,freq,elements,x_res,y_res,cal_material,material_temp,cal_block_type,cal_block_serial,surface_prep,tr_min,tr_max">Clear All</button>
         </div>
     </div>
 
@@ -268,9 +268,9 @@
                 {{ setup_form.foc_depth.errors }}
             </div>
             <div class="field">
-                {{ setup_form.wave_propogation.label_tag }}
-                {{ setup_form.wave_propogation }}
-                {{ setup_form.wave_propogation.errors }}
+                {{ setup_form.wave_propagation.label_tag }}
+                {{ setup_form.wave_propagation }}
+                {{ setup_form.wave_propagation.errors }}
             </div>
             <div class="field">
                 {{ setup_form.freq.label_tag }}
@@ -367,7 +367,7 @@
         if (!selected.value) return;
         const fields = [
             'manufacturer', 'scope_model', 'scope_serial', 'transducer_model',
-            'transducer_serial', 'foc_depth', 'wave_propogation', 'freq',
+            'transducer_serial', 'foc_depth', 'wave_propagation', 'freq',
             'elements', 'x_res', 'y_res', 'cal_material', 'material_temp',
             'cal_block_type', 'cal_block_serial', 'surface_prep', 'tr_min', 'tr_max'
         ];
