@@ -37,7 +37,7 @@ class Report(models.Model):
     ut_method = models.CharField(max_length=200, blank=True)
 
     def __str__(self):
-        return f"{self.document_title} - {self.client}"
+        return f"{self.pk} | {self.document_filename}"
 
 
 class Setup(models.Model):

@@ -32,7 +32,7 @@ def create_report(request):
         form = ReportForm()
         setup_form = SetupForm()
     
-    reports = Report.objects.all()
+    reports = Report.objects.order_by('-pk')
     setups = Setup.objects.all()
     return render(request, 'reports/create_report.html', {
         'form': form,
