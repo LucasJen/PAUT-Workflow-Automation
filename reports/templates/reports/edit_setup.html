@@ -12,8 +12,7 @@
 <form method="post">
     {% csrf_token %}
 
-    <!-- UT Equipment Information -->
-    <div class="card">
+    <div class="card setup-card">
         <div class="section-title">UT Equipment Information</div>
         <div class="grid-2">
             <div class="field">
@@ -42,10 +41,7 @@
                 {{ form.transducer_serial.errors }}
             </div>
         </div>
-    </div>
 
-    <!-- UT Setup Information -->
-    <div class="card">
         <div class="section-title">UT Setup Information</div>
         <div class="grid-2">
             <div class="field">
@@ -79,10 +75,7 @@
                 {{ form.y_res.errors }}
             </div>
         </div>
-    </div>
 
-    <!-- Calibration Information -->
-    <div class="card">
         <div class="section-title">Calibration Information</div>
         <div class="grid-2">
             <div class="field">

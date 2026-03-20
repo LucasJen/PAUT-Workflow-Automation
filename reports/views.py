@@ -98,6 +98,13 @@ def setup_list(request):
             return redirect('setup-list')
     return render(request, 'reports/setup_list.html', {'setups': setups})
 
+def new_setup(request):
+    """
+    Creates a blank setup and redirects to the edit view
+    """
+    setup = Setup.objects.create()
+    return redirect('edit-setup', pk=setup.pk)
+
 def edit_setup(request, pk):
     """
     Edit a single setup from the setup list

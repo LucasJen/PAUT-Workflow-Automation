@@ -44,7 +44,7 @@ class Setup(models.Model):
     """
     The setup model will store equipment specific information to be recalled as needed.
     """
-    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='setups')
+    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='setups', null=True, blank=True)
 
     # UT Equipment Information
     manufacturer = models.CharField(max_length=200, blank=True)
