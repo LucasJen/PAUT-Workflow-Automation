@@ -4,6 +4,9 @@ from .services.document_processor import WordTemplateProcessor
 from .forms import ReportForm, SetupForm
 from .models import Report, Setup
 import os
+import json
+import h5py
+import io
 
 
 def home(request):
@@ -145,6 +148,38 @@ def edit_existing_report(request, pk):
     else:
         form = ReportForm(instance=report)
     return render(request, 'reports/edit_report.html', {'form': form, 'report': report})
+
+def nde_upload(request):
+    """
+    Upload and parse an .nde file, displaying the embedded JSON metadata.
+    Also renders a Setup form that can be populated from the parsed JSON and saved.
+    """
+    context = {'form': SetupForm()}
+    if request.method == 'POST':
+        if 'nde_file' in request.FILES:
+            uploaded = request.FILES['nde_file']
+            if not uploaded.name.endswith('.nde'):
+                context['error'] = 'Please upload a valid .nde file.'
+            else:
+                try:
+                    file_bytes = io.BytesIO(uploaded.read())
+                    with h5py.File(file_bytes, 'r') as f:
+                        if 'Public/Setup' not in f:
+                            context['error'] = 'No Setup metadata found in this .nde file.'
+                        else:
+                            raw = f['Public/Setup'][()]
+                            setup_data = json.loads(raw.decode('utf-8'))
+                            context['json_output'] = json.dumps(setup_data, indent=2)
+                except Exception as e:
+                    context['error'] = f'Failed to parse file: {e}'
+        elif 'save_setup' in request.POST:
+            form = SetupForm(request.POST)
+            if form.is_valid():
+                form.save()
+                return redirect('setup-list')
+            context['form'] = form
+    return render(request, 'reports/nde_upload.html', context)
+
 
 def report_list(request):
     """
