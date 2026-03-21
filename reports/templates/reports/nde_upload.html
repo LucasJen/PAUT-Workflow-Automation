@@ -188,17 +188,17 @@
             'id_transducer_serial':  safeGet(d, 'probes', 0, 'serialNumber'),
 
             // UT Setup — phased array process parameters
-            'id_freq':               safeGet(d, 'probes', 0, 'frequency'),
-            'id_elements':           safeGet(d, 'probes', 0, 'elements', 'length'),
-            'id_wave_propagation':   safeGet(d, 'material', 'waveMode'),
-            'id_foc_depth':          safeGet(d, 'groups', 0, 'dataset', 'processes', 0, 'ultrasonicPhasedArray', 'focusing', 'depth'),
+            'id_freq':               safeGet(d, 'probes', 0, 'phasedArrayLinear', 'centralFrequency'),
+            'id_elements':           safeGet(d, 'probes', 0, 'phasedArrayLinear', 'elements', 'length'),
+            'id_wave_propagation':   safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'waveMode'),
+            'id_foc_depth':          safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'focusing', 'distance'),
 
-            // Scan resolution
-            'id_x_res':              safeGet(d, 'groups', 0, 'dataset', 'scan', 'scanAxis', 'resolution'),
-            'id_y_res':              safeGet(d, 'groups', 0, 'dataset', 'scan', 'indexAxis', 'resolution'),
+            // Scan resolution — dimensions[0]=U(scan), dimensions[1]=V(index)
+            'id_x_res':              safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'resolution'),
+            'id_y_res':              safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'resolution'),
 
             // Calibration — specimen material
-            'id_cal_material':       safeGet(d, 'material', 'name'),
+            'id_cal_material':       safeGet(d, 'specimens', 0, 'material', 'name'),
         };
 
         for (const [id, value] of Object.entries(mappings)) {
