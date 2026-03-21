@@ -66,6 +66,24 @@ footer {
     font-size: .8rem;
 }
 
+.sidebar.collapsed {
+    display: none;
+}
+
+.sidebar-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: #6b7280;
+    padding: 0 0.5rem;
+    line-height: 1;
+}
+
+.sidebar-toggle:hover {
+    color: #2563eb;
+}
+
 @media (max-width: 991px) {
     .sidebar {
         min-height: auto;
