@@ -11,4 +11,5 @@ urlpatterns = [
     path('reports/new/', views.new_report, name='new-report'),
     path('report/<int:pk>/generate/', views.generate_report, name='generate-report'),
     path('reports/<int:pk>/edit/', views.edit_existing_report, name='edit-report'),
+    path('nde/', views.nde_upload, name='nde-upload'),
 ]

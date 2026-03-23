@@ -1,0 +1,214 @@
+{% extends 'reports/base.html' %}
+{% load static %}
+
+{% block title %}NDE File Parser{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{% static 'reports/css/create_report_styles.css' %}">
+<style>
+    .json-output {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        border-radius: 6px;
+        padding: 1rem;
+        max-height: 400px;
+        overflow-y: auto;
+        font-size: 0.85rem;
+        white-space: pre;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">NDE File Parser</h2>
+
+<!-- File Upload -->
+<div class="card mb-4" style="max-width: 600px;">
+    <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="nde_file" class="form-label">Select .nde file</label>
+                <input class="form-control" type="file" id="nde_file" name="nde_file" accept=".nde" required>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Parse File</button>
+                {% if json_output %}
+                <button type="button" class="btn btn-secondary" onclick="populateFields()">Populate Fields</button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<!-- Setup Form -->
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card setup-card">
+        <div class="section-title">UT Equipment Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.manufacturer.label_tag }}
+                {{ form.manufacturer }}
+                {{ form.manufacturer.errors }}
+            </div>
+            <div class="field">
+                {{ form.scope_model.label_tag }}
+                {{ form.scope_model }}
+                {{ form.scope_model.errors }}
+            </div>
+            <div class="field">
+                {{ form.scope_serial.label_tag }}
+                {{ form.scope_serial }}
+                {{ form.scope_serial.errors }}
+            </div>
+            <div class="field">
+                {{ form.transducer_model.label_tag }}
+                {{ form.transducer_model }}
+                {{ form.transducer_model.errors }}
+            </div>
+            <div class="field">
+                {{ form.transducer_serial.label_tag }}
+                {{ form.transducer_serial }}
+                {{ form.transducer_serial.errors }}
+            </div>
+        </div>
+
+        <div class="section-title">UT Setup Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.foc_depth.label_tag }}
+                {{ form.foc_depth }}
+                {{ form.foc_depth.errors }}
+            </div>
+            <div class="field">
+                {{ form.wave_propagation.label_tag }}
+                {{ form.wave_propagation }}
+                {{ form.wave_propagation.errors }}
+            </div>
+            <div class="field">
+                {{ form.freq.label_tag }}
+                {{ form.freq }}
+                {{ form.freq.errors }}
+            </div>
+            <div class="field">
+                {{ form.elements.label_tag }}
+                {{ form.elements }}
+                {{ form.elements.errors }}
+            </div>
+            <div class="field">
+                {{ form.x_res.label_tag }}
+                {{ form.x_res }}
+                {{ form.x_res.errors }}
+            </div>
+            <div class="field">
+                {{ form.y_res.label_tag }}
+                {{ form.y_res }}
+                {{ form.y_res.errors }}
+            </div>
+        </div>
+
+        <div class="section-title">Calibration Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.cal_material.label_tag }}
+                {{ form.cal_material }}
+                {{ form.cal_material.errors }}
+            </div>
+            <div class="field">
+                {{ form.material_temp.label_tag }}
+                {{ form.material_temp }}
+                {{ form.material_temp.errors }}
+            </div>
+            <div class="field">
+                {{ form.cal_block_type.label_tag }}
+                {{ form.cal_block_type }}
+                {{ form.cal_block_type.errors }}
+            </div>
+            <div class="field">
+                {{ form.cal_block_serial.label_tag }}
+                {{ form.cal_block_serial }}
+                {{ form.cal_block_serial.errors }}
+            </div>
+            <div class="field">
+                {{ form.surface_prep.label_tag }}
+                {{ form.surface_prep }}
+                {{ form.surface_prep.errors }}
+            </div>
+            <div class="field">
+                {{ form.tr_min.label_tag }}
+                {{ form.tr_min }}
+                {{ form.tr_min.errors }}
+            </div>
+            <div class="field">
+                {{ form.tr_max.label_tag }}
+                {{ form.tr_max }}
+                {{ form.tr_max.errors }}
+            </div>
+        </div>
+    </div>
+
+    <div class="actions mb-4">
+        <a href="{% url 'setup-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
+        <button type="submit" name="save_setup" class="btn btn-primary">Save as New Setup</button>
+    </div>
+
+</form>
+
+<!-- JSON Output -->
+{% if json_output %}
+<h5 class="mb-2">Parsed Setup JSON</h5>
+<pre class="json-output">{{ json_output }}</pre>
+{% endif %}
+
+{% if json_output %}
+<script>
+    const NDE_DATA = {{ json_output|safe }};
+
+    function safeGet(obj, ...keys) {
+        return keys.reduce((acc, key) => acc != null ? acc[key] : undefined, obj);
+    }
+
+    function populateFields() {
+        const d = NDE_DATA;
+
+        const mappings = {
+            // UT Equipment — acquisition unit (instrument/scope)
+            'id_manufacturer':       safeGet(d, 'acquisitionUnits', 0, 'manufacturer'),
+            'id_scope_model':        safeGet(d, 'acquisitionUnits', 0, 'model'),
+            'id_scope_serial':       safeGet(d, 'acquisitionUnits', 0, 'serialNumber'),
+
+            // UT Equipment — probe (transducer)
+            'id_transducer_model':   safeGet(d, 'probes', 0, 'model'),
+            'id_transducer_serial':  safeGet(d, 'probes', 0, 'serialNumber'),
+
+            // UT Setup — phased array process parameters
+            'id_freq':               safeGet(d, 'probes', 0, 'phasedArrayLinear', 'centralFrequency'),
+            'id_elements':           safeGet(d, 'probes', 0, 'phasedArrayLinear', 'elements', 'length'),
+            'id_wave_propagation':   safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'waveMode'),
+            'id_foc_depth':          safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'focusing', 'distance'),
+
+            // Scan resolution — dimensions[0]=U(scan), dimensions[1]=V(index)
+            'id_x_res':              safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'resolution'),
+            'id_y_res':              safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'resolution'),
+
+            // Calibration — specimen material
+            'id_cal_material':       safeGet(d, 'specimens', 0, 'material', 'name'),
+        };
+
+        for (const [id, value] of Object.entries(mappings)) {
+            if (value != null) {
+                const el = document.getElementById(id);
+                if (el) el.value = value;
+            }
+        }
+    }
+</script>
+{% endif %}
+
+{% endblock %}
