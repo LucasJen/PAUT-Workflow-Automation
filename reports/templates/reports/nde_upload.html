@@ -89,10 +89,6 @@
             <div class="field">
                 {{ form.wave_propagation.label_tag }}
                 {{ form.wave_propagation }}
-                <datalist id="wave_propagation_options">
-                    <option value="Shear">
-                    <option value="Longitudinal">
-                </datalist> 
                 {{ form.wave_propagation.errors }}
             </div>
             <div class="field">
@@ -181,26 +177,34 @@
     function populateFields() {
         const d = NDE_DATA;
 
+        // Pre-process raw input value to make more human readable.
+        const rawFreq = safeGet(d, 'probes', 0, 'phasedArrayLinear', 'centralFrequency');
+        const freq = rawFreq != null ? (rawFreq / 1_000_000) + 'MHz' : undefined;
+
+        // Converts from meters to inches
+        const rawXRes = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'resolution');
+        const xRes = rawXRes != null ? (rawXRes * 39.37).toFixed(3) : undefined;
+        const rawYRes = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'resolution');
+        const yRes = rawYRes != null ? (rawYRes * 39.37).toFixed(3) : undefined;
+        const rawFocDepth = safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'focusing', 'distance');
+        const focDepth = rawFocDepth != null ? (rawFocDepth * 39.37).toFixed(3) : undefined;
+
         const mappings = {
             // UT Equipment — acquisition unit (instrument/scope)
             'id_manufacturer':       safeGet(d, 'acquisitionUnits', 0, 'manufacturer'),
             'id_scope_model':        safeGet(d, 'acquisitionUnits', 0, 'model'),
             'id_scope_serial':       safeGet(d, 'acquisitionUnits', 0, 'serialNumber'),
-
             // UT Equipment — probe (transducer)
             'id_transducer_model':   safeGet(d, 'probes', 0, 'model'),
             'id_transducer_serial':  safeGet(d, 'probes', 0, 'serialNumber'),
-
             // UT Setup — phased array process parameters
-            'id_freq':               safeGet(d, 'probes', 0, 'phasedArrayLinear', 'centralFrequency'),
-            'id_elements':           safeGet(d, 'probes', 0, 'phasedArrayLinear', 'elements', 'length'),
+            'id_freq':               freq,
+            'id_elements':           safeGet(d, 'probes', 0, 'phasedArrayLinear', 'primaryAxis', 'elementQuantity'),
             'id_wave_propagation':   safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'waveMode'),
-            'id_foc_depth':          safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'focusing', 'distance'),
-
+            'id_foc_depth':          focDepth,
             // Scan resolution — dimensions[0]=U(scan), dimensions[1]=V(index)
-            'id_x_res':              safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'resolution'),
-            'id_y_res':              safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'resolution'),
-
+            'id_x_res':              xRes,
+            'id_y_res':              yRes,
             // Calibration — specimen material
             'id_cal_material':       safeGet(d, 'specimens', 0, 'material', 'name'),
         };
