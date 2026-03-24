@@ -1,4 +1,4 @@
-from django.forms import ModelForm, DateInput, Textarea
+from django.forms import ModelForm, DateInput, Textarea, TextInput
 from .models import Report, Setup
 from datetime import date
 
@@ -16,3 +16,7 @@ class SetupForm(ModelForm):
     class Meta:
         model = Setup
         exclude = ['report']
+        widgets = {
+            'wave_propagation': TextInput(attrs={'list':'wave_propagation_options'})
+        }
+    
