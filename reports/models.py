@@ -47,7 +47,7 @@ class Setup(models.Model):
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='setups', null=True, blank=True)
 
     # UT Equipment Information
-    manufacturer = models.CharField(max_length=200, blank=True)
+    manufacturer = models.CharField(max_length=200, blank=True, default="Evident")
     scope_model = models.CharField(max_length=200, blank=True)
     scope_serial = models.CharField(max_length=200, blank=True)
     transducer_model = models.CharField(max_length=200, blank=True)
@@ -58,8 +58,8 @@ class Setup(models.Model):
     wave_propagation = models.CharField(max_length=100, blank=True)
     freq = models.CharField(max_length=100, blank=True)
     elements = models.CharField(max_length=100, blank=True)
-    x_res = models.CharField(max_length=100, blank=True)
-    y_res = models.CharField(max_length=100, blank=True)
+    x_res = models.CharField(max_length=100, blank=True, default=0.039)
+    y_res = models.CharField(max_length=100, blank=True, default=0.039)
 
     # Calibration information
     cal_material = models.CharField(max_length=200, blank=True)
