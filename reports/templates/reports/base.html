@@ -46,6 +46,7 @@
             <a href="{% url 'nde-upload' %}">NDE Parser</a>
 
             <hr>
+            <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode">☾ Dark Mode</button>
         </div>
     </div>
 </div>
@@ -63,6 +64,21 @@
     toggleBtn.addEventListener('click', () => {
         sidebar.classList.toggle('collapsed');
         localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+    });
+
+    // Dark mode
+    const themeBtn = document.getElementById('theme-toggle');
+
+    function setTheme(dark) {
+        document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+        themeBtn.textContent = dark ? '☀ Light Mode' : '☾ Dark Mode';
+        localStorage.setItem('darkMode', dark);
+    }
+
+    setTheme(localStorage.getItem('darkMode') === 'true');
+
+    themeBtn.addEventListener('click', () => {
+        setTheme(document.documentElement.getAttribute('data-bs-theme') !== 'dark');
     });
 </script>
 
