@@ -21,6 +21,11 @@
                 {{ form.manufacturer.errors }}
             </div>
             <div class="field">
+                {{ form.scope_platform.label_tag }}
+                {{ form.scope_platform }}
+                {{ form.scope_platform.errors }}
+            </div>
+            <div class="field">
                 {{ form.scope_model.label_tag }}
                 {{ form.scope_model }}
                 {{ form.scope_model.errors }}
@@ -40,6 +45,25 @@
                 {{ form.transducer_serial }}
                 {{ form.transducer_serial.errors }}
             </div>
+            <div class="field">
+                {{ form.probe_diameter.label_tag }}
+                {{ form.probe_diameter }}
+                {{ form.probe_diameter.errors }}
+            </div>
+        </div>
+
+        <div class="section-title">Wedge Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.wedge_model.label_tag }}
+                {{ form.wedge_model }}
+                {{ form.wedge_model.errors }}
+            </div>
+            <div class="field">
+                {{ form.wedge_angle.label_tag }}
+                {{ form.wedge_angle }}
+                {{ form.wedge_angle.errors }}
+            </div>
         </div>
 
         <div class="section-title">UT Setup Information</div>
@@ -55,7 +79,7 @@
                 <datalist id="wave_propagation_options">
                     <option value="Shear">
                     <option value="Longitudinal">
-                </datalist> 
+                </datalist>
                 {{ form.wave_propagation.errors }}
             </div>
             <div class="field">
@@ -77,6 +101,50 @@
                 {{ form.y_res.label_tag }}
                 {{ form.y_res }}
                 {{ form.y_res.errors }}
+            </div>
+            <div class="field">
+                {{ form.scan_length.label_tag }}
+                {{ form.scan_length }}
+                {{ form.scan_length.errors }}
+            </div>
+            <div class="field">
+                {{ form.scan_width.label_tag }}
+                {{ form.scan_width }}
+                {{ form.scan_width.errors }}
+            </div>
+            <div class="field">
+                {{ form.sound_velocity.label_tag }}
+                {{ form.sound_velocity }}
+                {{ form.sound_velocity.errors }}
+            </div>
+            <div class="field">
+                {{ form.gain.label_tag }}
+                {{ form.gain }}
+                {{ form.gain.errors }}
+            </div>
+            <div class="field">
+                {{ form.ref_gain.label_tag }}
+                {{ form.ref_gain }}
+                {{ form.ref_gain.errors }}
+            </div>
+            <div class="field">
+                {{ form.voltage.label_tag }}
+                {{ form.voltage }}
+                {{ form.voltage.errors }}
+            </div>
+        </div>
+
+        <div class="section-title">Specimen Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.specimen_od.label_tag }}
+                {{ form.specimen_od }}
+                {{ form.specimen_od.errors }}
+            </div>
+            <div class="field">
+                {{ form.specimen_thickness.label_tag }}
+                {{ form.specimen_thickness }}
+                {{ form.specimen_thickness.errors }}
             </div>
         </div>
 
