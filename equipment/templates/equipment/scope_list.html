@@ -1,0 +1,58 @@
+{% extends 'reports/base.html' %}
+
+{% block content %}
+
+{% if scopes %}
+<form method="post">
+{% csrf_token %}
+<div class="d-flex align-items-center gap-3 mb-3">
+    <h1 class="page-title mb-0">Scopes</h1>
+    <div id="action-bar" style="display:none; gap:0.5rem;">
+        <button type="submit" name="delete" class="btn btn-danger">Delete Selected</button>
+        <button type="submit" name="edit" class="btn btn-primary" id="edit-btn">Edit Selected</button>
+        <button type="submit" name="duplicate" class="btn btn-secondary" id="duplicate-btn">Duplicate Selected</button>
+    </div>
+    <div class="d-flex align-items-center gap-2 ms-auto">
+        <input type="text" id="keyword-search" class="form-control" placeholder="Search..." style="width: 250px;">
+        <a href="{% url 'new-scope' %}" class="btn btn-success">+ New Scope</a>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-bordered table-striped table-hover align-middle eq-table">
+        <thead class="table-dark">
+            <tr>
+                <th><input type="checkbox" id="select-all"></th>
+                <th class="sortable" data-col="0">ID <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="1">Manufacturer <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="2">Platform <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="3">Model <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="4">Serial Number <span class="sort-indicator"></span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for scope in scopes %}
+            <tr class="eq-row">
+                <td><input type="checkbox" name="selected" value="{{ scope.pk }}" class="row-check"></td>
+                <td>{{ scope.pk }}</td>
+                <td>{{ scope.manufacturer }}</td>
+                <td>{{ scope.platform }}</td>
+                <td>{{ scope.model }}</td>
+                <td>{{ scope.serial_number }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+</form>
+
+{% else %}
+<div class="d-flex align-items-center gap-3 mb-3">
+    <h1 class="page-title mb-0">Scopes</h1>
+    <a href="{% url 'new-scope' %}" class="btn btn-success ms-auto">+ New Scope</a>
+</div>
+<p>No scopes found.</p>
+{% endif %}
+
+{% include 'equipment/_list_scripts.html' %}
+{% endblock %}
