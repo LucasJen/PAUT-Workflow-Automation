@@ -68,6 +68,8 @@ class Setup(models.Model):
     y_res = models.CharField(max_length=100, blank=True)
     scan_length = models.CharField(max_length=100, blank=True)
     scan_width = models.CharField(max_length=100, blank=True)
+    angle_step = models.CharField(max_length=50, blank=True)
+    angle_range = models.CharField(max_length=50, blank=True)
     sound_velocity = models.CharField(max_length=100, blank=True)
     gain = models.CharField(max_length=100, blank=True)
     ref_gain = models.CharField(max_length=100, blank=True)
