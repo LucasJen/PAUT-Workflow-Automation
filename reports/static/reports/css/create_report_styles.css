@@ -37,40 +37,47 @@ body {
 .grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem 1.5rem;
+    gap: 0 1.5rem;
 }
 
 .grid-1 {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1rem;
 }
 
 .field {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
+    margin-bottom: 0.75rem;
 }
 
-.setup-card .field {
+.setup-card .field,
+.inline-labels .field {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
 }
 
-.setup-card .field label {
+.setup-card .field label,
+.inline-labels .field label {
     min-width: 130px;
     flex-shrink: 0;
 }
 
 .setup-card .field input,
-.setup-card .field select {
+.setup-card .field select,
+.inline-labels .field input,
+.inline-labels .field select,
+.inline-labels .field textarea {
     flex: 1;
     min-width: 0;
+    width: auto;
 }
 
-.setup-card .field .errorlist {
+.setup-card .field .errorlist,
+.inline-labels .field .errorlist {
     flex-basis: 100%;
 }
 
