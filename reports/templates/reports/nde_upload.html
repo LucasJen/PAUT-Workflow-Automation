@@ -149,6 +149,16 @@
                 {{ form.scan_width.errors }}
             </div>
             <div class="field">
+                {{ form.angle_step.label_tag }}
+                {{ form.angle_step }}
+                {{ form.angle_step.errors }}
+            </div>
+            <div class="field">
+                {{ form.angle_range.label_tag }}
+                {{ form.angle_range }}
+                {{ form.angle_range.errors }}
+            </div>
+            <div class="field">
                 {{ form.sound_velocity.label_tag }}
                 {{ form.sound_velocity }}
                 {{ form.sound_velocity.errors }}
@@ -318,6 +328,13 @@
         _beams        = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'beams');
         _rawVelocity  = safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'velocity');
 
+        let _angleStep, _angleRange;
+        if (_beams && _beams.length >= 2) {
+            const step = _beams[1].refractedAngle - _beams[0].refractedAngle;
+            _angleStep = step.toFixed(1) + '°';
+            _angleRange = `${_beams[0].refractedAngle}°-${_beams[_beams.length - 1].refractedAngle}°`;
+        }
+
         // Unit-independent fields
         const rawFreq = safeGet(probeData, 'centralFrequency');
         const staticMappings = {
@@ -335,6 +352,8 @@
             'id_ref_gain':         safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'referenceGain'),
             'id_voltage':          safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'pulse', 'voltage'),
             'id_cal_material':     safeGet(d, 'specimens', 0, 'pipeGeometry', 'material', 'name'),
+            'id_angle_step':       _angleStep,
+            'id_angle_range':      _angleRange,
         };
 
         for (const [id, value] of Object.entries(staticMappings)) {
