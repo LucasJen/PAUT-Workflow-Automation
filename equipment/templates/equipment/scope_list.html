@@ -25,9 +25,12 @@
                 <th><input type="checkbox" id="select-all"></th>
                 <th class="sortable" data-col="0">ID <span class="sort-indicator"></span></th>
                 <th class="sortable" data-col="1">Manufacturer <span class="sort-indicator"></span></th>
-                <th class="sortable" data-col="2">Platform <span class="sort-indicator"></span></th>
-                <th class="sortable" data-col="3">Model <span class="sort-indicator"></span></th>
-                <th class="sortable" data-col="4">Serial Number <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="2">Software <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="3">Version <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="4">Model <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="5">Serial Number <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="6">Cal Date <span class="sort-indicator"></span></th>
+                <th class="sortable" data-col="7">Cal Due <span class="sort-indicator"></span></th>
             </tr>
         </thead>
         <tbody>
@@ -36,9 +39,12 @@
                 <td><input type="checkbox" name="selected" value="{{ scope.pk }}" class="row-check"></td>
                 <td>{{ scope.pk }}</td>
                 <td>{{ scope.manufacturer }}</td>
-                <td>{{ scope.platform }}</td>
+                <td>{{ scope.software }}</td>
+                <td>{{ scope.software_version }}</td>
                 <td>{{ scope.model }}</td>
                 <td>{{ scope.serial_number }}</td>
+                <td>{{ scope.calibration_date }}</td>
+                <td>{{ scope.calibration_due_date }}</td>
             </tr>
             {% endfor %}
         </tbody>

@@ -20,9 +20,14 @@
                 {{ form.manufacturer.errors }}
             </div>
             <div class="field">
-                {{ form.platform.label_tag }}
-                {{ form.platform }}
-                {{ form.platform.errors }}
+                {{ form.software.label_tag }}
+                {{ form.software }}
+                {{ form.software.errors }}
+            </div>
+            <div class="field">
+                {{ form.software_version.label_tag }}
+                {{ form.software_version }}
+                {{ form.software_version.errors }}
             </div>
             <div class="field">
                 {{ form.model.label_tag }}
@@ -33,6 +38,16 @@
                 {{ form.serial_number.label_tag }}
                 {{ form.serial_number }}
                 {{ form.serial_number.errors }}
+            </div>
+            <div class="field">
+                {{ form.calibration_date.label_tag }}
+                {{ form.calibration_date }}
+                {{ form.calibration_date.errors }}
+            </div>
+            <div class="field">
+                {{ form.calibration_due_date.label_tag }}
+                {{ form.calibration_due_date }}
+                {{ form.calibration_due_date.errors }}
             </div>
         </div>
     </div>
