@@ -145,3 +145,51 @@ textarea { resize: vertical; min-height: 90px; }
 @media (max-width: 640px) {
     .grid-2 { grid-template-columns: 1fr; }
 }
+
+/* ── Dark mode ─────────────────────────────────────────────── */
+[data-bs-theme="dark"] body {
+    background: #111827;
+    color: #f9fafb;
+}
+
+[data-bs-theme="dark"] .page-title {
+    color: #f9fafb;
+}
+
+[data-bs-theme="dark"] .card {
+    background: #1f2937;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+[data-bs-theme="dark"] .section-title {
+    border-bottom-color: #374151;
+}
+
+[data-bs-theme="dark"] label {
+    color: #9ca3af;
+}
+
+[data-bs-theme="dark"] input[type="text"],
+[data-bs-theme="dark"] input[type="date"],
+[data-bs-theme="dark"] textarea,
+[data-bs-theme="dark"] select {
+    border-color: #374151;
+    background: #111827;
+    color: #f9fafb;
+}
+
+[data-bs-theme="dark"] input:focus,
+[data-bs-theme="dark"] textarea:focus,
+[data-bs-theme="dark"] select:focus {
+    border-color: #60a5fa;
+    background: #1f2937;
+}
+
+[data-bs-theme="dark"] .btn-secondary {
+    background: #374151;
+    color: #d1d5db;
+}
+
+[data-bs-theme="dark"] .btn-secondary:hover {
+    background: #4b5563;
+}

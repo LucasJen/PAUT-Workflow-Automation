@@ -1,4 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
+from django.contrib import messages
 from django.conf import settings
 from ..services.document_processor import WordTemplateProcessor
 from ..forms import ReportForm, SetupForm
@@ -22,8 +24,19 @@ def create_report(request):
                 return redirect('generate-report', pk=report.pk)
             return redirect('report-list')
     else:
-        form = ReportForm()
-        setup_form = SetupForm()
+        loaded_pk = request.GET.get('loaded')
+        if loaded_pk:
+            try:
+                loaded_report = Report.objects.get(pk=loaded_pk)
+                form = ReportForm(instance=loaded_report)
+                loaded_setup = loaded_report.setups.first()
+                setup_form = SetupForm(instance=loaded_setup) if loaded_setup else SetupForm()
+            except Report.DoesNotExist:
+                form = ReportForm()
+                setup_form = SetupForm()
+        else:
+            form = ReportForm()
+            setup_form = SetupForm()
 
     reports = Report.objects.order_by('-pk')
     setups = Setup.objects.all()
@@ -68,8 +81,13 @@ def generate_report(request, pk):
         setup_placeholder = f'{{{{{setup_field.name.upper()}}}}}' # Placeholder format: {{example_placeholder}}
         processor.replace(setup_placeholder, str(setup_value) if setup_value else '')
 
-    processor.save()
-    return redirect('create-report')
+    try:
+        processor.save()
+    except PermissionError:
+        messages.error(request, 'A report with that name already exists in the output folder and is currently open. Close the file and try again.')
+        return redirect(f"{reverse('create-report')}?loaded={pk}")
+
+    return redirect(f"{reverse('create-report')}?loaded={pk}")
 
 
 def report_list(request):

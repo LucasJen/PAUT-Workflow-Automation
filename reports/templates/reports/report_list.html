@@ -7,13 +7,15 @@
 {% csrf_token %}
 <div class="d-flex align-items-center gap-3 mb-3">
     <h1 class="page-title mb-0">Reports</h1>
-    <div id="action-bar" style="visibility:hidden;">
+    <div id="action-bar" style="display:none; gap:0.5rem;">
         <button type="submit" name="delete" class="btn btn-danger">Delete Selected</button>
         <button type="submit" name="edit" class="btn btn-primary" id="edit-btn">Edit Selected</button>
         <button type="submit" name="duplicate" class="btn btn-secondary" id="duplicate-btn">Duplicate Selected</button>
     </div>
-    <input type="text" id="keyword-search" class="form-control" placeholder="Search..." style="max-width: 250px;">
-    <a href="{% url 'new-report' %}" class="btn btn-success ms-auto">+ New Report</a>
+    <div class="d-flex align-items-center gap-2 ms-auto">
+        <input type="text" id="keyword-search" class="form-control" placeholder="Search..." style="width: 250px;">
+        <a href="{% url 'new-report' %}" class="btn btn-success">+ New Report</a>
+    </div>
 </div>
 
     <div class="table-responsive">
@@ -87,7 +89,7 @@
 
     function updateActionBar() {
         const checked = document.querySelectorAll('.row-check:checked');
-        actionBar.style.visibility = checked.length > 0 ? 'visible' : 'hidden';
+        actionBar.style.display = checked.length > 0 ? 'flex' : 'none';
         editBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
         duplicateBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
     }
