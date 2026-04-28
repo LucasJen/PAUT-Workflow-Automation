@@ -22,14 +22,16 @@
     </div>
     
     <!-- Project Information -->
-    <div class="card">
+    <div class="card inline-labels">
         <div class="section-title">Project Information</div>
-        <div class="grid-2">
+        <div class="grid-1">
             <div class="field">
                 {{ form.document_title.label_tag }}
                 {{ form.document_title }}
                 {{ form.document_title.errors }}
             </div>
+        </div>
+        <div class="grid-2">
             <div class="field">
                 {{ form.client.label_tag }}
                 {{ form.client }}
@@ -74,7 +76,7 @@
     </div>
 
     <!-- Technician Information -->
-    <div class="card">
+    <div class="card inline-labels">
         <div class="section-title">Technician Information</div>
         <div class="grid-2">
             <div class="field">
@@ -87,6 +89,8 @@
                 {{ form.certification }}
                 {{ form.certification.errors }}
             </div>
+        </div>
+        <div class="grid-2">
             <div class="field">
                 {{ form.assistant_name.label_tag }}
                 {{ form.assistant_name }}
@@ -116,7 +120,7 @@
     </div>
 
     <!-- Job Scope, References and Method -->
-    <div class="card">
+    <div class="card inline-labels">
         <div class="section-title">Job Scope, References and Method</div>
         <div class="grid-2">
             <div class="field">
@@ -140,15 +144,17 @@
                 {{ form.y_axis_reference.errors }}
             </div>
         </div>
-        <div class="field">
-            {{ form.equipment_overview.label_tag }}
-            {{ form.equipment_overview }}
-            {{ form.equipment_overview.errors }}
-        </div>
-        <div class="field">
-            {{ form.work_scope.label_tag }}
-            {{ form.work_scope }}
-            {{ form.work_scope.errors }}
+        <div class="grid-1" style="margin-top: 1rem;">
+            <div class="field">
+                {{ form.equipment_overview.label_tag }}
+                {{ form.equipment_overview }}
+                {{ form.equipment_overview.errors }}
+            </div>
+            <div class="field">
+                {{ form.work_scope.label_tag }}
+                {{ form.work_scope }}
+                {{ form.work_scope.errors }}
+            </div>
         </div>
     </div>
 
