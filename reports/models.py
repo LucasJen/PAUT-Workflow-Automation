@@ -48,18 +48,34 @@ class Setup(models.Model):
 
     # UT Equipment Information
     manufacturer = models.CharField(max_length=200, blank=True, default="Evident")
+    scope_platform = models.CharField(max_length=200, blank=True)
     scope_model = models.CharField(max_length=200, blank=True)
     scope_serial = models.CharField(max_length=200, blank=True)
     transducer_model = models.CharField(max_length=200, blank=True)
     transducer_serial = models.CharField(max_length=200, blank=True)
+    probe_diameter = models.CharField(max_length=100, blank=True)
+
+    # Wedge Information
+    wedge_model = models.CharField(max_length=200, blank=True)
+    wedge_angle = models.CharField(max_length=100, blank=True)
 
     # UT Setup Information
     foc_depth = models.CharField(max_length=100, blank=True)
     wave_propagation = models.CharField(max_length=100, blank=True)
     freq = models.CharField(max_length=100, blank=True)
     elements = models.CharField(max_length=100, blank=True)
-    x_res = models.CharField(max_length=100, blank=True, default=0.039)
-    y_res = models.CharField(max_length=100, blank=True, default=0.039)
+    x_res = models.CharField(max_length=100, blank=True)
+    y_res = models.CharField(max_length=100, blank=True)
+    scan_length = models.CharField(max_length=100, blank=True)
+    scan_width = models.CharField(max_length=100, blank=True)
+    sound_velocity = models.CharField(max_length=100, blank=True)
+    gain = models.CharField(max_length=100, blank=True)
+    ref_gain = models.CharField(max_length=100, blank=True)
+    voltage = models.CharField(max_length=100, blank=True)
+
+    # Specimen Information
+    specimen_od = models.CharField(max_length=100, blank=True)
+    specimen_thickness = models.CharField(max_length=100, blank=True)
 
     # Calibration information
     cal_material = models.CharField(max_length=200, blank=True)

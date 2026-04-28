@@ -31,10 +31,13 @@
                 <label for="nde_file" class="form-label">Select .nde file</label>
                 <input class="form-control" type="file" id="nde_file" name="nde_file" accept=".nde" required>
             </div>
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Parse File</button>
+            <div class="d-flex gap-2 align-items-center">
+                <button type="submit" class="btn btn-primary">Populate Fields</button>
                 {% if json_output %}
-                <button type="button" class="btn btn-secondary" onclick="populateFields()">Populate Fields</button>
+                <div class="btn-group" role="group" aria-label="Unit system">
+                    <button type="button" class="btn btn-sm btn-primary" id="btn-imperial" onclick="setUnit(true)">Imperial</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-metric" onclick="setUnit(false)">Metric</button>
+                </div>
                 {% endif %}
             </div>
         </form>
@@ -58,6 +61,11 @@
                 {{ form.manufacturer.errors }}
             </div>
             <div class="field">
+                {{ form.scope_platform.label_tag }}
+                {{ form.scope_platform }}
+                {{ form.scope_platform.errors }}
+            </div>
+            <div class="field">
                 {{ form.scope_model.label_tag }}
                 {{ form.scope_model }}
                 {{ form.scope_model.errors }}
@@ -76,6 +84,25 @@
                 {{ form.transducer_serial.label_tag }}
                 {{ form.transducer_serial }}
                 {{ form.transducer_serial.errors }}
+            </div>
+            <div class="field">
+                {{ form.probe_diameter.label_tag }}
+                {{ form.probe_diameter }}
+                {{ form.probe_diameter.errors }}
+            </div>
+        </div>
+
+        <div class="section-title">Wedge Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.wedge_model.label_tag }}
+                {{ form.wedge_model }}
+                {{ form.wedge_model.errors }}
+            </div>
+            <div class="field">
+                {{ form.wedge_angle.label_tag }}
+                {{ form.wedge_angle }}
+                {{ form.wedge_angle.errors }}
             </div>
         </div>
 
@@ -110,6 +137,50 @@
                 {{ form.y_res.label_tag }}
                 {{ form.y_res }}
                 {{ form.y_res.errors }}
+            </div>
+            <div class="field">
+                {{ form.scan_length.label_tag }}
+                {{ form.scan_length }}
+                {{ form.scan_length.errors }}
+            </div>
+            <div class="field">
+                {{ form.scan_width.label_tag }}
+                {{ form.scan_width }}
+                {{ form.scan_width.errors }}
+            </div>
+            <div class="field">
+                {{ form.sound_velocity.label_tag }}
+                {{ form.sound_velocity }}
+                {{ form.sound_velocity.errors }}
+            </div>
+            <div class="field">
+                {{ form.gain.label_tag }}
+                {{ form.gain }}
+                {{ form.gain.errors }}
+            </div>
+            <div class="field">
+                {{ form.ref_gain.label_tag }}
+                {{ form.ref_gain }}
+                {{ form.ref_gain.errors }}
+            </div>
+            <div class="field">
+                {{ form.voltage.label_tag }}
+                {{ form.voltage }}
+                {{ form.voltage.errors }}
+            </div>
+        </div>
+
+        <div class="section-title">Specimen Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.specimen_od.label_tag }}
+                {{ form.specimen_od }}
+                {{ form.specimen_od.errors }}
+            </div>
+            <div class="field">
+                {{ form.specimen_thickness.label_tag }}
+                {{ form.specimen_thickness }}
+                {{ form.specimen_thickness.errors }}
             </div>
         </div>
 
@@ -170,43 +241,48 @@
 <script>
     const NDE_DATA = {{ json_output|safe }};
 
+    // Raw metric values stored once on populate so toggling can reconvert without re-parsing
+    let _rawDiameter = null, _rawXRes = null, _rawYRes = null, _rawFocDepth = null;
+    let _rawOD = null, _rawThickness = null, _rawScanQty = 0, _beams = null, _rawVelocity = null;
+    let unitIsImperial = true;
+
     function safeGet(obj, ...keys) {
         return keys.reduce((acc, key) => acc != null ? acc[key] : undefined, obj);
     }
 
-    function populateFields() {
-        const d = NDE_DATA;
+    // Convert meters to inches (imperial) or mm (metric)
+    function dist(meters, impDec = 3, metDec = 2) {
+        if (meters == null) return undefined;
+        return unitIsImperial
+            ? (meters * 39.3701).toFixed(impDec)
+            : (meters * 1000).toFixed(metDec);
+    }
 
-        // Pre-process raw input value to make more human readable.
-        const rawFreq = safeGet(d, 'probes', 0, 'phasedArrayLinear', 'centralFrequency');
-        const freq = rawFreq != null ? (rawFreq / 1_000_000) + 'MHz' : undefined;
+    // Convert m/s to in/μs (imperial) or keep as m/s (metric)
+    function vel(mps) {
+        if (mps == null) return undefined;
+        return unitIsImperial
+            ? (mps / 25400).toFixed(4)
+            : mps.toFixed(0);
+    }
 
-        // Converts from meters to inches
-        const rawXRes = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'resolution');
-        const xRes = rawXRes != null ? (rawXRes * 39.37).toFixed(3) : undefined;
-        const rawYRes = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'resolution');
-        const yRes = rawYRes != null ? (rawYRes * 39.37).toFixed(3) : undefined;
-        const rawFocDepth = safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'focusing', 'distance');
-        const focDepth = rawFocDepth != null ? (rawFocDepth * 39.37).toFixed(3) : undefined;
+    function applyUnits() {
+        const yResStr = dist(_rawYRes, 4, 3);
+        const scanLenRaw = (_rawXRes != null && _rawScanQty) ? _rawXRes * _rawScanQty : null;
+        const scanWidthStr = (_beams && yResStr)
+            ? (_beams.length * parseFloat(yResStr)).toFixed(3)
+            : undefined;
 
         const mappings = {
-            // UT Equipment — acquisition unit (instrument/scope)
-            'id_manufacturer':       safeGet(d, 'acquisitionUnits', 0, 'manufacturer'),
-            'id_scope_model':        safeGet(d, 'acquisitionUnits', 0, 'model'),
-            'id_scope_serial':       safeGet(d, 'acquisitionUnits', 0, 'serialNumber'),
-            // UT Equipment — probe (transducer)
-            'id_transducer_model':   safeGet(d, 'probes', 0, 'model'),
-            'id_transducer_serial':  safeGet(d, 'probes', 0, 'serialNumber'),
-            // UT Setup — phased array process parameters
-            'id_freq':               freq,
-            'id_elements':           safeGet(d, 'probes', 0, 'phasedArrayLinear', 'primaryAxis', 'elementQuantity'),
-            'id_wave_propagation':   safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'waveMode'),
-            'id_foc_depth':          focDepth,
-            // Scan resolution — dimensions[0]=U(scan), dimensions[1]=V(index)
-            'id_x_res':              xRes,
-            'id_y_res':              yRes,
-            // Calibration — specimen material
-            'id_cal_material':       safeGet(d, 'specimens', 0, 'material', 'name'),
+            'id_probe_diameter':     dist(_rawDiameter, 4, 3),
+            'id_foc_depth':          dist(_rawFocDepth, 3, 2),
+            'id_x_res':              dist(_rawXRes, 4, 3),
+            'id_y_res':              yResStr,
+            'id_scan_length':        dist(scanLenRaw, 3, 2),
+            'id_scan_width':         scanWidthStr,
+            'id_specimen_od':        _rawOD != null ? dist(_rawOD * 2, 3, 2) : undefined,
+            'id_specimen_thickness': dist(_rawThickness, 4, 3),
+            'id_sound_velocity':     vel(_rawVelocity),
         };
 
         for (const [id, value] of Object.entries(mappings)) {
@@ -216,6 +292,62 @@
             }
         }
     }
+
+    function setUnit(imperial) {
+        unitIsImperial = imperial;
+        document.getElementById('btn-imperial').className = `btn btn-sm ${imperial ? 'btn-primary' : 'btn-outline-primary'}`;
+        document.getElementById('btn-metric').className   = `btn btn-sm ${imperial ? 'btn-outline-primary' : 'btn-primary'}`;
+        applyUnits();
+    }
+
+    function populateFields() {
+        const d = NDE_DATA;
+
+        const probe = safeGet(d, 'probes', 0) || {};
+        const isPA = !!probe.phasedArrayLinear;
+        const probeData = isPA ? probe.phasedArrayLinear : probe.conventionalRound;
+
+        // Store raw metric values for reconversion on unit toggle
+        _rawDiameter  = !isPA ? safeGet(probeData, 'diameter') : null;
+        _rawXRes      = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'resolution');
+        _rawYRes      = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'resolution');
+        _rawFocDepth  = safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'focusing', 'distance');
+        _rawOD        = safeGet(d, 'specimens', 0, 'pipeGeometry', 'outerRadius');
+        _rawThickness = safeGet(d, 'specimens', 0, 'pipeGeometry', 'thickness');
+        _rawScanQty   = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'quantity') ?? 0;
+        _beams        = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'beams');
+        _rawVelocity  = safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'velocity');
+
+        // Unit-independent fields
+        const rawFreq = safeGet(probeData, 'centralFrequency');
+        const staticMappings = {
+            'id_scope_platform':   safeGet(d, 'acquisitionUnits', 0, 'platform'),
+            'id_scope_model':      safeGet(d, 'acquisitionUnits', 0, 'model'),
+            'id_scope_serial':     safeGet(d, 'acquisitionUnits', 0, 'serialNumber'),
+            'id_transducer_model': safeGet(d, 'probes', 0, 'model'),
+            'id_transducer_serial':safeGet(d, 'probes', 0, 'serialNumber'),
+            'id_wedge_model':      safeGet(d, 'wedges', 0, 'model'),
+            'id_wedge_angle':      safeGet(d, 'wedges', 0, 'angleBeamWedge', 'mountingLocations', 0, 'wedgeAngle'),
+            'id_freq':             rawFreq != null ? (rawFreq / 1_000_000) + 'MHz' : undefined,
+            'id_elements':         isPA ? safeGet(probeData, 'primaryAxis', 'elementQuantity') : '1',
+            'id_wave_propagation': safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'waveMode'),
+            'id_gain':             safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'gain'),
+            'id_ref_gain':         safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'referenceGain'),
+            'id_voltage':          safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'pulse', 'voltage'),
+            'id_cal_material':     safeGet(d, 'specimens', 0, 'pipeGeometry', 'material', 'name'),
+        };
+
+        for (const [id, value] of Object.entries(staticMappings)) {
+            if (value != null) {
+                const el = document.getElementById(id);
+                if (el) el.value = value;
+            }
+        }
+
+        applyUnits();
+    }
+
+    document.addEventListener('DOMContentLoaded', populateFields);
 </script>
 {% endif %}
 
