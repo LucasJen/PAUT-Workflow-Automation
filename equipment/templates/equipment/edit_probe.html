@@ -1,0 +1,57 @@
+{% extends 'reports/base.html' %}
+{% load static %}
+
+{% block styles %}
+<link rel="stylesheet" href="{% static 'reports/css/create_report_styles.css' %}">
+{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Edit Probe</h1>
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card setup-card">
+        <div class="section-title">Probe Information</div>
+        <div class="grid-2">
+            <div class="field">
+                {{ form.manufacturer.label_tag }}
+                {{ form.manufacturer }}
+                {{ form.manufacturer.errors }}
+            </div>
+            <div class="field">
+                {{ form.model.label_tag }}
+                {{ form.model }}
+                {{ form.model.errors }}
+            </div>
+            <div class="field">
+                {{ form.serial_number.label_tag }}
+                {{ form.serial_number }}
+                {{ form.serial_number.errors }}
+            </div>
+            <div class="field">
+                {{ form.frequency.label_tag }}
+                {{ form.frequency }}
+                {{ form.frequency.errors }}
+            </div>
+            <div class="field">
+                {{ form.elements.label_tag }}
+                {{ form.elements }}
+                {{ form.elements.errors }}
+            </div>
+            <div class="field">
+                {{ form.diameter.label_tag }}
+                {{ form.diameter }}
+                {{ form.diameter.errors }}
+            </div>
+        </div>
+    </div>
+
+    <div class="actions">
+        <button type="submit" name="delete" class="btn btn-danger">Delete Probe</button>
+        <a href="{% url 'probe-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+</form>
+
+{% endblock %}

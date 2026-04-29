@@ -1,0 +1,77 @@
+<style>
+    .eq-table thead th { white-space: nowrap; font-size: 0.85rem; letter-spacing: 0.04em; }
+    .eq-table tbody td { font-size: 0.9rem; }
+    .eq-row.selected { background-color: rgba(13, 110, 253, 0.1) !important; }
+    .sortable { cursor: pointer; user-select: none; }
+    .sortable:hover { background-color: #343a40; }
+    .sort-indicator { font-size: 0.75rem; margin-left: 0.25rem; opacity: 0.5; }
+    .sortable.asc .sort-indicator::after { content: '▲'; opacity: 1; }
+    .sortable.desc .sort-indicator::after { content: '▼'; opacity: 1; }
+</style>
+
+<script>
+    const checkboxes = document.querySelectorAll('.row-check');
+    const selectAll = document.getElementById('select-all');
+    const actionBar = document.getElementById('action-bar');
+    const editBtn = document.getElementById('edit-btn');
+    const duplicateBtn = document.getElementById('duplicate-btn');
+
+    function updateActionBar() {
+        const checked = document.querySelectorAll('.row-check:checked');
+        actionBar.style.display = checked.length > 0 ? 'flex' : 'none';
+        editBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
+        duplicateBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+            cb.closest('tr').classList.toggle('selected', cb.checked);
+            updateActionBar();
+        });
+    });
+
+    selectAll.addEventListener('change', () => {
+        checkboxes.forEach(cb => {
+            cb.checked = selectAll.checked;
+            cb.closest('tr').classList.toggle('selected', cb.checked);
+        });
+        updateActionBar();
+    });
+
+    document.getElementById('keyword-search').addEventListener('input', function () {
+        const keyword = this.value.toLowerCase();
+        document.querySelectorAll('.eq-table tbody tr').forEach(row => {
+            const matches = Array.from(row.cells).some(cell => cell.textContent.toLowerCase().includes(keyword));
+            row.style.display = matches ? '' : 'none';
+        });
+    });
+
+    let sortCol = null;
+    let sortAsc = true;
+
+    document.querySelectorAll('.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = parseInt(th.dataset.col) + 1;
+            if (sortCol === col) {
+                sortAsc = !sortAsc;
+            } else {
+                sortCol = col;
+                sortAsc = true;
+            }
+            document.querySelectorAll('.sortable').forEach(h => h.classList.remove('asc', 'desc'));
+            th.classList.add(sortAsc ? 'asc' : 'desc');
+
+            const tbody = document.querySelector('.eq-table tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            rows.sort((a, b) => {
+                const aText = a.cells[col]?.textContent.trim() ?? '';
+                const bText = b.cells[col]?.textContent.trim() ?? '';
+                const aNum = parseFloat(aText);
+                const bNum = parseFloat(bText);
+                if (!isNaN(aNum) && !isNaN(bNum)) return sortAsc ? aNum - bNum : bNum - aNum;
+                return sortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+            });
+            rows.forEach(row => tbody.appendChild(row));
+        });
+    });
+</script>
