@@ -171,38 +171,6 @@ personContainer.addEventListener('change', e => {
     if (known && cert && !cert.value.trim()) cert.value = known.dataset.certification || '';
 });
 
-// ── Data comparison ──────────────────────────────────────────────────────
-
-const comparisonContainer = document.getElementById('comparison-formset-container');
-
-const comparisons = makeFormset({
-    prefix: 'comparison',
-    container: comparisonContainer,
-    template: document.getElementById('comparison-empty-form'),
-    blockSelector: '.image-block',
-    titleSelector: '.image-num',
-    titleText: n => String(n),
-    removeSelector: '.remove-image',
-    onChange: n => { document.getElementById('comparison-count').textContent = n || ''; },
-});
-
-// Offer figure titles already used, so a 2022/2026 pair shares one title exactly
-function refreshComparisonTitles() {
-    const list = document.getElementById('comparison-titles');
-    const titles = new Set(Array.from(comparisonContainer.querySelectorAll('input[name$="-caption"]'))
-        .map(i => i.value.trim()).filter(Boolean));
-    list.innerHTML = '';
-    titles.forEach(t => list.appendChild(new Option(t, t)));
-}
-
-comparisonContainer.addEventListener('input', refreshComparisonTitles);
-refreshComparisonTitles();
-
-document.getElementById('add-comparison').addEventListener('click', () => {
-    comparisons.add();
-    markDirty();
-});
-
 document.getElementById('add-drawing').addEventListener('click', () => {
     drawings.add();
     markDirty();

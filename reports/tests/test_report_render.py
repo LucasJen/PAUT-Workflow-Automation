@@ -142,9 +142,8 @@ class RenderTests(TestCase):
         settings_xml = self.zip.read('word/settings.xml').decode()
         self.assertIn('w:updateFields w:val="true"', settings_xml)
 
-    def test_empty_optional_sections_are_dropped(self):
-        texts = [p.text for p in self.doc.paragraphs]
-        self.assertNotIn('DATA COMPARISON', texts)  # no comparison figures yet
+    def test_no_data_comparison_section(self):
+        self.assertNotIn('DATA COMPARISON', self.all_text().upper())
 
 
 class WithUnitTests(TestCase):

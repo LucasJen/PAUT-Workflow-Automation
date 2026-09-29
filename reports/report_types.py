@@ -32,7 +32,6 @@ REPORT_SECTIONS = (
     ('setups', 'UT setups', None),
     ('results', 'Results table', None),
     ('images', 'Photo summary', None),
-    ('comparison', 'Data comparison', None),
 )
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)

@@ -88,14 +88,12 @@ class ReportForm(StyledFormMixin, ModelForm):
             'ut_method': 'UT method',
             'test_date': 'Test start date',
             'test_end_date': 'Test end date',
-            'comparison_title': 'Section heading',
         }
         widgets = {
             'document_title': Textarea(attrs={'rows': 1, 'style': 'min-height: 0; resize: vertical;'}),
             'report_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'test_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'test_end_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-            'comparison_title': TextInput(attrs={'placeholder': 'e.g. HYDROFORM DATA COMPARISON (2022 TO 2026)'}),
         }
         help_texts = {'test_end_date': 'Leave blank for a single-day test.'}
 
@@ -217,22 +215,6 @@ DrawingFormSet = inlineformset_factory(
 )
 
 
-class ComparisonForm(DrawingForm):
-    """Data-comparison figures; images sharing a title are grouped under it (e.g. 2022 vs 2026)."""
-
-    class Meta(DrawingForm.Meta):
-        labels = {'caption': 'Figure title', 'image': 'Image'}
-        widgets = {
-            'image': ClearableFileInput(attrs={'accept': 'image/*'}),
-            'caption': TextInput(attrs={'placeholder': 'e.g. Blistering Located Below CW4', 'list': 'comparison-titles'}),
-        }
-
-
-ComparisonFormSet = inlineformset_factory(
-    Report, ReportImage, form=ComparisonForm,
-    extra=0, can_delete=True,
-)
-
 
 class ReportPersonForm(StyledFormMixin, ModelForm):
     class Meta:
@@ -248,11 +230,6 @@ PersonFormSet = inlineformset_factory(
     Report, ReportPerson, form=ReportPersonForm,
     extra=0, can_delete=True,
 )
-
-
-def comparison_formset(*args, instance=None, **kwargs):
-    return ComparisonFormSet(*args, instance=instance, prefix='comparison',
-                             queryset=ReportImage.objects.filter(kind=ReportImage.COMPARISON), **kwargs)
 
 ImageFormSet = inlineformset_factory(
     Report, ReportImage, form=ScanImageForm,

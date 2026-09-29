@@ -106,7 +106,6 @@ class SaveAndDownloadTests(TestCase):
             'images-TOTAL_FORMS': '0', 'images-INITIAL_FORMS': '0',
             'drawings-TOTAL_FORMS': '0', 'drawings-INITIAL_FORMS': '0',
             'people-TOTAL_FORMS': '0', 'people-INITIAL_FORMS': '0',
-            'comparison-TOTAL_FORMS': '0', 'comparison-INITIAL_FORMS': '0',
         }
         data.update(extra)
         return self.client.post(self.url, data)

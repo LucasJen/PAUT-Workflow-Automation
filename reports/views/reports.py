@@ -7,7 +7,7 @@ from django.db import transaction
 from django.db.models import Count
 from ..services.report_render import render_report
 from ..forms import (
-    PersonFormSet, ReportForm, SetupFormSet, comparison_formset, drawing_formset, scan_image_formset,
+    PersonFormSet, ReportForm, SetupFormSet, drawing_formset, scan_image_formset,
 )
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
 from ..report_types import get_report_type
@@ -160,8 +160,7 @@ def create_report(request):
         people = PersonFormSet(request.POST, instance=form.instance, prefix='people')
         drawings = drawing_formset(request.POST, request.FILES, instance=form.instance)
         image_formset = scan_image_formset(request.POST, request.FILES, instance=form.instance, scan_ids=scan_ids)
-        comparisons = comparison_formset(request.POST, request.FILES, instance=form.instance)
-        formsets = (setup_formset, people, drawings, image_formset, comparisons)
+        formsets = (setup_formset, people, drawings, image_formset)
 
         valid = form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
         if valid:
@@ -176,7 +175,6 @@ def create_report(request):
                 _save_ordered_formset(people)
                 _save_ordered_formset(drawings, kind=ReportImage.DRAWING)
                 _save_ordered_formset(image_formset, kind=ReportImage.SCAN)
-                _save_ordered_formset(comparisons, kind=ReportImage.COMPARISON)
                 if results is not None:
                     _save_results_table(report, *results)
 
@@ -198,7 +196,6 @@ def create_report(request):
         setup_formset = SetupFormSet(instance=loaded_report)
         people = PersonFormSet(instance=loaded_report, prefix='people')
         drawings = drawing_formset(instance=loaded_report)
-        comparisons = comparison_formset(instance=loaded_report)
         scan_ids = [scan_id for scan_id, _ in report_scan_rows(loaded_report)]
         image_formset = scan_image_formset(instance=loaded_report, scan_ids=scan_ids)
         if loaded_report is not None and hasattr(loaded_report, 'results_table'):
@@ -211,7 +208,6 @@ def create_report(request):
         'person_formset': people,
         'drawing_formset': drawings,
         'image_formset': image_formset,
-        'comparison_formset': comparisons,
         'known_people': _known_people(),
         'results_data': results_data,
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},

@@ -20,7 +20,7 @@ from ..models import ReportImage
 from ..report_types import get_report_type
 from ..results import report_results, report_scan_rows
 
-FULL_WIDTH = Inches(7.0)       # drawings, comparisons, scan images
+FULL_WIDTH = Inches(7.0)       # drawings, scan images
 HALF_WIDTH = Inches(3.45)      # calibration screenshots, two per line
 NUMBER = re.compile(r'^-?\d+(\.\d+)?$')
 
@@ -132,16 +132,6 @@ def _people(people, role):
     return [{'name': p.name, 'certification': p.certification} for p in people if getattr(p, role)]
 
 
-def _comparison(report, tpl):
-    """Data-comparison figures: images sharing a title are grouped under it, first-seen order."""
-    groups = {}
-    for image in report.images.filter(kind=ReportImage.COMPARISON).order_by('order'):
-        inline = _image(tpl, image.image, FULL_WIDTH)
-        if inline:
-            groups.setdefault(image.caption.strip(), []).append(inline)
-    return [{'title': title, 'images': images} for title, images in groups.items()]
-
-
 def _drawings(report, tpl):
     """Equipment drawings: one titled figure each, under the Drawing heading."""
     figures = []
@@ -213,8 +203,7 @@ def build_context(report, tpl):
         'results_title': f"PAUT {setups[0]['title']} Work Scope" if setups else 'PAUT Work Scope',
         'scans': scans,
         'scan_images': scan_images,
-        'comparison_title': report.comparison_title or 'DATA COMPARISON',
-        'figures': {'comparison': _comparison(report, tpl), 'drawings': drawings},
+        'figures': {'drawings': drawings},
     }
 
 

@@ -23,8 +23,6 @@ class Report(models.Model):
     project_type = models.CharField(max_length=200, blank=True)
     procedure = models.CharField(max_length=200, blank=True)
 
-    # Heading of the optional data-comparison figure section
-    comparison_title = models.CharField(max_length=200, blank=True, default='DATA COMPARISON')
 
     # Executive Summary
     examination_scope = models.TextField(blank=True)
@@ -157,11 +155,9 @@ class SetupImage(models.Model):
 class ReportImage(models.Model):
     SCAN = 'scan'
     DRAWING = 'drawing'
-    COMPARISON = 'comparison'
     KIND_CHOICES = [
         (SCAN, 'Scan image (photo summary)'),
         (DRAWING, 'Equipment drawing'),
-        (COMPARISON, 'Data comparison'),
     ]
 
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='images')

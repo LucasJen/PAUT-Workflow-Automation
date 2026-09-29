@@ -1,4 +1,4 @@
-"""Personnel list, test date range and data-comparison figures."""
+"""Personnel list and test date range."""
 import datetime
 import io
 
@@ -6,10 +6,10 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 from docx import Document
 
-from reports.models import Report, ReportImage, ReportPerson, Setup
+from reports.models import Report, ReportPerson, Setup
 from reports.services.report_render import date_range, render_report
 from reports.tests.test_create_report import management, post_data
-from reports.tests.test_phase2 import MediaMixin, png
+from reports.tests.test_phase2 import MediaMixin
 
 
 def cover_cell_lines(doc, row, col):
@@ -69,7 +69,6 @@ class Phase3RenderTests(MediaMixin, TestCase):
         super().setUp()
         self.report = Report.objects.create(
             document_filename='r', test_date=datetime.date(2026, 8, 13), test_end_date=datetime.date(2026, 8, 25),
-            comparison_title='HYDROFORM DATA COMPARISON (2022 TO 2026)',
         )
         Setup.objects.create(report=self.report, title='HydroFORM')
         for i, (name, cert, roles) in enumerate([
@@ -91,19 +90,3 @@ class Phase3RenderTests(MediaMixin, TestCase):
 
     def test_test_date_range_on_cover(self):
         self.assertEqual(cover_cell_lines(self.render(), 4, 5), ['8/13/2026 – 8/25/2026'])
-
-    def test_comparison_grouped_under_titles(self):
-        for i, (title, color) in enumerate([('Below CW4', 'red'), ('Below CW4', 'blue'), ('Below CW6', 'green')]):
-            ReportImage.objects.create(report=self.report, kind=ReportImage.COMPARISON, caption=title,
-                                       image=png(f'c{i}.png', color), order=i)
-        doc = self.render()
-        texts = [p.text for p in doc.paragraphs]
-        self.assertIn('HYDROFORM DATA COMPARISON (2022 TO 2026)', texts)
-        start = texts.index('HYDROFORM DATA COMPARISON (2022 TO 2026)')
-        self.assertEqual([t for t in texts[start:start + 12] if t.startswith('Below')], ['Below CW4', 'Below CW6'])
-        comparison_images = [s for s in doc.inline_shapes if round(s.width.inches, 1) == 7.0]
-        self.assertEqual(len(comparison_images), 3)
-
-    def test_comparison_section_left_out_when_empty(self):
-        texts = [p.text for p in self.render().paragraphs]
-        self.assertNotIn('HYDROFORM DATA COMPARISON (2022 TO 2026)', texts)

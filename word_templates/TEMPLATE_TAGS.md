@@ -31,7 +31,6 @@ Rules that avoid broken templates:
 | `document_title`, `document_title_upper` | Report title, and the same in capitals for the cover. |
 | `report_date_long` | e.g. `3 September, 2026` (cover and footer). |
 | `test_dates` | e.g. `8/13/2026 – 8/25/2026`, or one date when there is no end date. |
-| `comparison_title` | Heading of the data-comparison section (default `DATA COMPARISON`). |
 | `procedures` | Each setup's procedure once, in setup order (falls back to the report's Procedure lines). |
 | `examination_scope`, `executive_summary`, `access`, `work_scope`, `asset_description` | Multi-paragraph text (blank line = new paragraph). |
 | `x_axis_reference`, `y_axis_reference` | Scan direction references. |
@@ -64,8 +63,6 @@ images not tied to a row follow, labelled with their own label.
 
 **Figures** — lists of `f.title` + `f.images`
 - `figures.drawings`: the editor's Equipment drawings uploads (shown under DRAWING).
-- `figures.comparison`: the editor's Data comparison images; images sharing a figure title are
-  grouped under it (e.g. a 2022 and a 2026 snip), in first-seen order.
 
 ## Fields Word updates on open
 

@@ -1,9 +1,9 @@
-{# kind: "drawing" (equipment drawings), "scan" (photo summary) or "comparison" (data comparison) #}
+{# kind: "drawing" (equipment drawings) or "scan" (photo summary) #}
 <div class="image-block" data-form-index="{{ idx }}">
     {{ img_form.id }}
     <div hidden>{{ img_form.DELETE }}</div>
     <div class="image-block-header">
-        <span class="image-block-title">{% if kind == "drawing" %}Drawing{% elif kind == "comparison" %}Comparison image{% else %}Scan image{% endif %} <span class="image-num">{{ num }}</span></span>
+        <span class="image-block-title">{% if kind == "drawing" %}Drawing{% else %}Scan image{% endif %} <span class="image-num">{{ num }}</span></span>
         <button type="button" class="btn btn-ghost-danger btn-sm remove-image" title="Remove this image">
             <i class="bi bi-trash"></i> Remove
         </button>
