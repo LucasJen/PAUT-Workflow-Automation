@@ -146,6 +146,157 @@ textarea { resize: vertical; min-height: 90px; }
     .grid-2 { grid-template-columns: 1fr; }
 }
 
+/* ── Setup / Image section header ──────────────────────────── */
+.setup-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e8eaf0;
+}
+
+/* ── Setup block ────────────────────────────────────────────── */
+.setup-block {
+    border: 1px solid #e8eaf0;
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin: 1rem 0;
+    background: #fafbff;
+}
+
+.setup-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.setup-block-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #4361ee;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+/* ── Image block ────────────────────────────────────────────── */
+.image-block {
+    border: 1px solid #e8eaf0;
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin: 1rem 0;
+    background: #fafbff;
+}
+
+.image-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.image-block-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #4361ee;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.image-block-body {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+}
+
+.image-preview-wrap {
+    flex-shrink: 0;
+}
+
+.image-thumb {
+    width: 120px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid #dde1ec;
+}
+
+.image-input-wrap {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── Results table ──────────────────────────────────────────── */
+.col-header-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.col-header-input {
+    width: 130px;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid #dde1ec;
+    border-radius: 6px;
+    font-size: 0.82rem;
+}
+
+.col-remove-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.results-table th {
+    background: #f0f2f8;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    border: 1px solid #dde1ec;
+    white-space: nowrap;
+}
+
+.results-table td {
+    border: 1px solid #dde1ec;
+    padding: 0.3rem 0.4rem;
+}
+
+.result-cell-input {
+    width: 100%;
+    min-width: 80px;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    background: transparent;
+    font-family: inherit;
+    color: inherit;
+}
+
+.result-cell-input:focus {
+    border-color: #4361ee;
+    background: #fff;
+    outline: none;
+}
+
+.result-actions {
+    width: 36px;
+    text-align: center;
+}
+
+/* ── Danger button ──────────────────────────────────────────── */
+.btn-danger { background: #e63946; color: #fff; }
+.btn-danger:hover { background: #c1121f; }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
+.btn-success { background: #2a9d8f; color: #fff; }
+.btn-success:hover { background: #21867a; }
+
 /* ── Dark mode ─────────────────────────────────────────────── */
 [data-bs-theme="dark"] body {
     background: #111827;

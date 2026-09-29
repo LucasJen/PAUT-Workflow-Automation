@@ -18,8 +18,16 @@
 {% endfor %}
 {% endif %}
 
-<form method="post">
+<!-- Datalist for wave propagation field (shared across all setup blocks) -->
+<datalist id="wave_propagation_options">
+    <option value="Shear">
+    <option value="Longitudinal">
+</datalist>
+
+<form method="post" enctype="multipart/form-data">
     {% csrf_token %}
+
+    <!-- Load Existing Report -->
     <div class="card">
         <div class="section-title">Load Existing Report</div>
         <div style="display:flex; gap: 0.75rem; align-items: center;">
@@ -205,142 +213,122 @@
         </div>
     </div>
 
-    <div class="card">
-        <div class="section-title">Load Existing Setup</div>
-        <div style="display:flex; gap: 0.75rem; align-items: center;">
-            <select id="setup-select" style="flex: 1;">
-            <option value="">-- Select a setup --</option>
-            {% for setup in setups %}
-            <option value="{{ setup.pk }}"
-                data-manufacturer="{{ setup.manufacturer }}"
-                data-scope_model="{{ setup.scope_model }}"
-                data-scope_serial="{{ setup.scope_serial }}"
-                data-transducer_model="{{ setup.transducer_model }}"
-                data-transducer_serial="{{ setup.transducer_serial }}"
-                data-foc_depth="{{ setup.foc_depth }}"
-                data-wave_propagation="{{ setup.wave_propagation }}"
-                data-freq="{{ setup.freq }}"
-                data-elements="{{ setup.elements }}"
-                data-x_res="{{ setup.x_res }}"
-                data-y_res="{{ setup.y_res }}"
-                data-cal_material="{{ setup.cal_material }}"
-                data-material_temp="{{ setup.material_temp }}"
-                data-cal_block_type="{{ setup.cal_block_type }}"
-                data-cal_block_serial="{{ setup.cal_block_serial }}"
-                data-surface_prep="{{ setup.surface_prep }}"
-                data-tr_min="{{ setup.tr_min }}"
-                data-tr_max="{{ setup.tr_max }}">
-                {{ setup }}
-            </option>
+    <!-- ── UT Setups ────────────────────────────────────────────────── -->
+    <div class="card" style="padding-bottom:0.5rem;">
+        <div class="setup-section-header">
+            <div class="section-title" style="margin-bottom:0; border-bottom:none;">UT Setups</div>
+            <button type="button" id="add-setup" class="btn btn-secondary btn-sm">+ Add Setup</button>
+        </div>
+
+        {{ setup_formset.management_form }}
+
+        <div id="setup-formset-container">
+            {% for form in setup_formset %}
+            {% include 'reports/_setup_block.html' with idx=forloop.counter0 num=forloop.counter %}
             {% endfor %}
-        </select>
-        <button type="button" class="btn btn-secondary clear-btn" data-fields="manufacturer,scope_model,scope_serial,transducer_model,transducer_serial,foc_depth,wave_propagation,freq,elements,x_res,y_res,cal_material,material_temp,cal_block_type,cal_block_serial,surface_prep,tr_min,tr_max">Clear All</button>
+        </div>
+
+        <!-- Empty form template for JS cloning -->
+        <div id="setup-empty-form" style="display:none" aria-hidden="true">
+            {% include 'reports/_setup_block.html' with form=setup_formset.empty_form idx="__prefix__" num="" %}
         </div>
     </div>
 
-    <!-- Setup Information -->
-    <div class="card setup-card">
-        <div class="section-title">UT Equipment Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ setup_form.manufacturer.label_tag }}
-                {{ setup_form.manufacturer }}
-                {{ setup_form.manufacturer.errors }}
+    <!-- ── Image Boxes ──────────────────────────────────────────────── -->
+    <div class="card" style="padding-bottom:0.5rem;">
+        <div class="setup-section-header">
+            <div class="section-title" style="margin-bottom:0; border-bottom:none;">Images</div>
+            <button type="button" id="add-image" class="btn btn-secondary btn-sm">+ Add Image</button>
+        </div>
+
+        {{ image_formset.management_form }}
+
+        <div id="image-formset-container">
+            {% for img_form in image_formset %}
+            <div class="image-block card" data-form-index="{{ forloop.counter0 }}">
+                {{ img_form.id }}
+                <div style="display:none">{{ img_form.DELETE }}</div>
+                {{ img_form.order }}
+                <div class="image-block-header">
+                    <span class="image-block-title">Image {{ forloop.counter }}</span>
+                    <button type="button" class="btn btn-danger btn-sm remove-image">Remove</button>
+                </div>
+                <div class="image-block-body">
+                    {% if img_form.instance.image %}
+                    <div class="image-preview-wrap">
+                        <img src="{{ img_form.instance.image.url }}" class="image-thumb" alt="Current image">
+                    </div>
+                    {% endif %}
+                    <div class="image-input-wrap">
+                        <div class="image-preview-wrap" style="display:none"><img class="image-thumb" alt="Preview"></div>
+                        <div class="field">
+                            {{ img_form.image.label_tag }}
+                            {{ img_form.image }}
+                        </div>
+                        <div class="field">
+                            {{ img_form.caption.label_tag }}
+                            {{ img_form.caption }}
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="field">
-                {{ setup_form.scope_model.label_tag }}
-                {{ setup_form.scope_model }}
-                {{ setup_form.scope_model.errors }}
+            {% endfor %}
+        </div>
+
+        <!-- Empty image form template -->
+        <div id="image-empty-form" style="display:none" aria-hidden="true">
+            <div class="image-block card" data-form-index="__prefix__">
+                {{ image_formset.empty_form.id }}
+                <div style="display:none">{{ image_formset.empty_form.DELETE }}</div>
+                {{ image_formset.empty_form.order }}
+                <div class="image-block-header">
+                    <span class="image-block-title">Image <span class="image-num"></span></span>
+                    <button type="button" class="btn btn-danger btn-sm remove-image">Remove</button>
+                </div>
+                <div class="image-block-body">
+                    <div class="image-input-wrap">
+                        <div class="image-preview-wrap" style="display:none"><img class="image-thumb" alt="Preview"></div>
+                        <div class="field">
+                            {{ image_formset.empty_form.image.label_tag }}
+                            {{ image_formset.empty_form.image }}
+                        </div>
+                        <div class="field">
+                            {{ image_formset.empty_form.caption.label_tag }}
+                            {{ image_formset.empty_form.caption }}
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="field">
-                {{ setup_form.scope_serial.label_tag }}
-                {{ setup_form.scope_serial }}
-                {{ setup_form.scope_serial.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.transducer_model.label_tag }}
-                {{ setup_form.transducer_model }}
-                {{ setup_form.transducer_model.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.transducer_serial.label_tag }}
-                {{ setup_form.transducer_serial }}
-                {{ setup_form.transducer_serial.errors }}
+        </div>
+    </div>
+
+    <!-- ── Results Table ────────────────────────────────────────────── -->
+    <div class="card">
+        <div class="setup-section-header" style="margin-bottom:1rem;">
+            <div class="section-title" style="margin-bottom:0; border-bottom:none;">Results Table</div>
+            <div style="display:flex; gap:0.5rem;">
+                <button type="button" id="add-results-col" class="btn btn-secondary btn-sm">+ Add Column</button>
+                <button type="button" id="add-results-row" class="btn btn-secondary btn-sm">+ Add Row</button>
             </div>
         </div>
 
-        <div class="section-title">UT Setup Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ setup_form.foc_depth.label_tag }}
-                {{ setup_form.foc_depth }}
-                {{ setup_form.foc_depth.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.wave_propagation.label_tag }}
-                {{ setup_form.wave_propagation }}
-                {{ setup_form.wave_propagation.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.freq.label_tag }}
-                {{ setup_form.freq }}
-                {{ setup_form.freq.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.elements.label_tag }}
-                {{ setup_form.elements }}
-                {{ setup_form.elements.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.x_res.label_tag }}
-                {{ setup_form.x_res }}
-                {{ setup_form.x_res.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.y_res.label_tag }}
-                {{ setup_form.y_res }}
-                {{ setup_form.y_res.errors }}
-            </div>
+        <!-- Column header inputs -->
+        <div id="results-col-headers" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;"></div>
+
+        <!-- Results table -->
+        <div style="overflow-x:auto;">
+            <table class="results-table" id="results-table">
+                <thead><tr id="results-thead-row"></tr></thead>
+                <tbody id="results-tbody"></tbody>
+            </table>
         </div>
 
-        <div class="section-title">Calibration Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ setup_form.cal_material.label_tag }}
-                {{ setup_form.cal_material }}
-                {{ setup_form.cal_material.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.material_temp.label_tag }}
-                {{ setup_form.material_temp }}
-                {{ setup_form.material_temp.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.cal_block_type.label_tag }}
-                {{ setup_form.cal_block_type }}
-                {{ setup_form.cal_block_type.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.cal_block_serial.label_tag }}
-                {{ setup_form.cal_block_serial }}
-                {{ setup_form.cal_block_serial.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.surface_prep.label_tag }}
-                {{ setup_form.surface_prep }}
-                {{ setup_form.surface_prep.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.tr_min.label_tag }}
-                {{ setup_form.tr_min }}
-                {{ setup_form.tr_min.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.tr_max.label_tag }}
-                {{ setup_form.tr_max }}
-                {{ setup_form.tr_max.errors }}
-            </div>
-        </div>
+        <!-- Hidden fields for submission -->
+        <input type="hidden" name="results_columns" id="results-columns-input">
+        <input type="hidden" name="results_rows" id="results-rows-input">
+
+        <!-- Initial data from server (for loaded reports) -->
+        {{ results_data_json|json_script:"results-initial-data" }}
     </div>
 
     <div class="actions">
@@ -350,7 +338,10 @@
     </div>
 </form>
 
+<script src="{% static 'reports/js/create_report.js' %}"></script>
+
 <script>
+    // ── Report field loader ──────────────────────────────────────────
     document.getElementById('report-select').addEventListener('change', function() {
         const selected = this.options[this.selectedIndex];
         if (!selected.value) return;
@@ -368,21 +359,6 @@
         });
     });
 
-    document.getElementById('setup-select').addEventListener('change', function() {
-        const selected = this.options[this.selectedIndex];
-        if (!selected.value) return;
-        const fields = [
-            'manufacturer', 'scope_model', 'scope_serial', 'transducer_model',
-            'transducer_serial', 'foc_depth', 'wave_propagation', 'freq',
-            'elements', 'x_res', 'y_res', 'cal_material', 'material_temp',
-            'cal_block_type', 'cal_block_serial', 'surface_prep', 'tr_min', 'tr_max'
-        ];
-        fields.forEach(field => {
-            const el = document.getElementById('id_' + field);
-            if (el) el.value = selected.dataset[field] || '';
-        });
-    });
-
     document.querySelectorAll('.clear-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             this.dataset.fields.split(',').forEach(field => {
@@ -392,6 +368,7 @@
         });
     });
 </script>
+
 </body>
 
 {% endblock %}

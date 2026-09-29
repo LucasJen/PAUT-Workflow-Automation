@@ -3,8 +3,9 @@ from django.urls import reverse
 from django.contrib import messages
 from django.conf import settings
 from ..services.document_processor import WordTemplateProcessor
-from ..forms import ReportForm, SetupForm
-from ..models import Report, Setup
+from ..forms import ReportForm, SetupForm, SetupFormSet, ImageFormSet
+from ..models import Report, Setup, ResultsTable, ResultsRow
+import json
 import os
 
 
@@ -12,39 +13,79 @@ def create_report(request):
     """
     Takes user input to either save the input as report and setup information or to generate a report
     """
+    results_data = {}
+
     if request.method == 'POST':
         form = ReportForm(request.POST)
-        setup_form = SetupForm(request.POST)
-        if form.is_valid() and setup_form.is_valid():
+        if form.is_valid():
             report = form.save()
-            setup = setup_form.save(commit=False)
-            setup.report = report
-            setup.save()
+
+            setup_formset = SetupFormSet(request.POST, instance=report)
+            if setup_formset.is_valid():
+                instances = setup_formset.save(commit=False)
+                for i, inst in enumerate(instances):
+                    inst.order = i
+                    inst.save()
+                for obj in setup_formset.deleted_objects:
+                    obj.delete()
+
+            image_formset = ImageFormSet(request.POST, request.FILES, instance=report)
+            if image_formset.is_valid():
+                instances = image_formset.save(commit=False)
+                for i, inst in enumerate(instances):
+                    inst.order = i
+                    inst.save()
+                for obj in image_formset.deleted_objects:
+                    obj.delete()
+
+            try:
+                columns = json.loads(request.POST.get('results_columns', '[]'))
+                rows = json.loads(request.POST.get('results_rows', '[]'))
+                if columns:
+                    rt = ResultsTable.objects.create(report=report, columns=columns)
+                    for i, cells in enumerate(rows):
+                        ResultsRow.objects.create(table=rt, cells=cells, order=i)
+            except Exception:
+                pass
+
             if 'generate' in request.POST:
                 return redirect('generate-report', pk=report.pk)
             return redirect('report-list')
+        else:
+            setup_formset = SetupFormSet(request.POST)
+            image_formset = ImageFormSet(request.POST, request.FILES)
     else:
         loaded_pk = request.GET.get('loaded')
         if loaded_pk:
             try:
                 loaded_report = Report.objects.get(pk=loaded_pk)
                 form = ReportForm(instance=loaded_report)
-                loaded_setup = loaded_report.setups.first()
-                setup_form = SetupForm(instance=loaded_setup) if loaded_setup else SetupForm()
+                setup_formset = SetupFormSet(instance=loaded_report)
+                image_formset = ImageFormSet(instance=loaded_report)
+                if hasattr(loaded_report, 'results_table'):
+                    rt = loaded_report.results_table
+                    results_data = {
+                        'columns': rt.columns,
+                        'rows': [r.cells for r in rt.rows.all()],
+                    }
             except Report.DoesNotExist:
                 form = ReportForm()
-                setup_form = SetupForm()
+                setup_formset = SetupFormSet()
+                image_formset = ImageFormSet()
         else:
             form = ReportForm()
-            setup_form = SetupForm()
+            setup_formset = SetupFormSet()
+            image_formset = ImageFormSet()
 
     reports = Report.objects.order_by('-pk')
     setups = Setup.objects.all()
     return render(request, 'reports/create_report.html', {
         'form': form,
-        'setup_form': setup_form,
+        'setup_formset': setup_formset,
+        'image_formset': image_formset,
+        'results_data_json': json.dumps(results_data),
         'reports': reports,
-        'setups': setups
+        'setups': setups,
     })
 
 
@@ -53,33 +94,49 @@ def generate_report(request, pk):
     Calls find and replace functions to act on a report template
     """
     report = get_object_or_404(Report, pk=pk)
-    setup = report.setups.first()
+    setups = list(report.setups.order_by('order'))
 
-    if setup is None:
+    if not setups:
         return redirect('create-report')
 
     template_path = os.path.join(settings.BASE_DIR, 'word_templates', 'long_form_template.docx')
     output_path = os.path.join(settings.BASE_DIR, 'outputs', f'{report.document_filename}.docx')
 
-    # TODO will likely make this selectable by user to allow different report formats.
     processor = WordTemplateProcessor(template_path, output_path)
 
     report_excluded = {'id', 'document_filename'}
-    setup_excluded = {'id', 'report'}
+    setup_excluded = {'id', 'report', 'order'}
 
+    # Replace report-level placeholders
     for field in report._meta.concrete_fields:
         if field.name in report_excluded:
             continue
         value = getattr(report, field.name, '')
-        placeholder = f'{{{{{field.name.upper()}}}}}' # Placeholder format: {{example_placeholder}}
+        placeholder = f'{{{{{field.name.upper()}}}}}'
         processor.replace(placeholder, str(value) if value else '')
 
-    for setup_field in setup._meta.concrete_fields:
-        if setup_field.name in setup_excluded:
-            continue
-        setup_value = getattr(setup, setup_field.name)
-        setup_placeholder = f'{{{{{setup_field.name.upper()}}}}}' # Placeholder format: {{example_placeholder}}
-        processor.replace(setup_placeholder, str(setup_value) if setup_value else '')
+    # Multi-setup: duplicate setup table block per setup
+    if processor._find_table_with_placeholder('{{SETUP_TABLE}}') is not None:
+        processor.populate_setup_tables(setups)
+    else:
+        # Fallback: populate single setup table using first setup's fields
+        setup = setups[0]
+        for setup_field in setup._meta.concrete_fields:
+            if setup_field.name in setup_excluded:
+                continue
+            setup_value = getattr(setup, setup_field.name)
+            setup_placeholder = f'{{{{{setup_field.name.upper()}}}}}'
+            processor.replace(setup_placeholder, str(setup_value) if setup_value else '')
+
+    # Images
+    images = list(report.images.order_by('order'))
+    if images:
+        processor.insert_images(images)
+
+    # Results table
+    results_table = getattr(report, 'results_table', None)
+    if results_table is not None:
+        processor.populate_results_table(results_table)
 
     try:
         processor.save()

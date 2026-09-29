@@ -88,5 +88,45 @@ class Setup(models.Model):
     tr_min = models.CharField(max_length=50, blank=True)
     tr_max = models.CharField(max_length=50, blank=True)
 
+    order = models.IntegerField(default=0)
+
     def __str__(self):
         return f"Setup {self.pk} - {self.report}"
+
+
+class ReportImage(models.Model):
+    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='report_images/')
+    caption = models.CharField(max_length=200, blank=True)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"Image {self.pk} for Report {self.report_id}"
+
+
+class ResultsTable(models.Model):
+    report = models.OneToOneField(Report, on_delete=models.CASCADE, related_name='results_table')
+    columns = models.JSONField(default=list)
+
+    def __str__(self):
+        return f"ResultsTable for Report {self.report_id}"
+
+
+class ResultsRow(models.Model):
+    table = models.ForeignKey(ResultsTable, on_delete=models.CASCADE, related_name='rows')
+    cells = models.JSONField(default=list)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+
+class ResultsTablePreset(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    columns = models.JSONField(default=list)
+
+    def __str__(self):
+        return self.name

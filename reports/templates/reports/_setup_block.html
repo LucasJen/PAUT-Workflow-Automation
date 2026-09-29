@@ -1,0 +1,105 @@
+<div class="setup-block card setup-card" data-form-index="{{ idx }}">
+    {{ form.id }}
+    <div style="display:none">{{ form.DELETE }}</div>
+
+    <div class="setup-block-header">
+        <span class="setup-block-title">Setup #{{ num }}</span>
+        <button type="button" class="btn btn-danger btn-sm remove-setup">Remove</button>
+    </div>
+
+    <!-- Load from saved setup -->
+    <div style="display:flex; gap:0.75rem; align-items:center; margin-bottom:1rem;">
+        <select class="setup-loader" data-form-prefix="setups-{{ idx }}" style="flex:1;">
+            <option value="">-- Load from saved setup --</option>
+            {% for s in setups %}
+            <option value="{{ s.pk }}"
+                data-manufacturer="{{ s.manufacturer }}"
+                data-scope_platform="{{ s.scope_platform }}"
+                data-scope_model="{{ s.scope_model }}"
+                data-scope_serial="{{ s.scope_serial }}"
+                data-transducer_model="{{ s.transducer_model }}"
+                data-transducer_serial="{{ s.transducer_serial }}"
+                data-probe_diameter="{{ s.probe_diameter }}"
+                data-wedge_model="{{ s.wedge_model }}"
+                data-wedge_angle="{{ s.wedge_angle }}"
+                data-foc_depth="{{ s.foc_depth }}"
+                data-wave_propagation="{{ s.wave_propagation }}"
+                data-freq="{{ s.freq }}"
+                data-elements="{{ s.elements }}"
+                data-x_res="{{ s.x_res }}"
+                data-y_res="{{ s.y_res }}"
+                data-scan_length="{{ s.scan_length }}"
+                data-scan_width="{{ s.scan_width }}"
+                data-angle_step="{{ s.angle_step }}"
+                data-angle_range="{{ s.angle_range }}"
+                data-sound_velocity="{{ s.sound_velocity }}"
+                data-gain="{{ s.gain }}"
+                data-ref_gain="{{ s.ref_gain }}"
+                data-voltage="{{ s.voltage }}"
+                data-specimen_od="{{ s.specimen_od }}"
+                data-specimen_thickness="{{ s.specimen_thickness }}"
+                data-cal_material="{{ s.cal_material }}"
+                data-material_temp="{{ s.material_temp }}"
+                data-cal_block_type="{{ s.cal_block_type }}"
+                data-cal_block_serial="{{ s.cal_block_serial }}"
+                data-surface_prep="{{ s.surface_prep }}"
+                data-tr_min="{{ s.tr_min }}"
+                data-tr_max="{{ s.tr_max }}">
+                {{ s }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="section-title">UT Equipment Information</div>
+    <div class="grid-2">
+        <div class="field">{{ form.manufacturer.label_tag }}{{ form.manufacturer }}{{ form.manufacturer.errors }}</div>
+        <div class="field">{{ form.scope_platform.label_tag }}{{ form.scope_platform }}{{ form.scope_platform.errors }}</div>
+        <div class="field">{{ form.scope_model.label_tag }}{{ form.scope_model }}{{ form.scope_model.errors }}</div>
+        <div class="field">{{ form.scope_serial.label_tag }}{{ form.scope_serial }}{{ form.scope_serial.errors }}</div>
+        <div class="field">{{ form.transducer_model.label_tag }}{{ form.transducer_model }}{{ form.transducer_model.errors }}</div>
+        <div class="field">{{ form.transducer_serial.label_tag }}{{ form.transducer_serial }}{{ form.transducer_serial.errors }}</div>
+        <div class="field">{{ form.probe_diameter.label_tag }}{{ form.probe_diameter }}{{ form.probe_diameter.errors }}</div>
+    </div>
+
+    <div class="section-title">Wedge Information</div>
+    <div class="grid-2">
+        <div class="field">{{ form.wedge_model.label_tag }}{{ form.wedge_model }}{{ form.wedge_model.errors }}</div>
+        <div class="field">{{ form.wedge_angle.label_tag }}{{ form.wedge_angle }}{{ form.wedge_angle.errors }}</div>
+    </div>
+
+    <div class="section-title">UT Setup Information</div>
+    <div class="grid-2">
+        <div class="field">{{ form.foc_depth.label_tag }}{{ form.foc_depth }}{{ form.foc_depth.errors }}</div>
+        <div class="field">{{ form.wave_propagation.label_tag }}{{ form.wave_propagation }}{{ form.wave_propagation.errors }}</div>
+        <div class="field">{{ form.freq.label_tag }}{{ form.freq }}{{ form.freq.errors }}</div>
+        <div class="field">{{ form.elements.label_tag }}{{ form.elements }}{{ form.elements.errors }}</div>
+        <div class="field">{{ form.x_res.label_tag }}{{ form.x_res }}{{ form.x_res.errors }}</div>
+        <div class="field">{{ form.y_res.label_tag }}{{ form.y_res }}{{ form.y_res.errors }}</div>
+        <div class="field">{{ form.scan_length.label_tag }}{{ form.scan_length }}{{ form.scan_length.errors }}</div>
+        <div class="field">{{ form.scan_width.label_tag }}{{ form.scan_width }}{{ form.scan_width.errors }}</div>
+        <div class="field">{{ form.angle_step.label_tag }}{{ form.angle_step }}{{ form.angle_step.errors }}</div>
+        <div class="field">{{ form.angle_range.label_tag }}{{ form.angle_range }}{{ form.angle_range.errors }}</div>
+        <div class="field">{{ form.sound_velocity.label_tag }}{{ form.sound_velocity }}{{ form.sound_velocity.errors }}</div>
+        <div class="field">{{ form.gain.label_tag }}{{ form.gain }}{{ form.gain.errors }}</div>
+        <div class="field">{{ form.ref_gain.label_tag }}{{ form.ref_gain }}{{ form.ref_gain.errors }}</div>
+        <div class="field">{{ form.voltage.label_tag }}{{ form.voltage }}{{ form.voltage.errors }}</div>
+    </div>
+
+    <div class="section-title">Specimen Information</div>
+    <div class="grid-2">
+        <div class="field">{{ form.specimen_od.label_tag }}{{ form.specimen_od }}{{ form.specimen_od.errors }}</div>
+        <div class="field">{{ form.specimen_thickness.label_tag }}{{ form.specimen_thickness }}{{ form.specimen_thickness.errors }}</div>
+    </div>
+
+    <div class="section-title">Calibration Information</div>
+    <div class="grid-2">
+        <div class="field">{{ form.cal_material.label_tag }}{{ form.cal_material }}{{ form.cal_material.errors }}</div>
+        <div class="field">{{ form.material_temp.label_tag }}{{ form.material_temp }}{{ form.material_temp.errors }}</div>
+        <div class="field">{{ form.cal_block_type.label_tag }}{{ form.cal_block_type }}{{ form.cal_block_type.errors }}</div>
+        <div class="field">{{ form.cal_block_serial.label_tag }}{{ form.cal_block_serial }}{{ form.cal_block_serial.errors }}</div>
+        <div class="field">{{ form.surface_prep.label_tag }}{{ form.surface_prep }}{{ form.surface_prep.errors }}</div>
+        <div class="field">{{ form.tr_min.label_tag }}{{ form.tr_min }}{{ form.tr_min.errors }}</div>
+        <div class="field">{{ form.tr_max.label_tag }}{{ form.tr_max }}{{ form.tr_max.errors }}</div>
+    </div>
+</div>

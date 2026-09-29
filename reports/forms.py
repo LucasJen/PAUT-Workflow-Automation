@@ -1,5 +1,5 @@
-from django.forms import ModelForm, DateInput, Textarea, TextInput
-from .models import Report, Setup
+from django.forms import ModelForm, DateInput, Textarea, TextInput, HiddenInput, inlineformset_factory
+from .models import Report, Setup, ReportImage
 from datetime import date
 
 class ReportForm(ModelForm):
@@ -15,8 +15,19 @@ class ReportForm(ModelForm):
 class SetupForm(ModelForm):
     class Meta:
         model = Setup
-        exclude = ['report']
+        exclude = ['report', 'order']
         widgets = {
-            'wave_propagation': TextInput(attrs={'list':'wave_propagation_options'})
+            'wave_propagation': TextInput(attrs={'list': 'wave_propagation_options'})
         }
-    
+
+SetupFormSet = inlineformset_factory(
+    Report, Setup, form=SetupForm,
+    extra=1, can_delete=True
+)
+
+ImageFormSet = inlineformset_factory(
+    Report, ReportImage,
+    fields=['image', 'caption', 'order'],
+    extra=1, can_delete=True,
+    widgets={'order': HiddenInput}
+)
