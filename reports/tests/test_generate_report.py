@@ -104,6 +104,7 @@ class SaveAndDownloadTests(TestCase):
         data = {
             'report_id': report.pk, 'setups-TOTAL_FORMS': '0', 'setups-INITIAL_FORMS': '0',
             'images-TOTAL_FORMS': '0', 'images-INITIAL_FORMS': '0',
+            'drawings-TOTAL_FORMS': '0', 'drawings-INITIAL_FORMS': '0',
         }
         data.update(extra)
         return self.client.post(self.url, data)

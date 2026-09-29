@@ -48,9 +48,17 @@ Rules that avoid broken templates:
 
 `results_title`, `r.scan_id`, `r.orientation`, `r.x_range`, `r.y_range`, `r.avg_thk`,
 `r.min_thk`, `r.is_min` (true for the thinnest reading, which is highlighted yellow),
-`r.comments`, `r.image`. `scan_images` is the list of scans that have an image.
+`r.comments`.
 
-**Figures** — `figures.drawings`, `figures.comparison`: lists of `f.title` + `f.images`.
+**Photo summary** — `{%p for r in scan_images %}`, one image block each
+
+`r.image`, `r.scan_id`, `r.comments`. Built from the editor's Photo summary uploads in
+results-table order: each image's comments come from the results row with the same Scan ID;
+images not tied to a row follow, labelled with their own label.
+
+**Figures** — lists of `f.title` + `f.images`
+- `figures.drawings`: the editor's Equipment drawings uploads (shown under DRAWING).
+- `figures.comparison`: data-comparison images (not yet editable in the app).
 
 ## Fields Word updates on open
 

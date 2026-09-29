@@ -17,9 +17,9 @@ from reports.services.report_render import render_report, with_unit
 TAG = re.compile(r'\{\{|\}\}|\{%|%\}')
 
 
-def png_bytes():
+def png_bytes(color='blue'):
     buf = io.BytesIO()
-    Image.new('RGB', (40, 20), 'blue').save(buf, 'PNG')
+    Image.new('RGB', (40, 20), color).save(buf, 'PNG')
     return buf.getvalue()
 
 
@@ -58,8 +58,13 @@ class RenderTests(TestCase):
         table = ResultsTable.objects.create(report=self.report, columns=['Scan ID', 'Orient', 'X', 'Y', 'Avg', 'Min', 'Results'])
         for i, (scan, min_thk) in enumerate([('CW1 Top', '0.800'), ('CW4 Bottom', '0.693'), ('LS2', 'N/A')]):
             ResultsRow.objects.create(table=table, order=i, cells=[scan, 'Circ', '14 - 103', '0 - 2.4', '0.860', min_thk, f'{scan} comments'])
-        ReportImage.objects.create(report=self.report, caption='File Drawing',
+        ReportImage.objects.create(report=self.report, kind=ReportImage.DRAWING, caption='File Drawing',
                                    image=SimpleUploadedFile('drawing.png', png_bytes()))
+        # Photo summary: one image tied to a results row, one standalone snip
+        ReportImage.objects.create(report=self.report, kind=ReportImage.SCAN, scan_id='CW4 Bottom', order=0,
+                                   image=SimpleUploadedFile('cw4.png', png_bytes('red')))
+        ReportImage.objects.create(report=self.report, kind=ReportImage.SCAN, caption='Extra snip', order=1,
+                                   image=SimpleUploadedFile('extra.png', png_bytes('green')))
 
         self.content = render_report(self.report)
         self.doc = Document(io.BytesIO(self.content))
@@ -106,12 +111,26 @@ class RenderTests(TestCase):
                        if run.font.highlight_color is not None]
         self.assertEqual(highlighted, ['0.693'])
 
-    def test_drawings_and_techniques(self):
+    def paragraph_styles(self):
+        return [(p.style.name, p.text) for p in self.doc.paragraphs]
+
+    def test_only_equipment_drawings_under_drawing_heading(self):
+        headings = [text for style, text in self.paragraph_styles() if style == 'Heading 2' and not text.startswith('Equipment')]
+        self.assertEqual(headings, ['File Drawing'])
+
+    def test_photo_summary_blocks_use_results_comments(self):
+        blocks = [t for t in self.doc.tables if len(t.rows) == 2 and t.rows[1].cells[-1].text.startswith('Comments')]
+        summary = [(t.rows[1].cells[0].text.strip(), t.rows[1].cells[-1].paragraphs[-1].text) for t in blocks]
+        self.assertEqual(summary, [('CW4 Bottom', 'CW4 Bottom comments'), ('Extra snip', '')])
+        for t in blocks:
+            self.assertTrue(t.rows[0].cells[0]._tc.xpath('.//pic:pic'), 'scan image missing')
+
+    def test_techniques_and_images_embedded(self):
         texts = [p.text for p in self.doc.paragraphs]
-        self.assertIn('File Drawing', texts)
         self.assertIn('HydroFORM 0-degree PAUT', texts)
         self.assertIn('PAUT Angle Beam', texts)
-        self.assertEqual(sum(1 for n in self.zip.namelist() if n.startswith('word/media/')), 4)  # 3 template images + drawing
+        media = [n for n in self.zip.namelist() if n.startswith('word/media/')]
+        self.assertEqual(len(media), 6)  # 3 template images + 1 drawing + 2 scan images
 
     def test_multi_paragraph_text(self):
         texts = [p.text for t in self.doc.tables for row in t.rows for c in row.cells for p in c.paragraphs]

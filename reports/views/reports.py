@@ -6,8 +6,9 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
 from ..services.report_render import render_report
-from ..forms import ReportForm, SetupFormSet, ImageFormSet
-from ..models import Report, Setup, ResultsTable, ResultsRow
+from ..forms import ReportForm, SetupFormSet, drawing_formset, scan_image_formset
+from ..models import Report, ReportImage, Setup, ResultsTable, ResultsRow
+from ..results import report_scan_rows, scan_rows
 from ..report_types import REPORT_TYPES
 import io
 import json
@@ -53,10 +54,10 @@ def _parse_results(post):
     return columns, rows
 
 
-def _save_ordered_formset(formset):
+def _save_ordered_formset(formset, **fields):
     """
     Saves an inline formset, deleting removed objects and numbering the rest
-    by their position on the page.
+    by their position on the page. `fields` are set on every saved object (e.g. kind=...).
     """
     formset.save(commit=False)
     for obj in formset.deleted_objects:
@@ -67,6 +68,8 @@ def _save_ordered_formset(formset):
         if f in deleted_forms or (f.instance.pk is None and not f.has_changed()):
             continue
         f.instance.order = order
+        for name, value in fields.items():
+            setattr(f.instance, name, value)
         f.instance.save()
         order += 1
 
@@ -95,10 +98,6 @@ def create_report(request):
         # Bind to the loaded report (if any) so saving updates it instead of creating a copy
         instance = _get_report(request.POST.get('report_id'))
 
-        form = ReportForm(request.POST, instance=instance)
-        setup_formset = SetupFormSet(request.POST, instance=form.instance)
-        image_formset = ImageFormSet(request.POST, request.FILES, instance=form.instance)
-
         results, results_ok = None, True
         try:
             results = _parse_results(request.POST)
@@ -107,12 +106,20 @@ def create_report(request):
             messages.error(request, 'The results table data could not be read. Please re-enter it and try again.')
         if results:
             results_data = {'columns': results[0], 'rows': results[1]}
+        scan_ids = [scan_id for scan_id, _ in (scan_rows(*results) if results else report_scan_rows(instance))]
 
-        if form.is_valid() and setup_formset.is_valid() and image_formset.is_valid() and results_ok:
+        form = ReportForm(request.POST, instance=instance)
+        setup_formset = SetupFormSet(request.POST, instance=form.instance)
+        drawings = drawing_formset(request.POST, request.FILES, instance=form.instance)
+        image_formset = scan_image_formset(request.POST, request.FILES, instance=form.instance, scan_ids=scan_ids)
+        formsets = (setup_formset, drawings, image_formset)
+
+        if form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok:
             with transaction.atomic():
                 report = form.save()
                 _save_ordered_formset(setup_formset)
-                _save_ordered_formset(image_formset)
+                _save_ordered_formset(drawings, kind=ReportImage.DRAWING)
+                _save_ordered_formset(image_formset, kind=ReportImage.SCAN)
                 if results is not None:
                     _save_results_table(report, *results)
 
@@ -132,7 +139,9 @@ def create_report(request):
         loaded_report = _get_report(request.GET.get('loaded'))
         form = ReportForm(instance=loaded_report)
         setup_formset = SetupFormSet(instance=loaded_report)
-        image_formset = ImageFormSet(instance=loaded_report)
+        drawings = drawing_formset(instance=loaded_report)
+        scan_ids = [scan_id for scan_id, _ in report_scan_rows(loaded_report)]
+        image_formset = scan_image_formset(instance=loaded_report, scan_ids=scan_ids)
         if loaded_report is not None and hasattr(loaded_report, 'results_table'):
             rt = loaded_report.results_table
             results_data = {
@@ -143,6 +152,7 @@ def create_report(request):
     return render(request, 'reports/create_report.html', {
         'form': form,
         'setup_formset': setup_formset,
+        'drawing_formset': drawings,
         'image_formset': image_formset,
         'results_data': results_data,
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},

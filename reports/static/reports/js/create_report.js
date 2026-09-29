@@ -113,9 +113,20 @@ document.addEventListener('change', e => {
     markDirty();
 });
 
-// ── Images ───────────────────────────────────────────────────────────────
+// ── Equipment drawings and photo-summary images ──────────────────────────
 
 const imageContainer = document.getElementById('image-formset-container');
+
+const drawings = makeFormset({
+    prefix: 'drawings',
+    container: document.getElementById('drawing-formset-container'),
+    template: document.getElementById('drawing-empty-form'),
+    blockSelector: '.image-block',
+    titleSelector: '.image-num',
+    titleText: n => String(n),
+    removeSelector: '.remove-image',
+    onChange: n => { document.getElementById('drawing-count').textContent = n || ''; },
+});
 
 const images = makeFormset({
     prefix: 'images',
@@ -128,14 +139,20 @@ const images = makeFormset({
     onChange: n => { document.getElementById('image-count').textContent = n || ''; },
 });
 
-document.getElementById('add-image').addEventListener('click', () => {
-    images.add();
+document.getElementById('add-drawing').addEventListener('click', () => {
+    drawings.add();
     markDirty();
 });
 
-// Preview a newly chosen image file
-imageContainer.addEventListener('change', e => {
-    if (e.target.type !== 'file') return;
+document.getElementById('add-image').addEventListener('click', () => {
+    images.add();
+    refreshScanSelects();
+    markDirty();
+});
+
+// Preview a newly chosen image file (drawings and scan images)
+document.addEventListener('change', e => {
+    if (e.target.type !== 'file' || !e.target.closest('.image-block')) return;
     const file = e.target.files[0];
     const block = e.target.closest('.image-block');
     if (!file || !block) return;
@@ -191,7 +208,55 @@ function renderResultsTable() {
 
     resultsEmptyHint.hidden = columns.length > 0;
     document.getElementById('add-results-row').disabled = columns.length === 0;
+    refreshScanSelects();
 }
+
+// ── Photo summary: Scan ID options and comments come from the results table ──
+// Same rules as reports/results.py: Scan ID is the first column; comments come from the
+// column whose header mentions "result" or "comment", otherwise the last column.
+
+function resultsScanRows() {
+    const headers = Array.from(resultsColHeaders.querySelectorAll('.col-header-input')).map(i => i.value);
+    let commentIndex = headers.findIndex((h, i) => i > 0 && /result|comment/i.test(h));
+    if (commentIndex < 0) commentIndex = headers.length - 1;
+    return Array.from(resultsTbody.querySelectorAll('tr')).map(tr => {
+        const cells = Array.from(tr.querySelectorAll('td.result-cell input')).map(i => i.value);
+        return { id: (cells[0] || '').trim(), comments: commentIndex > 0 ? (cells[commentIndex] || '') : '' };
+    }).filter(row => row.id);
+}
+
+function refreshScanSelects() {
+    const rows = resultsScanRows();
+    const byId = new Map(rows.map(r => [r.id, r.comments]));
+    imageContainer.querySelectorAll('.image-block').forEach(block => {
+        const select = block.querySelector('select[name$="-scan_id"]');
+        if (!select) return;
+        const current = select.value;
+        select.innerHTML = '';
+        select.add(new Option('— Select scan —', ''));
+        byId.forEach((_, id) => select.add(new Option(id, id)));
+        if (current && !byId.has(current)) select.add(new Option(`${current} (not in results table)`, current));
+        select.value = current;
+
+        const preview = block.querySelector('.scan-comments');
+        if (!preview) return;
+        if (!current) {
+            preview.textContent = 'Pick a Scan ID to use that row\'s comments.';
+            preview.classList.add('missing');
+        } else if (!byId.has(current)) {
+            preview.textContent = 'This Scan ID is no longer in the results table, so no comments will be shown.';
+            preview.classList.add('missing');
+        } else {
+            preview.textContent = byId.get(current) || '(no comments in this row)';
+            preview.classList.toggle('missing', !byId.get(current));
+        }
+    });
+}
+
+imageContainer.addEventListener('change', e => {
+    if (e.target.matches('select[name$="-scan_id"]')) refreshScanSelects();
+});
+resultsTbody.addEventListener('input', refreshScanSelects);
 
 function addResultsRow(values) {
     const tr = document.createElement('tr');
@@ -203,10 +268,11 @@ function addResultsRow(values) {
     remove.className = 'btn btn-icon btn-sm';
     remove.title = 'Remove row';
     remove.innerHTML = '<i class="bi bi-x-lg"></i>';
-    remove.addEventListener('click', () => { tr.remove(); markDirty(); });
+    remove.addEventListener('click', () => { tr.remove(); refreshScanSelects(); markDirty(); });
     actions.appendChild(remove);
     tr.appendChild(actions);
     resultsTbody.appendChild(tr);
+    refreshScanSelects();
 }
 
 function addResultsColumn(header) {

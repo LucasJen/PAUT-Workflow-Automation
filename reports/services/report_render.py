@@ -16,7 +16,9 @@ from docx.oxml.ns import qn
 from docx.shared import Inches
 from docxtpl import DocxTemplate, InlineImage, Listing, RichText
 
+from ..models import ReportImage
 from ..report_types import get_report_type
+from ..results import report_scan_rows
 
 FULL_WIDTH = Inches(7.0)       # drawings, comparisons, scan images
 HALF_WIDTH = Inches(3.45)      # calibration screenshots, two per line
@@ -111,18 +113,47 @@ def _scans(report):
     return scans
 
 
+def _drawings(report, tpl):
+    """Equipment drawings: one titled figure each, under the Drawing heading."""
+    figures = []
+    for image in report.images.filter(kind=ReportImage.DRAWING).order_by('order'):
+        inline = _image(tpl, image.image, FULL_WIDTH)
+        if inline:
+            figures.append({'title': image.caption, 'images': [inline]})
+    return figures
+
+
+def _scan_images(report, tpl):
+    """
+    Photo-summary blocks (image + Scan ID + comments), in results-table order. Each image's
+    comments come from the results row with the same Scan ID; images not tied to a row follow,
+    labelled with their own label.
+    """
+    images = [i for i in report.images.filter(kind=ReportImage.SCAN).order_by('order')]
+    blocks, used = [], set()
+    for scan_id, comments in report_scan_rows(report):
+        for image in images:
+            if image.pk not in used and image.scan_id == scan_id:
+                used.add(image.pk)
+                inline = _image(tpl, image.image, FULL_WIDTH)
+                if inline:
+                    blocks.append({'scan_id': scan_id, 'comments': prose(comments), 'image': inline})
+    for image in images:
+        if image.pk not in used:
+            inline = _image(tpl, image.image, FULL_WIDTH)
+            if inline:
+                blocks.append({'scan_id': image.caption or image.scan_id, 'comments': '', 'image': inline})
+    return blocks
+
+
 def build_context(report, tpl):
     setups = [_setup_context(s, i + 1, report) for i, s in enumerate(report.setups.order_by('order'))]
     technician = {'name': report.technician_name, 'certification': report.certification}
     assistant = {'name': report.assistant_name, 'certification': report.assistant_certification}
     people = [p for p in (technician, assistant) if p['name']]
     scans = _scans(report)
-
-    drawings = []
-    for image in report.images.order_by('order'):
-        inline = _image(tpl, image.image, FULL_WIDTH)
-        if inline:
-            drawings.append({'title': image.caption, 'images': [inline]})
+    drawings = _drawings(report, tpl)
+    scan_images = _scan_images(report, tpl)
 
     return {
         'client': report.client,
@@ -150,7 +181,7 @@ def build_context(report, tpl):
         'setups': setups,
         'results_title': f"PAUT {setups[0]['title']} Work Scope" if setups else 'PAUT Work Scope',
         'scans': scans,
-        'scan_images': [s for s in scans if s['image']],
+        'scan_images': scan_images,
         'figures': {'comparison': [], 'drawings': drawings},
     }
 

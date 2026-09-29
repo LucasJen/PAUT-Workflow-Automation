@@ -119,9 +119,18 @@ class Setup(models.Model):
 
 
 class ReportImage(models.Model):
+    SCAN = 'scan'
+    DRAWING = 'drawing'
+    KIND_CHOICES = [(SCAN, 'Scan image (photo summary)'), (DRAWING, 'Equipment drawing')]
+
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='images')
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=SCAN)
     image = models.ImageField(upload_to='report_images/')
+    # Drawings: the drawing's title. Scan images: optional label when not tied to a results row.
     caption = models.CharField(max_length=200, blank=True)
+    # Scan images: the results-table Scan ID this image belongs to (matched by text, because
+    # results rows are recreated on every save); its comments come from that row.
+    scan_id = models.CharField(max_length=200, blank=True)
     order = models.IntegerField(default=0)
 
     class Meta:

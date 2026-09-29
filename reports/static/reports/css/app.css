@@ -785,6 +785,15 @@ textarea.form-control { min-height: 5.5rem; resize: vertical; }
     border: 1px solid var(--border);
 }
 
+.scan-comments-preview {
+    padding: 0.5rem 0.75rem;
+    border-left: 2px solid var(--border-strong);
+    background: var(--surface);
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+.scan-comments { font-size: 0.8125rem; color: var(--text-2); white-space: pre-line; }
+.scan-comments.missing { color: var(--warning); font-style: italic; }
+
 /* ── Results table editor ───────────────────────────────────────────────── */
 
 .col-header-wrap { display: flex; align-items: center; gap: 0.25rem; }

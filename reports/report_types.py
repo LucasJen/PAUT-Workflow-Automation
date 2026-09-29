@@ -27,9 +27,10 @@ REPORT_SECTIONS = (
         'equipment_id', 'ut_method', 'x_axis_reference', 'y_axis_reference',
         'equipment_overview', 'work_scope',
     )),
+    ('drawings', 'Equipment drawings', None),
     ('setups', 'UT setups', None),
-    ('images', 'Images', None),
     ('results', 'Results table', None),
+    ('images', 'Photo summary', None),
 )
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)

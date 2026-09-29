@@ -51,6 +51,7 @@ class EditorTests(TestCase):
             'report_id': '', 'report_type': DEFAULT_REPORT_TYPE,
             'setups-TOTAL_FORMS': '0', 'setups-INITIAL_FORMS': '0',
             'images-TOTAL_FORMS': '0', 'images-INITIAL_FORMS': '0',
+            'drawings-TOTAL_FORMS': '0', 'drawings-INITIAL_FORMS': '0',
         })
         self.assertEqual(Report.objects.get().report_type, DEFAULT_REPORT_TYPE)
 
@@ -59,6 +60,7 @@ class EditorTests(TestCase):
             'report_id': '', 'report_type': 'made_up',
             'setups-TOTAL_FORMS': '0', 'setups-INITIAL_FORMS': '0',
             'images-TOTAL_FORMS': '0', 'images-INITIAL_FORMS': '0',
+            'drawings-TOTAL_FORMS': '0', 'drawings-INITIAL_FORMS': '0',
         })
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(Report.objects.exists())

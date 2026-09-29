@@ -25,6 +25,7 @@ def post_data(report=None, setups=(), columns=None, rows=None, **fields):
         for k, v in s.items():
             data[f'setups-{i}-{k}'] = v
     data.update(management('images', 0))
+    data.update(management('drawings', 0))
     if columns is not None:
         data['results_columns'] = json.dumps(columns)
         data['results_rows'] = json.dumps(rows or [])
@@ -102,6 +103,56 @@ class CreateReportTests(TestCase):
         report = Report.objects.create()
         resp = self.client.get(f'{self.url}?loaded={report.pk}')
         self.assertContains(resp, f'name="report_id" value="{report.pk}"')
+
+
+def png_upload(name):
+    import io
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new('RGB', (10, 10), 'red').save(buf, 'PNG')
+    return SimpleUploadedFile(name, buf.getvalue(), content_type='image/png')
+
+
+class ImageSectionTests(TestCase):
+    url = reverse('create-report')
+
+    def setUp(self):
+        import tempfile, shutil
+        from django.test import override_settings
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, True)
+        override = override_settings(MEDIA_ROOT=media)
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def test_drawings_and_scan_images_saved_with_their_kind(self):
+        data = post_data(columns=['Scan ID', 'Results'], rows=[['CW1 Top', 'Blisters near ID']])
+        data.update(management('drawings', 1))
+        data.update({'drawings-0-caption': 'FILE DRAWING', 'drawings-0-image': png_upload('drawing.png')})
+        data.update(management('images', 1))
+        data.update({'images-0-scan_id': 'CW1 Top', 'images-0-image': png_upload('cw1.png')})
+
+        resp = self.client.post(self.url, data)
+        report = Report.objects.get()
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
+        self.assertEqual(
+            sorted(report.images.values_list('kind', 'caption', 'scan_id')),
+            [('drawing', 'FILE DRAWING', ''), ('scan', '', 'CW1 Top')],
+        )
+
+    def test_scan_id_options_come_from_results_table(self):
+        report = Report.objects.create()
+        table = ResultsTable.objects.create(report=report, columns=['Scan ID', 'Results'])
+        from reports.models import ResultsRow, ReportImage
+        ResultsRow.objects.create(table=table, cells=['CW1 Top', 'x'], order=0)
+        ResultsRow.objects.create(table=table, cells=['LS2 East', 'y'], order=1)
+        ReportImage.objects.create(report=report, kind=ReportImage.SCAN, scan_id='Old ID', image='report_images/a.png')
+
+        html = self.client.get(f'{self.url}?loaded={report.pk}').content.decode()
+        self.assertIn('<option value="CW1 Top">CW1 Top</option>', html)
+        self.assertIn('<option value="LS2 East">LS2 East</option>', html)
+        self.assertIn('Old ID (not in results table)', html)  # renamed/removed rows keep the saved value
 
 
 class GenerateReportTests(TestCase):

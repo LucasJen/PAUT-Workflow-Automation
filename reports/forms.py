@@ -153,11 +153,41 @@ class SetupForm(StyledFormMixin, ModelForm):
         }
 
 
-class ReportImageForm(StyledFormMixin, ModelForm):
+class DrawingForm(StyledFormMixin, ModelForm):
+    """Equipment / isometric drawings, shown under the report's Drawing heading."""
+
     class Meta:
         model = ReportImage
-        fields = ['image', 'caption', 'order']
-        widgets = {'order': HiddenInput, 'image': ClearableFileInput(attrs={'accept': 'image/*'})}
+        fields = ['image', 'caption']  # order comes from position on the page
+        labels = {'caption': 'Drawing title', 'image': 'Drawing'}
+        widgets = {
+            'image': ClearableFileInput(attrs={'accept': 'image/*'}),
+            'caption': TextInput(attrs={'placeholder': 'e.g. FILE DRAWING, NOZZLE LAYOUT'}),
+        }
+
+
+class ScanImageForm(StyledFormMixin, ModelForm):
+    """Photo-summary data snips; each is tied to a results-table row by Scan ID."""
+
+    class Meta:
+        model = ReportImage
+        fields = ['image', 'scan_id', 'caption']  # order comes from position on the page
+        labels = {'image': 'Scan image', 'scan_id': 'Scan ID', 'caption': 'Label (if not in results table)'}
+        widgets = {
+            'image': ClearableFileInput(attrs={'accept': 'image/*'}),
+            'scan_id': Select(attrs={'class': 'scan-id-select'}),
+        }
+
+    def __init__(self, *args, scan_ids=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        # Options are the results table's Scan IDs; the editor's JS keeps them in step as the
+        # table is edited. Keep the saved value even if its row has since been renamed.
+        current = self.initial.get('scan_id') or (self.data.get(self.add_prefix('scan_id')) if self.is_bound else '')
+        ids = list(dict.fromkeys(scan_ids))
+        choices = [('', '— Select scan —')] + [(i, i) for i in ids]
+        if current and current not in ids:
+            choices.append((current, f'{current} (not in results table)'))
+        self.fields['scan_id'].widget.choices = choices
 
 
 SetupFormSet = inlineformset_factory(
@@ -165,7 +195,23 @@ SetupFormSet = inlineformset_factory(
     extra=1, can_delete=True
 )
 
-ImageFormSet = inlineformset_factory(
-    Report, ReportImage, form=ReportImageForm,
-    extra=1, can_delete=True,
+DrawingFormSet = inlineformset_factory(
+    Report, ReportImage, form=DrawingForm,
+    extra=0, can_delete=True,
 )
+
+ImageFormSet = inlineformset_factory(
+    Report, ReportImage, form=ScanImageForm,
+    extra=0, can_delete=True,
+)
+
+
+def drawing_formset(*args, instance=None, **kwargs):
+    return DrawingFormSet(*args, instance=instance, prefix='drawings',
+                          queryset=ReportImage.objects.filter(kind=ReportImage.DRAWING), **kwargs)
+
+
+def scan_image_formset(*args, instance=None, scan_ids=(), **kwargs):
+    return ImageFormSet(*args, instance=instance, prefix='images',
+                        queryset=ReportImage.objects.filter(kind=ReportImage.SCAN),
+                        form_kwargs={'scan_ids': scan_ids}, **kwargs)
