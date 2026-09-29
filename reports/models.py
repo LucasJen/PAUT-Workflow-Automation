@@ -35,7 +35,8 @@ class Report(models.Model):
     work_scope = models.TextField(blank=True)
     x_axis_reference = models.CharField(max_length=200, blank=True)
     y_axis_reference = models.CharField(max_length=200, blank=True)
-    ut_method = models.CharField(max_length=200, blank=True)
+    # One technique per line; used for the Introduction bullets only when no setup has a Technique title
+    ut_method = models.TextField(blank=True)
 
     # Discussion; blank uses the text library's standard Discussion
     discussion = models.TextField(blank=True)

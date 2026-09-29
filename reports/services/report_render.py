@@ -221,6 +221,15 @@ def _scan_images(report, tpl):
     return [b for b in blocks if b]
 
 
+# A bullet character (and the tab/spaces after it) at the start of pasted text; the template's
+# bullet list already draws the bullet, so a pasted one would show twice ("• •")
+PASTED_BULLET = re.compile(r'^\s*[•·•·▪●*\-–]+[\s\t]*')
+
+
+def _strip_bullet(text):
+    return PASTED_BULLET.sub('', text or '').strip()
+
+
 def _techniques(report, setups):
     """
     Introduction bullets: one per distinct setup Technique title, in setup order, as
@@ -236,18 +245,35 @@ def _techniques(report, setups):
             seen.add(title.lower())
             titles.append(title)
     if not titles:
-        return [{'text': RichText(t)} for t in lines(report.ut_method)]
+        return [{'text': _lead_and_text(line)} for line in _technique_lines(report.ut_method)]
     bullets = []
     for title in titles:
         snippet = snippets.get(title.lower())
+        lead = _strip_bullet(snippet.title) if snippet and snippet.title.strip() else title
+        body = _strip_bullet(snippet.body) if snippet else ''
         text = RichText()
-        if snippet and snippet.body.strip():
-            text.add(snippet.title.strip() or title, bold=True)
-            text.add(f' – {snippet.body.strip()}')
-        else:
-            text.add(snippet.title.strip() if snippet and snippet.title.strip() else title, bold=True)
+        text.add(lead, bold=True)
+        if body:
+            text.add(f' – {body}')
         bullets.append({'text': text})
     return bullets
+
+
+def _technique_lines(text):
+    """UT method: one technique per line (not split on ';', which can appear inside a description)."""
+    return [line for line in (_strip_bullet(raw) for raw in (text or '').splitlines()) if line]
+
+
+def _lead_and_text(line):
+    """'ENCODED HydroFORM 0-degree PAUT – description' -> bold lead, plain description."""
+    text = RichText()
+    lead, sep, rest = line.partition(' – ')
+    if sep and rest:
+        text.add(lead, bold=True)
+        text.add(f' – {rest}')
+    else:
+        text.add(line)
+    return text
 
 
 def _discussion(report):

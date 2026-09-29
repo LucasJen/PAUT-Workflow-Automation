@@ -102,6 +102,9 @@ class ReportForm(StyledFormMixin, ModelForm):
             'test_end_date': 'Leave blank for a single-day test.',
             'asset_description': 'Opening paragraph of the Introduction: what the asset is, material, design and service conditions.',
             'discussion': 'Leave blank to use the standard Discussion from the Text library.',
+            'ut_method': 'One technique per line, e.g. "ENCODED HydroFORM 0-degree PAUT – description". '
+                         'Only used when no setup has a Technique title; setting Technique titles uses the '
+                         'Text library instead.',
         }
 
     def __init__(self, *args, **kwargs):

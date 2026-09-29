@@ -70,6 +70,28 @@ class ReportTextTests(TestCase):
         Setup.objects.create(report=report)
         self.assertEqual([p.text for p in bullets(self.render(report))], ['Manual UT', 'Thickness readings'])
 
+    def test_pasted_bullets_are_not_doubled(self):
+        """Text pasted from an old report ('•<tab>…') must not add a second bullet."""
+        long_desc = 'Performed on the 2.4" of base metal adjacent to the girth and long seams; ' + 'more detail. ' * 30
+        report = Report.objects.create(ut_method=f'•\tENCODED HydroFORM 0-degree PAUT – {long_desc}\n PAUT Angle Beam\n- TFM')
+        Setup.objects.create(report=report)
+        paras = bullets(self.render(report))
+        self.assertEqual(len(paras), 3)  # not split on the ';' inside the description
+        self.assertTrue(paras[0].text.startswith('ENCODED HydroFORM 0-degree PAUT – Performed on the 2.4"'))
+        self.assertTrue(paras[0].text.rstrip().endswith('more detail.'))  # long text kept (was cut at 200 chars)
+        self.assertEqual(''.join(r.text for r in paras[0].runs if r.bold), 'ENCODED HydroFORM 0-degree PAUT')
+        self.assertEqual([p.text for p in paras[1:]], ['PAUT Angle Beam', 'TFM'])
+        for p in paras:
+            self.assertFalse(p.text.startswith(('•', '', '-', '\t')))
+
+    def test_pasted_bullet_in_library_text_is_removed(self):
+        snippet = TextSnippet.objects.get(kind='technique', name='TFM')
+        snippet.title = '•\tTotal Focusing Method (TFM)'
+        snippet.save()
+        report = Report.objects.create()
+        Setup.objects.create(report=report, title='TFM')
+        self.assertTrue(bullets(self.render(report))[0].text.startswith('Total Focusing Method (TFM) – '))
+
     def test_discussion_standard_or_own(self):
         report = Report.objects.create()
         Setup.objects.create(report=report)
