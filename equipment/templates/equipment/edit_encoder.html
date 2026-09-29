@@ -1,48 +1,8 @@
-{% extends 'reports/base.html' %}
-{% load static %}
+{% extends 'reports/components/edit_page.html' %}
 
-{% block content %}
-<h1 class="page-title">Edit Encoder</h1>
-
-<form method="post">
-    {% csrf_token %}
-
-    <div class="card setup-card">
-        <div class="section-title">Encoder Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.manufacturer.label_tag }}
-                {{ form.manufacturer }}
-                {{ form.manufacturer.errors }}
-            </div>
-            <div class="field">
-                {{ form.model.label_tag }}
-                {{ form.model }}
-                {{ form.model.errors }}
-            </div>
-            <div class="field">
-                {{ form.serial_number.label_tag }}
-                {{ form.serial_number }}
-                {{ form.serial_number.errors }}
-            </div>
-            <div class="field">
-                {{ form.encoder_type.label_tag }}
-                {{ form.encoder_type }}
-                {{ form.encoder_type.errors }}
-            </div>
-            <div class="field">
-                {{ form.step_count.label_tag }}
-                {{ form.step_count }}
-                {{ form.step_count.errors }}
-            </div>
-        </div>
-    </div>
-
-    <div class="actions">
-        <button type="submit" name="delete" class="btn btn-danger">Delete Encoder</button>
-        <a href="{% url 'encoder-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
-        <button type="submit" class="btn btn-primary">Save Changes</button>
-    </div>
-</form>
-
-{% endblock %}
+{% block title %}{{ encoder.model|default:"Encoder" }} · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'encoder-list' %}{% endblock %}
+{% block back_label %}Encoders{% endblock %}
+{% block page_title %}{{ encoder.model|default:"New encoder" }}{% endblock %}
+{% block page_subtitle %}{% if encoder.serial_number %}<span class="mono">{{ encoder.serial_number }}</span>{% endif %}{% endblock %}
+{% block item_noun %}encoder{% endblock %}

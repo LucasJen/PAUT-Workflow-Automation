@@ -4,6 +4,12 @@ from .models import Scope, Probe, CalibrationBlock, SensitivityBlock, Encoder
 
 
 class ScopeForm(StyledFormMixin, forms.ModelForm):
+    fieldsets_spec = [
+        ('Instrument', ['manufacturer', 'model', 'serial_number']),
+        ('Software', ['software', 'software_version']),
+        ('Calibration', ['calibration_date', 'calibration_due_date']),
+    ]
+
     class Meta:
         model = Scope
         fields = '__all__'

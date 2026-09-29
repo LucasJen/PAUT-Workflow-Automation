@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from ..forms import SetupForm
 from ..models import Setup
@@ -39,10 +40,12 @@ def edit_setup(request, pk):
     if request.method == 'POST':
         if 'delete' in request.POST:
             setup.delete()
+            messages.success(request, 'Setup deleted.')
             return redirect('setup-list')
         form = SetupForm(request.POST, instance=setup)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Setup saved.')
             return redirect('setup-list')
     else:
         form = SetupForm(instance=setup)

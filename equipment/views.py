@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Scope, Probe, CalibrationBlock, SensitivityBlock, Encoder
 from .forms import ScopeForm, ProbeForm, CalibrationBlockForm, SensitivityBlockForm, EncoderForm
@@ -32,10 +33,12 @@ def edit_scope(request, pk):
     if request.method == 'POST':
         if 'delete' in request.POST:
             scope.delete()
+            messages.success(request, 'Scope deleted.')
             return redirect('scope-list')
         form = ScopeForm(request.POST, instance=scope)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Scope saved.')
             return redirect('scope-list')
     else:
         form = ScopeForm(instance=scope)
@@ -71,10 +74,12 @@ def edit_probe(request, pk):
     if request.method == 'POST':
         if 'delete' in request.POST:
             probe.delete()
+            messages.success(request, 'Probe deleted.')
             return redirect('probe-list')
         form = ProbeForm(request.POST, instance=probe)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Probe saved.')
             return redirect('probe-list')
     else:
         form = ProbeForm(instance=probe)
@@ -110,10 +115,12 @@ def edit_cal_block(request, pk):
     if request.method == 'POST':
         if 'delete' in request.POST:
             cal_block.delete()
+            messages.success(request, 'Calibration block deleted.')
             return redirect('cal-block-list')
         form = CalibrationBlockForm(request.POST, instance=cal_block)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Calibration block saved.')
             return redirect('cal-block-list')
     else:
         form = CalibrationBlockForm(instance=cal_block)
@@ -149,10 +156,12 @@ def edit_sensitivity_block(request, pk):
     if request.method == 'POST':
         if 'delete' in request.POST:
             block.delete()
+            messages.success(request, 'Sensitivity block deleted.')
             return redirect('sensitivity-block-list')
         form = SensitivityBlockForm(request.POST, instance=block)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Sensitivity block saved.')
             return redirect('sensitivity-block-list')
     else:
         form = SensitivityBlockForm(instance=block)
@@ -188,10 +197,12 @@ def edit_encoder(request, pk):
     if request.method == 'POST':
         if 'delete' in request.POST:
             encoder.delete()
+            messages.success(request, 'Encoder deleted.')
             return redirect('encoder-list')
         form = EncoderForm(request.POST, instance=encoder)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Encoder saved.')
             return redirect('encoder-list')
     else:
         form = EncoderForm(instance=encoder)

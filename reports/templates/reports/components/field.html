@@ -1,4 +1,4 @@
-<div class="field{% if field.errors %} has-error{% endif %}" data-field="{{ field.name }}">
+<div class="field{% if field.widget_type == 'textarea' %} span-full{% endif %}{% if field.errors %} has-error{% endif %}" data-field="{{ field.name }}">
     {% if field.label %}{{ field.label_tag }}{% endif %}
     {{ field }}
     {% if field.help_text %}<div class="form-text" id="{{ field.auto_id }}_helptext">{{ field.help_text|safe }}</div>{% endif %}

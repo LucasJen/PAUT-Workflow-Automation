@@ -24,7 +24,17 @@ MONO_FIELDS = {
 
 
 class StyledFormMixin:
-    """Adds Bootstrap classes to every widget, and the `mono` class to MONO_FIELDS."""
+    """
+    Adds Bootstrap classes to every widget, and the `mono` class to MONO_FIELDS.
+
+    Set `fieldsets_spec = [(title, [field names]), ...]` to group fields; templates
+    loop over `form.fieldsets` to render each group.
+    """
+    fieldsets_spec = None
+
+    def fieldsets(self):
+        spec = self.fieldsets_spec or [(None, list(self.fields))]
+        return [(title, [self[name] for name in names if name in self.fields]) for title, names in spec]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -49,6 +59,13 @@ class ReportForm(StyledFormMixin, ModelForm):
     class Meta:
         model = Report
         fields = '__all__'
+        labels = {
+            'document_filename': 'File name',
+            'equipment_id': 'Equipment ID',
+            'x_axis_reference': 'X-axis reference',
+            'y_axis_reference': 'Y-axis reference',
+            'ut_method': 'UT method',
+        }
         widgets = {
             'document_title': Textarea(attrs={'rows': 1, 'style': 'min-height: 0; resize: vertical;'}),
             'report_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
@@ -63,9 +80,37 @@ class ReportForm(StyledFormMixin, ModelForm):
 
 
 class SetupForm(StyledFormMixin, ModelForm):
+    fieldsets_spec = [
+        ('UT equipment', ['manufacturer', 'scope_platform', 'scope_model', 'scope_serial',
+                          'transducer_model', 'transducer_serial', 'probe_diameter']),
+        ('Wedge', ['wedge_model', 'wedge_angle']),
+        ('UT settings', ['foc_depth', 'wave_propagation', 'freq', 'elements', 'x_res', 'y_res',
+                         'scan_length', 'scan_width', 'angle_step', 'angle_range', 'sound_velocity',
+                         'gain', 'ref_gain', 'voltage']),
+        ('Specimen', ['specimen_od', 'specimen_thickness']),
+        ('Calibration', ['cal_material', 'material_temp', 'cal_block_type', 'cal_block_serial',
+                         'surface_prep', 'tr_min', 'tr_max']),
+    ]
+
     class Meta:
         model = Setup
         exclude = ['report', 'order']
+        labels = {
+            'foc_depth': 'Focal depth',
+            'wave_propagation': 'Wave mode',
+            'freq': 'Frequency',
+            'x_res': 'X resolution',
+            'y_res': 'Y resolution',
+            'ref_gain': 'Reference gain',
+            'specimen_od': 'Specimen OD',
+            'cal_material': 'Calibration material',
+            'material_temp': 'Material temperature',
+            'cal_block_type': 'Cal block type',
+            'cal_block_serial': 'Cal block serial',
+            'surface_prep': 'Surface prep',
+            'tr_min': 'TR min',
+            'tr_max': 'TR max',
+        }
         widgets = {
             'wave_propagation': TextInput(attrs={'list': 'wave_propagation_options'})
         }

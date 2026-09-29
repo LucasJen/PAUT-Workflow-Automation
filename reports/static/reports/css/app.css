@@ -328,6 +328,8 @@ h1, h2, h3, h4, h5, h6 { color: var(--text); letter-spacing: -0.01em; }
     font-size: 0.875rem;
 }
 
+.page-header .page-subtitle:empty { display: none; }
+
 .page-header .header-actions {
     display: flex;
     align-items: center;
