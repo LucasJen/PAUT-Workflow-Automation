@@ -29,6 +29,7 @@ class Report(models.Model):
     executive_summary = models.TextField(blank=True)
     
     # Job Scope, References and Method
+    asset_description = models.TextField(blank=True)
     equipment_id = models.CharField(max_length=200, blank=True)
     equipment_overview = models.TextField(blank=True)
     work_scope = models.TextField(blank=True)
@@ -36,12 +37,41 @@ class Report(models.Model):
     y_axis_reference = models.CharField(max_length=200, blank=True)
     ut_method = models.CharField(max_length=200, blank=True)
 
+    # Discussion; blank uses the text library's standard Discussion
+    discussion = models.TextField(blank=True)
+
     def __str__(self):
         return f"{self.pk} | {self.document_filename}"
 
     @property
     def prepared_by_names(self):
         return ', '.join(p.name for p in self.people.all() if p.prepared)
+
+
+class TextSnippet(models.Model):
+    """
+    Reusable report text, edited in the app's Text library. Technique descriptions are used for
+    the report's technique bullets: a setup whose Technique title matches `name` (ignoring case)
+    gets '<title> – <body>'. The Discussion snippet named 'default' is used when a report has
+    no Discussion of its own.
+    """
+    TECHNIQUE = 'technique'
+    DISCUSSION = 'discussion'
+    KIND_CHOICES = [(TECHNIQUE, 'Technique description'), (DISCUSSION, 'Discussion')]
+    DEFAULT_DISCUSSION = 'default'
+
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=TECHNIQUE)
+    name = models.CharField(max_length=100, help_text='Technique: the setup Technique title it applies to, e.g. HydroFORM. '
+                                                      "Discussion: 'default' is used for new reports.")
+    title = models.CharField(max_length=200, blank=True, help_text='Bold lead of the bullet, e.g. ENCODED HydroFORM 0-degree PAUT')
+    body = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['kind', 'name']
+        constraints = [models.UniqueConstraint(fields=['kind', 'name'], name='unique_snippet_kind_name')]
+
+    def __str__(self):
+        return f'{self.get_kind_display()}: {self.name}'
 
 
 class ReportPerson(models.Model):

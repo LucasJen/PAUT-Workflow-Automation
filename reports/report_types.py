@@ -26,9 +26,10 @@ REPORT_SECTIONS = (
     ('personnel', 'Personnel', None),
     ('summary', 'Executive summary', ('examination_scope', 'executive_summary')),
     ('scope', 'Scope, references & method', (
-        'equipment_id', 'ut_method', 'x_axis_reference', 'y_axis_reference',
+        'asset_description', 'equipment_id', 'ut_method', 'x_axis_reference', 'y_axis_reference',
         'equipment_overview', 'work_scope',
     )),
+    ('discussion', 'Discussion', ('discussion',)),
     ('drawings', 'Equipment drawings', None),
     ('setups', 'UT setups', None),
     ('results', 'Results table', None),

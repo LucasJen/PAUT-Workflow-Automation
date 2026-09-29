@@ -17,7 +17,7 @@ from docx.shared import Inches
 from docxtpl import DocxTemplate, InlineImage, Listing, RichText
 from PIL import Image as PILImage
 
-from ..models import ReportImage
+from ..models import ReportImage, TextSnippet
 from ..report_types import SECTIONS, get_report_type
 from ..results import report_results, report_scan_rows
 
@@ -221,6 +221,43 @@ def _scan_images(report, tpl):
     return [b for b in blocks if b]
 
 
+def _techniques(report, setups):
+    """
+    Introduction bullets: one per distinct setup Technique title, in setup order, as
+    '<bold lead> – <description>' from the Text library (just the title when the library has no
+    entry). Reports whose setups have no titles fall back to the UT method lines.
+    """
+    snippets = {s.name.strip().lower(): s for s in TextSnippet.objects.filter(kind=TextSnippet.TECHNIQUE)}
+    # One bullet per technique in setup order, ignoring case ('HydroFORM' and 'hydroform' are the same)
+    titles, seen = [], set()
+    for setup in setups:
+        title = setup.title.strip()
+        if title and title.lower() not in seen:
+            seen.add(title.lower())
+            titles.append(title)
+    if not titles:
+        return [{'text': RichText(t)} for t in lines(report.ut_method)]
+    bullets = []
+    for title in titles:
+        snippet = snippets.get(title.lower())
+        text = RichText()
+        if snippet and snippet.body.strip():
+            text.add(snippet.title.strip() or title, bold=True)
+            text.add(f' – {snippet.body.strip()}')
+        else:
+            text.add(snippet.title.strip() if snippet and snippet.title.strip() else title, bold=True)
+        bullets.append({'text': text})
+    return bullets
+
+
+def _discussion(report):
+    """The report's own Discussion, else the standard one from the Text library."""
+    if report.discussion.strip():
+        return report.discussion
+    default = TextSnippet.objects.filter(kind=TextSnippet.DISCUSSION, name=TextSnippet.DEFAULT_DISCUSSION).first()
+    return default.body if default else ''
+
+
 def build_context(report, tpl):
     report_type = get_report_type(report.report_type)
     setup_objects = list(report.setups.order_by('order').prefetch_related('images'))
@@ -250,12 +287,13 @@ def build_context(report, tpl):
         'examination_scope': prose(report.examination_scope),
         'executive_summary': prose(report.executive_summary),
         'equipment_id': report.equipment_id,
-        'asset_description': '',
+        'asset_description': prose(report.asset_description),
+        'discussion': prose(_discussion(report)),
         'access': prose(report.equipment_overview),
         'work_scope': prose(report.work_scope),
         'x_axis_reference': report.x_axis_reference,
         'y_axis_reference': report.y_axis_reference,
-        'techniques': [{'text': RichText(t)} for t in lines(report.ut_method)],
+        'techniques': _techniques(report, setup_objects),
         'setups': setups,
         'results_title': f"PAUT {setups[0]['title']} Work Scope" if setups else 'PAUT Work Scope',
         'scans': scans,

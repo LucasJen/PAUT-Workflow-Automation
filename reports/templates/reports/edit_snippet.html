@@ -1,0 +1,9 @@
+{% extends 'reports/components/edit_page.html' %}
+
+{% block title %}{% if snippet %}{{ snippet.name }}{% else %}New text{% endif %} · Text library · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'snippet-list' %}{% endblock %}
+{% block back_label %}Text library{% endblock %}
+{% block page_title %}{% if snippet %}{{ snippet.name }}{% else %}New text{% endif %}{% endblock %}
+{% block page_subtitle %}Technique descriptions appear as bullets in the report's Introduction for every setup whose Technique title matches the Name. The Discussion named “default” is used when a report has no Discussion of its own.{% endblock %}
+{% block item_noun %}text{% endblock %}
+{% block grid_cols %}cols-3{% endblock %}

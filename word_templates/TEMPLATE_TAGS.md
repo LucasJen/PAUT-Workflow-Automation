@@ -66,10 +66,11 @@ Rules that avoid broken templates:
 | `report_date_long` | e.g. `3 September, 2026` (cover and footer). |
 | `test_dates` | e.g. `8/13/2026 – 8/25/2026`, or one date when there is no end date. |
 | `procedures` | Each setup's procedure once, in setup order (falls back to the report's Procedure lines). |
-| `examination_scope`, `executive_summary`, `access`, `work_scope`, `asset_description` | Multi-paragraph text (blank line = new paragraph). |
+| `examination_scope`, `executive_summary`, `asset_description`, `access`, `work_scope` | Multi-paragraph text (blank line = new paragraph). `access` is the editor's "Access & surface condition". |
+| `discussion` | The report's Discussion, or the Text library's standard Discussion (`default`) when blank. |
 | `x_axis_reference`, `y_axis_reference` | Scan direction references. |
 | `prepared_by`, `examined_by`, `reviewed_by` | People ticked for each role in the editor's Personnel section: `p.name`, `p.certification`. |
-| `techniques` | List of technique bullets: `{{r t.text }}`. |
+| `techniques` | Technique bullets `{{r t.text }}`: one per distinct setup Technique title (case-insensitive), as bold lead + " – " + description from the Text library; just the title when the library has no entry; the old UT method lines when no setup has a title. |
 
 **Setups** — `{%p for s in setups %}`, one "Equipment Details" section each
 

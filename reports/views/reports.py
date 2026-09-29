@@ -330,6 +330,39 @@ def generate_report(request, pk):
     return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=DOCX_CONTENT_TYPE)
 
 
+@transaction.atomic
+def _duplicate_report(original):
+    """
+    Start a repeat inspection from an earlier report: the copy keeps the report text,
+    personnel, setups (with calibration screenshots) and equipment drawings, but starts with no
+    results, no scan images and no dates. Images are shared with the original, not copied on disk.
+    """
+    people = list(original.people.all())
+    setups = list(original.setups.order_by('order').prefetch_related('images'))
+    drawings = list(original.images.filter(kind=ReportImage.DRAWING).order_by('order'))
+
+    report = Report.objects.get(pk=original.pk)
+    report.pk = None
+    report.document_filename = f'{original.document_filename or "Untitled"} (copy)'
+    report.report_date = report.test_date = report.test_end_date = None
+    report.save()
+
+    for person in people:
+        person.pk, person.report = None, report
+        person.save()
+    for setup in setups:
+        images = list(setup.images.all())
+        setup.pk, setup.report = None, report
+        setup.save()
+        for image in images:
+            image.pk, image.setup = None, setup
+            image.save()
+    for drawing in drawings:
+        drawing.pk, drawing.report = None, report
+        drawing.save()
+    return report
+
+
 def report_list(request):
     """
     View all report information stored within the database
@@ -345,10 +378,9 @@ def report_list(request):
         if 'edit' in request.POST and len(selected_pks) == 1:
             return redirect('edit-report', pk=selected_pks[0])
         if 'duplicate' in request.POST and len(selected_pks) == 1:
-            original = get_object_or_404(Report, pk=selected_pks[0])
-            original.pk = None
-            original.save()
-            return redirect('report-list')
+            duplicate = _duplicate_report(get_object_or_404(Report, pk=selected_pks[0]))
+            messages.success(request, 'Report duplicated. Results, scan images and dates start empty.')
+            return redirect(f"{reverse('create-report')}?loaded={duplicate.pk}")
     return render(request, 'reports/report_list.html', {'items': reports, 'pdf_available': word_available()})
 
 

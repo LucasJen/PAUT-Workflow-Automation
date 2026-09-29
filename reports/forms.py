@@ -3,7 +3,7 @@ from django.forms import (
     TextInput, inlineformset_factory,
 )
 from django.forms.renderers import TemplatesSetting
-from .models import Report, ReportImage, ReportPerson, Setup
+from .models import Report, ReportImage, ReportPerson, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from datetime import date
 
@@ -85,7 +85,10 @@ class ReportForm(StyledFormMixin, ModelForm):
             'equipment_id': 'Equipment ID',
             'x_axis_reference': 'X-axis reference',
             'y_axis_reference': 'Y-axis reference',
-            'ut_method': 'UT method',
+            'ut_method': 'UT method (used only when no setup has a Technique title)',
+            'asset_description': 'Asset description',
+            'equipment_overview': 'Access & surface condition',
+            'discussion': 'Discussion',
             'test_date': 'Test start date',
             'test_end_date': 'Test end date',
         }
@@ -95,7 +98,11 @@ class ReportForm(StyledFormMixin, ModelForm):
             'test_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'test_end_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
         }
-        help_texts = {'test_end_date': 'Leave blank for a single-day test.'}
+        help_texts = {
+            'test_end_date': 'Leave blank for a single-day test.',
+            'asset_description': 'Opening paragraph of the Introduction: what the asset is, material, design and service conditions.',
+            'discussion': 'Leave blank to use the standard Discussion from the Text library.',
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -164,7 +171,8 @@ class SetupForm(StyledFormMixin, ModelForm):
             'title': TextInput(attrs={'placeholder': 'e.g. HydroFORM, Angle Beam, TFM'}),
             'procedure': TextInput(attrs={'placeholder': 'e.g. 100-UT-031 Rev. 1'}),
         }
-        help_texts = {'title': 'Heads this setup\'s "Equipment Details" section in the report.'}
+        help_texts = {'title': 'Heads this setup\'s "Equipment Details" section. The Introduction\'s technique '
+                               'bullet uses the Text library description with this name.'}
 
 
 class DrawingForm(StyledFormMixin, ModelForm):
@@ -246,3 +254,11 @@ def scan_image_formset(*args, instance=None, scan_ids=(), **kwargs):
     return ImageFormSet(*args, instance=instance, prefix='images',
                         queryset=ReportImage.objects.filter(kind=ReportImage.SCAN),
                         form_kwargs={'scan_ids': scan_ids}, **kwargs)
+
+
+class TextSnippetForm(StyledFormMixin, ModelForm):
+    class Meta:
+        model = TextSnippet
+        fields = ['kind', 'name', 'title', 'body']
+        labels = {'name': 'Name', 'title': 'Bold lead', 'body': 'Text'}
+        widgets = {'body': Textarea(attrs={'rows': 8})}

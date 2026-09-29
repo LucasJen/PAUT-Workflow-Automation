@@ -1,0 +1,31 @@
+{% extends 'reports/components/list_page.html' %}
+
+{% block title %}Text library · PAUT Report Automation{% endblock %}
+{% block page_title %}Text library{% endblock %}
+{% block item_noun %}text{% endblock %}
+
+{% block new_button %}
+<a href="{% url 'new-snippet' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New text</a>
+{% endblock %}
+
+{% block columns %}
+<th class="sortable">Type<span class="sort-indicator"></span></th>
+<th class="sortable">Name<span class="sort-indicator"></span></th>
+<th class="sortable">Bold lead<span class="sort-indicator"></span></th>
+<th>Text</th>
+{% endblock %}
+
+{% block rows %}
+{% for snippet in items %}
+<tr data-href="{% url 'edit-snippet' snippet.pk %}">
+    {% include 'reports/components/row_check.html' with pk=snippet.pk %}
+    <td class="text-muted-cell">{{ snippet.get_kind_display }}</td>
+    <td class="fw-medium">{{ snippet.name }}</td>
+    <td>{{ snippet.title }}</td>
+    <td class="text-muted-cell">{{ snippet.body|truncatechars:110 }}</td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block empty_icon %}card-text{% endblock %}
+{% block empty_text %}No texts yet. Technique descriptions are matched to each setup's Technique title.{% endblock %}
