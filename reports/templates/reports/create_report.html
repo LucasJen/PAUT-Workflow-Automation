@@ -69,6 +69,12 @@
            title="Download the Word report as last saved"{% if request.GET.download %} data-auto-download{% endif %}>
             <i class="bi bi-download"></i> Download .docx
         </a>
+        {% if pdf_available %}
+        <a href="{% url 'report-pdf' form.instance.pk %}?download=1" class="btn btn-secondary" id="pdf-link" download
+           data-busy="Preparing PDF…" title="PDF made by Word from the report as last saved">
+            <i class="bi bi-file-earmark-pdf"></i> PDF
+        </a>
+        {% endif %}
         {% endif %}
         <button type="submit" name="preview" class="btn btn-secondary"><i class="bi bi-eye"></i> Save &amp; preview</button>
         <button type="submit" name="generate" class="btn btn-primary"><i class="bi bi-file-earmark-word"></i> Save &amp; download</button>

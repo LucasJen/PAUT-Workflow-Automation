@@ -25,7 +25,26 @@ def report_with_setup(**fields):
     return report
 
 
+class WordValidityTests(TestCase):
+    def test_minimal_report_has_no_empty_table_cells(self):
+        """Word reports a cell without a paragraph as a corrupt file."""
+        report = report_with_setup()  # no procedures, people, results or images
+        z = zipfile.ZipFile(io.BytesIO(render_report(report)))
+        from lxml import etree
+        w = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+        for part in [n for n in z.namelist() if re.match(r'word/(document|header\d+|footer\d+)\.xml', n)]:
+            root = etree.fromstring(z.read(part))
+            empty = [tc for tc in root.iter(w + 'tc') if tc.find(w + 'p') is None]
+            self.assertEqual(empty, [], part)
+
+
 class PreviewViewTests(TestCase):
+    def setUp(self):
+        # These cover the in-browser preview used when Word isn't available
+        patcher = mock.patch('reports.views.reports.word_available', return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_preview_page_loads_renderer_and_points_at_inline_docx(self):
         report = report_with_setup()
         resp = self.client.get(reverse('preview-report', args=[report.pk]))

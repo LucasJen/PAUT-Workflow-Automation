@@ -646,7 +646,7 @@ textarea.form-control { min-height: 5.5rem; resize: vertical; }
 
 .data-table tbody tr:last-child td { border-bottom: 0; }
 .data-table .col-check { width: 2.5rem; }
-.data-table .col-actions { width: 5rem; white-space: nowrap; text-align: right; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.data-table .col-actions { width: 7rem; white-space: nowrap; text-align: right; padding-top: 0.25rem; padding-bottom: 0.25rem; }
 .data-table .col-actions .disabled { opacity: 0.35; }
 .data-table tr[data-href] { cursor: pointer; }
 .data-table tr.selected > td { background: var(--accent-soft); }
@@ -1020,6 +1020,8 @@ textarea.result-cell-input {
     color: var(--text-3);
 }
 .preview-status.error { color: var(--danger); }
+.preview-stage.is-pdf { padding: 0; overflow: hidden; }
+.preview-pdf { display: block; width: 100%; height: calc(100vh - 12rem); min-height: 600px; border: 0; }
 /* docx-preview draws pages inside .docx-wrapper; keep them paper-white in dark mode too */
 .preview-stage .docx-wrapper { background: transparent; padding: 0; }
 .preview-stage .docx-wrapper > section.docx {

@@ -9,24 +9,39 @@
     <h1>Preview: {{ report.document_filename|default:"Untitled report" }}</h1>
     <div class="header-actions">
         <button type="button" class="btn btn-secondary" id="refresh-preview"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-        <a href="{% url 'generate-report' report.pk %}" class="btn btn-primary" download><i class="bi bi-download"></i> Download .docx</a>
+        <a href="{% url 'generate-report' report.pk %}" class="btn btn-secondary" download><i class="bi bi-file-earmark-word"></i> Download .docx</a>
+        {% if pdf_available %}
+        <a href="{% url 'report-pdf' report.pk %}?download=1" class="btn btn-primary" download data-busy="Preparing PDF…"><i class="bi bi-file-earmark-pdf"></i> Download PDF</a>
+        {% endif %}
     </div>
     <p class="page-subtitle">
-        A preview of the Word file for checking text, tables, images and layout. Page breaks, the table of
-        contents and page numbers are finalised by Word when you open the downloaded file.
+        {% if pdf_available %}
+        Made by Microsoft Word, so pages, the table of contents and page numbers are exactly as in the final PDF.
+        {% else %}
+        An approximate preview drawn in the browser (Word isn't available on this server). Page breaks, the table
+        of contents and page numbers are finalised by Word when you open the downloaded file.
+        {% endif %}
     </p>
 </div>
 
-<div class="preview-stage" id="preview-stage" data-docx-url="{% url 'report-docx' report.pk %}">
+<div class="preview-stage{% if pdf_available %} is-pdf{% endif %}" id="preview-stage"
+     {% if pdf_available %}data-pdf-url="{% url 'report-pdf' report.pk %}"{% else %}data-docx-url="{% url 'report-docx' report.pk %}"{% endif %}>
     <div class="preview-status" id="preview-status" role="status">
-        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Building preview…
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        {% if pdf_available %}Word is building the PDF (usually a few seconds)…{% else %}Building preview…{% endif %}
     </div>
+    {% if pdf_available %}
+    <iframe id="preview-pdf" class="preview-pdf" title="Report PDF preview" hidden></iframe>
+    {% else %}
     <div id="preview-pages"></div>
+    {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
+{% if not pdf_available %}
 <script src="{% static_v 'reports/vendor/docx-preview/jszip.min.js' %}"></script>
 <script src="{% static_v 'reports/vendor/docx-preview/docx-preview.min.js' %}"></script>
+{% endif %}
 <script src="{% static_v 'reports/js/preview.js' %}"></script>
 {% endblock %}

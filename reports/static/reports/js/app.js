@@ -100,3 +100,19 @@ document.getElementById('confirm-ok').addEventListener('click', () => {
         pendingButton = null;
     }
 });
+
+// ── Slow downloads (e.g. PDFs made by Word) ──────────────────────────────
+// Links with data-busy="Preparing…" show that label for a few seconds after a click, since the
+// browser gives no feedback while the server prepares a file download.
+
+document.addEventListener('click', e => {
+    const link = e.target.closest('a[data-busy]');
+    if (!link || link.dataset.confirm || link.classList.contains('busy')) return;
+    const original = link.innerHTML;
+    link.classList.add('busy', 'disabled');
+    link.innerHTML = `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> ${link.dataset.busy}`;
+    setTimeout(() => {
+        link.innerHTML = original;
+        link.classList.remove('busy', 'disabled');
+    }, 8000);
+});

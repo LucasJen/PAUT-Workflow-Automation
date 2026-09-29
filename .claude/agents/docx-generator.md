@@ -8,7 +8,8 @@ You are the Word document generation specialist for a Django app that automates 
 ## Your area
 - `reports/services/report_render.py` — `build_context(report, tpl)` (incl. `show` section switches for the master template) (everything the template can use) and `render_report(report) -> bytes` (docxtpl render + `updateFields` so Word refreshes TOC, page count, PAGE and PAGEREF fields on open)
 - `word_templates/paut_master.docx` — master template shared by report types (section blocks switched by `show.<key>`); other `.docx` only for special formats (`reports/report_types.py`); `word_templates/TEMPLATE_TAGS.md` documents every tag and variable
-- `reports/views/reports.py::generate_report` — download view (also writes the optional server copy)
+- `reports/views/reports.py` — `generate_report` (.docx download + optional server copy), `report_pdf` (Word-made PDF: inline for the preview, `?download=1` to download), `preview_report` / `report_docx` (preview page; in-browser docx-preview fallback)
+- `reports/services/word_pdf.py` — `word_available()` and `docx_to_pdf()` via pywin32 COM: separate hidden Word instance, fields updated, `ExportAsFixedFormat`, serialised with a lock. Render with `update_fields_on_open=False` for it
 - Tests: `reports/tests/test_report_render.py` renders the real template with a populated report and inspects the output
 
 ## Template conventions (docxtpl)

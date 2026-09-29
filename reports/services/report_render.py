@@ -212,6 +212,24 @@ def build_context(report, tpl):
 
 # ── Rendering ────────────────────────────────────────────────────────────
 
+def _fill_empty_cells(docx):
+    """
+    Word treats a table cell without a paragraph as a corrupt file (python-docx doesn't mind).
+    A cell whose content was only a loop (e.g. the cover's Procedures with none listed) ends
+    up empty, so give every such cell an empty paragraph.
+    """
+    parts = [docx.element]
+    for section in docx.sections:
+        for hf in (section.header, section.footer, section.first_page_header, section.first_page_footer,
+                   section.even_page_header, section.even_page_footer):
+            if not hf.is_linked_to_previous:
+                parts.append(hf._element)
+    for part in parts:
+        for tc in part.iter(qn('w:tc')):
+            if tc.find(qn('w:p')) is None:
+                tc.append(OxmlElement('w:p'))
+
+
 def _update_fields_on_open(docx):
     """Ask Word to refresh the TOC, page count, page numbers and cross-references when opened."""
     settings_el = docx.settings.element
@@ -226,11 +244,17 @@ def template_path(report):
     return os.path.join(settings.BASE_DIR, 'word_templates', get_report_type(report.report_type).template)
 
 
-def render_report(report):
-    """The finished report as .docx bytes."""
+def render_report(report, update_fields_on_open=True):
+    """
+    The finished report as .docx bytes. update_fields_on_open asks Word to refresh fields when a
+    person opens the file; the Word PDF export updates fields itself, so it turns this off
+    (the prompt could otherwise stall the hidden Word instance).
+    """
     tpl = DocxTemplate(template_path(report))
     tpl.render(build_context(report, tpl), autoescape=True)
-    _update_fields_on_open(tpl.docx)
+    _fill_empty_cells(tpl.docx)
+    if update_fields_on_open:
+        _update_fields_on_open(tpl.docx)
     buffer = io.BytesIO()
     tpl.save(buffer)
     return buffer.getvalue()

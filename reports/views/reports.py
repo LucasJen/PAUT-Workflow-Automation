@@ -6,6 +6,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
 from ..services.report_render import render_report
+from ..services.word_pdf import WordPdfError, docx_to_pdf, word_available
 from ..forms import (
     PersonFormSet, ReportForm, SetupFormSet, drawing_formset, scan_image_formset,
 )
@@ -217,6 +218,7 @@ def create_report(request):
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
         'saved_setups': _saved_setup_choices(),
         'saved_setup_values': _saved_setup_values(),
+        'pdf_available': word_available(),
     })
 
 
@@ -256,7 +258,7 @@ def preview_report(request, pk):
     report, redirect_response = _report_with_setups(request, pk)
     if redirect_response:
         return redirect_response
-    return render(request, 'reports/preview.html', {'report': report})
+    return render(request, 'reports/preview.html', {'report': report, 'pdf_available': word_available()})
 
 
 def report_docx(request, pk):
@@ -266,6 +268,46 @@ def report_docx(request, pk):
         return redirect_response
     response = FileResponse(io.BytesIO(render_report(report)), content_type=DOCX_CONTENT_TYPE,
                             filename=f'{safe_filename(report.document_filename)}.docx')
+    response['Cache-Control'] = 'no-store'
+    return response
+
+
+def _save_server_copy(name, content):
+    """Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off)."""
+    if not settings.REPORT_OUTPUT_DIR:
+        return
+    copy_path = os.path.join(settings.REPORT_OUTPUT_DIR, name)
+    try:
+        os.makedirs(settings.REPORT_OUTPUT_DIR, exist_ok=True)
+        with open(copy_path, 'wb') as f:
+            f.write(content)
+    except PermissionError:
+        # Usually the previous copy is open (Word / a PDF viewer); the download still works
+        logger.warning('Could not update server copy %s (file in use?)', copy_path)
+
+
+def report_pdf(request, pk):
+    """
+    The report as a PDF made by Word: inline for the preview page, or as a download with
+    ?download=1 (which also keeps a server copy, like the .docx download)
+    """
+    report, redirect_response = _report_with_setups(request, pk)
+    if redirect_response:
+        return redirect_response
+    download = request.GET.get('download') == '1'
+    name = f'{safe_filename(report.document_filename)}.pdf'
+    try:
+        if not word_available():
+            raise WordPdfError('PDF output needs Microsoft Word on the computer running this app.')
+        pdf = docx_to_pdf(render_report(report, update_fields_on_open=False))
+    except WordPdfError as e:
+        if download:
+            messages.error(request, str(e))
+            return redirect(f"{reverse('create-report')}?loaded={pk}")
+        return render(request, 'reports/pdf_error.html', {'message': str(e), 'report': report}, status=503)
+    if download:
+        _save_server_copy(name, pdf)
+    response = FileResponse(io.BytesIO(pdf), as_attachment=download, filename=name, content_type='application/pdf')
     response['Cache-Control'] = 'no-store'
     return response
 
@@ -281,16 +323,7 @@ def generate_report(request, pk):
     output_name = f'{safe_filename(report.document_filename)}.docx'
     content = render_report(report)
 
-    # Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off)
-    if settings.REPORT_OUTPUT_DIR:
-        copy_path = os.path.join(settings.REPORT_OUTPUT_DIR, output_name)
-        try:
-            os.makedirs(settings.REPORT_OUTPUT_DIR, exist_ok=True)
-            with open(copy_path, 'wb') as f:
-                f.write(content)
-        except PermissionError:
-            # Usually the previous copy is open in Word; the download still works
-            logger.warning('Could not update server copy %s (file in use?)', copy_path)
+    _save_server_copy(output_name, content)
 
     return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=DOCX_CONTENT_TYPE)
 
@@ -314,7 +347,7 @@ def report_list(request):
             original.pk = None
             original.save()
             return redirect('report-list')
-    return render(request, 'reports/report_list.html', {'items': reports})
+    return render(request, 'reports/report_list.html', {'items': reports, 'pdf_available': word_available()})
 
 
 def new_report(request):

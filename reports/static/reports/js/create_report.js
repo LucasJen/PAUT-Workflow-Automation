@@ -453,11 +453,13 @@ function markDirty() {
     dirty = true;
     unsavedIndicator.hidden = false;
     // Downloading now would give the last saved version, so ask first (app.js shows the dialog)
-    const download = document.getElementById('download-link');
-    if (download) {
-        download.dataset.confirm = "You have unsaved changes. The download won't include them until you save.";
-        download.dataset.confirmLabel = 'Download anyway';
-    }
+    ['download-link', 'pdf-link'].forEach(id => {
+        const link = document.getElementById(id);
+        if (link) {
+            link.dataset.confirm = "You have unsaved changes. The download won't include them until you save.";
+            link.dataset.confirmLabel = 'Download anyway';
+        }
+    });
 }
 
 reportForm.addEventListener('input', markDirty);

@@ -27,9 +27,16 @@ sections it uses and its results columns. It uses the master template unless it 
 `{%p if show.<key> %}` … `{%p endif %}`, add `(key, title, fields)` to `REPORT_SECTIONS`, and,
 for a special section, add its editor part as `reports/templates/reports/editor/<key>.html`.
 
-**Preview:** the app's Preview page draws the generated `.docx` in the browser (docx-preview).
-The table of contents, page count and page numbers show placeholders there; Word fills them in
-when the downloaded file is opened.
+**Preview and PDF:** where the app runs on a PC with Microsoft Word, Preview and Download PDF
+use a PDF made by Word itself (`reports/services/word_pdf.py`: a hidden, separate Word instance
+updates the fields and exports), so they match the final deliverable exactly. Without Word
+(e.g. a server without Office, or `REPORT_PDF_ENGINE=off`) Preview falls back to drawing the
+`.docx` in the browser (docx-preview), which is approximate; there the table of contents, page
+count and page numbers show placeholders until Word opens the file.
+
+**Word-valid output:** a table cell must contain a paragraph or Word calls the file corrupt.
+A cell whose only content is a loop becomes empty when the list is empty, so `render_report`
+adds an empty paragraph to any such cell.
 
 ## Tag syntax
 
