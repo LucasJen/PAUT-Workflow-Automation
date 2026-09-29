@@ -84,8 +84,12 @@ class Phase3RenderTests(MediaMixin, TestCase):
 
     def test_cover_personnel_by_role(self):
         doc = self.render()
-        self.assertEqual(cover_cell_lines(doc, 8, 3)[1:], ['Lucas Jennings\nUltrasonic Level II'])
-        self.assertEqual(cover_cell_lines(doc, 9, 3)[1:], ['Lucas Jennings\nUltrasonic Level II', 'Shawn Arangolord\nRope Access II'])
+        # Name and certification on one line, left-aligned
+        self.assertEqual(cover_cell_lines(doc, 8, 3)[1:], ['Lucas Jennings / Ultrasonic Level II'])
+        self.assertEqual(cover_cell_lines(doc, 9, 3)[1:], ['Lucas Jennings / Ultrasonic Level II', 'Shawn Arangolord / Rope Access II'])
+        for row in (8, 9, 10):
+            for p in doc.tables[0].rows[row].cells[3].paragraphs:
+                self.assertEqual(p.paragraph_format.alignment, 0)  # WD_ALIGN_PARAGRAPH.LEFT
         self.assertEqual(cover_cell_lines(doc, 10, 3)[1:], ['Sky Tervo'])
 
     def test_test_date_range_on_cover(self):
