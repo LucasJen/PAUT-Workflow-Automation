@@ -44,9 +44,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.forms',
     'reports',
     'equipment',
 ]
+
+# Form fields rendered with {{ form.x.as_field_group }} use reports/components/field.html
+FORM_RENDERER = 'reports.forms.AppFormRenderer'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

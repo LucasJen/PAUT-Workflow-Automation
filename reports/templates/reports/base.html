@@ -1,4 +1,4 @@
-{% load static %}
+{% load static ui %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,89 +6,131 @@
     <title>{% block title %}PAUT Report Automation{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Static Stylesheet-->
-    <link rel="stylesheet" href="{% static 'reports/css/base_styles.css'%}">
+    <script>
+        // Apply theme and sidebar state before first paint to avoid a flash
+        (function () {
+            var theme = null, collapsed = false;
+            try {
+                theme = localStorage.getItem('theme');
+                collapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            } catch (e) {}
+            if (theme !== 'light' && theme !== 'dark') {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            if (collapsed) document.documentElement.classList.add('sidebar-collapsed');
+        })();
+    </script>
+
+    <link rel="stylesheet" href="{% static 'reports/vendor/bootstrap/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'reports/vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
+    <link rel="stylesheet" href="{% static 'reports/css/app.css' %}">
     {% block styles %}{% endblock %}
 </head>
 
 <body>
+<div class="app-shell">
 
-<div class="container-fluid">
-    <div class="row">
+    <!-- Navigation -->
+    <nav class="sidebar" id="sidebar" aria-label="Main navigation">
+        <a class="sidebar-brand" href="{% url 'home' %}">
+            <span class="brand-mark"><i class="bi bi-activity"></i></span>
+            <span class="brand-text">PAUT Reports</span>
+        </a>
 
-        <!-- Main content -->
-        <div class="col content-wrapper">
+        <a class="nav-item-link {% nav_active 'home' %}" href="{% url 'home' %}" title="Dashboard">
+            <i class="bi bi-grid-1x2"></i><span class="nav-label">Dashboard</span>
+        </a>
 
-            <div class="app-header mb-4 d-flex align-items-center justify-content-between">
-                <h1 class="app-title">PAUT Report Automation</h1>
-                <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle navigation">&#9776;</button>
+        <div class="nav-group-label">Reports</div>
+        <a class="nav-item-link {% nav_active 'create-report' 'new-report' %}" href="{% url 'create-report' %}" title="New report">
+            <i class="bi bi-file-earmark-plus"></i><span class="nav-label">New report</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'report-list' 'edit-report' %}" href="{% url 'report-list' %}" title="All reports">
+            <i class="bi bi-files"></i><span class="nav-label">All reports</span>
+        </a>
+
+        <div class="nav-group-label">Setups</div>
+        <a class="nav-item-link {% nav_active 'setup-list' 'edit-setup' 'new-setup' %}" href="{% url 'setup-list' %}" title="Saved setups">
+            <i class="bi bi-sliders"></i><span class="nav-label">Saved setups</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'nde-upload' %}" href="{% url 'nde-upload' %}" title="Import from NDE">
+            <i class="bi bi-upload"></i><span class="nav-label">Import from NDE</span>
+        </a>
+
+        <div class="nav-group-label">Equipment</div>
+        <a class="nav-item-link {% nav_active 'scope-list' 'edit-scope' 'new-scope' %}" href="{% url 'scope-list' %}" title="Scopes">
+            <i class="bi bi-display"></i><span class="nav-label">Scopes</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'probe-list' 'edit-probe' 'new-probe' %}" href="{% url 'probe-list' %}" title="Probes">
+            <i class="bi bi-soundwave"></i><span class="nav-label">Probes</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'cal-block-list' 'edit-cal-block' 'new-cal-block' %}" href="{% url 'cal-block-list' %}" title="Calibration blocks">
+            <i class="bi bi-bricks"></i><span class="nav-label">Calibration blocks</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'sensitivity-block-list' 'edit-sensitivity-block' 'new-sensitivity-block' %}" href="{% url 'sensitivity-block-list' %}" title="Sensitivity blocks">
+            <i class="bi bi-box"></i><span class="nav-label">Sensitivity blocks</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'encoder-list' 'edit-encoder' 'new-encoder' %}" href="{% url 'encoder-list' %}" title="Encoders">
+            <i class="bi bi-record-circle"></i><span class="nav-label">Encoders</span>
+        </a>
+
+        <div class="sidebar-footer">
+            <button type="button" class="nav-item-link" id="theme-toggle" title="Toggle theme">
+                <i class="bi bi-moon"></i><span class="nav-label">Dark mode</span>
+            </button>
+            <button type="button" class="nav-item-link sidebar-collapse-btn" id="sidebar-collapse" title="Collapse sidebar">
+                <i class="bi bi-chevron-double-left collapse-icon"></i><span class="nav-label">Collapse</span>
+            </button>
+        </div>
+    </nav>
+
+    <div class="main">
+        <header class="mobile-topbar">
+            <button type="button" class="btn btn-icon" id="sidebar-open" aria-label="Open navigation">
+                <i class="bi bi-list fs-5"></i>
+            </button>
+            <span class="fw-semibold">PAUT Reports</span>
+        </header>
+
+        <main class="content">
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="alert alert-{% if message.level_tag == 'error' %}danger{% else %}{{ message.level_tag|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
             </div>
+            {% endif %}
 
             {% block content %}
             {% endblock %}
+        </main>
 
-            <footer>
-                © {% now "Y" %} No touchy
-            </footer>
-        </div>
+        <footer class="app-footer">© {% now "Y" %} No touchy</footer>
+    </div>
+</div>
 
-        <!-- Navigation Sidebar -->
-        <div class="col-lg-auto sidebar">
-
-            <h6 class="text-uppercase text-muted mb-3">Navigation</h6>
-            
-            <a href="{% url 'home'%}">Home</a>
-            <a href="{% url 'create-report' %}">Long Form Report</a>
-            <a href="{% url 'report-list'%}">Report list</a>
-            <a href="{% url 'setup-list'%}">Setups</a>
-            <a href="{% url 'nde-upload' %}">NDE Parser</a>
-
-            <hr>
-            <h6 class="text-uppercase text-muted mb-2 mt-1" style="font-size:0.7rem; letter-spacing:0.08em;">Equipment</h6>
-            <a href="{% url 'scope-list' %}">Scopes</a>
-            <a href="{% url 'probe-list' %}">Probes</a>
-            <a href="{% url 'cal-block-list' %}">Calibration Blocks</a>
-            <a href="{% url 'sensitivity-block-list' %}">Sensitivity Blocks</a>
-            <a href="{% url 'encoder-list' %}">Encoders</a>
-
-            <hr>
-            <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode">☾ Dark Mode</button>
+<!-- Shared confirmation dialog (used by any button with data-confirm) -->
+<div class="modal fade" id="confirm-modal" tabindex="-1" aria-labelledby="confirm-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-body">
+                <h2 class="h6 mb-2" id="confirm-title">Are you sure?</h2>
+                <p class="mb-0 text-body-secondary small" id="confirm-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirm-ok">Delete</button>
+            </div>
         </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-<script>
-    const sidebar = document.querySelector('.sidebar');
-    const toggleBtn = document.getElementById('sidebar-toggle');
-
-    if (localStorage.getItem('sidebarCollapsed') === 'true') {
-        sidebar.classList.add('collapsed');
-    }
-
-    toggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
-        localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
-    });
-
-    // Dark mode
-    const themeBtn = document.getElementById('theme-toggle');
-
-    function setTheme(dark) {
-        document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
-        themeBtn.textContent = dark ? '☀ Light Mode' : '☾ Dark Mode';
-        localStorage.setItem('darkMode', dark);
-    }
-
-    setTheme(localStorage.getItem('darkMode') === 'true');
-
-    themeBtn.addEventListener('click', () => {
-        setTheme(document.documentElement.getAttribute('data-bs-theme') !== 'dark');
-    });
-</script>
-
+<script src="{% static 'reports/vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'reports/js/app.js' %}"></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

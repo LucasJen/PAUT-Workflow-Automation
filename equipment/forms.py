@@ -1,32 +1,37 @@
 from django import forms
+from reports.forms import StyledFormMixin
 from .models import Scope, Probe, CalibrationBlock, SensitivityBlock, Encoder
 
 
-class ScopeForm(forms.ModelForm):
+class ScopeForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = Scope
         fields = '__all__'
+        widgets = {
+            'calibration_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'calibration_due_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        }
 
 
-class ProbeForm(forms.ModelForm):
+class ProbeForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = Probe
         fields = '__all__'
 
 
-class CalibrationBlockForm(forms.ModelForm):
+class CalibrationBlockForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = CalibrationBlock
         fields = '__all__'
 
 
-class SensitivityBlockForm(forms.ModelForm):
+class SensitivityBlockForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = SensitivityBlock
         fields = '__all__'
 
 
-class EncoderForm(forms.ModelForm):
+class EncoderForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = Encoder
         fields = '__all__'

@@ -1,20 +1,7 @@
 {%extends 'reports/base.html'%}
 {% load static %}
 
-{% block styles%}
-<link rel="stylesheet" href="{% static 'reports/css/create_report_styles.css' %}">
-{% endblock %}
-
 {% block content %}
-
-{% if messages %}
-{% for message in messages %}
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-    {{ message }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-{% endfor %}
-{% endif %}
 
 <!-- Datalist for wave propagation field (shared across all setup blocks) -->
 <datalist id="wave_propagation_options">
