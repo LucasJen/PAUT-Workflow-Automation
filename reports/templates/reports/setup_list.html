@@ -1,157 +1,42 @@
-{% extends 'reports/base.html' %}
-{% load static %}
+{% extends 'reports/components/list_page.html' %}
 
-{% block content %}
+{% block title %}Setups · PAUT Report Automation{% endblock %}
+{% block page_title %}Setups{% endblock %}
+{% block item_noun %}setup{% endblock %}
 
-{% if setups %}
-<form method="post">
-{% csrf_token %}
-<div class="d-flex align-items-center gap-3 mb-3">
-    <h1 class="page-title mb-0">Setups</h1>
-    <div id="action-bar" style="display:none; gap:0.5rem;">
-        <button type="submit" name="delete" class="btn btn-danger">Delete Selected</button>
-        <button type="submit" name="edit" class="btn btn-primary" id="edit-btn">Edit Selected</button>
-        <button type="submit" name="duplicate" class="btn btn-secondary" id="duplicate-btn">Duplicate Selected</button>
-    </div>
-    <div class="d-flex align-items-center gap-2 ms-auto">
-        <input type="text" id="keyword-search" class="form-control" placeholder="Search..." style="width: 250px;">
-        <a href="{% url 'new-setup' %}" class="btn btn-success">+ New Setup</a>
-    </div>
-</div>
-
-    <div class="table-responsive">
-        <table class="table table-bordered table-striped table-hover align-middle setup-table">
-            <thead class="table-dark">
-                <tr>
-                    <th><input type="checkbox" id="select-all"></th>
-                    <th class="sortable" data-col="0">ID <span class="sort-indicator"></span></th>
-                    <th class="sortable" data-col="1">Scope Model <span class="sort-indicator"></span></th>
-                    <th class="sortable" data-col="2">Transducer Model <span class="sort-indicator"></span></th>
-                    <th class="sortable" data-col="3">Transducer Serial <span class="sort-indicator"></span></th>
-                    <th class="sortable" data-col="4">FOC Depth <span class="sort-indicator"></span></th>
-                    <th class="sortable" data-col="5">Cal Material <span class="sort-indicator"></span></th>
-                    <th class="sortable" data-col="6">Cal Block Type <span class="sort-indicator"></span></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for setup in setups %}
-                <tr class="setup-row">
-                    <td><input type="checkbox" name="selected_setups" value="{{ setup.pk }}" class="row-check"></td>
-                    <td>{{ setup.pk }}</td>
-                    <td>{{ setup.scope_model }}</td>
-                    <td>{{ setup.transducer_model }}</td>
-                    <td>{{ setup.transducer_serial }}</td>
-                    <td>{{ setup.foc_depth }}</td>
-                    <td>{{ setup.cal_material }}</td>
-                    <td>{{ setup.cal_block_type }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</form>
-
-{% else %}
-<h1 class="page-title">Setups</h1>
-<p>No setups found.</p>
-{% endif %}
-
-<style>
-    .setup-table thead th {
-        white-space: nowrap;
-        font-size: 0.85rem;
-        letter-spacing: 0.04em;
-    }
-    .setup-table tbody td {
-        font-size: 0.9rem;
-    }
-    .setup-row.selected {
-        background-color: rgba(13, 110, 253, 0.1) !important;
-    }
-    .sortable {
-        cursor: pointer;
-        user-select: none;
-    }
-    .sortable:hover {
-        background-color: #343a40;
-    }
-    .sort-indicator {
-        font-size: 0.75rem;
-        margin-left: 0.25rem;
-        opacity: 0.5;
-    }
-    .sortable.asc .sort-indicator::after { content: '▲'; opacity: 1; }
-    .sortable.desc .sort-indicator::after { content: '▼'; opacity: 1; }
-</style>
-
-<script>
-    const checkboxes = document.querySelectorAll('.row-check');
-    const selectAll = document.getElementById('select-all');
-    const actionBar = document.getElementById('action-bar');
-    const editBtn = document.getElementById('edit-btn');
-    const duplicateBtn = document.getElementById('duplicate-btn');
-
-    function updateActionBar() {
-        const checked = document.querySelectorAll('.row-check:checked');
-        actionBar.style.display = checked.length > 0 ? 'flex' : 'none';
-        editBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
-        duplicateBtn.style.display = checked.length === 1 ? 'inline-block' : 'none';
-    }
-
-    checkboxes.forEach(cb => {
-        cb.addEventListener('change', () => {
-            cb.closest('tr').classList.toggle('selected', cb.checked);
-            updateActionBar();
-        });
-    });
-
-    selectAll.addEventListener('change', () => {
-        checkboxes.forEach(cb => {
-            cb.checked = selectAll.checked;
-            cb.closest('tr').classList.toggle('selected', cb.checked);
-        });
-        updateActionBar();
-    });
-
-    // Keyword search
-    document.getElementById('keyword-search').addEventListener('input', function () {
-        const keyword = this.value.toLowerCase();
-        document.querySelectorAll('.setup-table tbody tr').forEach(row => {
-            const matches = Array.from(row.cells).some(cell => cell.textContent.toLowerCase().includes(keyword));
-            row.style.display = matches ? '' : 'none';
-        });
-    });
-
-    // Column sorting
-    let sortCol = null;
-    let sortAsc = true;
-
-    document.querySelectorAll('.sortable').forEach(th => {
-        th.addEventListener('click', () => {
-            const col = parseInt(th.dataset.col) + 1; // +1 for checkbox column
-            if (sortCol === col) {
-                sortAsc = !sortAsc;
-            } else {
-                sortCol = col;
-                sortAsc = true;
-            }
-
-            document.querySelectorAll('.sortable').forEach(h => h.classList.remove('asc', 'desc'));
-            th.classList.add(sortAsc ? 'asc' : 'desc');
-
-            const tbody = document.querySelector('.setup-table tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            rows.sort((a, b) => {
-                const aText = a.cells[col]?.textContent.trim() ?? '';
-                const bText = b.cells[col]?.textContent.trim() ?? '';
-                const aNum = parseFloat(aText);
-                const bNum = parseFloat(bText);
-                if (!isNaN(aNum) && !isNaN(bNum)) return sortAsc ? aNum - bNum : bNum - aNum;
-                return sortAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
-            });
-            rows.forEach(row => tbody.appendChild(row));
-        });
-    });
-</script>
-
+{% block new_button %}
+<a href="{% url 'nde-upload' %}" class="btn btn-secondary"><i class="bi bi-upload"></i> Import from NDE</a>
+<a href="{% url 'new-setup' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New setup</a>
 {% endblock %}
+
+{% block columns %}
+<th class="sortable">ID<span class="sort-indicator"></span></th>
+<th class="sortable">Scope model<span class="sort-indicator"></span></th>
+<th class="sortable">Transducer<span class="sort-indicator"></span></th>
+<th class="sortable">Transducer serial<span class="sort-indicator"></span></th>
+<th class="sortable">Focal depth<span class="sort-indicator"></span></th>
+<th class="sortable">Cal material<span class="sort-indicator"></span></th>
+<th class="sortable">Cal block<span class="sort-indicator"></span></th>
+<th class="sortable">Report<span class="sort-indicator"></span></th>
+{% endblock %}
+
+{% block rows %}
+{% for setup in items %}
+<tr data-href="{% url 'edit-setup' setup.pk %}">
+    {% include 'reports/components/row_check.html' with pk=setup.pk %}
+    <td class="mono text-muted-cell">{{ setup.pk }}</td>
+    <td class="fw-medium">{{ setup.scope_model }}</td>
+    <td>{{ setup.transducer_model }}</td>
+    <td class="mono">{{ setup.transducer_serial }}</td>
+    <td class="mono">{{ setup.foc_depth }}</td>
+    <td>{{ setup.cal_material }}</td>
+    <td>{{ setup.cal_block_type }}</td>
+    <td class="text-muted-cell" title="{% if setup.report_id %}Used in report #{{ setup.report_id }}{% else %}Saved setup, not attached to a report{% endif %}">
+        {% if setup.report_id %}#{{ setup.report_id }}{% else %}Saved{% endif %}
+    </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block empty_icon %}sliders{% endblock %}
+{% block empty_text %}No setups yet. Add one manually or import it from an .nde file.{% endblock %}

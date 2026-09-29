@@ -203,9 +203,9 @@ def report_list(request):
     """
     View all report information stored within the database
     """
-    reports = Report.objects.all()
+    reports = Report.objects.order_by('-pk')
     if request.method == 'POST':
-        selected_pks = request.POST.getlist('selected_reports')
+        selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:
             Report.objects.filter(pk__in=selected_pks).delete()
             return redirect('report-list')
@@ -216,7 +216,7 @@ def report_list(request):
             original.pk = None
             original.save()
             return redirect('report-list')
-    return render(request, 'reports/report_list.html', {'reports': reports})
+    return render(request, 'reports/report_list.html', {'items': reports})
 
 
 def new_report(request):

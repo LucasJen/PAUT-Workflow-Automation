@@ -9,7 +9,7 @@ def setup_list(request):
     """
     setups = Setup.objects.all()
     if request.method == 'POST':
-        selected_pks = request.POST.getlist('selected_setups')
+        selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:
             Setup.objects.filter(pk__in=selected_pks).delete()
             return redirect('setup-list')
@@ -20,7 +20,7 @@ def setup_list(request):
             original.pk = None  # clears the pk, forcing a new row on save
             original.save()
             return redirect('setup-list')
-    return render(request, 'reports/setup_list.html', {'setups': setups})
+    return render(request, 'reports/setup_list.html', {'items': setups})
 
 
 def new_setup(request):

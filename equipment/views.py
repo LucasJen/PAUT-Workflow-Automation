@@ -19,7 +19,7 @@ def scope_list(request):
             original.pk = None
             original.save()
             return redirect('scope-list')
-    return render(request, 'equipment/scope_list.html', {'scopes': scopes})
+    return render(request, 'equipment/scope_list.html', {'items': scopes})
 
 
 def new_scope(request):
@@ -58,7 +58,7 @@ def probe_list(request):
             original.pk = None
             original.save()
             return redirect('probe-list')
-    return render(request, 'equipment/probe_list.html', {'probes': probes})
+    return render(request, 'equipment/probe_list.html', {'items': probes})
 
 
 def new_probe(request):
@@ -97,7 +97,7 @@ def cal_block_list(request):
             original.pk = None
             original.save()
             return redirect('cal-block-list')
-    return render(request, 'equipment/cal_block_list.html', {'cal_blocks': cal_blocks})
+    return render(request, 'equipment/cal_block_list.html', {'items': cal_blocks})
 
 
 def new_cal_block(request):
@@ -136,7 +136,7 @@ def sensitivity_block_list(request):
             original.pk = None
             original.save()
             return redirect('sensitivity-block-list')
-    return render(request, 'equipment/sensitivity_block_list.html', {'sensitivity_blocks': sensitivity_blocks})
+    return render(request, 'equipment/sensitivity_block_list.html', {'items': sensitivity_blocks})
 
 
 def new_sensitivity_block(request):
@@ -175,7 +175,7 @@ def encoder_list(request):
             original.pk = None
             original.save()
             return redirect('encoder-list')
-    return render(request, 'equipment/encoder_list.html', {'encoders': encoders})
+    return render(request, 'equipment/encoder_list.html', {'items': encoders})
 
 
 def new_encoder(request):
