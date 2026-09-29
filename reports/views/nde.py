@@ -14,7 +14,7 @@ def nde_upload(request):
     if request.method == 'POST':
         if 'nde_file' in request.FILES:
             uploaded = request.FILES['nde_file']
-            if not uploaded.name.endswith('.nde'):
+            if not uploaded.name.lower().endswith('.nde'):
                 context['error'] = 'Please upload a valid .nde file.'
             else:
                 try:
@@ -24,7 +24,10 @@ def nde_upload(request):
                             context['error'] = 'No Setup metadata found in this .nde file.'
                         else:
                             raw = f['Public/Setup'][()]
-                            setup_data = json.loads(raw.decode('utf-8'))
+                            if isinstance(raw, bytes):
+                                raw = raw.decode('utf-8')
+                            setup_data = json.loads(raw)
+                            context['setup_data'] = setup_data
                             context['json_output'] = json.dumps(setup_data, indent=2)
                 except Exception as e:
                     context['error'] = f'Failed to parse file: {e}'

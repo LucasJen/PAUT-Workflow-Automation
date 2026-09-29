@@ -248,8 +248,9 @@
 {% endif %}
 
 {% if json_output %}
+{{ setup_data|json_script:"nde-setup-data" }}
 <script>
-    const NDE_DATA = {{ json_output|safe }};
+    const NDE_DATA = JSON.parse(document.getElementById('nde-setup-data').textContent);
 
     // Raw metric values stored once on populate so toggling can reconvert without re-parsing
     let _rawDiameter = null, _rawXRes = null, _rawYRes = null, _rawFocDepth = null;
