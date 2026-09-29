@@ -10,6 +10,8 @@ urlpatterns = [
     path('reports/', views.report_list, name='report-list'),
     path('reports/new/', views.new_report, name='new-report'),
     path('report/<int:pk>/generate/', views.generate_report, name='generate-report'),
+    path('report/<int:pk>/preview/', views.preview_report, name='preview-report'),
+    path('report/<int:pk>/docx/', views.report_docx, name='report-docx'),
     path('reports/<int:pk>/edit/', views.edit_existing_report, name='edit-report'),
     path('nde/', views.nde_upload, name='nde-upload'),
 ]

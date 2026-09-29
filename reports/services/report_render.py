@@ -17,7 +17,7 @@ from docx.shared import Inches
 from docxtpl import DocxTemplate, InlineImage, Listing, RichText
 
 from ..models import ReportImage
-from ..report_types import get_report_type
+from ..report_types import SECTIONS, get_report_type
 from ..results import report_results, report_scan_rows
 
 FULL_WIDTH = Inches(7.0)       # drawings, scan images
@@ -166,6 +166,7 @@ def _scan_images(report, tpl):
 
 
 def build_context(report, tpl):
+    report_type = get_report_type(report.report_type)
     setup_objects = list(report.setups.order_by('order').prefetch_related('images'))
     setups = [_setup_context(s, i + 1, report, tpl) for i, s in enumerate(setup_objects)]
     # Cover "Procedures": each setup's procedure once, in order; else the report's procedure lines
@@ -204,6 +205,8 @@ def build_context(report, tpl):
         'scans': scans,
         'scan_images': scan_images,
         'figures': {'drawings': drawings},
+        # Section blocks in the master template print only for the report type's sections
+        'show': {key: key in report_type.sections for key in SECTIONS},
     }
 
 

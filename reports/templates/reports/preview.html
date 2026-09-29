@@ -1,0 +1,32 @@
+{% extends 'reports/base.html' %}
+{% load static ui %}
+
+{% block title %}Preview · {{ report.document_filename|default:"Report" }} · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<a href="{% url 'create-report' %}?loaded={{ report.pk }}" class="back-link"><i class="bi bi-arrow-left"></i> Back to editor</a>
+<div class="page-header">
+    <h1>Preview: {{ report.document_filename|default:"Untitled report" }}</h1>
+    <div class="header-actions">
+        <button type="button" class="btn btn-secondary" id="refresh-preview"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        <a href="{% url 'generate-report' report.pk %}" class="btn btn-primary" download><i class="bi bi-download"></i> Download .docx</a>
+    </div>
+    <p class="page-subtitle">
+        A preview of the Word file for checking text, tables, images and layout. Page breaks, the table of
+        contents and page numbers are finalised by Word when you open the downloaded file.
+    </p>
+</div>
+
+<div class="preview-stage" id="preview-stage" data-docx-url="{% url 'report-docx' report.pk %}">
+    <div class="preview-status" id="preview-status" role="status">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Building preview…
+    </div>
+    <div id="preview-pages"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'reports/vendor/docx-preview/jszip.min.js' %}"></script>
+<script src="{% static_v 'reports/vendor/docx-preview/docx-preview.min.js' %}"></script>
+<script src="{% static_v 'reports/js/preview.js' %}"></script>
+{% endblock %}

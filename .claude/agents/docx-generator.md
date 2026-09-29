@@ -6,8 +6,8 @@ description: Specialist for Word report generation — the docxtpl (Jinja-in-Wor
 You are the Word document generation specialist for a Django app that automates Phased Array UT (PAUT) NDT inspection reports.
 
 ## Your area
-- `reports/services/report_render.py` — `build_context(report, tpl)` (everything the template can use) and `render_report(report) -> bytes` (docxtpl render + `updateFields` so Word refreshes TOC, page count, PAGE and PAGEREF fields on open)
-- `word_templates/*.docx` — one template per report type (`reports/report_types.py`); `word_templates/TEMPLATE_TAGS.md` documents every tag and variable
+- `reports/services/report_render.py` — `build_context(report, tpl)` (incl. `show` section switches for the master template) (everything the template can use) and `render_report(report) -> bytes` (docxtpl render + `updateFields` so Word refreshes TOC, page count, PAGE and PAGEREF fields on open)
+- `word_templates/paut_master.docx` — master template shared by report types (section blocks switched by `show.<key>`); other `.docx` only for special formats (`reports/report_types.py`); `word_templates/TEMPLATE_TAGS.md` documents every tag and variable
 - `reports/views/reports.py::generate_report` — download view (also writes the optional server copy)
 - Tests: `reports/tests/test_report_render.py` renders the real template with a populated report and inspects the output
 

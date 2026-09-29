@@ -15,7 +15,7 @@
 <th class="sortable">Location<span class="sort-indicator"></span></th>
 <th class="sortable">Report date<span class="sort-indicator"></span></th>
 <th class="sortable">Prepared by<span class="sort-indicator"></span></th>
-<th class="col-actions"><span class="visually-hidden">Download</span></th>
+<th class="col-actions"><span class="visually-hidden">Preview and download</span></th>
 {% endblock %}
 
 {% block rows %}
@@ -30,6 +30,10 @@
     <td>{{ report.prepared_by_names }}</td>
     <td class="col-actions">
         {% if report.setup_count %}
+        <a href="{% url 'preview-report' report.pk %}" class="btn btn-icon btn-sm"
+           title="Preview report" aria-label="Preview report {{ report.document_filename|default:'report' }}">
+            <i class="bi bi-eye"></i>
+        </a>
         <a href="{% url 'generate-report' report.pk %}" class="btn btn-icon btn-sm" download
            title="Download Word report" aria-label="Download Word report for {{ report.document_filename|default:'report' }}">
             <i class="bi bi-download"></i>

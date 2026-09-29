@@ -4,6 +4,33 @@ Reports are generated with [docxtpl](https://docxtpl.readthedocs.io/): the `.doc
 in this folder contain Jinja tags that are filled from the report. Edit the templates in Word;
 the values come from `reports/services/report_render.py::build_context`.
 
+## Master template and section blocks
+
+`paut_master.docx` is shared by all report types. Each report section is a block that prints
+only when the report type lists that section (the same list that shows or hides the editor
+section), using `{%p if show.<key> %}` … `{%p endif %}`:
+
+| Key | Block |
+|---|---|
+| `scope` | INTRODUCTION (intro text, scan directions, severity table, techniques) |
+| `drawings` | DRAWING (also needs at least one equipment drawing) |
+| `setups` | Calibrations / Equipment Details per setup |
+| `results` | Results text and table |
+| `images` | SCAN IMAGES (photo summary); the section break before it only exists with it |
+
+The cover, table of contents and Discussion always print.
+
+**Add a report type:** append a `ReportType` to `_TYPES` in `reports/report_types.py` with the
+sections it uses and its results columns. It uses the master template unless it names its own.
+
+**Add a section block:** wrap the new content in the master template with
+`{%p if show.<key> %}` … `{%p endif %}`, add `(key, title, fields)` to `REPORT_SECTIONS`, and,
+for a special section, add its editor part as `reports/templates/reports/editor/<key>.html`.
+
+**Preview:** the app's Preview page draws the generated `.docx` in the browser (docx-preview).
+The table of contents, page count and page numbers show placeholders there; Word fills them in
+when the downloaded file is opened.
+
 ## Tag syntax
 
 | Tag | Use |

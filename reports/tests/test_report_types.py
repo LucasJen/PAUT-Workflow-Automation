@@ -103,6 +103,7 @@ class GenerateUsesTypeTemplateTests(TestCase):
                 mock.patch('reports.services.report_render.DocxTemplate') as template:
             resp = self.client.get(reverse('generate-report', args=[report.pk]))
 
-        lookup.assert_called_once_with('other')
+        self.assertTrue(lookup.call_args_list)
+        self.assertTrue(all(c.args == ('other',) for c in lookup.call_args_list))
         self.assertTrue(template.call_args.args[0].endswith(os.path.join('word_templates', 'other_template.docx')))
         self.assertEqual(resp.status_code, 200)

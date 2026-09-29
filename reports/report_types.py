@@ -6,7 +6,8 @@ fields are shown, and the results-table columns. Values in hidden fields are kep
 displayed, so switching type never loses data.
 
 To add a type, append a ReportType to _TYPES:
-  - template:        a .docx file in word_templates/
+  - template:        a .docx file in word_templates/ (default: the master template, whose
+                     section blocks print only for the sections this type lists)
   - sections:        which of SECTIONS the editor shows (defaults to all)
   - hidden_fields:   Report or Setup field names to hide within the shown sections
   - results_columns: (key, heading) pairs for the results table; the template uses the keys
@@ -36,6 +37,8 @@ REPORT_SECTIONS = (
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)
 
+MASTER_TEMPLATE = 'paut_master.docx'
+
 # Results columns of the HIC reference report (2026-08-PAUT-HIC_LVLA-15V3)
 HIC_RESULTS_COLUMNS = (
     ('scan_id', 'Scan ID'),
@@ -52,7 +55,7 @@ HIC_RESULTS_COLUMNS = (
 class ReportType:
     key: str
     label: str
-    template: str
+    template: str = MASTER_TEMPLATE
     sections: tuple = SECTIONS
     hidden_fields: frozenset = frozenset()
     results_columns: tuple = ()
@@ -71,8 +74,7 @@ class ReportType:
 
 
 _TYPES = [
-    ReportType('paut_long', 'PAUT long form (HIC)', 'paut_hic_long_form.docx',
-               results_columns=HIC_RESULTS_COLUMNS),
+    ReportType('paut_long', 'PAUT long form (HIC)', results_columns=HIC_RESULTS_COLUMNS),
 ]
 
 REPORT_TYPES = {t.key: t for t in _TYPES}

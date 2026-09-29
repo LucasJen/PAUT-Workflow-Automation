@@ -178,10 +178,14 @@ def create_report(request):
                 if results is not None:
                     _save_results_table(report, *results)
 
-            if 'generate' in request.POST and not report.setups.exists():
+            wants_output = 'generate' in request.POST or 'preview' in request.POST
+            if wants_output and not report.setups.exists():
                 messages.success(request, 'Report saved.')
-                messages.error(request, 'Add at least one UT setup before generating the report.')
+                messages.error(request, NEEDS_SETUP_MESSAGE)
                 return redirect(f"{reverse('create-report')}?loaded={report.pk}")
+            if 'preview' in request.POST:
+                messages.success(request, 'Report saved.')
+                return redirect('preview-report', pk=report.pk)
             if 'generate' in request.POST:
                 # Back to the editor, which starts the download; downloading straight from this
                 # POST would leave the page showing the pre-save (possibly unsaved-new) form
@@ -232,15 +236,47 @@ def _saved_setup_values():
     return {s['id']: {n: s[n] for n in names} for s in Setup.objects.values('id', *names)}
 
 
+NEEDS_SETUP_MESSAGE = 'Add at least one UT setup before generating the report.'
+
+
+def _report_with_setups(request, pk):
+    """(report, None) when the report can be generated, else (report, redirect to the editor)."""
+    report = get_object_or_404(Report, pk=pk)
+    if not report.setups.exists():
+        messages.error(request, NEEDS_SETUP_MESSAGE)
+        return report, redirect(f"{reverse('create-report')}?loaded={pk}")
+    return report, None
+
+
+def preview_report(request, pk):
+    """
+    Preview page: the browser renders the generated .docx (docx-preview) so layout, text and
+    images can be checked before downloading
+    """
+    report, redirect_response = _report_with_setups(request, pk)
+    if redirect_response:
+        return redirect_response
+    return render(request, 'reports/preview.html', {'report': report})
+
+
+def report_docx(request, pk):
+    """The generated .docx served inline for the preview page (no server copy is written)"""
+    report, redirect_response = _report_with_setups(request, pk)
+    if redirect_response:
+        return redirect_response
+    response = FileResponse(io.BytesIO(render_report(report)), content_type=DOCX_CONTENT_TYPE,
+                            filename=f'{safe_filename(report.document_filename)}.docx')
+    response['Cache-Control'] = 'no-store'
+    return response
+
+
 def generate_report(request, pk):
     """
     Renders the report's Word template (per report type) and returns it as a download
     """
-    report = get_object_or_404(Report, pk=pk)
-
-    if not report.setups.exists():
-        messages.error(request, 'Add at least one UT setup before generating the report.')
-        return redirect(f"{reverse('create-report')}?loaded={pk}")
+    report, redirect_response = _report_with_setups(request, pk)
+    if redirect_response:
+        return redirect_response
 
     output_name = f'{safe_filename(report.document_filename)}.docx'
     content = render_report(report)
