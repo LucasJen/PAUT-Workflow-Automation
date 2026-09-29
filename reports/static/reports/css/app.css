@@ -878,6 +878,92 @@ textarea.form-control { min-height: 5.5rem; resize: vertical; }
     .section-nav { display: none; }
 }
 
+/* ── Dashboard ──────────────────────────────────────────────────────────── */
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 1rem 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    color: var(--text);
+    text-decoration: none;
+}
+.stat-tile:hover { border-color: var(--border-strong); color: var(--text); }
+.stat-label { font-size: 0.8125rem; color: var(--text-3); font-weight: 500; }
+.stat-value { font-size: 1.625rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat-warning .stat-value { color: var(--warning); }
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+@media (max-width: 991.98px) {
+    .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.item-list { list-style: none; margin: -0.5rem -0.75rem; padding: 0; }
+.item-list li a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    color: var(--text);
+    text-decoration: none;
+}
+.item-list li a:hover { background: var(--surface-hover); }
+.item-main { display: flex; flex-direction: column; min-width: 0; }
+.item-title { font-weight: 500; font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-meta { font-size: 0.78rem; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-meta:empty { display: none; }
+.item-aside { font-size: 0.78rem; color: var(--text-3); white-space: nowrap; }
+
+/* ── File drop zone ─────────────────────────────────────────────────────── */
+
+.drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 1.75rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    background: var(--surface);
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.drop-zone > i { font-size: 1.75rem; color: var(--accent-text); }
+.drop-zone .drop-title { font-weight: 600; }
+.drop-zone .drop-hint { font-size: 0.8125rem; color: var(--text-3); }
+.drop-zone:hover,
+.drop-zone.dragging { border-color: var(--accent); background: var(--accent-soft); }
+.drop-zone:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.drop-zone.busy { opacity: 0.7; cursor: progress; }
+
+.json-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9375rem;
+}
+
 /* ── JSON viewer ────────────────────────────────────────────────────────── */
 
 .json-output {

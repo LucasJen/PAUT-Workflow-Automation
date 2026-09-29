@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.shortcuts import render, redirect
 from ..forms import SetupForm
 import h5py
@@ -28,13 +29,15 @@ def nde_upload(request):
                                 raw = raw.decode('utf-8')
                             setup_data = json.loads(raw)
                             context['setup_data'] = setup_data
+                            context['nde_filename'] = uploaded.name
                             context['json_output'] = json.dumps(setup_data, indent=2)
                 except Exception as e:
                     context['error'] = f'Failed to parse file: {e}'
         elif 'save_setup' in request.POST:
             form = SetupForm(request.POST)
             if form.is_valid():
-                form.save()
+                setup = form.save()
+                messages.success(request, f'Setup #{setup.pk} saved.')
                 return redirect('setup-list')
             context['form'] = form
     return render(request, 'reports/nde_upload.html', context)

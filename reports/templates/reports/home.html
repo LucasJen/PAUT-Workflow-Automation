@@ -1,8 +1,87 @@
 {% extends "reports/base.html" %}
+{% load ui %}
+
+{% block title %}Dashboard · PAUT Report Automation{% endblock %}
+
 {% block content %}
-<h1> Landing Page </h1>
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <div class="header-actions">
+        <a href="{% url 'nde-upload' %}" class="btn btn-secondary"><i class="bi bi-upload"></i> Import from NDE</a>
+        <a href="{% url 'create-report' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New report</a>
+    </div>
+</div>
 
-<h2>TODO</h2>
+<div class="stat-grid">
+    <a class="stat-tile" href="{% url 'report-list' %}">
+        <span class="stat-label">Reports</span>
+        <span class="stat-value">{{ stats.reports }}</span>
+    </a>
+    <a class="stat-tile" href="{% url 'setup-list' %}">
+        <span class="stat-label">Saved setups</span>
+        <span class="stat-value">{{ stats.saved_setups }}</span>
+    </a>
+    <a class="stat-tile" href="{% url 'scope-list' %}">
+        <span class="stat-label">Equipment items</span>
+        <span class="stat-value">{{ stats.equipment }}</span>
+    </a>
+    <a class="stat-tile{% if stats.cal_due %} stat-warning{% endif %}" href="{% url 'scope-list' %}">
+        <span class="stat-label">Scopes due for calibration</span>
+        <span class="stat-value">{{ stats.cal_due }}</span>
+    </a>
+</div>
 
+<div class="dashboard-grid">
+    <section class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Recent reports</h2>
+            <a href="{% url 'report-list' %}" class="small">View all</a>
+        </div>
+        {% if recent_reports %}
+        <ul class="item-list">
+            {% for report in recent_reports %}
+            <li>
+                <a href="{% url 'create-report' %}?loaded={{ report.pk }}">
+                    <span class="item-main">
+                        <span class="item-title">{{ report.document_filename|default:"Untitled report" }}</span>
+                        <span class="item-meta">
+                            {% if report.client %}{{ report.client }}{% endif %}{% if report.client and report.location %} · {% endif %}{{ report.location }}
+                        </span>
+                    </span>
+                    <span class="item-aside">
+                        {% if report.updated_at %}{{ report.updated_at|timesince }} ago{% elif report.report_date %}{{ report.report_date|date:'M j, Y' }}{% endif %}
+                    </span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-body-secondary mb-0">No reports yet. <a href="{% url 'create-report' %}">Create the first one.</a></p>
+        {% endif %}
+    </section>
 
+    <section class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Calibration due</h2>
+            <a href="{% url 'scope-list' %}" class="small">All scopes</a>
+        </div>
+        {% if cal_due %}
+        <ul class="item-list">
+            {% for scope in cal_due %}
+            <li>
+                <a href="{% url 'edit-scope' scope.pk %}">
+                    <span class="item-main">
+                        <span class="item-title">{{ scope.model|default:"Scope" }}</span>
+                        <span class="item-meta mono">{{ scope.serial_number }}</span>
+                    </span>
+                    <span class="badge-due due-{{ scope.calibration_due_date|cal_status }}">{{ scope.calibration_due_date|cal_label }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-body-secondary mb-0"><i class="bi bi-check-circle"></i> No scopes due for calibration in the next 30 days.</p>
+        {% endif %}
+    </section>
+</div>
 {% endblock %}
