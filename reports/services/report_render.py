@@ -15,6 +15,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches
 from docxtpl import DocxTemplate, InlineImage, Listing, RichText
+from PIL import Image as PILImage
 
 from ..models import ReportImage
 from ..report_types import SECTIONS, get_report_type
@@ -142,6 +143,65 @@ def _drawings(report, tpl):
     return figures
 
 
+# ── Photo summary block sizing ───────────────────────────────────────────
+# Two blocks per page in the last section (page 11in; the text area is about 9.7in once the
+# header is allowed for, minus the SCAN IMAGES heading and the spacer after each block). Each
+# block has a fixed height split between the image row and the comments row.
+BLOCK_HEIGHT_IN = 4.3
+IMAGE_BOX_WIDTH_IN = 7.55        # image cell (7.8in) minus cell padding
+IMAGE_ROW_PADDING_IN = 0.08
+COMMENTS_WIDTH_IN = 6.1          # comments cell (6.3in) minus cell padding
+COMMENTS_LABEL_IN = 0.2          # the 'Comments' line
+COMMENTS_PADDING_IN = 0.08
+MIN_COMMENTS_IN = 0.75
+MAX_COMMENTS_IN = 1.6            # leaves at least ~2.6in for the image
+COMMENT_SIZES_PT = (9, 8.5, 8, 7.5, 7)
+CHAR_WIDTH_EM = 0.52             # average character width, a little generous for safety
+LINE_HEIGHT = 1.22               # line height as a multiple of the font size
+
+
+def _comments_layout(text):
+    """(font size in pt, comments row height in inches): the largest size whose text fits."""
+    paragraphs = [p for p in (text or '').splitlines()] or ['']
+    for size in COMMENT_SIZES_PT:
+        per_line = max(1, int(COMMENTS_WIDTH_IN / (CHAR_WIDTH_EM * size / 72)))
+        lines = sum(max(1, -(-len(p) // per_line)) for p in paragraphs)
+        height = COMMENTS_LABEL_IN + lines * LINE_HEIGHT * size / 72 + COMMENTS_PADDING_IN
+        if height <= MAX_COMMENTS_IN:
+            return size, max(height, MIN_COMMENTS_IN)
+    # Too long even at the smallest size: the text beyond the box is cut off in the block
+    # (it is still complete in the results table)
+    return COMMENT_SIZES_PT[-1], MAX_COMMENTS_IN
+
+
+def _fitted_image(tpl, image_field, box_width_in, box_height_in):
+    """The image scaled to fit inside the box, keeping its proportions."""
+    try:
+        path = image_field.path
+        with PILImage.open(path) as im:
+            width_px, height_px = im.size
+    except (ValueError, NotImplementedError, OSError):
+        return None
+    scale = min(box_width_in / width_px, box_height_in / height_px)
+    return InlineImage(tpl, path, width=Inches(width_px * scale), height=Inches(height_px * scale))
+
+
+def _scan_block(tpl, image, scan_id, comments_text):
+    size, comments_in = _comments_layout(comments_text)
+    image_in = BLOCK_HEIGHT_IN - comments_in
+    inline = _fitted_image(tpl, image.image, IMAGE_BOX_WIDTH_IN, image_in - IMAGE_ROW_PADDING_IN)
+    if inline is None:
+        return None
+    return {
+        'scan_id': scan_id,
+        'comments': prose(comments_text),
+        'image': inline,
+        'image_twips': round(image_in * 1440),
+        'comments_twips': round(comments_in * 1440),
+        'comment_half_points': round(size * 2),
+    }
+
+
 def _scan_images(report, tpl):
     """
     Photo-summary blocks (image + Scan ID + comments), in results-table order. Each image's
@@ -154,15 +214,11 @@ def _scan_images(report, tpl):
         for image in images:
             if image.pk not in used and image.scan_id == scan_id:
                 used.add(image.pk)
-                inline = _image(tpl, image.image, FULL_WIDTH)
-                if inline:
-                    blocks.append({'scan_id': scan_id, 'comments': prose(comments), 'image': inline})
+                blocks.append(_scan_block(tpl, image, scan_id, comments))
     for image in images:
         if image.pk not in used:
-            inline = _image(tpl, image.image, FULL_WIDTH)
-            if inline:
-                blocks.append({'scan_id': image.caption or image.scan_id, 'comments': '', 'image': inline})
-    return blocks
+            blocks.append(_scan_block(tpl, image, image.caption or image.scan_id, ''))
+    return [b for b in blocks if b]
 
 
 def build_context(report, tpl):
