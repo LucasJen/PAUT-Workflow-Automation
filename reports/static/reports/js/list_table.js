@@ -38,6 +38,18 @@
         updateBulkBar();
     });
 
+    // ── Sticky header: show a divider once it is pinned to the top ────
+    const header = document.getElementById('list-header');
+    if (header) {
+        const markStuck = () => {
+            const top = parseFloat(getComputedStyle(header).top) || 0;
+            header.classList.toggle('is-stuck', window.scrollY > 0 && header.getBoundingClientRect().top <= top + 0.5);
+        };
+        window.addEventListener('scroll', markStuck, { passive: true });
+        window.addEventListener('resize', markStuck);
+        markStuck();
+    }
+
     // ── Shift-click range selection ────────────────────────────────────
     // Shift-clicking a checkbox (or anywhere on a row) sets every visible row between the last
     // clicked row and this one to the same state. Rows hidden by the search are skipped.

@@ -10,7 +10,8 @@ cells may set data-sort-value (e.g. ISO dates).
 {% endcomment %}
 
 {% block content %}
-<div class="page-header">
+{# Sticky: the bulk Delete / Duplicate bar, search and New stay reachable while scrolling #}
+<div class="page-header list-header" id="list-header">
     <h1>{% block page_title %}{% endblock %}</h1>
 
     <span class="bulk-bar" id="bulk-bar" aria-live="polite">

@@ -330,6 +330,23 @@ h1, h2, h3, h4, h5, h6 { color: var(--text); letter-spacing: -0.01em; }
 
 .page-header .page-subtitle:empty { display: none; }
 
+/* List pages: the header (title, bulk actions, search, New) sticks to the top while scrolling */
+.list-header {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    margin-top: -0.75rem;
+    padding: 0.75rem 0;
+    background: var(--bg);
+    transition: box-shadow 0.15s ease;
+}
+.list-header.is-stuck {
+    box-shadow: 0 1px 0 var(--border), 0 8px 12px -10px rgba(16, 24, 40, 0.25);
+}
+@media (max-width: 991.98px) {
+    .list-header { top: 52px; }  /* below the mobile top bar */
+}
+
 .page-header .header-actions {
     display: flex;
     align-items: center;

@@ -16,6 +16,15 @@ class ListPageTests(TestCase):
         self.assertContains(resp, 'data-confirm="Delete {count} report{s}?')
         self.assertContains(resp, f'name="selected" value="{report.pk}"')
 
+    def test_bulk_actions_live_in_the_sticky_header(self):
+        Report.objects.create()
+        html = self.client.get(reverse('report-list')).content.decode()
+        header_start = html.index('id="list-header"')
+        header = html[header_start:html.index('id="list-form"')]
+        self.assertIn('class="page-header list-header"', html[header_start - 60:header_start + 20])
+        for part in ('id="bulk-bar"', 'name="delete"', 'name="duplicate"', 'id="list-search"'):
+            self.assertIn(part, header)
+
     def test_empty_list_shows_empty_state(self):
         resp = self.client.get(reverse('probe-list'))
         self.assertContains(resp, 'class="empty-state"')
