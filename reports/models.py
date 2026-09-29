@@ -76,12 +76,28 @@ class Setup(models.Model):
     angle_range = models.CharField(max_length=50, blank=True)
     sound_velocity = models.CharField(max_length=100, blank=True)
     gain = models.CharField(max_length=100, blank=True)
+    beam_gain = models.CharField(max_length=100, blank=True)
     ref_gain = models.CharField(max_length=100, blank=True)
     voltage = models.CharField(max_length=100, blank=True)
+
+    # Acquisition / beam formation
+    beam_formation = models.CharField(max_length=100, blank=True)
+    active_elements = models.CharField(max_length=50, blank=True)
+    element_aperture = models.CharField(max_length=50, blank=True)
+    element_step = models.CharField(max_length=50, blank=True)
+    pcs = models.CharField(max_length=50, blank=True)
+    scan_pattern = models.CharField(max_length=100, blank=True)
+    encoder_resolution = models.CharField(max_length=200, blank=True)
+    digitizing_frequency = models.CharField(max_length=50, blank=True)
+    pulse_width = models.CharField(max_length=50, blank=True)
+    band_pass_filter = models.CharField(max_length=100, blank=True)
+    gates = models.TextField(blank=True)
+    calibrations = models.CharField(max_length=200, blank=True)
 
     # Specimen Information
     specimen_od = models.CharField(max_length=100, blank=True)
     specimen_thickness = models.CharField(max_length=100, blank=True)
+    specimen_dimensions = models.CharField(max_length=100, blank=True)
 
     # Calibration information
     cal_material = models.CharField(max_length=200, blank=True)
@@ -91,6 +107,10 @@ class Setup(models.Model):
     surface_prep = models.CharField(max_length=200, blank=True)
     tr_min = models.CharField(max_length=50, blank=True)
     tr_max = models.CharField(max_length=50, blank=True)
+
+    # Source data file (filled by NDE import)
+    source_file = models.CharField(max_length=255, blank=True)
+    acquisition_date = models.CharField(max_length=50, blank=True)
 
     order = models.IntegerField(default=0)
 

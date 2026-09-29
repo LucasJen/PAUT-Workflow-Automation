@@ -21,6 +21,8 @@ MONO_FIELDS = {
     'scan_length', 'scan_width', 'angle_step', 'angle_range', 'sound_velocity', 'gain',
     'ref_gain', 'voltage', 'specimen_od', 'specimen_thickness', 'material_temp', 'tr_min', 'tr_max',
     'frequency', 'diameter', 'step_count',
+    'beam_gain', 'active_elements', 'element_aperture', 'element_step', 'pcs', 'digitizing_frequency',
+    'pulse_width', 'band_pass_filter', 'acquisition_date',
 }
 
 
@@ -101,10 +103,14 @@ class SetupForm(StyledFormMixin, ModelForm):
         ('Wedge', ['wedge_model', 'wedge_angle']),
         ('UT settings', ['foc_depth', 'wave_propagation', 'freq', 'elements', 'x_res', 'y_res',
                          'scan_length', 'scan_width', 'angle_step', 'angle_range', 'sound_velocity',
-                         'gain', 'ref_gain', 'voltage']),
-        ('Specimen', ['specimen_od', 'specimen_thickness']),
+                         'gain', 'beam_gain', 'ref_gain', 'voltage']),
+        ('Acquisition', ['beam_formation', 'active_elements', 'element_aperture', 'element_step', 'pcs',
+                         'scan_pattern', 'encoder_resolution', 'digitizing_frequency', 'pulse_width',
+                         'band_pass_filter', 'calibrations', 'gates']),
+        ('Specimen', ['specimen_od', 'specimen_thickness', 'specimen_dimensions']),
         ('Calibration', ['cal_material', 'material_temp', 'cal_block_type', 'cal_block_serial',
                          'surface_prep', 'tr_min', 'tr_max']),
+        ('Source', ['source_file', 'acquisition_date']),
     ]
 
     class Meta:
@@ -125,9 +131,25 @@ class SetupForm(StyledFormMixin, ModelForm):
             'surface_prep': 'Surface prep',
             'tr_min': 'TR min',
             'tr_max': 'TR max',
+            'gain': 'Gain (group, dB)',
+            'beam_gain': 'Beam gain (dB)',
+            'beam_formation': 'Beam formation',
+            'active_elements': 'Active elements',
+            'element_aperture': 'Element aperture',
+            'element_step': 'Element step',
+            'pcs': 'PCS (TOFD)',
+            'encoder_resolution': 'Encoder resolution',
+            'digitizing_frequency': 'Digitizing frequency (MHz)',
+            'pulse_width': 'Pulse width (ns)',
+            'band_pass_filter': 'Band-pass filter (MHz)',
+            'calibrations': 'Calibrations performed',
+            'specimen_dimensions': 'Specimen dimensions',
+            'source_file': 'Source data file',
+            'acquisition_date': 'Acquisition date',
         }
         widgets = {
-            'wave_propagation': TextInput(attrs={'list': 'wave_propagation_options'})
+            'wave_propagation': TextInput(attrs={'list': 'wave_propagation_options'}),
+            'gates': Textarea(attrs={'rows': 2}),
         }
 
 

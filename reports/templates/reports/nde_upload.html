@@ -37,15 +37,30 @@
     <section class="panel">
         <div class="panel-header">
             <h2 class="panel-title">
-                {% if setup_data %}Values read from {{ nde_filename|default:"the file" }}{% else %}Setup values{% endif %}
+                {% if nde_groups %}Values read from {{ nde_filename|default:"the file" }}{% else %}Setup values{% endif %}
             </h2>
-            {% if setup_data %}
-            <div class="btn-group btn-group-sm" role="group" aria-label="Units">
-                <button type="button" class="btn btn-primary" id="btn-imperial" data-unit="imperial">Imperial</button>
-                <button type="button" class="btn btn-outline-primary" id="btn-metric" data-unit="metric">Metric</button>
+            {% if nde_groups %}
+            <div class="d-flex align-items-center gap-2">
+                {% if nde_groups|length > 1 %}
+                <select class="form-select form-select-sm w-auto" id="nde-group" aria-label="Inspection group">
+                    {% for group in nde_groups %}
+                    <option value="{{ forloop.counter0 }}">{{ group.label }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+                <div class="btn-group btn-group-sm" role="group" aria-label="Units">
+                    <button type="button" class="btn btn-primary" id="btn-imperial" data-unit="imperial">Imperial</button>
+                    <button type="button" class="btn btn-outline-primary" id="btn-metric" data-unit="metric">Metric</button>
+                </div>
             </div>
             {% endif %}
         </div>
+        {% if nde_groups %}
+        <p class="form-text mt-0">
+            {% if nde_groups|length > 1 %}This file has {{ nde_groups|length }} inspection groups; pick one above and save it, then pick the next.{% else %}Inspection group: {{ nde_groups.0.label }}.{% endif %}
+            Highlighted fields were filled from the file. Check them, and fill in anything the file doesn't record (calibration block, surface prep, temperature).
+        </p>
+        {% endif %}
         {% for title, fields in form.fieldsets %}
         <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
         <div class="field-grid cols-4">
@@ -66,7 +81,7 @@
     </div>
 </form>
 
-{% if setup_data %}{{ setup_data|json_script:"nde-setup-data" }}{% endif %}
+{% if nde_groups %}{{ nde_groups|json_script:"nde-groups" }}{% endif %}
 {% endblock %}
 
 {% block scripts %}

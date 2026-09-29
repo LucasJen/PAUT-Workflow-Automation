@@ -1,0 +1,1228 @@
+{
+ "setup": {
+  "$schema": "./Setup-Schema-4.1.0.json",
+  "version": "4.1.0",
+  "scenario": "General Mapping",
+  "groups": [
+   {
+    "id": 0,
+    "name": "GR-1",
+    "datasets": [
+     {
+      "id": 0,
+      "dataTransformations": [
+       {
+        "processId": 1
+       }
+      ],
+      "dataClass": "AScanAmplitude",
+      "storageMode": "Paintbrush",
+      "dataValue": {
+       "min": 0,
+       "max": 32767,
+       "unitMin": 0.0,
+       "unitMax": 800.0,
+       "unit": "Percent"
+      },
+      "path": "/Public/Groups/0/Datasets/0-AScanAmplitude",
+      "dimensions": [
+       {
+        "axis": "UCoordinate",
+        "offset": 0.0,
+        "quantity": 306,
+        "resolution": 0.001
+       },
+       {
+        "axis": "VCoordinate",
+        "offset": 0.0,
+        "quantity": 306,
+        "resolution": 0.0010000000000000009
+       },
+       {
+        "axis": "Ultrasound",
+        "offset": -8.6e-07,
+        "quantity": 1036,
+        "resolution": 1e-08
+       }
+      ]
+     },
+     {
+      "id": 1,
+      "dataTransformations": [
+       {
+        "processId": 1
+       }
+      ],
+      "dataClass": "AScanStatus",
+      "storageMode": "Paintbrush",
+      "dataValue": {
+       "hasData": 1,
+       "saturated": 2,
+       "noSynchro": 4,
+       "unit": "Bitfield"
+      },
+      "path": "/Public/Groups/0/Datasets/1-AScanStatus",
+      "dimensions": [
+       {
+        "axis": "UCoordinate",
+        "offset": 0.0,
+        "quantity": 306,
+        "resolution": 0.001
+       },
+       {
+        "axis": "VCoordinate",
+        "offset": 0.0,
+        "quantity": 306,
+        "resolution": 0.0010000000000000009
+       }
+      ]
+     },
+     {
+      "id": 2,
+      "dataTransformations": [
+       {
+        "processId": 1
+       }
+      ],
+      "dataClass": "FiringSource",
+      "storageMode": "Paintbrush",
+      "dataValue": {
+       "min": 0,
+       "max": 61,
+       "unit": "BeamId"
+      },
+      "path": "/Public/Groups/0/Datasets/2-FiringSource",
+      "dimensions": [
+       {
+        "axis": "UCoordinate",
+        "offset": 0.0,
+        "quantity": 306,
+        "resolution": 0.001
+       },
+       {
+        "axis": "VCoordinate",
+        "offset": 0.0,
+        "quantity": 306,
+        "resolution": 0.0010000000000000009
+       }
+      ]
+     }
+    ],
+    "processes": [
+     {
+      "inputs": [],
+      "outputs": [
+       {
+        "id": 0,
+        "datasetId": 0,
+        "dataClass": "AScanAmplitude"
+       },
+       {
+        "id": 1,
+        "datasetId": 1,
+        "dataClass": "AScanStatus"
+       },
+       {
+        "id": 2,
+        "datasetId": 2,
+        "dataClass": "FiringSource"
+       },
+       {
+        "id": 3,
+        "dataClass": "CScanPeak",
+        "parameters": {
+         "gateId": 0,
+         "gateDetection": "FirstPeak"
+        }
+       },
+       {
+        "id": 4,
+        "dataClass": "CScanTime",
+        "parameters": {
+         "gateId": 0,
+         "gateDetection": "Crossing"
+        }
+       },
+       {
+        "id": 5,
+        "dataClass": "CScanStatus",
+        "parameters": {
+         "gateId": 0
+        }
+       },
+       {
+        "id": 6,
+        "dataClass": "CScanPeak",
+        "parameters": {
+         "gateId": 1,
+         "gateDetection": "FirstPeak"
+        }
+       },
+       {
+        "id": 7,
+        "dataClass": "CScanTime",
+        "parameters": {
+         "gateId": 1,
+         "gateDetection": "Crossing"
+        }
+       },
+       {
+        "id": 8,
+        "dataClass": "CScanStatus",
+        "parameters": {
+         "gateId": 1
+        }
+       },
+       {
+        "id": 9,
+        "dataClass": "CScanPeak",
+        "parameters": {
+         "gateId": 2,
+         "gateDetection": "FirstPeak"
+        }
+       },
+       {
+        "id": 10,
+        "dataClass": "CScanTime",
+        "parameters": {
+         "gateId": 2,
+         "gateDetection": "Crossing"
+        }
+       },
+       {
+        "id": 11,
+        "dataClass": "CScanStatus",
+        "parameters": {
+         "gateId": 2
+        }
+       }
+      ],
+      "id": 0,
+      "dataMappingId": 0,
+      "implementation": "Hardware",
+      "ultrasonicPhasedArray": {
+       "pulseEcho": {
+        "linearFormation": {
+         "probeFirstElementId": 0,
+         "probeLastElementId": 63,
+         "elementStep": 1.0,
+         "elementAperture": 4,
+         "beamRefractedAngle": 0.0
+        },
+        "probeId": 0
+       },
+       "waveMode": "Longitudinal",
+       "velocity": 5890.0,
+       "focusing": {
+        "mode": "TrueDepth",
+        "distance": 0.007619999999999999
+       },
+       "beams": [
+        {
+         "id": 0,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1,
+         "tcg": {
+          "points": [
+           {
+            "time": 0.0,
+            "gain": 0.0
+           },
+           {
+            "time": 3.4500000000000004e-06,
+            "gain": 9.5
+           },
+           {
+            "time": 6.9300000000000006e-06,
+            "gain": 14.5
+           },
+           {
+            "time": 1.0350000000000001e-05,
+            "gain": 18.5
+           }
+          ]
+         }
+        },
+        {
+         "id": 1,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 2,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 3,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 4,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 5,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 6,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 7,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 8,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 9,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 10,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 11,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 12,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 13,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 14,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 15,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 16,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 17,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 18,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 19,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 20,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 21,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 22,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 23,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 24,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 25,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 26,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 27,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 28,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 29,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 30,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 31,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 32,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 33,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 34,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 35,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 36,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 37,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 38,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 39,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 40,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 41,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 42,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 43,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 44,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 45,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 46,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 47,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 48,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 49,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 50,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 51,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 52,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 53,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 54,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 55,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 56,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 57,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 58,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 59,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        },
+        {
+         "id": 60,
+         "skewAngle": 0.0,
+         "refractedAngle": 0.0,
+         "beamDelay": 0.0,
+         "ascanStart": -8.6e-07,
+         "ascanLength": 1.036e-05,
+         "gainOffset": 0.0,
+         "sumGainMode": "Automatic",
+         "sumGain": 27.1
+        }
+       ],
+       "pulse": {
+        "width": 6.5e-08,
+        "voltage": 5.0,
+        "polarity": "Bipolar"
+       },
+       "gates": [
+        {
+         "id": 0,
+         "name": "Gate I",
+         "geometry": "SoundPath",
+         "thresholdPolarity": "Absolute",
+         "synchronization": {
+          "mode": "Pulse"
+         },
+         "start": 6.82e-06,
+         "length": 1.897e-05,
+         "threshold": 30.0
+        },
+        {
+         "id": 1,
+         "name": "Gate A",
+         "geometry": "SoundPath",
+         "thresholdPolarity": "Absolute",
+         "synchronization": {
+          "mode": "GateRelative",
+          "triggeringEvent": "Crossing",
+          "gateId": 0
+         },
+         "start": 1.2900000000000001e-06,
+         "length": 6.9e-06,
+         "threshold": 20.0
+        },
+        {
+         "id": 2,
+         "name": "Gate B",
+         "geometry": "SoundPath",
+         "thresholdPolarity": "Absolute",
+         "synchronization": {
+          "mode": "GateRelative",
+          "triggeringEvent": "Crossing",
+          "gateId": 0
+         },
+         "start": 5e-06,
+         "length": 6.9e-06,
+         "threshold": 20.0
+        }
+       ],
+       "rectification": "Full",
+       "digitizingFrequency": 100000000.0,
+       "ascanSynchroMode": "SynchroGateRelative",
+       "ascanCompressionFactor": 1,
+       "gain": 0.0,
+       "wedgeDelay": 0.0,
+       "ultrasoundMode": "TrueDepth",
+       "referenceAmplitude": 80.0,
+       "referenceGain": 0.0,
+       "digitalBandPassFilter": {
+        "filterType": "BandPass",
+        "highCutOffFrequency": 12000000.0,
+        "lowCutOffFrequency": 4000000.0,
+        "characteristic": "None"
+       },
+       "averagingFactor": 1,
+       "calibrationStates": [
+        {
+         "sensitivityCalibration": {
+          "calibrated": false
+         }
+        },
+        {
+         "tcgCalibration": {
+          "calibrated": true
+         }
+        },
+        {
+         "velocityCalibration": {
+          "calibrated": false
+         }
+        },
+        {
+         "wedgeDelayCalibration": {
+          "calibrated": false
+         }
+        },
+        {
+         "dacCalibration": {
+          "calibrated": false
+         }
+        },
+        {
+         "dgsCalibration": {
+          "calibrated": false
+         }
+        },
+        {
+         "tofdWedgeDelayCalibration": {
+          "calibrated": false
+         }
+        }
+       ]
+      }
+     },
+     {
+      "inputs": [
+       {
+        "processId": 0
+       }
+      ],
+      "outputs": [],
+      "id": 1,
+      "dataMappingId": 0,
+      "implementation": "Software",
+      "thickness": {
+       "min": 0.00635,
+       "max": 0.01016,
+       "gates": [
+        {
+         "id": 2,
+         "gateDetection": "Crossing"
+        },
+        {
+         "id": 1,
+         "gateDetection": "Crossing"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "acquisitionUnits": [
+   {
+    "id": 0,
+    "platform": "OmniScan X3",
+    "name": "MXU",
+    "model": "OmniScan X3 64 - 64:128PR",
+    "serialNumber": "QC-0000000",
+    "acquisitionRate": 260.627
+   }
+  ],
+  "motionDevices": [
+   {
+    "id": 0,
+    "name": "HydroFORM",
+    "encoder": {
+     "mode": "Quadrature",
+     "stepResolution": 7479.2213,
+     "preset": 0.0
+    }
+   },
+   {
+    "id": 1,
+    "name": "HydroFORM",
+    "encoder": {
+     "mode": "PulseUp",
+     "stepResolution": 19.685000000000002,
+     "preset": 0.0
+    }
+   }
+  ],
+  "dataMappings": [
+   {
+    "id": 0,
+    "specimenId": 0,
+    "surfaceId": 0,
+    "discreteGrid": {
+     "scanPattern": "RasterScan",
+     "uCoordinateOrientation": "Length",
+     "dimensions": [
+      {
+       "axis": "UCoordinate",
+       "motionDeviceId": 0,
+       "name": "Scan",
+       "offset": 0.0,
+       "quantity": 306,
+       "resolution": 0.001
+      },
+      {
+       "axis": "VCoordinate",
+       "motionDeviceId": 1,
+       "name": "Index",
+       "offset": 0.0,
+       "quantity": 306,
+       "resolution": 0.0010000000000000009
+      }
+     ]
+    }
+   }
+  ],
+  "specimens": [
+   {
+    "id": 0,
+    "plateGeometry": {
+     "width": 0.3,
+     "length": 0.3,
+     "thickness": 0.0254,
+     "surfaces": [
+      {
+       "id": 0,
+       "name": "Top"
+      }
+     ],
+     "material": {
+      "name": "Steel_Mild",
+      "longitudinalWave": {
+       "nominalVelocity": 5890.0
+      },
+      "transversalVerticalWave": {
+       "nominalVelocity": 3240.0
+      },
+      "density": 7800.0
+     }
+    }
+   }
+  ],
+  "probes": [
+   {
+    "id": 0,
+    "model": "7.5L64-I4",
+    "serie": "I4",
+    "phasedArrayLinear": {
+     "centralFrequency": 7500000.0,
+     "elements": [
+      {
+       "id": 0,
+       "pinId": 0,
+       "acquisitionUnitId": 0,
+       "connectorName": "PA",
+       "primaryIndex": 0,
+       "secondaryIndex": 0,
+       "enabled": true
+      },
+      {
+       "id": 1,
+       "pinId": 1,
+       "acquisitionUnitId": 0,
+       "connectorName": "PA",
+       "primaryIndex": 1,
+       "secondaryIndex": 0,
+       "enabled": true
+      }
+     ],
+     "primaryAxis": {
+      "elementGap": 0.0,
+      "elementQuantity": 64,
+      "elementLength": 0.001,
+      "referencePoint": -0.0675,
+      "casingLength": 0.07200000000000001
+     },
+     "secondaryAxis": {
+      "elementGap": 0.0,
+      "elementQuantity": 1,
+      "elementLength": 0.007,
+      "referencePoint": 0.0,
+      "casingLength": 2e-06
+     }
+    },
+    "wedgeAssociation": {
+     "wedgeId": 0,
+     "mountingLocationId": 0,
+     "orientation": "Normal"
+    }
+   }
+  ],
+  "wedges": [
+   {
+    "id": 0,
+    "model": "HydroFORM",
+    "serie": "SI4",
+    "angleBeamWedge": {
+     "width": 0.041,
+     "height": 0.036000000000000004,
+     "length": 0.081,
+     "longitudinalVelocity": 1480.0,
+     "mountingLocations": [
+      {
+       "id": 0,
+       "wedgeAngle": 0.0,
+       "primaryOffset": -0.07100000000000001,
+       "secondaryOffset": 0.0,
+       "tertiaryOffset": 0.013000000000000001
+      }
+     ],
+     "pocketDepth": 0.023
+    },
+    "positioning": {
+     "specimenId": 0,
+     "surfaceId": 0,
+     "uCoordinateOffset": 0.0,
+     "vCoordinateOffset": 0.069977,
+     "skewAngle": 90.0
+    }
+   }
+  ]
+ },
+ "properties": {
+  "$schema": "./Properties-Schema-4.1.0.json",
+  "file": {
+   "createdByAppName": "MXU",
+   "createdByAppVersion": "5.20.0.1413",
+   "createdByAppCompany": "Evident",
+   "creationDate": "2026-09-22T09:28:15-05:00",
+   "creationFormatVersion": "4.1.0",
+   "modifiedByAppName": "MXU",
+   "modifiedByAppVersion": "5.20.0.1413",
+   "modifiedByAppCompany": "Evident",
+   "modificationDate": "2026-09-22T09:33:35-05:00",
+   "formatVersion": "4.1.0",
+   "notice": "Release version"
+  },
+  "methods": [
+   "UT"
+  ]
+ },
+ "filename": "sample raster scan.nde"
+}

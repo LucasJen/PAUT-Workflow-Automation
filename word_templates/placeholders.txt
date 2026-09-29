@@ -65,6 +65,27 @@ SURFACE_PREP
 TR_MIN
 TR_MAX
 
+[Acquisition details (per setup; filled by "Import from NDE")]
+BEAM_GAIN            - beam (sum) gain in dB; GAIN is the group gain
+BEAM_FORMATION       - Linear / Sectorial / Compound / TOFD / Conventional
+ACTIVE_ELEMENTS      - e.g. 1–64
+ELEMENT_APERTURE
+ELEMENT_STEP
+PCS                  - TOFD probe centre separation (in or mm)
+SCAN_PATTERN         - e.g. Raster scan
+ENCODER_RESOLUTION   - includes units, e.g. Scan 189.97 steps/in; Index 0.5 steps/in
+DIGITIZING_FREQUENCY - MHz
+PULSE_WIDTH          - ns
+BAND_PASS_FILTER     - MHz, e.g. 4–12
+GATES                - includes units, e.g. A: 1.29–8.19 µs, 20%
+CALIBRATIONS         - calibrations performed, e.g. TCG
+SPECIMEN_DIMENSIONS  - includes units, e.g. 11.811 × 11.811 in
+SOURCE_FILE          - .nde file name
+ACQUISITION_DATE
+
+Numbers are imported without units (the template supplies them, e.g. {{X_RES}}" and
+{{FREQ}} MHz); fields marked "includes units" carry their own.
+
 [Sentinels]
 SETUP_TABLE      - cell in a table that is duplicated once per setup
 RESULTS_TABLE    - cell in the results table header row

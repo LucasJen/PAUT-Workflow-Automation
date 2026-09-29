@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from equipment.models import Scope
 from reports.models import Report, Setup
-from reports.tests.test_nde_upload import make_nde
+from reports.tests.test_nde_upload import make_nde, sample_setup
 
 
 class DashboardTests(TestCase):
@@ -45,11 +45,11 @@ class DashboardTests(TestCase):
 class NdePageTests(TestCase):
     def test_page_shows_drop_zone_and_file_name(self):
         resp = self.client.post(reverse('nde-upload'), {
-            'nde_file': SimpleUploadedFile('weld12.nde', make_nde({'version': '4.0.0'})),
+            'nde_file': SimpleUploadedFile('weld12.nde', make_nde(sample_setup())),
         })
         self.assertContains(resp, 'id="drop-zone"')
         self.assertContains(resp, 'Values read from weld12.nde')
-        self.assertContains(resp, 'id="nde-setup-data"')
+        self.assertContains(resp, 'id="nde-groups"')
 
     def test_save_setup_shows_message(self):
         resp = self.client.post(reverse('nde-upload'), {'save_setup': '', 'scope_model': 'X3'}, follow=True)

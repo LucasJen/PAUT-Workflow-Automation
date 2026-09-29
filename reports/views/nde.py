@@ -1,15 +1,14 @@
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from ..forms import SetupForm
-import h5py
-import io
+from ..services.nde_parser import NdeError, extract_groups, read_nde
 import json
 
 
 def nde_upload(request):
     """
-    Upload and parse an .nde file, displaying the embedded JSON metadata.
-    Also renders a Setup form that can be populated from the parsed JSON and saved.
+    Upload an .nde file and fill a Setup form from its metadata (one candidate setup per
+    inspection group, in imperial and metric). The setup is saved from the same page.
     """
     context = {'form': SetupForm()}
     if request.method == 'POST':
@@ -19,20 +18,16 @@ def nde_upload(request):
                 context['error'] = 'Please upload a valid .nde file.'
             else:
                 try:
-                    file_bytes = io.BytesIO(uploaded.read())
-                    with h5py.File(file_bytes, 'r') as f:
-                        if 'Public/Setup' not in f:
-                            context['error'] = 'No Setup metadata found in this .nde file.'
-                        else:
-                            raw = f['Public/Setup'][()]
-                            if isinstance(raw, bytes):
-                                raw = raw.decode('utf-8')
-                            setup_data = json.loads(raw)
-                            context['setup_data'] = setup_data
-                            context['nde_filename'] = uploaded.name
-                            context['json_output'] = json.dumps(setup_data, indent=2)
-                except Exception as e:
-                    context['error'] = f'Failed to parse file: {e}'
+                    setup, properties = read_nde(uploaded)
+                    groups = extract_groups(setup, properties, uploaded.name)
+                    if not groups:
+                        context['error'] = 'This .nde file has no inspection groups to import.'
+                    else:
+                        context['nde_groups'] = groups
+                        context['nde_filename'] = uploaded.name
+                        context['json_output'] = json.dumps(setup, indent=2)
+                except NdeError as e:
+                    context['error'] = str(e)
         elif 'save_setup' in request.POST:
             form = SetupForm(request.POST)
             if form.is_valid():

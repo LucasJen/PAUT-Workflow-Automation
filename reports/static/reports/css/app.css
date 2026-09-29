@@ -960,6 +960,13 @@ textarea.form-control { min-height: 5.5rem; resize: vertical; }
 .drop-zone:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .drop-zone.busy { opacity: 0.7; cursor: progress; }
 
+/* Fields filled from an imported file */
+.field.from-file .form-control,
+.field.from-file .form-select {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+    background-color: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
 .json-details summary {
     cursor: pointer;
     font-weight: 600;
