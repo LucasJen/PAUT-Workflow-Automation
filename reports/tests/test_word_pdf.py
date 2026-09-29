@@ -34,6 +34,15 @@ class PdfViewTests(TestCase):
         # Word updates fields itself, so the docx it gets must not ask to update on open
         self.assertNotIn(b'w:updateFields', _settings_xml(convert.call_args.args[0]))
 
+    def test_pdf_may_be_framed_only_by_the_app_itself(self, convert, _available):
+        """The preview page shows the PDF in an iframe; Django's default X-Frame-Options DENY blocked it."""
+        report = report_with_setup()
+        self.assertEqual(self.client.get(reverse('report-pdf', args=[report.pk]))['X-Frame-Options'], 'SAMEORIGIN')
+        convert.side_effect = word_pdf.WordPdfError('boom')  # the error page is shown in the same frame
+        self.assertEqual(self.client.get(reverse('report-pdf', args=[report.pk]))['X-Frame-Options'], 'SAMEORIGIN')
+        # Everything else keeps the stricter default
+        self.assertEqual(self.client.get(reverse('preview-report', args=[report.pk]))['X-Frame-Options'], 'DENY')
+
     def test_download_pdf_saves_server_copy(self, convert, _available):
         report = report_with_setup()
         with tempfile.TemporaryDirectory() as out, override_settings(REPORT_OUTPUT_DIR=out):

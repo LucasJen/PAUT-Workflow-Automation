@@ -1,4 +1,5 @@
 from django.http import FileResponse
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
@@ -286,6 +287,7 @@ def _save_server_copy(name, content):
         logger.warning('Could not update server copy %s (file in use?)', copy_path)
 
 
+@xframe_options_sameorigin  # shown inside the app's own preview page; other sites still can't frame it
 def report_pdf(request, pk):
     """
     The report as a PDF made by Word: inline for the preview page, or as a download with
