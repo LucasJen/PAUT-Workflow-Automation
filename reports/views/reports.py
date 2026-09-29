@@ -4,8 +4,9 @@ from django.contrib import messages
 from django.conf import settings
 from django.db import transaction
 from ..services.document_processor import WordTemplateProcessor
-from ..forms import ReportForm, SetupForm, SetupFormSet, ImageFormSet
+from ..forms import ReportForm, SetupFormSet, ImageFormSet
 from ..models import Report, Setup, ResultsTable, ResultsRow
+from ..report_types import REPORT_TYPES, get_report_type
 import json
 import os
 import re
@@ -71,6 +72,11 @@ def _save_results_table(report, columns, rows):
         )
 
 
+def _get_report(pk):
+    """The Report with this pk (from a query string or form field), or None."""
+    return Report.objects.filter(pk=pk).first() if pk and str(pk).isdigit() else None
+
+
 def create_report(request):
     """
     Takes user input to either save the input as report and setup information or to generate a report
@@ -79,8 +85,7 @@ def create_report(request):
 
     if request.method == 'POST':
         # Bind to the loaded report (if any) so saving updates it instead of creating a copy
-        report_id = request.POST.get('report_id')
-        instance = Report.objects.filter(pk=report_id).first() if report_id else None
+        instance = _get_report(request.POST.get('report_id'))
 
         form = ReportForm(request.POST, instance=instance)
         setup_formset = SetupFormSet(request.POST, instance=form.instance)
@@ -105,40 +110,46 @@ def create_report(request):
 
             if 'generate' in request.POST:
                 return redirect('generate-report', pk=report.pk)
-            return redirect('report-list')
+            messages.success(request, 'Report saved.')
+            return redirect(f"{reverse('create-report')}?loaded={report.pk}")
+        messages.error(request, 'The report was not saved. Check the highlighted fields.')
     else:
-        loaded_pk = request.GET.get('loaded')
-        if loaded_pk:
-            try:
-                loaded_report = Report.objects.get(pk=loaded_pk)
-                form = ReportForm(instance=loaded_report)
-                setup_formset = SetupFormSet(instance=loaded_report)
-                image_formset = ImageFormSet(instance=loaded_report)
-                if hasattr(loaded_report, 'results_table'):
-                    rt = loaded_report.results_table
-                    results_data = {
-                        'columns': rt.columns,
-                        'rows': [r.cells for r in rt.rows.all()],
-                    }
-            except Report.DoesNotExist:
-                form = ReportForm()
-                setup_formset = SetupFormSet()
-                image_formset = ImageFormSet()
-        else:
-            form = ReportForm()
-            setup_formset = SetupFormSet()
-            image_formset = ImageFormSet()
+        loaded_report = _get_report(request.GET.get('loaded'))
+        form = ReportForm(instance=loaded_report)
+        setup_formset = SetupFormSet(instance=loaded_report)
+        image_formset = ImageFormSet(instance=loaded_report)
+        if loaded_report is not None and hasattr(loaded_report, 'results_table'):
+            rt = loaded_report.results_table
+            results_data = {
+                'columns': rt.columns,
+                'rows': [r.cells for r in rt.rows.all()],
+            }
 
-    reports = Report.objects.order_by('-pk')
-    setups = Setup.objects.all()
     return render(request, 'reports/create_report.html', {
         'form': form,
         'setup_formset': setup_formset,
         'image_formset': image_formset,
-        'results_data_json': json.dumps(results_data),
-        'reports': reports,
-        'setups': setups,
+        'results_data': results_data,
+        'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
+        'saved_setups': _saved_setup_choices(),
+        'saved_setup_values': _saved_setup_values(),
     })
+
+
+def _saved_setup_choices():
+    """Setups offered in each setup block's 'Load from…' menu, saved ones first."""
+    setups = Setup.objects.order_by('report_id', '-pk')
+    return {
+        'saved': [s for s in setups if s.report_id is None],
+        'in_reports': [s for s in setups if s.report_id is not None],
+    }
+
+
+def _saved_setup_values():
+    """{pk: {field: value}} for filling a setup block from a saved setup in the browser."""
+    excluded = {'id', 'report', 'order'}
+    names = [f.name for f in Setup._meta.concrete_fields if f.name not in excluded]
+    return {s['id']: {n: s[n] for n in names} for s in Setup.objects.values('id', *names)}
 
 
 def generate_report(request, pk):
@@ -152,12 +163,14 @@ def generate_report(request, pk):
         messages.error(request, 'Add at least one UT setup before generating the report.')
         return redirect(f"{reverse('create-report')}?loaded={pk}")
 
-    template_path = os.path.join(settings.BASE_DIR, 'word_templates', 'long_form_template.docx')
-    output_path = os.path.join(settings.REPORT_OUTPUT_DIR, f'{safe_filename(report.document_filename)}.docx')
+    report_type = get_report_type(report.report_type)
+    template_path = os.path.join(settings.BASE_DIR, 'word_templates', report_type.template)
+    output_name = f'{safe_filename(report.document_filename)}.docx'
+    output_path = os.path.join(settings.REPORT_OUTPUT_DIR, output_name)
 
     processor = WordTemplateProcessor(template_path, output_path)
 
-    report_excluded = {'id', 'document_filename'}
+    report_excluded = {'id', 'document_filename', 'report_type', 'updated_at'}
     setup_excluded = {'id', 'report', 'order'}
 
     # Replace report-level placeholders
@@ -196,6 +209,7 @@ def generate_report(request, pk):
         messages.error(request, 'A report with that name already exists in the output folder and is currently open. Close the file and try again.')
         return redirect(f"{reverse('create-report')}?loaded={pk}")
 
+    messages.success(request, f'Report generated: outputs/{output_name}')
     return redirect(f"{reverse('create-report')}?loaded={pk}")
 
 
@@ -207,7 +221,9 @@ def report_list(request):
     if request.method == 'POST':
         selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:
+            count = Report.objects.filter(pk__in=selected_pks).count()
             Report.objects.filter(pk__in=selected_pks).delete()
+            messages.success(request, f"Deleted {count} report{'s' if count != 1 else ''}.")
             return redirect('report-list')
         if 'edit' in request.POST and len(selected_pks) == 1:
             return redirect('edit-report', pk=selected_pks[0])
@@ -221,25 +237,14 @@ def report_list(request):
 
 def new_report(request):
     """
-    Creates a blank report and redirects to the edit view
+    Old 'new report' URL: the report editor now creates reports on first save
     """
-    report = Report.objects.create()
-    return redirect('edit-report', pk=report.pk)
+    return redirect('create-report')
 
 
 def edit_existing_report(request, pk):
     """
-    Edit a single report from the report list
+    Old edit URL: reports are edited in the full report editor
     """
     report = get_object_or_404(Report, pk=pk)
-    if request.method == 'POST':
-        if 'delete' in request.POST:
-            report.delete()
-            return redirect('report-list')
-        form = ReportForm(request.POST, instance=report)
-        if form.is_valid():
-            form.save()
-            return redirect('report-list')
-    else:
-        form = ReportForm(instance=report)
-    return render(request, 'reports/edit_report.html', {'form': form, 'report': report})
+    return redirect(f"{reverse('create-report')}?loaded={report.pk}")

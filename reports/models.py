@@ -4,6 +4,10 @@ class Report(models.Model):
     """
     The reports model is used to store user input data with specific job information.
     """
+    # Report type key from reports/report_types.py (picks the Word template and visible inputs)
+    report_type = models.CharField(max_length=50, default='paut_long')
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+
     # Project File Name
     document_filename = models.CharField(max_length=200, blank=True)
 

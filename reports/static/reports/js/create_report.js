@@ -1,327 +1,344 @@
-// ── Setup Formset ──────────────────────────────────────────────────────────
+// Report editor: setup/image formsets, results table, report types, section nav.
 
-const setupContainer = document.getElementById('setup-formset-container');
-const setupEmptyForm = document.getElementById('setup-empty-form');
-const setupTotalForms = document.querySelector('[name="setups-TOTAL_FORMS"]');
+const reportForm = document.getElementById('report-form');
 
-function renumberSetups() {
-    const blocks = setupContainer.querySelectorAll('.setup-block');
-    let formIndex = 0;
-    blocks.forEach(block => {
-        block.querySelectorAll('input, select, textarea').forEach(el => {
-            if (el.name) el.name = el.name.replace(/^setups-\d+-/, `setups-${formIndex}-`);
-            if (el.id) el.id = el.id.replace(/^id_setups-\d+-/, `id_setups-${formIndex}-`);
-        });
-        block.querySelectorAll('label[for]').forEach(label => {
-            label.htmlFor = label.htmlFor.replace(/^id_setups-\d+-/, `id_setups-${formIndex}-`);
-        });
-        const loader = block.querySelector('.setup-loader');
-        if (loader) loader.dataset.formPrefix = `setups-${formIndex}`;
-        block.dataset.formIndex = formIndex;
-        const title = block.querySelector('.setup-block-title');
-        if (title) title.textContent = `Setup #${formIndex + 1}`;
-        formIndex++;
-    });
-    setupTotalForms.value = formIndex;
+function readJson(id, fallback) {
+    const el = document.getElementById(id);
+    if (!el) return fallback;
+    try { return JSON.parse(el.textContent); } catch (e) { return fallback; }
 }
 
-document.getElementById('add-setup').addEventListener('click', () => {
-    const count = parseInt(setupTotalForms.value);
-    const emptyBlock = setupEmptyForm.querySelector('.setup-block');
-    const clone = emptyBlock.cloneNode(true);
+// ── Formset helpers ──────────────────────────────────────────────────────
+// Django formsets need contiguous indexes (<prefix>-<n>-<field>) and TOTAL_FORMS to match.
 
-    // Replace __prefix__ with real index
-    clone.innerHTML = clone.innerHTML.replace(/__prefix__/g, count);
-    clone.dataset.formIndex = count;
-    clone.querySelector('.setup-block-title').textContent = `Setup #${count + 1}`;
+function makeFormset({ prefix, container, template, blockSelector, titleSelector, titleText, removeSelector, onChange }) {
+    const totalForms = document.querySelector(`[name="${prefix}-TOTAL_FORMS"]`);
+    const namePattern = new RegExp(`^${prefix}-\\d+-`);
+    const idPattern = new RegExp(`^id_${prefix}-\\d+-`);
 
-    setupContainer.appendChild(clone);
-    setupTotalForms.value = count + 1;
-});
+    function renumber() {
+        let index = 0;
+        container.querySelectorAll(blockSelector).forEach(block => {
+            block.querySelectorAll('input, select, textarea').forEach(el => {
+                if (el.name) el.name = el.name.replace(namePattern, `${prefix}-${index}-`);
+                if (el.id) el.id = el.id.replace(idPattern, `id_${prefix}-${index}-`);
+            });
+            block.querySelectorAll('label[for]').forEach(label => {
+                label.htmlFor = label.htmlFor.replace(idPattern, `id_${prefix}-${index}-`);
+            });
+            const loader = block.querySelector('.setup-loader');
+            if (loader) loader.dataset.formPrefix = `${prefix}-${index}`;
+            block.dataset.formIndex = index;
+            index++;
+        });
+        totalForms.value = index;
 
-setupContainer.addEventListener('click', e => {
-    if (!e.target.classList.contains('remove-setup')) return;
-    const block = e.target.closest('.setup-block');
-    if (!block) return;
-
-    const idInput = block.querySelector('input[name$="-id"]');
-    if (idInput && idInput.value) {
-        // Existing saved setup — mark DELETE and hide
-        const deleteInput = block.querySelector('input[name$="-DELETE"]');
-        if (deleteInput) deleteInput.checked = true;
-        block.style.display = 'none';
-    } else {
-        block.remove();
+        // Titles count only blocks still shown (removed saved blocks are hidden, not deleted)
+        let shown = 0;
+        container.querySelectorAll(blockSelector).forEach(block => {
+            if (block.hidden) return;
+            shown++;
+            const title = block.querySelector(titleSelector);
+            if (title) title.textContent = titleText(shown);
+        });
+        onChange(shown);
     }
-    renumberSetups();
+
+    function add() {
+        const index = parseInt(totalForms.value, 10);
+        const html = template.innerHTML.replace(/__prefix__/g, index);
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html.trim();
+        const block = wrapper.firstElementChild;
+        container.appendChild(block);
+        renumber();
+        return block;
+    }
+
+    container.addEventListener('click', e => {
+        const button = e.target.closest(removeSelector);
+        if (!button) return;
+        const block = button.closest(blockSelector);
+        const idInput = block.querySelector('input[name$="-id"]');
+        if (idInput && idInput.value) {
+            // Saved row: mark for deletion and hide so the server deletes it on save
+            const deleteInput = block.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) deleteInput.checked = true;
+            block.hidden = true;
+        } else {
+            block.remove();
+        }
+        renumber();
+        markDirty();
+    });
+
+    renumber();
+    return { add, renumber };
+}
+
+// ── Setups ───────────────────────────────────────────────────────────────
+
+const savedSetupValues = readJson('saved-setup-values', {});
+
+const setups = makeFormset({
+    prefix: 'setups',
+    container: document.getElementById('setup-formset-container'),
+    template: document.getElementById('setup-empty-form'),
+    blockSelector: '.setup-block',
+    titleSelector: '.setup-block-title',
+    titleText: n => `Setup #${n}`,
+    removeSelector: '.remove-setup',
+    onChange: n => { document.getElementById('setup-count').textContent = n || ''; },
 });
 
-// Per-block "Load from saved setup" dropdown
+document.getElementById('add-setup').addEventListener('click', () => {
+    const block = setups.add();
+    applyReportType();
+    block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    markDirty();
+});
+
+// "Fill from saved setup…" copies a saved setup's values into this block
 document.addEventListener('change', e => {
     if (!e.target.classList.contains('setup-loader')) return;
     const select = e.target;
-    const opt = select.options[select.selectedIndex];
-    if (!opt.value) return;
-
+    const values = savedSetupValues[select.value];
+    if (!values) return;
     const prefix = select.dataset.formPrefix;
-    const fields = [
-        'manufacturer', 'scope_platform', 'scope_model', 'scope_serial',
-        'transducer_model', 'transducer_serial', 'probe_diameter',
-        'wedge_model', 'wedge_angle',
-        'foc_depth', 'wave_propagation', 'freq', 'elements',
-        'x_res', 'y_res', 'scan_length', 'scan_width',
-        'angle_step', 'angle_range', 'sound_velocity', 'gain', 'ref_gain', 'voltage',
-        'specimen_od', 'specimen_thickness',
-        'cal_material', 'material_temp', 'cal_block_type', 'cal_block_serial',
-        'surface_prep', 'tr_min', 'tr_max',
-    ];
-    fields.forEach(field => {
+    Object.entries(values).forEach(([field, value]) => {
         const el = document.getElementById(`id_${prefix}-${field}`);
-        if (el) el.value = opt.dataset[field] || '';
+        if (el) el.value = value ?? '';
     });
+    select.value = '';
+    markDirty();
 });
 
-
-// ── Image Formset ──────────────────────────────────────────────────────────
+// ── Images ───────────────────────────────────────────────────────────────
 
 const imageContainer = document.getElementById('image-formset-container');
-const imageEmptyForm = document.getElementById('image-empty-form');
-const imageTotalForms = document.querySelector('[name="images-TOTAL_FORMS"]');
 
-function renumberImages() {
-    const blocks = imageContainer.querySelectorAll('.image-block');
-    let formIndex = 0;
-    blocks.forEach(block => {
-        block.querySelectorAll('input, select, textarea').forEach(el => {
-            if (el.name) el.name = el.name.replace(/^images-\d+-/, `images-${formIndex}-`);
-            if (el.id) el.id = el.id.replace(/^id_images-\d+-/, `id_images-${formIndex}-`);
-        });
-        block.querySelectorAll('label[for]').forEach(label => {
-            label.htmlFor = label.htmlFor.replace(/^id_images-\d+-/, `id_images-${formIndex}-`);
-        });
-        block.dataset.formIndex = formIndex;
-        const title = block.querySelector('.image-block-title');
-        if (title) title.textContent = `Image ${formIndex + 1}`;
-        formIndex++;
-    });
-    imageTotalForms.value = formIndex;
-}
+const images = makeFormset({
+    prefix: 'images',
+    container: imageContainer,
+    template: document.getElementById('image-empty-form'),
+    blockSelector: '.image-block',
+    titleSelector: '.image-num',
+    titleText: n => String(n),
+    removeSelector: '.remove-image',
+    onChange: n => { document.getElementById('image-count').textContent = n || ''; },
+});
 
 document.getElementById('add-image').addEventListener('click', () => {
-    const count = parseInt(imageTotalForms.value);
-    const emptyBlock = imageEmptyForm.querySelector('.image-block');
-    const clone = emptyBlock.cloneNode(true);
-
-    clone.innerHTML = clone.innerHTML.replace(/__prefix__/g, count);
-    clone.dataset.formIndex = count;
-    const numSpan = clone.querySelector('.image-num');
-    if (numSpan) numSpan.textContent = count + 1;
-
-    imageContainer.appendChild(clone);
-    imageTotalForms.value = count + 1;
+    images.add();
+    markDirty();
 });
 
-imageContainer.addEventListener('click', e => {
-    if (!e.target.classList.contains('remove-image')) return;
-    const block = e.target.closest('.image-block');
-    if (!block) return;
-
-    const idInput = block.querySelector('input[name$="-id"]');
-    if (idInput && idInput.value) {
-        const deleteInput = block.querySelector('input[name$="-DELETE"]');
-        if (deleteInput) deleteInput.checked = true;
-        block.style.display = 'none';
-    } else {
-        block.remove();
-    }
-    renumberImages();
-});
-
-// Image file preview
+// Preview a newly chosen image file
 imageContainer.addEventListener('change', e => {
     if (e.target.type !== 'file') return;
     const file = e.target.files[0];
-    if (!file) return;
     const block = e.target.closest('.image-block');
-    if (!block) return;
+    if (!file || !block) return;
     const previewWrap = block.querySelector('.image-preview-wrap');
     const thumb = block.querySelector('.image-thumb');
-    if (previewWrap && thumb) {
-        const reader = new FileReader();
-        reader.onload = ev => {
-            thumb.src = ev.target.result;
-            previewWrap.style.display = '';
-        };
-        reader.readAsDataURL(file);
-    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+        thumb.src = ev.target.result;
+        previewWrap.hidden = false;
+    };
+    reader.readAsDataURL(file);
 });
 
-
-// ── Results Table ──────────────────────────────────────────────────────────
+// ── Results table ────────────────────────────────────────────────────────
 
 const resultsColHeaders = document.getElementById('results-col-headers');
 const resultsTheadRow = document.getElementById('results-thead-row');
 const resultsTbody = document.getElementById('results-tbody');
-const resultsColumnsInput = document.getElementById('results-columns-input');
-const resultsRowsInput = document.getElementById('results-rows-input');
+const resultsEmptyHint = document.getElementById('results-empty-hint');
 
-let columns = [];  // array of column header strings
+let columns = [];  // column header strings
+
+function cellInput(placeholder, value) {
+    const td = document.createElement('td');
+    td.className = 'result-cell';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'result-cell-input';
+    input.placeholder = placeholder || '';
+    input.value = value || '';
+    td.appendChild(input);
+    return td;
+}
 
 function renderResultsTable() {
-    // Rebuild thead
     resultsTheadRow.innerHTML = '';
-    columns.forEach((col, ci) => {
+    columns.forEach(col => {
         const th = document.createElement('th');
         th.textContent = col;
         resultsTheadRow.appendChild(th);
     });
-    // Add "Actions" th if we have columns
-    if (columns.length) {
-        const th = document.createElement('th');
-        th.textContent = '';
-        resultsTheadRow.appendChild(th);
-    }
+    if (columns.length) resultsTheadRow.appendChild(document.createElement('th'));
 
-    // Rebuild each row's cells to match column count
+    // Keep every row's cell count in step with the columns
     resultsTbody.querySelectorAll('tr').forEach(tr => {
-        const cells = tr.querySelectorAll('td.result-cell');
-        // Add missing cells
-        for (let i = cells.length; i < columns.length; i++) {
-            const td = document.createElement('td');
-            td.className = 'result-cell';
-            const inp = document.createElement('input');
-            inp.type = 'text';
-            inp.className = 'result-cell-input';
-            inp.placeholder = columns[i] || '';
-            td.appendChild(inp);
-            // Insert before the actions td
-            const actionsTd = tr.querySelector('td.result-actions');
-            tr.insertBefore(td, actionsTd);
-        }
-        // Remove excess cells
-        const allCells = tr.querySelectorAll('td.result-cell');
-        for (let i = columns.length; i < allCells.length; i++) {
-            allCells[i].remove();
-        }
-        // Update placeholders
-        tr.querySelectorAll('td.result-cell input').forEach((inp, ci) => {
-            inp.placeholder = columns[ci] || '';
-        });
+        const actions = tr.querySelector('td.result-actions');
+        let cells = tr.querySelectorAll('td.result-cell');
+        for (let i = cells.length; i < columns.length; i++) tr.insertBefore(cellInput(columns[i]), actions);
+        cells = tr.querySelectorAll('td.result-cell');
+        for (let i = columns.length; i < cells.length; i++) cells[i].remove();
+        tr.querySelectorAll('td.result-cell input').forEach((input, ci) => { input.placeholder = columns[ci] || ''; });
     });
+
+    resultsEmptyHint.hidden = columns.length > 0;
+    document.getElementById('add-results-row').disabled = columns.length === 0;
 }
 
-function addResultsRow(initialValues) {
+function addResultsRow(values) {
     const tr = document.createElement('tr');
-    columns.forEach((col, ci) => {
-        const td = document.createElement('td');
-        td.className = 'result-cell';
-        const inp = document.createElement('input');
-        inp.type = 'text';
-        inp.className = 'result-cell-input';
-        inp.placeholder = col;
-        inp.value = (initialValues && initialValues[ci]) ? initialValues[ci] : '';
-        td.appendChild(inp);
-        tr.appendChild(td);
-    });
-    // Actions cell
-    const actionsTd = document.createElement('td');
-    actionsTd.className = 'result-actions';
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-danger btn-sm';
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', () => tr.remove());
-    actionsTd.appendChild(removeBtn);
-    tr.appendChild(actionsTd);
+    columns.forEach((col, ci) => tr.appendChild(cellInput(col, values && values[ci])));
+    const actions = document.createElement('td');
+    actions.className = 'result-actions';
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-icon btn-sm';
+    remove.title = 'Remove row';
+    remove.innerHTML = '<i class="bi bi-x-lg"></i>';
+    remove.addEventListener('click', () => { tr.remove(); markDirty(); });
+    actions.appendChild(remove);
+    tr.appendChild(actions);
     resultsTbody.appendChild(tr);
 }
 
-function addResultsColumn(headerValue) {
-    const idx = columns.length;
-    columns.push(headerValue || '');
+function addResultsColumn(header) {
+    columns.push(header || '');
 
-    // Header input chip
     const wrap = document.createElement('div');
     wrap.className = 'col-header-wrap';
-    wrap.dataset.colIndex = idx;
-
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.className = 'col-header-input';
-    inp.value = headerValue || '';
-    inp.placeholder = `Column ${idx + 1}`;
-    inp.addEventListener('input', () => {
-        columns[parseInt(wrap.dataset.colIndex)] = inp.value;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control form-control-sm col-header-input';
+    input.value = header || '';
+    input.placeholder = `Column ${columns.length}`;
+    input.addEventListener('input', () => {
+        columns[indexOfWrap(wrap)] = input.value;
         renderResultsTable();
     });
 
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-danger btn-sm col-remove-btn';
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', () => {
-        const ci = parseInt(wrap.dataset.colIndex);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-icon btn-sm col-remove-btn';
+    remove.title = 'Remove column';
+    remove.innerHTML = '<i class="bi bi-x-lg"></i>';
+    remove.addEventListener('click', () => {
+        const ci = indexOfWrap(wrap);
         columns.splice(ci, 1);
         wrap.remove();
-        // Renumber remaining col wraps
-        resultsColHeaders.querySelectorAll('.col-header-wrap').forEach((w, i) => {
-            w.dataset.colIndex = i;
-        });
-        // Remove that column from all rows
         resultsTbody.querySelectorAll('tr').forEach(tr => {
-            const cells = tr.querySelectorAll('td.result-cell');
-            if (cells[ci]) cells[ci].remove();
+            const cell = tr.querySelectorAll('td.result-cell')[ci];
+            if (cell) cell.remove();
         });
         renderResultsTable();
+        markDirty();
     });
 
-    wrap.appendChild(inp);
-    wrap.appendChild(removeBtn);
+    wrap.append(input, remove);
     resultsColHeaders.appendChild(wrap);
-
-    // Add a cell to each existing row
-    resultsTbody.querySelectorAll('tr').forEach(tr => {
-        const td = document.createElement('td');
-        td.className = 'result-cell';
-        const cellInp = document.createElement('input');
-        cellInp.type = 'text';
-        cellInp.className = 'result-cell-input';
-        cellInp.placeholder = headerValue || '';
-        td.appendChild(cellInp);
-        const actionsTd = tr.querySelector('td.result-actions');
-        tr.insertBefore(td, actionsTd);
-    });
-
     renderResultsTable();
 }
 
-document.getElementById('add-results-col').addEventListener('click', () => addResultsColumn(''));
-document.getElementById('add-results-row').addEventListener('click', () => addResultsRow(null));
+function indexOfWrap(wrap) {
+    return Array.from(resultsColHeaders.children).indexOf(wrap);
+}
 
-// Serialize results to hidden fields on form submit
-document.querySelector('form').addEventListener('submit', () => {
-    const cols = [];
-    resultsColHeaders.querySelectorAll('.col-header-wrap').forEach(w => {
-        cols.push(w.querySelector('.col-header-input').value);
-    });
-    const rows = [];
-    resultsTbody.querySelectorAll('tr').forEach(tr => {
-        const cells = [];
-        tr.querySelectorAll('td.result-cell input').forEach(inp => cells.push(inp.value));
-        rows.push(cells);
-    });
-    resultsColumnsInput.value = JSON.stringify(cols);
-    resultsRowsInput.value = JSON.stringify(rows);
+document.getElementById('add-results-col').addEventListener('click', () => {
+    addResultsColumn('');
+    resultsColHeaders.lastElementChild.querySelector('input').focus();
+    markDirty();
 });
 
-// Load initial data (for reports loaded from DB)
-(function initResultsTable() {
-    const scriptEl = document.getElementById('results-initial-data');
-    if (!scriptEl) return;
-    let data;
-    try { data = JSON.parse(scriptEl.textContent); } catch { return; }
-    if (!data.columns || !data.columns.length) return;
+document.getElementById('add-results-row').addEventListener('click', () => {
+    addResultsRow(null);
+    markDirty();
+});
 
-    data.columns.forEach(col => addResultsColumn(col));
-    (data.rows || []).forEach(rowCells => addResultsRow(rowCells));
+(function loadResults() {
+    const data = readJson('results-initial-data', {});
+    (data.columns || []).forEach(col => addResultsColumn(col));
+    (data.rows || []).forEach(row => addResultsRow(row));
+    renderResultsTable();
 })();
+
+// ── Report types: show only the sections/fields the chosen type uses ────
+
+const reportTypes = readJson('report-types', {});
+const reportTypeSelect = document.getElementById('id_report_type');
+
+function applyReportType() {
+    const type = reportTypes[reportTypeSelect.value] || Object.values(reportTypes)[0];
+    if (!type) return;
+    const hiddenFields = new Set(type.hidden_fields);
+
+    document.querySelectorAll('[data-section]').forEach(section => {
+        section.hidden = !type.sections.includes(section.dataset.section);
+    });
+    document.querySelectorAll('[data-nav-section]').forEach(link => {
+        link.hidden = !type.sections.includes(link.dataset.navSection);
+    });
+    reportForm.querySelectorAll('.editor-sections [data-field]').forEach(field => {
+        field.hidden = hiddenFields.has(field.dataset.field);
+    });
+    updateActiveSection();
+}
+
+reportTypeSelect.addEventListener('change', applyReportType);
+
+// ── Section nav: highlight the section currently in view ─────────────────
+
+const navLinks = Array.from(document.querySelectorAll('[data-nav-section]'));
+
+function updateActiveSection() {
+    const sections = Array.from(document.querySelectorAll('.editor-section')).filter(s => !s.hidden);
+    const marker = window.innerHeight * 0.3;
+    let current = sections[0];
+    sections.forEach(section => {
+        if (section.getBoundingClientRect().top <= marker) current = section;
+    });
+    // At the bottom of the page the last section is current even if short
+    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) current = sections[sections.length - 1];
+    navLinks.forEach(link => link.classList.toggle('active', !!current && link.dataset.navSection === current.dataset.section));
+}
+
+window.addEventListener('scroll', updateActiveSection, { passive: true });
+window.addEventListener('resize', updateActiveSection);
+
+// ── Unsaved changes guard ─────────────────────────────────────────────────
+
+let dirty = false;
+const unsavedIndicator = document.getElementById('unsaved-indicator');
+
+function markDirty() {
+    dirty = true;
+    unsavedIndicator.hidden = false;
+}
+
+reportForm.addEventListener('input', markDirty);
+reportForm.addEventListener('change', e => { if (!e.target.classList.contains('setup-loader')) markDirty(); });
+
+window.addEventListener('beforeunload', e => {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+});
+
+// ── Submit: serialise the results table ──────────────────────────────────
+
+reportForm.addEventListener('submit', () => {
+    const cols = Array.from(resultsColHeaders.querySelectorAll('.col-header-input')).map(i => i.value);
+    const rows = Array.from(resultsTbody.querySelectorAll('tr')).map(tr =>
+        Array.from(tr.querySelectorAll('td.result-cell input')).map(i => i.value));
+    document.getElementById('results-columns-input').value = JSON.stringify(cols);
+    document.getElementById('results-rows-input').value = JSON.stringify(rows);
+    dirty = false;
+});
+
+applyReportType();

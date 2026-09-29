@@ -1,9 +1,10 @@
 from django.forms import (
-    CheckboxInput, ClearableFileInput, DateInput, HiddenInput, ModelForm, Select, Textarea, TextInput,
-    inlineformset_factory,
+    CheckboxInput, ChoiceField, ClearableFileInput, DateInput, HiddenInput, ModelForm, Select, Textarea,
+    TextInput, inlineformset_factory,
 )
 from django.forms.renderers import TemplatesSetting
 from .models import Report, Setup, ReportImage
+from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from datetime import date
 
 
@@ -56,6 +57,20 @@ class StyledFormMixin:
 
 
 class ReportForm(StyledFormMixin, ModelForm):
+    report_type = ChoiceField(
+        choices=report_type_choices, initial=DEFAULT_REPORT_TYPE, required=False, label='Report type',
+    )
+
+    def clean_report_type(self):
+        return self.cleaned_data.get('report_type') or DEFAULT_REPORT_TYPE
+
+    def sections(self):
+        """Field sections for the editor: [(key, title, [bound fields])], special sections excluded."""
+        return [
+            (key, title, [self[name] for name in names if name in self.fields])
+            for key, title, names in REPORT_SECTIONS if names
+        ]
+
     class Meta:
         model = Report
         fields = '__all__'

@@ -1,0 +1,20 @@
+<div class="image-block" data-form-index="{{ idx }}">
+    {{ img_form.id }}
+    <div hidden>{{ img_form.DELETE }}</div>
+    {{ img_form.order }}
+    <div class="image-block-header">
+        <span class="image-block-title">Image <span class="image-num">{{ num }}</span></span>
+        <button type="button" class="btn btn-ghost-danger btn-sm remove-image" title="Remove this image">
+            <i class="bi bi-trash"></i> Remove
+        </button>
+    </div>
+    <div class="image-block-body">
+        <div class="image-preview-wrap"{% if not img_form.instance.image %} hidden{% endif %}>
+            <img {% if img_form.instance.image %}src="{{ img_form.instance.image.url }}"{% endif %} class="image-thumb" alt="Image preview">
+        </div>
+        <div class="image-input-wrap field-grid">
+            {{ img_form.image.as_field_group }}
+            {{ img_form.caption.as_field_group }}
+        </div>
+    </div>
+</div>

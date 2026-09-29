@@ -25,10 +25,10 @@ class ReportDateDefaultTests(TestCase):
         report = Report.objects.create(report_date=datetime.date(2026, 5, 11))
         self.assertIn('value="2026-05-11"', str(ReportForm(instance=report)['report_date']))
 
-    def test_load_dropdown_dates_are_iso(self):
-        Report.objects.create(report_date=datetime.date(2026, 5, 11))
-        resp = self.client.get(reverse('create-report'))
-        self.assertContains(resp, 'data-report_date="2026-05-11"')
+    def test_editor_renders_saved_date_as_iso(self):
+        report = Report.objects.create(report_date=datetime.date(2026, 5, 11))
+        resp = self.client.get(f"{reverse('create-report')}?loaded={report.pk}")
+        self.assertContains(resp, 'value="2026-05-11"')
 
 
 class MediaSettingsTests(TestCase):

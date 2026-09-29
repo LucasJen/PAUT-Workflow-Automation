@@ -36,8 +36,8 @@ class CreateReportTests(TestCase):
 
     def test_new_report_saves_setups_in_order(self):
         resp = self.client.post(self.url, post_data(setups=[{'scope_model': 'A'}, {'scope_model': 'B'}]))
-        self.assertRedirects(resp, reverse('report-list'))
         report = Report.objects.get()
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
         self.assertEqual(
             list(report.setups.order_by('order').values_list('scope_model', 'order')),
             [('A', 0), ('B', 1)],
@@ -52,7 +52,7 @@ class CreateReportTests(TestCase):
             setups=[{'id': setup.pk, 'report': report.pk, 'scope_model': 'Updated'}],
         ))
 
-        self.assertRedirects(resp, reverse('report-list'))
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
         self.assertEqual(Report.objects.count(), 1)
         report.refresh_from_db()
         self.assertEqual(report.client, 'New Client')

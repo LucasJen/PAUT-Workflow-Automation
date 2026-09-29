@@ -1,361 +1,138 @@
-{%extends 'reports/base.html'%}
+{% extends 'reports/base.html' %}
 {% load static %}
 
-{% block content %}
+{% block title %}{% if form.instance.pk %}{{ form.instance.document_filename|default:"Report" }}{% else %}New report{% endif %} · PAUT Report Automation{% endblock %}
 
-<!-- Datalist for wave propagation field (shared across all setup blocks) -->
+{% block content %}
+<a href="{% url 'report-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Reports</a>
+<div class="page-header">
+    <h1>{% if form.instance.pk %}{{ form.instance.document_filename|default:"Untitled report" }}{% else %}New report{% endif %}</h1>
+</div>
+
+<!-- Shared by every setup block's wave mode field -->
 <datalist id="wave_propagation_options">
     <option value="Shear">
     <option value="Longitudinal">
 </datalist>
 
-<form method="post" enctype="multipart/form-data">
+<form method="post" enctype="multipart/form-data" id="report-form" novalidate>
     {% csrf_token %}
     <input type="hidden" name="report_id" value="{{ form.instance.pk|default_if_none:'' }}">
-    {% if form.instance.pk %}
-    <p class="text-muted">Editing saved report #{{ form.instance.pk }}. Saving will update it. <a href="{% url 'create-report' %}">Start a new report</a></p>
-    {% endif %}
+    {% if form.instance.pk %}<input type="hidden" name="selected" value="{{ form.instance.pk }}">{% endif %}
 
-    <!-- Load Existing Report -->
-    <div class="card">
-        <div class="section-title">Load Existing Report</div>
-        <div style="display:flex; gap: 0.75rem; align-items: center;">
-            <select id="report-select" style="flex: 1;">
-            <option value="">-- Select a report --</option>
-            {% for report in reports %}
-            <option value="{{ report.pk }}"
-                data-document_filename="{{ report.document_filename}}"
-                data-document_title="{{ report.document_title }}"
-                data-client="{{ report.client }}"
-                data-location="{{ report.location }}"
-                data-work_order="{{ report.work_order }}"
-                data-project_number="{{ report.project_number }}"
-                data-report_date="{{ report.report_date|date:'Y-m-d' }}"
-                data-test_date="{{ report.test_date|date:'Y-m-d' }}"
-                data-project_type="{{ report.project_type }}"
-                data-procedure="{{ report.procedure }}"
-                data-technician_name="{{ report.technician_name }}"
-                data-certification="{{ report.certification }}"
-                data-assistant_name="{{ report.assistant_name }}"
-                data-assistant_certification="{{ report.assistant_certification }}"
-                data-examination_scope="{{ report.examination_scope }}"
-                data-executive_summary="{{ report.executive_summary }}"
-                data-equipment_id="{{ report.equipment_id }}"
-                data-equipment_overview="{{ report.equipment_overview }}"
-                data-work_scope="{{ report.work_scope }}"
-                data-x_axis_reference="{{ report.x_axis_reference }}"
-                data-y_axis_reference="{{ report.y_axis_reference }}"
-                data-ut_method="{{ report.ut_method }}">
-                {{ report }}
-            </option>
+    <!-- Report type + file name -->
+    <section class="panel editor-header">
+        <div class="field-grid cols-3">
+            {{ form.report_type.as_field_group }}
+            <div class="span-2">{{ form.document_filename.as_field_group }}</div>
+        </div>
+        <p class="form-text mb-0">The report type chooses the Word template and which sections are shown. Values in hidden sections are kept.</p>
+    </section>
+
+    <div class="editor-layout">
+        <nav class="section-nav" id="section-nav" aria-label="Report sections">
+            {% for key, title, fields in form.sections %}
+            <a href="#sec-{{ key }}" data-nav-section="{{ key }}">{{ title }}</a>
             {% endfor %}
-        </select>
-        <button type="button" class="btn btn-secondary clear-btn" data-fields="document_title,client,location,work_order,project_number,report_date,test_date,project_type,procedure,technician_name,certification,assistant_name,assistant_certification,examination_scope,executive_summary,equipment_id,equipment_overview,work_scope,x_axis_reference,y_axis_reference,ut_method">Clear All</button>
-        </div>
-    </div>
+            <a href="#sec-setups" data-nav-section="setups">UT setups <span class="nav-count" id="setup-count"></span></a>
+            <a href="#sec-images" data-nav-section="images">Images <span class="nav-count" id="image-count"></span></a>
+            <a href="#sec-results" data-nav-section="results">Results table</a>
+        </nav>
 
-    <div class="card">
-        {{ form.document_filename.label_tag }}
-        <input type="text"
-            name="document_filename"
-            value="{{ form.document_filename.value|default:'-- New Report --' }}"
-            class="form-control form-control-lg fw-bold mt-1">
-        {{ form.document_filename.errors }}
-    </div>
-
-    <!-- Project Information -->
-    <div class="card inline-labels">
-        <div class="section-title">Project Information</div>
-        <div class="grid-1">
-            <div class="field">
-                {{ form.document_title.label_tag }}
-                {{ form.document_title }}
-                {{ form.document_title.errors }}
-            </div>
-        </div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.client.label_tag }}
-                {{ form.client }}
-                {{ form.client.errors }}
-            </div>
-            <div class="field">
-                {{ form.location.label_tag }}
-                {{ form.location }}
-                {{ form.location.errors }}
-            </div>
-            <div class="field">
-                {{ form.work_order.label_tag }}
-                {{ form.work_order }}
-                {{ form.work_order.errors }}
-            </div>
-            <div class="field">
-                {{ form.project_number.label_tag }}
-                {{ form.project_number }}
-                {{ form.project_number.errors }}
-            </div>
-            <div class="field">
-                {{ form.project_type.label_tag }}
-                {{ form.project_type }}
-                {{ form.project_type.errors }}
-            </div>
-            <div class="field">
-                {{ form.report_date.label_tag }}
-                {{ form.report_date }}
-                {{ form.report_date.errors }}
-            </div>
-            <div class="field">
-                {{ form.test_date.label_tag }}
-                {{ form.test_date }}
-                {{ form.test_date.errors }}
-            </div>
-            <div class="field">
-                {{ form.procedure.label_tag }}
-                {{ form.procedure }}
-                {{ form.procedure.errors }}
-            </div>
-        </div>
-    </div>
-
-    <!-- Technician Information -->
-    <div class="card inline-labels">
-        <div class="section-title">Technician Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.technician_name.label_tag }}
-                {{ form.technician_name }}
-                {{ form.technician_name.errors }}
-            </div>
-            <div class="field">
-                {{ form.certification.label_tag }}
-                {{ form.certification }}
-                {{ form.certification.errors }}
-            </div>
-        </div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.assistant_name.label_tag }}
-                {{ form.assistant_name }}
-                {{ form.assistant_name.errors }}
-            </div>
-            <div class="field">
-                {{ form.assistant_certification.label_tag }}
-                {{ form.assistant_certification }}
-                {{ form.assistant_certification.errors }}
-            </div>
-        </div>
-    </div>
-
-    <!-- Executive Summary -->
-    <div class="card">
-        <div class="section-title">Executive Summary</div>
-        <div class="grid-1">
-            <div class="field">
-                {{ form.examination_scope.label_tag }}
-                {{ form.examination_scope }}
-                {{ form.examination_scope.errors }}
-            </div>
-            <div class="field">
-                {{ form.executive_summary.label_tag }}
-                {{ form.executive_summary }}
-                {{ form.executive_summary.errors }}
-            </div>
-        </div>
-    </div>
-
-    <!-- Job Scope, References and Method -->
-    <div class="card inline-labels">
-        <div class="section-title">Job Scope, References &amp; Method</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.equipment_id.label_tag }}
-                {{ form.equipment_id }}
-                {{ form.equipment_id.errors }}
-            </div>
-            <div class="field">
-                {{ form.ut_method.label_tag }}
-                {{ form.ut_method }}
-                {{ form.ut_method.errors }}
-            </div>
-            <div class="field">
-                {{ form.x_axis_reference.label_tag }}
-                {{ form.x_axis_reference }}
-                {{ form.x_axis_reference.errors }}
-            </div>
-            <div class="field">
-                {{ form.y_axis_reference.label_tag }}
-                {{ form.y_axis_reference }}
-                {{ form.y_axis_reference.errors }}
-            </div>
-        </div>
-        <div class="grid-1" style="margin-top: 1rem;">
-            <div class="field">
-                {{ form.equipment_overview.label_tag }}
-                {{ form.equipment_overview }}
-                {{ form.equipment_overview.errors }}
-            </div>
-            <div class="field">
-                {{ form.work_scope.label_tag }}
-                {{ form.work_scope }}
-                {{ form.work_scope.errors }}
-            </div>
-        </div>
-    </div>
-
-    <!-- ── UT Setups ────────────────────────────────────────────────── -->
-    <div class="card" style="padding-bottom:0.5rem;">
-        <div class="setup-section-header">
-            <div class="section-title" style="margin-bottom:0; border-bottom:none;">UT Setups</div>
-            <button type="button" id="add-setup" class="btn btn-secondary btn-sm">+ Add Setup</button>
-        </div>
-
-        {{ setup_formset.management_form }}
-
-        <div id="setup-formset-container">
-            {% for form in setup_formset %}
-            {% include 'reports/_setup_block.html' with idx=forloop.counter0 num=forloop.counter %}
-            {% endfor %}
-        </div>
-
-        <!-- Empty form template for JS cloning -->
-        <div id="setup-empty-form" style="display:none" aria-hidden="true">
-            {% include 'reports/_setup_block.html' with form=setup_formset.empty_form idx="__prefix__" num="" %}
-        </div>
-    </div>
-
-    <!-- ── Image Boxes ──────────────────────────────────────────────── -->
-    <div class="card" style="padding-bottom:0.5rem;">
-        <div class="setup-section-header">
-            <div class="section-title" style="margin-bottom:0; border-bottom:none;">Images</div>
-            <button type="button" id="add-image" class="btn btn-secondary btn-sm">+ Add Image</button>
-        </div>
-
-        {{ image_formset.management_form }}
-
-        <div id="image-formset-container">
-            {% for img_form in image_formset %}
-            <div class="image-block card" data-form-index="{{ forloop.counter0 }}">
-                {{ img_form.id }}
-                <div style="display:none">{{ img_form.DELETE }}</div>
-                {{ img_form.order }}
-                <div class="image-block-header">
-                    <span class="image-block-title">Image {{ forloop.counter }}</span>
-                    <button type="button" class="btn btn-danger btn-sm remove-image">Remove</button>
+        <div class="editor-sections">
+            {% for key, title, fields in form.sections %}
+            <section class="panel editor-section" id="sec-{{ key }}" data-section="{{ key }}">
+                <div class="panel-header"><h2 class="panel-title">{{ title }}</h2></div>
+                <div class="field-grid cols-3">
+                    {% for field in fields %}{{ field.as_field_group }}{% endfor %}
                 </div>
-                <div class="image-block-body">
-                    {% if img_form.instance.image %}
-                    <div class="image-preview-wrap">
-                        <img src="{{ img_form.instance.image.url }}" class="image-thumb" alt="Current image">
-                    </div>
-                    {% endif %}
-                    <div class="image-input-wrap">
-                        <div class="image-preview-wrap" style="display:none"><img class="image-thumb" alt="Preview"></div>
-                        <div class="field">
-                            {{ img_form.image.label_tag }}
-                            {{ img_form.image }}
-                        </div>
-                        <div class="field">
-                            {{ img_form.caption.label_tag }}
-                            {{ img_form.caption }}
-                        </div>
+            </section>
+            {% endfor %}
+
+            <!-- UT setups -->
+            <section class="panel editor-section" id="sec-setups" data-section="setups">
+                <div class="panel-header">
+                    <h2 class="panel-title">UT setups</h2>
+                    <button type="button" id="add-setup" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add setup</button>
+                </div>
+                {{ setup_formset.management_form }}
+                {% if setup_formset.non_form_errors %}<div class="alert alert-danger">{{ setup_formset.non_form_errors }}</div>{% endif %}
+                <div id="setup-formset-container">
+                    {% for form in setup_formset %}
+                    {% include 'reports/_setup_block.html' with idx=forloop.counter0 num=forloop.counter %}
+                    {% endfor %}
+                </div>
+                <template id="setup-empty-form">
+                    {% include 'reports/_setup_block.html' with form=setup_formset.empty_form idx="__prefix__" num="" %}
+                </template>
+            </section>
+
+            <!-- Images -->
+            <section class="panel editor-section" id="sec-images" data-section="images">
+                <div class="panel-header">
+                    <h2 class="panel-title">Images</h2>
+                    <button type="button" id="add-image" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add image</button>
+                </div>
+                {{ image_formset.management_form }}
+                <div id="image-formset-container">
+                    {% for img_form in image_formset %}
+                    {% include 'reports/_image_block.html' with idx=forloop.counter0 num=forloop.counter %}
+                    {% endfor %}
+                </div>
+                <template id="image-empty-form">
+                    {% include 'reports/_image_block.html' with img_form=image_formset.empty_form idx="__prefix__" num="" %}
+                </template>
+            </section>
+
+            <!-- Results table -->
+            <section class="panel editor-section" id="sec-results" data-section="results">
+                <div class="panel-header">
+                    <h2 class="panel-title">Results table</h2>
+                    <div class="d-flex gap-2">
+                        <button type="button" id="add-results-col" class="btn btn-secondary btn-sm"><i class="bi bi-layout-three-columns"></i> Add column</button>
+                        <button type="button" id="add-results-row" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add row</button>
                     </div>
                 </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <!-- Empty image form template -->
-        <div id="image-empty-form" style="display:none" aria-hidden="true">
-            <div class="image-block card" data-form-index="__prefix__">
-                {{ image_formset.empty_form.id }}
-                <div style="display:none">{{ image_formset.empty_form.DELETE }}</div>
-                {{ image_formset.empty_form.order }}
-                <div class="image-block-header">
-                    <span class="image-block-title">Image <span class="image-num"></span></span>
-                    <button type="button" class="btn btn-danger btn-sm remove-image">Remove</button>
+                <p class="form-text" id="results-empty-hint">Add a column to start the results table.</p>
+                <div id="results-col-headers" class="d-flex flex-wrap gap-2 mb-3"></div>
+                <div class="overflow-x-auto">
+                    <table class="results-table" id="results-table">
+                        <thead><tr id="results-thead-row"></tr></thead>
+                        <tbody id="results-tbody"></tbody>
+                    </table>
                 </div>
-                <div class="image-block-body">
-                    <div class="image-input-wrap">
-                        <div class="image-preview-wrap" style="display:none"><img class="image-thumb" alt="Preview"></div>
-                        <div class="field">
-                            {{ image_formset.empty_form.image.label_tag }}
-                            {{ image_formset.empty_form.image }}
-                        </div>
-                        <div class="field">
-                            {{ image_formset.empty_form.caption.label_tag }}
-                            {{ image_formset.empty_form.caption }}
-                        </div>
-                    </div>
-                </div>
-            </div>
+                <input type="hidden" name="results_columns" id="results-columns-input">
+                <input type="hidden" name="results_rows" id="results-rows-input">
+            </section>
         </div>
     </div>
 
-    <!-- ── Results Table ────────────────────────────────────────────── -->
-    <div class="card">
-        <div class="setup-section-header" style="margin-bottom:1rem;">
-            <div class="section-title" style="margin-bottom:0; border-bottom:none;">Results Table</div>
-            <div style="display:flex; gap:0.5rem;">
-                <button type="button" id="add-results-col" class="btn btn-secondary btn-sm">+ Add Column</button>
-                <button type="button" id="add-results-row" class="btn btn-secondary btn-sm">+ Add Row</button>
-            </div>
-        </div>
-
-        <!-- Column header inputs -->
-        <div id="results-col-headers" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;"></div>
-
-        <!-- Results table -->
-        <div style="overflow-x:auto;">
-            <table class="results-table" id="results-table">
-                <thead><tr id="results-thead-row"></tr></thead>
-                <tbody id="results-tbody"></tbody>
-            </table>
-        </div>
-
-        <!-- Hidden fields for submission -->
-        <input type="hidden" name="results_columns" id="results-columns-input">
-        <input type="hidden" name="results_rows" id="results-rows-input">
-
-        <!-- Initial data from server (for loaded reports) -->
-        {{ results_data_json|json_script:"results-initial-data" }}
-    </div>
-
-    <div class="actions">
-        <a href="{% url 'report-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
-        <button type="submit" class="btn btn-primary">Save Report</button>
-        <button type="submit" name="generate" class="btn btn-success">Generate Report</button>
+    <div class="sticky-actions">
+        <span class="status">
+            {% if form.instance.pk %}
+            Report #{{ form.instance.pk }}{% if form.instance.updated_at %} · saved {{ form.instance.updated_at|timesince }} ago{% endif %}
+            {% else %}
+            New report, not saved yet
+            {% endif %}
+            <span id="unsaved-indicator" hidden> · <strong>unsaved changes</strong></span>
+        </span>
+        {# Save first in the DOM so pressing Enter saves #}
+        <button type="submit" class="btn btn-secondary"><i class="bi bi-check-lg"></i> Save</button>
+        <button type="submit" name="generate" class="btn btn-primary"><i class="bi bi-file-earmark-word"></i> Save &amp; generate</button>
+        {% if form.instance.pk %}
+        <button type="submit" name="delete" formaction="{% url 'report-list' %}" formnovalidate
+                class="btn btn-ghost-danger order-first" data-confirm="Delete this report? This can't be undone.">
+            <i class="bi bi-trash"></i> Delete
+        </button>
+        {% endif %}
     </div>
 </form>
 
+{{ results_data|json_script:"results-initial-data" }}
+{{ report_types|json_script:"report-types" }}
+{{ saved_setup_values|json_script:"saved-setup-values" }}
+{% endblock %}
+
+{% block scripts %}
 <script src="{% static 'reports/js/create_report.js' %}"></script>
-
-<script>
-    // ── Report field loader ──────────────────────────────────────────
-    document.getElementById('report-select').addEventListener('change', function() {
-        const selected = this.options[this.selectedIndex];
-        if (!selected.value) return;
-        const fields = [
-            'document_title', 'client', 'location', 'work_order', 'project_number',
-            'report_date', 'test_date', 'project_type', 'procedure', 'technician_name',
-            'certification', 'assistant_name', 'assistant_certification',
-            'examination_scope', 'executive_summary', 'equipment_id',
-            'equipment_overview', 'work_scope', 'x_axis_reference',
-            'y_axis_reference', 'ut_method'
-        ];
-        fields.forEach(field => {
-            const el = document.getElementById('id_' + field);
-            if (el) el.value = selected.dataset[field] || '';
-        });
-    });
-
-    document.querySelectorAll('.clear-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            this.dataset.fields.split(',').forEach(field => {
-                const el = document.getElementById('id_' + field);
-                if (el) el.value = '';
-            });
-        });
-    });
-</script>
-
 {% endblock %}
