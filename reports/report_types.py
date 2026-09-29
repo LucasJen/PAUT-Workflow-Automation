@@ -52,7 +52,7 @@ class ReportType:
 
 
 _TYPES = [
-    ReportType('paut_long', 'PAUT long form', 'long_form_template.docx'),
+    ReportType('paut_long', 'PAUT long form (HIC)', 'paut_hic_long_form.docx'),
 ]
 
 REPORT_TYPES = {t.key: t for t in _TYPES}

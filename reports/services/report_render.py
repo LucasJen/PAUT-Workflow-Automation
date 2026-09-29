@@ -1,0 +1,181 @@
+"""
+Renders a Report into a Word document with docxtpl (Jinja tags inside the .docx).
+
+The report type (reports/report_types.py) picks the template in word_templates/. Templates
+use {{ var }}, {%p for ... %} (paragraph loops) and {%tr for ... %} (table-row loops); the
+variables they can use are built by build_context() below and listed in
+word_templates/TEMPLATE_TAGS.md.
+"""
+import io
+import os
+import re
+
+from django.conf import settings
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Inches
+from docxtpl import DocxTemplate, InlineImage, Listing, RichText
+
+from ..report_types import get_report_type
+
+FULL_WIDTH = Inches(7.0)       # drawings, comparisons, scan images
+HALF_WIDTH = Inches(3.45)      # calibration screenshots, two per line
+NUMBER = re.compile(r'^-?\d+(\.\d+)?$')
+
+
+# ── Value formatting ─────────────────────────────────────────────────────
+
+def with_unit(value, unit):
+    """'0.500' -> '0.500"'; values that already carry a unit (or text like 'N/A') are left alone."""
+    value = (value or '').strip()
+    return f'{value}{unit}' if NUMBER.match(value) else value
+
+
+def prose(text):
+    """Multi-line text for the template: blank lines start new paragraphs, single newlines break lines."""
+    text = (text or '').strip().replace('\r\n', '\n')
+    return Listing(re.sub(r'\n\s*\n', '\a', text)) if text else ''
+
+
+def long_date(d):
+    return f'{d.day} {d:%B}, {d.year}' if d else ''
+
+
+def short_date(d):
+    return f'{d.month}/{d.day}/{d.year}' if d else ''
+
+
+def wave_mode(value):
+    return f'{value} Wave' if value in ('Longitudinal', 'Shear') else (value or '')
+
+
+def lines(text):
+    return [line.strip() for line in re.split(r'[\n;]', text or '') if line.strip()]
+
+
+# ── Context ──────────────────────────────────────────────────────────────
+
+def _image(tpl, image_field, width):
+    try:
+        path = image_field.path
+    except (ValueError, NotImplementedError):
+        return None
+    return InlineImage(tpl, path, width=width) if os.path.exists(path) else None
+
+
+def _setup_context(setup, number, report):
+    return {
+        'title': setup.beam_formation or setup.transducer_model or f'Setup {number}',
+        'equipment_type': setup.scope_platform or setup.manufacturer,
+        'scope_model': setup.scope_model,
+        'scope_serial': setup.scope_serial,
+        'x_res': with_unit(setup.x_res, '"'),
+        'y_res': with_unit(setup.y_res, '"'),
+        'transducer_model': setup.transducer_model,
+        'transducer_serial': setup.transducer_serial,
+        'foc_depth': with_unit(setup.foc_depth, '"'),
+        'wave_mode': wave_mode(setup.wave_propagation),
+        'freq': setup.freq,
+        'elements': setup.elements,
+        'cal_material': setup.cal_material,
+        'material_temp': with_unit(setup.material_temp, '°F'),
+        'cal_block': ' S/N: '.join(v for v in (setup.cal_block_type, setup.cal_block_serial) if v),
+        'surface_prep': setup.surface_prep,
+        'tr_min': with_unit(setup.tr_min, '"'),
+        'tr_max': with_unit(setup.tr_max, '"'),
+        'procedure': report.procedure,
+        'images': [],
+    }
+
+
+def _scans(report):
+    """Results rows. Columns are mapped by position to the HIC results table."""
+    table = getattr(report, 'results_table', None)
+    if table is None:
+        return []
+    keys = ('scan_id', 'orientation', 'x_range', 'y_range', 'avg_thk', 'min_thk', 'comments')
+    scans = []
+    for row in table.rows.all():
+        cells = list(row.cells) + [''] * len(keys)
+        scans.append(dict(zip(keys, cells)))
+
+    # Highlight the thinnest reading in the table
+    readings = [float(s['min_thk']) for s in scans if NUMBER.match((s['min_thk'] or '').strip())]
+    thinnest = min(readings) if readings else None
+    for s in scans:
+        value = (s['min_thk'] or '').strip()
+        s['min_thk'] = value
+        s['is_min'] = bool(thinnest is not None and NUMBER.match(value) and float(value) == thinnest)
+        s['comments'] = prose(s['comments'])
+        s['image'] = None
+    return scans
+
+
+def build_context(report, tpl):
+    setups = [_setup_context(s, i + 1, report) for i, s in enumerate(report.setups.order_by('order'))]
+    technician = {'name': report.technician_name, 'certification': report.certification}
+    assistant = {'name': report.assistant_name, 'certification': report.assistant_certification}
+    people = [p for p in (technician, assistant) if p['name']]
+    scans = _scans(report)
+
+    drawings = []
+    for image in report.images.order_by('order'):
+        inline = _image(tpl, image.image, FULL_WIDTH)
+        if inline:
+            drawings.append({'title': image.caption, 'images': [inline]})
+
+    return {
+        'client': report.client,
+        'location': report.location,
+        'document_title': report.document_title,
+        'document_title_upper': (report.document_title or '').upper(),
+        'report_date_long': long_date(report.report_date),
+        'test_dates': short_date(report.test_date),
+        'project_number': report.project_number or 'N/A',
+        'work_order': report.work_order,
+        'project_type': report.project_type,
+        'procedures': lines(report.procedure),
+        'prepared_by': people[:1],
+        'examined_by': people,
+        'reviewed_by': [],
+        'examination_scope': prose(report.examination_scope),
+        'executive_summary': prose(report.executive_summary),
+        'equipment_id': report.equipment_id,
+        'asset_description': '',
+        'access': prose(report.equipment_overview),
+        'work_scope': prose(report.work_scope),
+        'x_axis_reference': report.x_axis_reference,
+        'y_axis_reference': report.y_axis_reference,
+        'techniques': [{'text': RichText(t)} for t in lines(report.ut_method)],
+        'setups': setups,
+        'results_title': f"PAUT {setups[0]['title']} Work Scope" if setups else 'PAUT Work Scope',
+        'scans': scans,
+        'scan_images': [s for s in scans if s['image']],
+        'figures': {'comparison': [], 'drawings': drawings},
+    }
+
+
+# ── Rendering ────────────────────────────────────────────────────────────
+
+def _update_fields_on_open(docx):
+    """Ask Word to refresh the TOC, page count, page numbers and cross-references when opened."""
+    settings_el = docx.settings.element
+    existing = settings_el.find(qn('w:updateFields'))
+    if existing is None:
+        existing = OxmlElement('w:updateFields')
+        settings_el.append(existing)
+    existing.set(qn('w:val'), 'true')
+
+
+def template_path(report):
+    return os.path.join(settings.BASE_DIR, 'word_templates', get_report_type(report.report_type).template)
+
+
+def render_report(report):
+    """The finished report as .docx bytes."""
+    tpl = DocxTemplate(template_path(report))
+    tpl.render(build_context(report, tpl), autoescape=True)
+    _update_fields_on_open(tpl.docx)
+    buffer = io.BytesIO()
+    tpl.save(buffer)
+    return buffer.getvalue()

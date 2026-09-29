@@ -92,15 +92,13 @@ class GenerateUsesTypeTemplateTests(TestCase):
         self.addCleanup(tmp.cleanup)
         report = Report.objects.create(document_filename='typed', report_type='other')
         Setup.objects.create(report=report)
-        other = ReportType('other', 'Other', 'long_form_template.docx')
+        other = ReportType('other', 'Other', 'other_template.docx')
 
         with override_settings(REPORT_OUTPUT_DIR=tmp.name), \
-                mock.patch('reports.views.reports.get_report_type', return_value=other) as lookup, \
-                mock.patch('reports.views.reports.WordTemplateProcessor') as processor:
-            processor.return_value.to_bytes.return_value = b'docx-bytes'
+                mock.patch('reports.services.report_render.get_report_type', return_value=other) as lookup, \
+                mock.patch('reports.services.report_render.DocxTemplate') as template:
             resp = self.client.get(reverse('generate-report', args=[report.pk]))
 
         lookup.assert_called_once_with('other')
-        template_path = processor.call_args.args[0]
-        self.assertTrue(template_path.endswith(os.path.join('word_templates', 'long_form_template.docx')))
-        self.assertEqual(b''.join(resp.streaming_content), b'docx-bytes')
+        self.assertTrue(template.call_args.args[0].endswith(os.path.join('word_templates', 'other_template.docx')))
+        self.assertEqual(resp.status_code, 200)

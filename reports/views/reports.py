@@ -5,10 +5,10 @@ from django.contrib import messages
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
-from ..services.document_processor import WordTemplateProcessor
+from ..services.report_render import render_report
 from ..forms import ReportForm, SetupFormSet, ImageFormSet
 from ..models import Report, Setup, ResultsTable, ResultsRow
-from ..report_types import REPORT_TYPES, get_report_type
+from ..report_types import REPORT_TYPES
 import io
 import json
 import logging
@@ -169,55 +169,16 @@ def _saved_setup_values():
 
 def generate_report(request, pk):
     """
-    Calls find and replace functions to act on a report template
+    Renders the report's Word template (per report type) and returns it as a download
     """
     report = get_object_or_404(Report, pk=pk)
-    setups = list(report.setups.order_by('order'))
 
-    if not setups:
+    if not report.setups.exists():
         messages.error(request, 'Add at least one UT setup before generating the report.')
         return redirect(f"{reverse('create-report')}?loaded={pk}")
 
-    report_type = get_report_type(report.report_type)
-    template_path = os.path.join(settings.BASE_DIR, 'word_templates', report_type.template)
     output_name = f'{safe_filename(report.document_filename)}.docx'
-
-    processor = WordTemplateProcessor(template_path)
-
-    report_excluded = {'id', 'document_filename', 'report_type', 'updated_at'}
-    setup_excluded = {'id', 'report', 'order'}
-
-    # Replace report-level placeholders
-    for field in report._meta.concrete_fields:
-        if field.name in report_excluded:
-            continue
-        value = getattr(report, field.name, '')
-        placeholder = f'{{{{{field.name.upper()}}}}}'
-        processor.replace(placeholder, str(value) if value else '')
-
-    # Multi-setup: duplicate setup table block per setup
-    if processor._find_table_with_placeholder('{{SETUP_TABLE}}') is not None:
-        processor.populate_setup_tables(setups)
-    else:
-        # Fallback: populate single setup table using first setup's fields
-        setup = setups[0]
-        for setup_field in setup._meta.concrete_fields:
-            if setup_field.name in setup_excluded:
-                continue
-            setup_value = getattr(setup, setup_field.name)
-            setup_placeholder = f'{{{{{setup_field.name.upper()}}}}}'
-            processor.replace(setup_placeholder, str(setup_value) if setup_value else '')
-
-    # Images (always called so the {{IMAGE_BLOCK}} sentinel is cleared when there are none)
-    processor.insert_images(list(report.images.order_by('order')))
-
-    # Results table
-    results_table = getattr(report, 'results_table', None)
-    if results_table is not None:
-        processor.populate_results_table(results_table)
-    processor.replace('{{RESULTS_TABLE}}', '')
-
-    content = processor.to_bytes()
+    content = render_report(report)
 
     # Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off)
     if settings.REPORT_OUTPUT_DIR:
