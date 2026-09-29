@@ -8,9 +8,15 @@ class ReportForm(ModelForm):
         fields = '__all__'
         widgets = {
             'document_title': Textarea(attrs={'rows': 1, 'style': 'min-height: 0; resize: vertical;'}),
-            'report_date': DateInput(attrs={'type': 'date', 'value': date.today().isoformat()}),
-            'test_date': DateInput(attrs={'type': 'date'}),
+            'report_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'test_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Default new reports to today (evaluated per request, not once at server start)
+        if self.instance.pk is None:
+            self.initial.setdefault('report_date', date.today())
 
 class SetupForm(ModelForm):
     class Meta:

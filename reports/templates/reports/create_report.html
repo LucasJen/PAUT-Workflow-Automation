@@ -7,8 +7,6 @@
 
 {% block content %}
 
-<body>
-
 {% if messages %}
 {% for message in messages %}
 <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -45,8 +43,8 @@
                 data-location="{{ report.location }}"
                 data-work_order="{{ report.work_order }}"
                 data-project_number="{{ report.project_number }}"
-                data-report_date="{{ report.report_date }}"
-                data-test_date="{{ report.test_date }}"
+                data-report_date="{{ report.report_date|date:'Y-m-d' }}"
+                data-test_date="{{ report.test_date|date:'Y-m-d' }}"
                 data-project_type="{{ report.project_type }}"
                 data-procedure="{{ report.procedure }}"
                 data-technician_name="{{ report.technician_name }}"
@@ -372,7 +370,5 @@
         });
     });
 </script>
-
-</body>
 
 {% endblock %}
