@@ -1,0 +1,39 @@
+[
+{
+  "model": "equipment.scope",
+  "pk": 3,
+  "fields": {
+    "manufacturer": "Evident",
+    "software": "OmniPC",
+    "software_version": "",
+    "model": "",
+    "serial_number": "",
+    "calibration_date": null,
+    "calibration_due_date": null
+  }
+},
+{
+  "model": "equipment.scope",
+  "pk": 4,
+  "fields": {
+    "manufacturer": "Evident",
+    "software": "OmniPC",
+    "software_version": "",
+    "model": "",
+    "serial_number": "",
+    "calibration_date": null,
+    "calibration_due_date": null
+  }
+},
+{
+  "model": "equipment.encoder",
+  "pk": 1,
+  "fields": {
+    "manufacturer": "",
+    "model": "",
+    "serial_number": "",
+    "encoder_type": "",
+    "step_count": ""
+  }
+}
+]
