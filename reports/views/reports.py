@@ -2,11 +2,58 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
 from django.conf import settings
+from django.db import transaction
 from ..services.document_processor import WordTemplateProcessor
 from ..forms import ReportForm, SetupForm, SetupFormSet, ImageFormSet
 from ..models import Report, Setup, ResultsTable, ResultsRow
 import json
 import os
+
+
+def _parse_results(post):
+    """
+    Returns (columns, rows) from the hidden results-table inputs, or None if the
+    inputs were not submitted. Raises ValueError on malformed data.
+    """
+    raw_columns = post.get('results_columns')
+    if not raw_columns:
+        return None
+    columns = json.loads(raw_columns)
+    rows = json.loads(post.get('results_rows') or '[]')
+    if not isinstance(columns, list) or not all(isinstance(c, str) for c in columns):
+        raise ValueError('columns must be a list of strings')
+    if not isinstance(rows, list) or not all(
+        isinstance(r, list) and all(isinstance(c, str) for c in r) for r in rows
+    ):
+        raise ValueError('rows must be a list of lists of strings')
+    return columns, rows
+
+
+def _save_ordered_formset(formset):
+    """
+    Saves an inline formset, deleting removed objects and numbering the rest
+    by their position on the page.
+    """
+    formset.save(commit=False)
+    for obj in formset.deleted_objects:
+        obj.delete()
+    deleted_forms = formset.deleted_forms
+    order = 0
+    for f in formset.forms:
+        if f in deleted_forms or (f.instance.pk is None and not f.has_changed()):
+            continue
+        f.instance.order = order
+        f.instance.save()
+        order += 1
+
+
+def _save_results_table(report, columns, rows):
+    ResultsTable.objects.filter(report=report).delete()
+    if columns:
+        rt = ResultsTable.objects.create(report=report, columns=columns)
+        ResultsRow.objects.bulk_create(
+            ResultsRow(table=rt, cells=cells, order=i) for i, cells in enumerate(rows)
+        )
 
 
 def create_report(request):
@@ -16,44 +63,34 @@ def create_report(request):
     results_data = {}
 
     if request.method == 'POST':
-        form = ReportForm(request.POST)
-        if form.is_valid():
-            report = form.save()
+        # Bind to the loaded report (if any) so saving updates it instead of creating a copy
+        report_id = request.POST.get('report_id')
+        instance = Report.objects.filter(pk=report_id).first() if report_id else None
 
-            setup_formset = SetupFormSet(request.POST, instance=report)
-            if setup_formset.is_valid():
-                instances = setup_formset.save(commit=False)
-                for i, inst in enumerate(instances):
-                    inst.order = i
-                    inst.save()
-                for obj in setup_formset.deleted_objects:
-                    obj.delete()
+        form = ReportForm(request.POST, instance=instance)
+        setup_formset = SetupFormSet(request.POST, instance=form.instance)
+        image_formset = ImageFormSet(request.POST, request.FILES, instance=form.instance)
 
-            image_formset = ImageFormSet(request.POST, request.FILES, instance=report)
-            if image_formset.is_valid():
-                instances = image_formset.save(commit=False)
-                for i, inst in enumerate(instances):
-                    inst.order = i
-                    inst.save()
-                for obj in image_formset.deleted_objects:
-                    obj.delete()
+        results, results_ok = None, True
+        try:
+            results = _parse_results(request.POST)
+        except ValueError:
+            results_ok = False
+            messages.error(request, 'The results table data could not be read. Please re-enter it and try again.')
+        if results:
+            results_data = {'columns': results[0], 'rows': results[1]}
 
-            try:
-                columns = json.loads(request.POST.get('results_columns', '[]'))
-                rows = json.loads(request.POST.get('results_rows', '[]'))
-                if columns:
-                    rt = ResultsTable.objects.create(report=report, columns=columns)
-                    for i, cells in enumerate(rows):
-                        ResultsRow.objects.create(table=rt, cells=cells, order=i)
-            except Exception:
-                pass
+        if form.is_valid() and setup_formset.is_valid() and image_formset.is_valid() and results_ok:
+            with transaction.atomic():
+                report = form.save()
+                _save_ordered_formset(setup_formset)
+                _save_ordered_formset(image_formset)
+                if results is not None:
+                    _save_results_table(report, *results)
 
             if 'generate' in request.POST:
                 return redirect('generate-report', pk=report.pk)
             return redirect('report-list')
-        else:
-            setup_formset = SetupFormSet(request.POST)
-            image_formset = ImageFormSet(request.POST, request.FILES)
     else:
         loaded_pk = request.GET.get('loaded')
         if loaded_pk:
@@ -97,7 +134,8 @@ def generate_report(request, pk):
     setups = list(report.setups.order_by('order'))
 
     if not setups:
-        return redirect('create-report')
+        messages.error(request, 'Add at least one UT setup before generating the report.')
+        return redirect(f"{reverse('create-report')}?loaded={pk}")
 
     template_path = os.path.join(settings.BASE_DIR, 'word_templates', 'long_form_template.docx')
     output_path = os.path.join(settings.BASE_DIR, 'outputs', f'{report.document_filename}.docx')
