@@ -8,6 +8,21 @@ from ..forms import ReportForm, SetupForm, SetupFormSet, ImageFormSet
 from ..models import Report, Setup, ResultsTable, ResultsRow
 import json
 import os
+import re
+
+
+_WINDOWS_RESERVED = {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))}
+
+
+def safe_filename(name, default='report'):
+    """
+    Turns a user-entered document name into a single safe file name (no directories,
+    no characters Windows rejects), so generated reports always land in outputs/.
+    """
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name or '').strip().strip('.').strip()
+    if not name or name.upper() in _WINDOWS_RESERVED:
+        return default
+    return name[:150]
 
 
 def _parse_results(post):
@@ -138,7 +153,7 @@ def generate_report(request, pk):
         return redirect(f"{reverse('create-report')}?loaded={pk}")
 
     template_path = os.path.join(settings.BASE_DIR, 'word_templates', 'long_form_template.docx')
-    output_path = os.path.join(settings.BASE_DIR, 'outputs', f'{report.document_filename}.docx')
+    output_path = os.path.join(settings.REPORT_OUTPUT_DIR, f'{safe_filename(report.document_filename)}.docx')
 
     processor = WordTemplateProcessor(template_path, output_path)
 
@@ -166,15 +181,14 @@ def generate_report(request, pk):
             setup_placeholder = f'{{{{{setup_field.name.upper()}}}}}'
             processor.replace(setup_placeholder, str(setup_value) if setup_value else '')
 
-    # Images
-    images = list(report.images.order_by('order'))
-    if images:
-        processor.insert_images(images)
+    # Images (always called so the {{IMAGE_BLOCK}} sentinel is cleared when there are none)
+    processor.insert_images(list(report.images.order_by('order')))
 
     # Results table
     results_table = getattr(report, 'results_table', None)
     if results_table is not None:
         processor.populate_results_table(results_table)
+    processor.replace('{{RESULTS_TABLE}}', '')
 
     try:
         processor.save()

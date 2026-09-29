@@ -1,6 +1,7 @@
 from docx import Document
-from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from docx.shared import Inches
+from docx.text.paragraph import Paragraph
 from copy import deepcopy
 import os
 
@@ -30,7 +31,6 @@ class WordTemplateProcessor:
                 run.text = ""
             if paragraph.runs:
                 paragraph.runs[0].text = new_text
-                print(f'Replaced {placeholder} with {replacement}')
 
     def replace_in_table_cells_split_runs(self, placeholder, replacement):
         for table in self.document.tables:
@@ -40,7 +40,6 @@ class WordTemplateProcessor:
                         full_text = "".join(run.text for run in paragraph.runs)
                         if placeholder in full_text:
                             new_text = full_text.replace(placeholder, replacement)
-                            print(f'Replaced {replacement}')
                             for run in paragraph.runs:
                                 run.text = ""
                             paragraph.runs[0].text = new_text
@@ -108,35 +107,42 @@ class WordTemplateProcessor:
 
     def insert_images(self, report_images, width_inches=5.0):
         """
-        Replace {{IMAGE_BLOCK}} paragraph(s) in the document with the provided images.
+        Replace the {{IMAGE_BLOCK}} sentinel paragraph with the provided images.
 
-        Each ReportImage is inserted at the {{IMAGE_BLOCK}} sentinel paragraph
-        (the first one found). If there are more images than sentinels, they are
-        appended after the last inserted image paragraph.
+        The first image goes into the sentinel paragraph; each following image gets
+        a new paragraph (with the sentinel's formatting) after the previous one.
+        Captions are placed in their own paragraph directly below each image.
         """
-        sentinel = '{{IMAGE_BLOCK}}'
+        sentinel_para = self._find_paragraph_with_placeholder('{{IMAGE_BLOCK}}')
+        if sentinel_para is None:
+            return
 
-        for report_image in report_images:
-            para = self._find_paragraph_with_placeholder(sentinel)
-            if para is None:
-                break
-            para_elem = para._p
+        for run in sentinel_para.runs:
+            run.text = ''
 
-            # Clear sentinel text
-            for run in para.runs:
-                run.text = ''
-
-            # Add image run to the paragraph
-            run = para.add_run()
+        anchor = sentinel_para
+        for i, report_image in enumerate(report_images):
+            image_para = sentinel_para if i == 0 else self._paragraph_after(anchor, sentinel_para)
+            run = image_para.add_run()
             try:
                 run.add_picture(report_image.image.path, width=Inches(width_inches))
             except Exception:
                 run.text = f'[Image: {report_image.caption or report_image.image.name}]'
+            anchor = image_para
 
             if report_image.caption:
-                cap_para = self.document.add_paragraph(report_image.caption)
-                cap_para._p.getparent().remove(cap_para._p)
-                para_elem.addnext(cap_para._p)
+                anchor = self._paragraph_after(anchor, sentinel_para, report_image.caption)
+
+    def _paragraph_after(self, anchor, format_source, text=''):
+        """Insert a new paragraph after `anchor`, copying paragraph formatting from `format_source`."""
+        new_p = OxmlElement('w:p')
+        if format_source._p.pPr is not None:
+            new_p.append(deepcopy(format_source._p.pPr))
+        anchor._p.addnext(new_p)
+        para = Paragraph(new_p, anchor._parent)
+        if text:
+            para.add_run(text)
+        return para
 
     def _find_paragraph_with_placeholder(self, placeholder):
         for para in self.document.paragraphs:

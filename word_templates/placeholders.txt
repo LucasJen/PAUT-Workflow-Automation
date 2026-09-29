@@ -1,3 +1,7 @@
+Placeholders are written as {{NAME}} in the Word template. Names are the model field
+names in upper case (reports/models.py: Report and Setup), so a field rename must be
+matched in the template.
+
 [Project information]
 DOCUMENT_TITLE
 CLIENT
@@ -12,6 +16,8 @@ PROCEDURE
 [Technician Information]
 TECHNICIAN_NAME
 CERTIFICATION
+ASSISTANT_NAME
+ASSISTANT_CERTIFICATION
 
 [Executive Summary and Summary of Results]
 EXAMINATION_SCOPE
@@ -21,30 +27,48 @@ EXECUTIVE_SUMMARY
 EQUIPMENT_ID
 EQUIPMENT_OVERVIEW
 WORK_SCOPE
-X-AXIS_REFERENCE
-Y-AXIS_REFERENCE
+X_AXIS_REFERENCE
+Y_AXIS_REFERENCE
 UT_METHOD
 
-[UT Equipment and Calibration Information]
+[UT Equipment and Calibration Information (per setup)]
 MANUFACTURER
+SCOPE_PLATFORM
 SCOPE_MODEL
-X_RES
-Y_RES
+SCOPE_SERIAL
 TRANSDUCER_MODEL
 TRANSDUCER_SERIAL
+PROBE_DIAMETER
+WEDGE_MODEL
+WEDGE_ANGLE
 FOC_DEPTH
-WAVE_PROPOGATION
+WAVE_PROPAGATION
 FREQ
 ELEMENTS
+X_RES
+Y_RES
+SCAN_LENGTH
+SCAN_WIDTH
+ANGLE_STEP
+ANGLE_RANGE
+SOUND_VELOCITY
+GAIN
+REF_GAIN
+VOLTAGE
+SPECIMEN_OD
+SPECIMEN_THICKNESS
 CAL_MATERIAL
-SCOPE_SERIAL
 MATERIAL_TEMP
 CAL_BLOCK_TYPE
 CAL_BLOCK_SERIAL
-SURFACE PREP
+SURFACE_PREP
 TR_MIN
 TR_MAX
 
+[Sentinels]
+SETUP_TABLE      - cell in a table that is duplicated once per setup
+RESULTS_TABLE    - cell in the results table header row
+IMAGE_BLOCK      - paragraph replaced by the report images
 
-[Anonymous]
-TOTAL_PAGES
+[Not filled by the app]
+TOTAL_PAGES      - present in the template but no field populates it
