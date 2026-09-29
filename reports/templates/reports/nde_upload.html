@@ -1,5 +1,5 @@
 {% extends 'reports/base.html' %}
-{% load static %}
+{% load static ui %}
 
 {% block title %}Import from NDE · PAUT Report Automation{% endblock %}
 
@@ -70,5 +70,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'reports/js/nde_upload.js' %}"></script>
+<script src="{% static_v 'reports/js/nde_upload.js' %}"></script>
 {% endblock %}

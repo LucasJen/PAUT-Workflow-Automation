@@ -1,5 +1,5 @@
 {% extends 'reports/base.html' %}
-{% load static %}
+{% load static ui %}
 {% comment %}
 Shared list page. Views pass `items`. Child templates fill:
   page_title, item_noun (singular, lower case), new_button, columns (<th>s), rows (<tr>s),
@@ -67,5 +67,5 @@ cells may set data-sort-value (e.g. ISO dates).
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'reports/js/list_table.js' %}"></script>
+<script src="{% static_v 'reports/js/list_table.js' %}"></script>
 {% endblock %}

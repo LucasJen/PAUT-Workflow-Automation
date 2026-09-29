@@ -47,6 +47,16 @@ class PageSmokeTests(TestCase):
         external = re.findall(r'(?:src|href)="(https?://[^"]+)"', html)
         self.assertEqual(external, [])
 
+    def test_app_assets_are_cache_busted(self):
+        """App CSS/JS carry ?v=<mtime> so browsers never run a stale cached script."""
+        for url in [reverse('create-report'), reverse('report-list'), reverse('nde-upload')]:
+            with self.subTest(url=url):
+                html = self.client.get(url).content.decode()
+                assets = re.findall(r'(?:src|href)="(/static/reports/(?:css|js)/[^"]+)"', html)
+                self.assertTrue(assets)
+                unversioned = [a for a in assets if not re.search(r'\?v=\d+$', a)]
+                self.assertEqual(unversioned, [])
+
     def test_active_nav_item(self):
         html = self.client.get(reverse('scope-list')).content.decode()
         active = re.findall(r'class="nav-item-link active" href="([^"]+)"', html)

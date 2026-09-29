@@ -24,7 +24,7 @@
 
     <link rel="stylesheet" href="{% static 'reports/vendor/bootstrap/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'reports/vendor/bootstrap-icons/bootstrap-icons.min.css' %}">
-    <link rel="stylesheet" href="{% static 'reports/css/app.css' %}">
+    <link rel="stylesheet" href="{% static_v 'reports/css/app.css' %}">
     {% block styles %}{% endblock %}
 </head>
 
@@ -130,7 +130,7 @@
 </div>
 
 <script src="{% static 'reports/vendor/bootstrap/bootstrap.bundle.min.js' %}"></script>
-<script src="{% static 'reports/js/app.js' %}"></script>
+<script src="{% static_v 'reports/js/app.js' %}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

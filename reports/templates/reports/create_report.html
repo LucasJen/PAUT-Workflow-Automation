@@ -1,5 +1,5 @@
 {% extends 'reports/base.html' %}
-{% load static %}
+{% load static ui %}
 
 {% block title %}{% if form.instance.pk %}{{ form.instance.document_filename|default:"Report" }}{% else %}New report{% endif %} · PAUT Report Automation{% endblock %}
 
@@ -140,5 +140,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'reports/js/create_report.js' %}"></script>
+<script src="{% static_v 'reports/js/create_report.js' %}"></script>
 {% endblock %}

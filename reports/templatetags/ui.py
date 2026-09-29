@@ -1,8 +1,24 @@
+import os
 from datetime import date
 
 from django import template
+from django.contrib.staticfiles import finders
+from django.templatetags.static import static
 
 register = template.Library()
+
+
+@register.simple_tag
+def static_v(path):
+    """
+    Like {% static %}, plus ?v=<file modified time> so browsers fetch a fresh copy
+    whenever the file changes instead of reusing a stale cached one.
+    """
+    url = static(path)
+    found = finders.find(path)
+    if found:
+        return f'{url}?v={int(os.path.getmtime(found))}'
+    return url
 
 CAL_DUE_SOON_DAYS = 30
 
