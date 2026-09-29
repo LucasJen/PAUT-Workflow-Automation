@@ -3,6 +3,7 @@ from docx.oxml import OxmlElement
 from docx.shared import Inches
 from docx.text.paragraph import Paragraph
 from copy import deepcopy
+import io
 import os
 
 
@@ -13,7 +14,7 @@ class WordTemplateProcessor:
     replace them with the provided replacement text.
     """
 
-    def __init__(self, template_path, output_path):
+    def __init__(self, template_path, output_path=None):
         self.template_path = template_path
         self.output_path = output_path
         self.document = Document(template_path)
@@ -235,6 +236,13 @@ class WordTemplateProcessor:
         tc.append(p)
         row._tr.append(tc)
 
-    def save(self):
-        os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
-        self.document.save(self.output_path)
+    def save(self, path=None):
+        path = path or self.output_path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        self.document.save(path)
+
+    def to_bytes(self):
+        """The generated document as .docx bytes, e.g. for an HTTP download."""
+        buffer = io.BytesIO()
+        self.document.save(buffer)
+        return buffer.getvalue()

@@ -1,15 +1,23 @@
+from django.http import FileResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Count
 from ..services.document_processor import WordTemplateProcessor
 from ..forms import ReportForm, SetupFormSet, ImageFormSet
 from ..models import Report, Setup, ResultsTable, ResultsRow
 from ..report_types import REPORT_TYPES, get_report_type
+import io
 import json
+import logging
 import os
 import re
+
+logger = logging.getLogger(__name__)
+
+DOCX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
 
 _WINDOWS_RESERVED = {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))}
@@ -108,8 +116,15 @@ def create_report(request):
                 if results is not None:
                     _save_results_table(report, *results)
 
+            if 'generate' in request.POST and not report.setups.exists():
+                messages.success(request, 'Report saved.')
+                messages.error(request, 'Add at least one UT setup before generating the report.')
+                return redirect(f"{reverse('create-report')}?loaded={report.pk}")
             if 'generate' in request.POST:
-                return redirect('generate-report', pk=report.pk)
+                # Back to the editor, which starts the download; downloading straight from this
+                # POST would leave the page showing the pre-save (possibly unsaved-new) form
+                messages.success(request, 'Report saved. Your download will start shortly.')
+                return redirect(f"{reverse('create-report')}?loaded={report.pk}&download=1")
             messages.success(request, 'Report saved.')
             return redirect(f"{reverse('create-report')}?loaded={report.pk}")
         messages.error(request, 'The report was not saved. Check the highlighted fields.')
@@ -166,9 +181,8 @@ def generate_report(request, pk):
     report_type = get_report_type(report.report_type)
     template_path = os.path.join(settings.BASE_DIR, 'word_templates', report_type.template)
     output_name = f'{safe_filename(report.document_filename)}.docx'
-    output_path = os.path.join(settings.REPORT_OUTPUT_DIR, output_name)
 
-    processor = WordTemplateProcessor(template_path, output_path)
+    processor = WordTemplateProcessor(template_path)
 
     report_excluded = {'id', 'document_filename', 'report_type', 'updated_at'}
     setup_excluded = {'id', 'report', 'order'}
@@ -203,21 +217,27 @@ def generate_report(request, pk):
         processor.populate_results_table(results_table)
     processor.replace('{{RESULTS_TABLE}}', '')
 
-    try:
-        processor.save()
-    except PermissionError:
-        messages.error(request, 'A report with that name already exists in the output folder and is currently open. Close the file and try again.')
-        return redirect(f"{reverse('create-report')}?loaded={pk}")
+    content = processor.to_bytes()
 
-    messages.success(request, f'Report generated: outputs/{output_name}')
-    return redirect(f"{reverse('create-report')}?loaded={pk}")
+    # Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off)
+    if settings.REPORT_OUTPUT_DIR:
+        copy_path = os.path.join(settings.REPORT_OUTPUT_DIR, output_name)
+        try:
+            os.makedirs(settings.REPORT_OUTPUT_DIR, exist_ok=True)
+            with open(copy_path, 'wb') as f:
+                f.write(content)
+        except PermissionError:
+            # Usually the previous copy is open in Word; the download still works
+            logger.warning('Could not update server copy %s (file in use?)', copy_path)
+
+    return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=DOCX_CONTENT_TYPE)
 
 
 def report_list(request):
     """
     View all report information stored within the database
     """
-    reports = Report.objects.order_by('-pk')
+    reports = Report.objects.annotate(setup_count=Count('setups')).order_by('-pk')
     if request.method == 'POST':
         selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:

@@ -97,9 +97,10 @@ class GenerateUsesTypeTemplateTests(TestCase):
         with override_settings(REPORT_OUTPUT_DIR=tmp.name), \
                 mock.patch('reports.views.reports.get_report_type', return_value=other) as lookup, \
                 mock.patch('reports.views.reports.WordTemplateProcessor') as processor:
-            resp = self.client.get(reverse('generate-report', args=[report.pk]), follow=True)
+            processor.return_value.to_bytes.return_value = b'docx-bytes'
+            resp = self.client.get(reverse('generate-report', args=[report.pk]))
 
         lookup.assert_called_once_with('other')
         template_path = processor.call_args.args[0]
         self.assertTrue(template_path.endswith(os.path.join('word_templates', 'long_form_template.docx')))
-        self.assertContains(resp, 'Report generated: outputs/typed.docx')
+        self.assertEqual(b''.join(resp.streaming_content), b'docx-bytes')

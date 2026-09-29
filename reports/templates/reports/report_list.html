@@ -15,6 +15,7 @@
 <th class="sortable">Location<span class="sort-indicator"></span></th>
 <th class="sortable">Report date<span class="sort-indicator"></span></th>
 <th class="sortable">Technician<span class="sort-indicator"></span></th>
+<th class="col-actions"><span class="visually-hidden">Download</span></th>
 {% endblock %}
 
 {% block rows %}
@@ -27,6 +28,16 @@
     <td>{{ report.location }}</td>
     <td data-sort-value="{{ report.report_date|date:'Y-m-d' }}">{{ report.report_date|date:'M j, Y' }}</td>
     <td>{{ report.technician_name }}</td>
+    <td class="col-actions">
+        {% if report.setup_count %}
+        <a href="{% url 'generate-report' report.pk %}" class="btn btn-icon btn-sm" download
+           title="Download Word report" aria-label="Download Word report for {{ report.document_filename|default:'report' }}">
+            <i class="bi bi-download"></i>
+        </a>
+        {% else %}
+        <span class="btn btn-icon btn-sm disabled" title="Add a UT setup to generate this report"><i class="bi bi-download"></i></span>
+        {% endif %}
+    </td>
 </tr>
 {% endfor %}
 {% endblock %}

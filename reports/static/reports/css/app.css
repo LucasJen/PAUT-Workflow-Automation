@@ -646,6 +646,8 @@ textarea.form-control { min-height: 5.5rem; resize: vertical; }
 
 .data-table tbody tr:last-child td { border-bottom: 0; }
 .data-table .col-check { width: 2.5rem; }
+.data-table .col-actions { width: 3rem; text-align: right; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.data-table .col-actions .disabled { opacity: 0.35; }
 .data-table tr[data-href] { cursor: pointer; }
 .data-table tr.selected > td { background: var(--accent-soft); }
 .data-table .text-muted-cell { color: var(--text-3); }

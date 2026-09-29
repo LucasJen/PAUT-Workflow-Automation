@@ -319,6 +319,12 @@ const unsavedIndicator = document.getElementById('unsaved-indicator');
 function markDirty() {
     dirty = true;
     unsavedIndicator.hidden = false;
+    // Downloading now would give the last saved version, so ask first (app.js shows the dialog)
+    const download = document.getElementById('download-link');
+    if (download) {
+        download.dataset.confirm = "You have unsaved changes. The download won't include them until you save.";
+        download.dataset.confirmLabel = 'Download anyway';
+    }
 }
 
 reportForm.addEventListener('input', markDirty);
@@ -340,5 +346,17 @@ reportForm.addEventListener('submit', () => {
     document.getElementById('results-rows-input').value = JSON.stringify(rows);
     dirty = false;
 });
+
+// ── Download after "Save & download" ─────────────────────────────────────
+
+const downloadLink = document.getElementById('download-link');
+
+if (downloadLink?.hasAttribute('data-auto-download')) {
+    // Drop ?download=1 so reloading the page doesn't download again
+    const url = new URL(window.location.href);
+    url.searchParams.delete('download');
+    window.history.replaceState(null, '', url);
+    downloadLink.click();  // a download link, so the browser stays on this page
+}
 
 applyReportType();

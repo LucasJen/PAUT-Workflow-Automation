@@ -133,5 +133,6 @@ STATIC_URL = '/static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Folder where generated Word reports are written
+# Generated reports are downloaded in the browser. A copy is also kept in this folder on
+# the server; set to None to turn the copy off (e.g. on a shared server).
 REPORT_OUTPUT_DIR = BASE_DIR / 'outputs'
