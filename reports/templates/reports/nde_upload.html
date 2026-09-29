@@ -27,7 +27,7 @@
 {% endif %}
 
 <!-- Setup form -->
-<form method="post" id="nde-setup-form">
+<form method="post" id="nde-setup-form"{% if form.is_bound %} data-bound="1"{% endif %}>
     {% csrf_token %}
     <datalist id="wave_propagation_options">
         <option value="Shear">
@@ -77,7 +77,12 @@
     {% endif %}
 
     <div class="sticky-actions">
+        {# Save first in the DOM so Enter saves; Clear is shown to its left #}
         <button type="submit" name="save_setup" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save setup</button>
+        <a href="{% url 'nde-upload' %}" class="btn btn-secondary order-first" id="clear-setup"
+           title="Clear all fields and start over with a new file">
+            <i class="bi bi-arrow-counterclockwise"></i> Clear setup
+        </a>
     </div>
 </form>
 

@@ -51,6 +51,12 @@ class NdePageTests(TestCase):
         self.assertContains(resp, 'Values read from weld12.nde')
         self.assertContains(resp, 'id="nde-groups"')
 
+    def test_clear_setup_links_to_fresh_import_page(self):
+        resp = self.client.get(reverse('nde-upload'))
+        self.assertContains(resp, f'href="{reverse("nde-upload")}" class="btn btn-secondary order-first" id="clear-setup"')
+        html = resp.content.decode()
+        self.assertLess(html.index('name="save_setup"'), html.index('id="clear-setup"'))  # Enter still saves
+
     def test_save_setup_shows_message(self):
         resp = self.client.post(reverse('nde-upload'), {'save_setup': '', 'scope_model': 'X3'}, follow=True)
         setup = Setup.objects.get()

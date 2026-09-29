@@ -70,6 +70,25 @@ function setUnit(next) {
     fillForm();
 }
 
+// ── Clear setup ──────────────────────────────────────────────────────────
+// The button reloads a fresh import page; ask first only when there is something to lose.
+
+const clearButton = document.getElementById('clear-setup');
+
+function updateClearConfirm() {
+    // Something to lose: values from a file, values returned by a failed save, or typed changes
+    const edited = Array.from(setupForm.querySelectorAll('input:not([type=hidden]), textarea'))
+        .some(el => el.value !== el.defaultValue);
+    if (groups.length || setupForm.dataset.bound || edited) {
+        clearButton.dataset.confirm = 'Clear all setup fields? Anything not saved will be lost.';
+        clearButton.dataset.confirmLabel = 'Clear';
+    } else {
+        delete clearButton.dataset.confirm;
+    }
+}
+
+setupForm.addEventListener('input', updateClearConfirm);
+
 if (groups.length) {
     document.querySelectorAll('[data-unit]').forEach(button => {
         button.addEventListener('click', () => setUnit(button.dataset.unit));
@@ -77,3 +96,5 @@ if (groups.length) {
     groupSelect?.addEventListener('change', fillForm);
     fillForm();
 }
+
+updateClearConfirm();
