@@ -38,6 +38,42 @@
         updateBulkBar();
     });
 
+    // ── Shift-click range selection ────────────────────────────────────
+    // Shift-clicking a checkbox (or anywhere on a row) sets every visible row between the last
+    // clicked row and this one to the same state. Rows hidden by the search are skipped.
+
+    let anchor = null;  // the last row clicked without Shift
+
+    function setChecked(row, checked) {
+        row.querySelector('.row-check').checked = checked;
+        row.classList.toggle('selected', checked);
+    }
+
+    function selectRange(row, checked) {
+        const visible = rows().filter(r => !r.hidden);
+        const from = visible.indexOf(anchor);
+        const to = visible.indexOf(row);
+        if (from < 0 || to < 0) {
+            setChecked(row, checked);
+        } else {
+            visible.slice(Math.min(from, to), Math.max(from, to) + 1).forEach(r => setChecked(r, checked));
+        }
+        updateBulkBar();
+    }
+
+    // Stop the browser from highlighting text while shift-clicking rows
+    tbody.addEventListener('mousedown', e => {
+        if (e.shiftKey && e.target.closest('tr')) e.preventDefault();
+    });
+
+    tbody.addEventListener('click', e => {
+        const box = e.target.closest('.row-check');
+        if (!box) return;
+        const row = box.closest('tr');
+        if (e.shiftKey && anchor) selectRange(row, box.checked);  // the click has already toggled the box
+        anchor = row;
+    });
+
     // ── Click / keyboard to open ───────────────────────────────────────
 
     function openRow(row, newTab) {
@@ -51,7 +87,19 @@
     tbody.addEventListener('click', e => {
         if (e.target.closest('input, a, button, label, .col-check')) return;
         const row = e.target.closest('tr');
-        if (row) openRow(row, e.ctrlKey || e.metaKey);
+        if (!row) return;
+        if (e.shiftKey) {
+            // Shift-click on a row selects (instead of opening), extending from the last clicked row
+            if (anchor) {
+                selectRange(row, true);
+            } else {
+                setChecked(row, !row.querySelector('.row-check').checked);
+                updateBulkBar();
+            }
+            anchor = row;
+            return;
+        }
+        openRow(row, e.ctrlKey || e.metaKey);
     });
 
     tbody.addEventListener('keydown', e => {
