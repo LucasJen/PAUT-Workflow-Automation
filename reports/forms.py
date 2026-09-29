@@ -3,7 +3,7 @@ from django.forms import (
     TextInput, inlineformset_factory,
 )
 from django.forms.renderers import TemplatesSetting
-from .models import Report, Setup, ReportImage
+from .models import Report, ReportImage, ReportPerson, Setup
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from datetime import date
 
@@ -68,9 +68,13 @@ class ReportForm(StyledFormMixin, ModelForm):
 
     def sections(self):
         """Field sections for the editor: [(key, title, [bound fields])], special sections excluded."""
+        return [section for section in self.all_sections() if section[2]]
+
+    def all_sections(self):
+        """Every editor section in order; special sections (setups, results, ...) have fields=None."""
         return [
-            (key, title, [self[name] for name in names if name in self.fields])
-            for key, title, names in REPORT_SECTIONS if names
+            (key, title, [self[name] for name in names if name in self.fields] if names else None)
+            for key, title, names in REPORT_SECTIONS
         ]
 
     class Meta:
@@ -82,12 +86,18 @@ class ReportForm(StyledFormMixin, ModelForm):
             'x_axis_reference': 'X-axis reference',
             'y_axis_reference': 'Y-axis reference',
             'ut_method': 'UT method',
+            'test_date': 'Test start date',
+            'test_end_date': 'Test end date',
+            'comparison_title': 'Section heading',
         }
         widgets = {
             'document_title': Textarea(attrs={'rows': 1, 'style': 'min-height: 0; resize: vertical;'}),
             'report_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'test_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'test_end_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'comparison_title': TextInput(attrs={'placeholder': 'e.g. HYDROFORM DATA COMPARISON (2022 TO 2026)'}),
         }
+        help_texts = {'test_end_date': 'Leave blank for a single-day test.'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -205,6 +215,44 @@ DrawingFormSet = inlineformset_factory(
     Report, ReportImage, form=DrawingForm,
     extra=0, can_delete=True,
 )
+
+
+class ComparisonForm(DrawingForm):
+    """Data-comparison figures; images sharing a title are grouped under it (e.g. 2022 vs 2026)."""
+
+    class Meta(DrawingForm.Meta):
+        labels = {'caption': 'Figure title', 'image': 'Image'}
+        widgets = {
+            'image': ClearableFileInput(attrs={'accept': 'image/*'}),
+            'caption': TextInput(attrs={'placeholder': 'e.g. Blistering Located Below CW4', 'list': 'comparison-titles'}),
+        }
+
+
+ComparisonFormSet = inlineformset_factory(
+    Report, ReportImage, form=ComparisonForm,
+    extra=0, can_delete=True,
+)
+
+
+class ReportPersonForm(StyledFormMixin, ModelForm):
+    class Meta:
+        model = ReportPerson
+        fields = ['name', 'certification', 'prepared', 'examined', 'reviewed']
+        widgets = {
+            'name': TextInput(attrs={'list': 'known-people', 'autocomplete': 'off'}),
+            'certification': TextInput(attrs={'placeholder': 'e.g. Ultrasonic Level II'}),
+        }
+
+
+PersonFormSet = inlineformset_factory(
+    Report, ReportPerson, form=ReportPersonForm,
+    extra=0, can_delete=True,
+)
+
+
+def comparison_formset(*args, instance=None, **kwargs):
+    return ComparisonFormSet(*args, instance=instance, prefix='comparison',
+                             queryset=ReportImage.objects.filter(kind=ReportImage.COMPARISON), **kwargs)
 
 ImageFormSet = inlineformset_factory(
     Report, ReportImage, form=ScanImageForm,

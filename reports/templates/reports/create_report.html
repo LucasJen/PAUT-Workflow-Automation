@@ -31,99 +31,25 @@
 
     <div class="editor-layout">
         <nav class="section-nav" id="section-nav" aria-label="Report sections">
-            {% for key, title, fields in form.sections %}
-            <a href="#sec-{{ key }}" data-nav-section="{{ key }}">{{ title }}</a>
+            {% for key, title, fields in form.all_sections %}
+            <a href="#sec-{{ key }}" data-nav-section="{{ key }}">{{ title }}{% if not fields %} <span class="nav-count" id="{{ key }}-count"></span>{% endif %}</a>
             {% endfor %}
-            <a href="#sec-drawings" data-nav-section="drawings">Equipment drawings <span class="nav-count" id="drawing-count"></span></a>
-            <a href="#sec-setups" data-nav-section="setups">UT setups <span class="nav-count" id="setup-count"></span></a>
-            <a href="#sec-results" data-nav-section="results">Results table</a>
-            <a href="#sec-images" data-nav-section="images">Photo summary <span class="nav-count" id="image-count"></span></a>
         </nav>
 
         <div class="editor-sections">
-            {% for key, title, fields in form.sections %}
+            {# Sections in REPORT_SECTIONS order; special sections live in reports/editor/<key>.html #}
+            {% for key, title, fields in form.all_sections %}
+            {% if fields %}
             <section class="panel editor-section" id="sec-{{ key }}" data-section="{{ key }}">
                 <div class="panel-header"><h2 class="panel-title">{{ title }}</h2></div>
                 <div class="field-grid cols-3">
                     {% for field in fields %}{{ field.as_field_group }}{% endfor %}
                 </div>
             </section>
+            {% else %}
+            {% with section_template="reports/editor/"|add:key|add:".html" %}{% include section_template %}{% endwith %}
+            {% endif %}
             {% endfor %}
-
-            <!-- Equipment drawings: shown under the report's Drawing heading -->
-            <section class="panel editor-section" id="sec-drawings" data-section="drawings">
-                <div class="panel-header">
-                    <h2 class="panel-title">Equipment drawings</h2>
-                    <button type="button" id="add-drawing" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add drawing</button>
-                </div>
-                <p class="form-text">Vessel/equipment and isometric drawings, nozzle layouts, scan coverage maps. Each appears under the report's Drawing section with its title as a heading.</p>
-                {{ drawing_formset.management_form }}
-                <div id="drawing-formset-container">
-                    {% for img_form in drawing_formset %}
-                    {% include 'reports/_image_block.html' with kind="drawing" idx=forloop.counter0 num=forloop.counter %}
-                    {% endfor %}
-                </div>
-                <template id="drawing-empty-form">
-                    {% include 'reports/_image_block.html' with kind="drawing" img_form=drawing_formset.empty_form idx="__prefix__" num="" %}
-                </template>
-            </section>
-
-            <!-- UT setups -->
-            <section class="panel editor-section" id="sec-setups" data-section="setups">
-                <div class="panel-header">
-                    <h2 class="panel-title">UT setups</h2>
-                    <button type="button" id="add-setup" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add setup</button>
-                </div>
-                {{ setup_formset.management_form }}
-                {% if setup_formset.non_form_errors %}<div class="alert alert-danger">{{ setup_formset.non_form_errors }}</div>{% endif %}
-                <div id="setup-formset-container">
-                    {% for form in setup_formset %}
-                    {% include 'reports/_setup_block.html' with idx=forloop.counter0 num=forloop.counter %}
-                    {% endfor %}
-                </div>
-                <template id="setup-empty-form">
-                    {% include 'reports/_setup_block.html' with form=setup_formset.empty_form idx="__prefix__" num="" %}
-                </template>
-            </section>
-
-            <!-- Results table -->
-            <section class="panel editor-section" id="sec-results" data-section="results">
-                <div class="panel-header">
-                    <h2 class="panel-title">Results table</h2>
-                    <div class="d-flex gap-2">
-                        <button type="button" id="add-results-col" class="btn btn-secondary btn-sm"><i class="bi bi-layout-three-columns"></i> Add column</button>
-                        <button type="button" id="add-results-row" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add row</button>
-                    </div>
-                </div>
-                <p class="form-text" id="results-empty-hint">Add a column to start the results table.</p>
-                <div id="results-col-headers" class="d-flex flex-wrap gap-2 mb-3"></div>
-                <div class="overflow-x-auto">
-                    <table class="results-table" id="results-table">
-                        <thead><tr id="results-thead-row"></tr></thead>
-                        <tbody id="results-tbody"></tbody>
-                    </table>
-                </div>
-                <input type="hidden" name="results_columns" id="results-columns-input">
-                <input type="hidden" name="results_rows" id="results-rows-input">
-            </section>
-
-            <!-- Photo summary: scan images, each tied to a results row -->
-            <section class="panel editor-section" id="sec-images" data-section="images">
-                <div class="panel-header">
-                    <h2 class="panel-title">Photo summary</h2>
-                    <button type="button" id="add-image" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add scan image</button>
-                </div>
-                <p class="form-text">Data snips for the report's Scan Images section. Pick the Scan ID from the results table; the comments are taken from that row's results, so they only need typing once.</p>
-                {{ image_formset.management_form }}
-                <div id="image-formset-container">
-                    {% for img_form in image_formset %}
-                    {% include 'reports/_image_block.html' with kind="scan" idx=forloop.counter0 num=forloop.counter %}
-                    {% endfor %}
-                </div>
-                <template id="image-empty-form">
-                    {% include 'reports/_image_block.html' with kind="scan" img_form=image_formset.empty_form idx="__prefix__" num="" %}
-                </template>
-            </section>
         </div>
     </div>
 

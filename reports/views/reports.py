@@ -6,8 +6,10 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
 from ..services.report_render import render_report
-from ..forms import ReportForm, SetupFormSet, drawing_formset, scan_image_formset
-from ..models import Report, ReportImage, Setup, SetupImage, ResultsTable, ResultsRow
+from ..forms import (
+    PersonFormSet, ReportForm, SetupFormSet, comparison_formset, drawing_formset, scan_image_formset,
+)
+from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
 from ..report_types import get_report_type
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
 from django.core.exceptions import ValidationError
@@ -117,6 +119,14 @@ def _save_setup_images(request, report, setup_formset, uploads):
             SetupImage.objects.create(setup=setup, image=file, order=start + i)
 
 
+def _known_people():
+    """(name, certification) of everyone on earlier reports, latest certification per name."""
+    latest = {}
+    for name, certification in ReportPerson.objects.order_by('pk').values_list('name', 'certification'):
+        latest[name.strip()] = certification
+    return sorted(latest.items(), key=lambda item: item[0].lower())
+
+
 def _get_report(pk):
     """The Report with this pk (from a query string or form field), or None."""
     return Report.objects.filter(pk=pk).first() if pk and str(pk).isdigit() else None
@@ -147,9 +157,11 @@ def create_report(request):
 
         form = ReportForm(request.POST, instance=instance)
         setup_formset = SetupFormSet(request.POST, instance=form.instance)
+        people = PersonFormSet(request.POST, instance=form.instance, prefix='people')
         drawings = drawing_formset(request.POST, request.FILES, instance=form.instance)
         image_formset = scan_image_formset(request.POST, request.FILES, instance=form.instance, scan_ids=scan_ids)
-        formsets = (setup_formset, drawings, image_formset)
+        comparisons = comparison_formset(request.POST, request.FILES, instance=form.instance)
+        formsets = (setup_formset, people, drawings, image_formset, comparisons)
 
         valid = form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
         if valid:
@@ -161,8 +173,10 @@ def create_report(request):
                 report = form.save()
                 _save_ordered_formset(setup_formset)
                 _save_setup_images(request, report, setup_formset, setup_uploads)
+                _save_ordered_formset(people)
                 _save_ordered_formset(drawings, kind=ReportImage.DRAWING)
                 _save_ordered_formset(image_formset, kind=ReportImage.SCAN)
+                _save_ordered_formset(comparisons, kind=ReportImage.COMPARISON)
                 if results is not None:
                     _save_results_table(report, *results)
 
@@ -182,7 +196,9 @@ def create_report(request):
         loaded_report = _get_report(request.GET.get('loaded'))
         form = ReportForm(instance=loaded_report)
         setup_formset = SetupFormSet(instance=loaded_report)
+        people = PersonFormSet(instance=loaded_report, prefix='people')
         drawings = drawing_formset(instance=loaded_report)
+        comparisons = comparison_formset(instance=loaded_report)
         scan_ids = [scan_id for scan_id, _ in report_scan_rows(loaded_report)]
         image_formset = scan_image_formset(instance=loaded_report, scan_ids=scan_ids)
         if loaded_report is not None and hasattr(loaded_report, 'results_table'):
@@ -192,8 +208,11 @@ def create_report(request):
     return render(request, 'reports/create_report.html', {
         'form': form,
         'setup_formset': setup_formset,
+        'person_formset': people,
         'drawing_formset': drawings,
         'image_formset': image_formset,
+        'comparison_formset': comparisons,
+        'known_people': _known_people(),
         'results_data': results_data,
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
         'saved_setups': _saved_setup_choices(),
@@ -248,7 +267,7 @@ def report_list(request):
     """
     View all report information stored within the database
     """
-    reports = Report.objects.annotate(setup_count=Count('setups')).order_by('-pk')
+    reports = Report.objects.annotate(setup_count=Count('setups')).prefetch_related('people').order_by('-pk')
     if request.method == 'POST':
         selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:

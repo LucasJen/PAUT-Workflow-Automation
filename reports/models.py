@@ -18,15 +18,13 @@ class Report(models.Model):
     work_order = models.CharField(max_length=100, blank=True)
     project_number = models.CharField(max_length=100, blank=True)
     report_date = models.DateField(blank=True, null=True)
-    test_date = models.DateField(blank=True, null=True)
+    test_date = models.DateField(blank=True, null=True)  # test start date
+    test_end_date = models.DateField(blank=True, null=True)
     project_type = models.CharField(max_length=200, blank=True)
     procedure = models.CharField(max_length=200, blank=True)
 
-    # Technician Information
-    technician_name = models.CharField(max_length=200, blank=True)
-    certification = models.CharField(max_length=200, blank=True)
-    assistant_name = models.CharField(max_length=200, blank=True)
-    assistant_certification = models.CharField(max_length=200, blank=True)
+    # Heading of the optional data-comparison figure section
+    comparison_title = models.CharField(max_length=200, blank=True, default='DATA COMPARISON')
 
     # Executive Summary
     examination_scope = models.TextField(blank=True)
@@ -42,6 +40,27 @@ class Report(models.Model):
 
     def __str__(self):
         return f"{self.pk} | {self.document_filename}"
+
+    @property
+    def prepared_by_names(self):
+        return ', '.join(p.name for p in self.people.all() if p.prepared)
+
+
+class ReportPerson(models.Model):
+    """Someone on the report: listed on the cover under each role they hold."""
+    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='people')
+    name = models.CharField(max_length=200)
+    certification = models.CharField(max_length=200, blank=True)
+    prepared = models.BooleanField('Prepared by', default=False)
+    examined = models.BooleanField('Examined by', default=False)
+    reviewed = models.BooleanField('Reviewed by', default=False)
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'pk']
+
+    def __str__(self):
+        return self.name
 
 
 class Setup(models.Model):
@@ -138,7 +157,12 @@ class SetupImage(models.Model):
 class ReportImage(models.Model):
     SCAN = 'scan'
     DRAWING = 'drawing'
-    KIND_CHOICES = [(SCAN, 'Scan image (photo summary)'), (DRAWING, 'Equipment drawing')]
+    COMPARISON = 'comparison'
+    KIND_CHOICES = [
+        (SCAN, 'Scan image (photo summary)'),
+        (DRAWING, 'Equipment drawing'),
+        (COMPARISON, 'Data comparison'),
+    ]
 
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='images')
     kind = models.CharField(max_length=20, choices=KIND_CHOICES, default=SCAN)

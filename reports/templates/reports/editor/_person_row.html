@@ -1,0 +1,18 @@
+<div class="person-row">
+    {{ pf.id }}
+    <div hidden>{{ pf.DELETE }}</div>
+    <div class="field" data-field="name">
+        <label for="{{ pf.name.id_for_label }}" class="visually-hidden">Name</label>
+        {{ pf.name }}{{ pf.name.errors }}
+    </div>
+    <div class="field" data-field="certification">
+        <label for="{{ pf.certification.id_for_label }}" class="visually-hidden">Certification</label>
+        {{ pf.certification }}
+    </div>
+    <div class="person-roles">
+        <label class="form-check-label">{{ pf.prepared }} Prepared</label>
+        <label class="form-check-label">{{ pf.examined }} Examined</label>
+        <label class="form-check-label">{{ pf.reviewed }} Reviewed</label>
+    </div>
+    <button type="button" class="btn btn-icon btn-sm remove-person" title="Remove this person"><i class="bi bi-x-lg"></i></button>
+</div>

@@ -20,11 +20,9 @@ from dataclasses import dataclass
 REPORT_SECTIONS = (
     ('project', 'Project information', (
         'document_title', 'client', 'location', 'work_order', 'project_number',
-        'project_type', 'procedure', 'report_date', 'test_date',
+        'project_type', 'procedure', 'report_date', 'test_date', 'test_end_date',
     )),
-    ('technician', 'Technicians', (
-        'technician_name', 'certification', 'assistant_name', 'assistant_certification',
-    )),
+    ('personnel', 'Personnel', None),
     ('summary', 'Executive summary', ('examination_scope', 'executive_summary')),
     ('scope', 'Scope, references & method', (
         'equipment_id', 'ut_method', 'x_axis_reference', 'y_axis_reference',
@@ -34,6 +32,7 @@ REPORT_SECTIONS = (
     ('setups', 'UT setups', None),
     ('results', 'Results table', None),
     ('images', 'Photo summary', None),
+    ('comparison', 'Data comparison', None),
 )
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)

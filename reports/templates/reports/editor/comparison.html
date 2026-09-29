@@ -1,0 +1,20 @@
+<section class="panel editor-section" id="sec-comparison" data-section="comparison">
+    <div class="panel-header">
+        <h2 class="panel-title">Data comparison</h2>
+        <button type="button" id="add-comparison" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add image</button>
+    </div>
+    <p class="form-text">Optional section after the table of contents, e.g. this inspection's data next to the previous one. Images with the same figure title are grouped under it, in the order added. The section is left out of the report when there are no images.</p>
+    <div class="field-grid">
+        {{ form.comparison_title.as_field_group }}
+    </div>
+    <datalist id="comparison-titles"></datalist>
+    {{ comparison_formset.management_form }}
+    <div id="comparison-formset-container">
+        {% for img_form in comparison_formset %}
+        {% include 'reports/_image_block.html' with kind="comparison" idx=forloop.counter0 num=forloop.counter %}
+        {% endfor %}
+    </div>
+    <template id="comparison-empty-form">
+        {% include 'reports/_image_block.html' with kind="comparison" img_form=comparison_formset.empty_form idx="__prefix__" num="" %}
+    </template>
+</section>

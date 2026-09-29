@@ -47,6 +47,13 @@ def short_date(d):
     return f'{d.month}/{d.day}/{d.year}' if d else ''
 
 
+def date_range(start, end):
+    """'8/13/2026 – 8/25/2026', or a single date when there is no (different) end date."""
+    if start and end and end != start:
+        return f'{short_date(start)} – {short_date(end)}'
+    return short_date(start or end)
+
+
 def wave_mode(value):
     return f'{value} Wave' if value in ('Longitudinal', 'Shear') else (value or '')
 
@@ -121,6 +128,20 @@ def _scans(report):
     return scans
 
 
+def _people(people, role):
+    return [{'name': p.name, 'certification': p.certification} for p in people if getattr(p, role)]
+
+
+def _comparison(report, tpl):
+    """Data-comparison figures: images sharing a title are grouped under it, first-seen order."""
+    groups = {}
+    for image in report.images.filter(kind=ReportImage.COMPARISON).order_by('order'):
+        inline = _image(tpl, image.image, FULL_WIDTH)
+        if inline:
+            groups.setdefault(image.caption.strip(), []).append(inline)
+    return [{'title': title, 'images': images} for title, images in groups.items()]
+
+
 def _drawings(report, tpl):
     """Equipment drawings: one titled figure each, under the Drawing heading."""
     figures = []
@@ -160,9 +181,7 @@ def build_context(report, tpl):
     # Cover "Procedures": each setup's procedure once, in order; else the report's procedure lines
     procedures = list(dict.fromkeys(s.procedure.strip() for s in setup_objects if s.procedure.strip()))
     procedures = procedures or lines(report.procedure)
-    technician = {'name': report.technician_name, 'certification': report.certification}
-    assistant = {'name': report.assistant_name, 'certification': report.assistant_certification}
-    people = [p for p in (technician, assistant) if p['name']]
+    people = list(report.people.all())
     scans = _scans(report)
     drawings = _drawings(report, tpl)
     scan_images = _scan_images(report, tpl)
@@ -173,14 +192,14 @@ def build_context(report, tpl):
         'document_title': report.document_title,
         'document_title_upper': (report.document_title or '').upper(),
         'report_date_long': long_date(report.report_date),
-        'test_dates': short_date(report.test_date),
+        'test_dates': date_range(report.test_date, report.test_end_date),
         'project_number': report.project_number or 'N/A',
         'work_order': report.work_order,
         'project_type': report.project_type,
         'procedures': procedures,
-        'prepared_by': people[:1],
-        'examined_by': people,
-        'reviewed_by': [],
+        'prepared_by': _people(people, 'prepared'),
+        'examined_by': _people(people, 'examined'),
+        'reviewed_by': _people(people, 'reviewed'),
         'examination_scope': prose(report.examination_scope),
         'executive_summary': prose(report.executive_summary),
         'equipment_id': report.equipment_id,
@@ -194,7 +213,8 @@ def build_context(report, tpl):
         'results_title': f"PAUT {setups[0]['title']} Work Scope" if setups else 'PAUT Work Scope',
         'scans': scans,
         'scan_images': scan_images,
-        'figures': {'comparison': [], 'drawings': drawings},
+        'comparison_title': report.comparison_title or 'DATA COMPARISON',
+        'figures': {'comparison': _comparison(report, tpl), 'drawings': drawings},
     }
 
 

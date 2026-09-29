@@ -30,11 +30,12 @@ Rules that avoid broken templates:
 | `client`, `location`, `work_order`, `project_number`, `project_type`, `equipment_id` | Report fields (`project_number` shows `N/A` when blank). |
 | `document_title`, `document_title_upper` | Report title, and the same in capitals for the cover. |
 | `report_date_long` | e.g. `3 September, 2026` (cover and footer). |
-| `test_dates` | e.g. `8/13/2026`. |
+| `test_dates` | e.g. `8/13/2026 – 8/25/2026`, or one date when there is no end date. |
+| `comparison_title` | Heading of the data-comparison section (default `DATA COMPARISON`). |
 | `procedures` | Each setup's procedure once, in setup order (falls back to the report's Procedure lines). |
 | `examination_scope`, `executive_summary`, `access`, `work_scope`, `asset_description` | Multi-paragraph text (blank line = new paragraph). |
 | `x_axis_reference`, `y_axis_reference` | Scan direction references. |
-| `prepared_by`, `examined_by`, `reviewed_by` | Lists of people: `p.name`, `p.certification`. |
+| `prepared_by`, `examined_by`, `reviewed_by` | People ticked for each role in the editor's Personnel section: `p.name`, `p.certification`. |
 | `techniques` | List of technique bullets: `{{r t.text }}`. |
 
 **Setups** — `{%p for s in setups %}`, one "Equipment Details" section each
@@ -63,7 +64,8 @@ images not tied to a row follow, labelled with their own label.
 
 **Figures** — lists of `f.title` + `f.images`
 - `figures.drawings`: the editor's Equipment drawings uploads (shown under DRAWING).
-- `figures.comparison`: data-comparison images (not yet editable in the app).
+- `figures.comparison`: the editor's Data comparison images; images sharing a figure title are
+  grouped under it (e.g. a 2022 and a 2026 snip), in first-seen order.
 
 ## Fields Word updates on open
 

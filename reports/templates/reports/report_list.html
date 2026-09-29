@@ -14,7 +14,7 @@
 <th class="sortable">Client<span class="sort-indicator"></span></th>
 <th class="sortable">Location<span class="sort-indicator"></span></th>
 <th class="sortable">Report date<span class="sort-indicator"></span></th>
-<th class="sortable">Technician<span class="sort-indicator"></span></th>
+<th class="sortable">Prepared by<span class="sort-indicator"></span></th>
 <th class="col-actions"><span class="visually-hidden">Download</span></th>
 {% endblock %}
 
@@ -27,7 +27,7 @@
     <td>{{ report.client }}</td>
     <td>{{ report.location }}</td>
     <td data-sort-value="{{ report.report_date|date:'Y-m-d' }}">{{ report.report_date|date:'M j, Y' }}</td>
-    <td>{{ report.technician_name }}</td>
+    <td>{{ report.prepared_by_names }}</td>
     <td class="col-actions">
         {% if report.setup_count %}
         <a href="{% url 'generate-report' report.pk %}" class="btn btn-icon btn-sm" download

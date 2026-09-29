@@ -785,6 +785,32 @@ textarea.form-control { min-height: 5.5rem; resize: vertical; }
     border: 1px solid var(--border);
 }
 
+/* Personnel rows: name | certification | roles | remove */
+.person-head,
+.person-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) auto 2rem;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+}
+.person-head {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-3);
+    padding-bottom: 0.25rem;
+}
+.person-row { padding: 0.35rem 0; border-top: 1px solid var(--border); }
+.person-row .field { margin: 0; }
+.person-roles { display: flex; gap: 0.75rem; font-size: 0.8125rem; white-space: nowrap; }
+.person-roles .form-check-label { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+@media (max-width: 767.98px) {
+    .person-head { display: none; }
+    .person-row { grid-template-columns: 1fr 2rem; }
+    .person-row .person-roles { grid-column: 1; }
+}
+
 .cal-images {
     display: flex;
     flex-wrap: wrap;

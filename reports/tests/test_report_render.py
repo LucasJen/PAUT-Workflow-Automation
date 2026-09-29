@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 from docx import Document
 from PIL import Image
 
-from reports.models import Report, ReportImage, ResultsRow, ResultsTable, Setup
+from reports.models import Report, ReportImage, ReportPerson, ResultsRow, ResultsTable, Setup
 from reports.services.report_render import render_report, with_unit
 
 TAG = re.compile(r'\{\{|\}\}|\{%|%\}')
@@ -43,14 +43,15 @@ class RenderTests(TestCase):
             client='ACME Refining', location='Rosemount, Minnesota', work_order='WO123',
             report_date=datetime.date(2026, 9, 3), test_date=datetime.date(2026, 8, 13),
             project_type='Level A HIC', procedure='100-UT-031 Rev. 1\n100-UT-021 Rev 9.0',
-            technician_name='Pat Tech', certification='Ultrasonic Level II',
-            assistant_name='Sam Rope', assistant_certification='Rope Access II',
             examination_scope='Scope paragraph one.\n\nScope paragraph two.',
             executive_summary='Results summary.', equipment_id='15V3',
             equipment_overview='Access by rope.', work_scope='Encoded HydroFORM scans.',
             x_axis_reference='from north', y_axis_reference='from CW1',
             ut_method='HydroFORM 0-degree PAUT\nPAUT Angle Beam',
         )
+        ReportPerson.objects.create(report=self.report, order=0, name='Pat Tech', certification='Ultrasonic Level II', prepared=True, examined=True)
+        ReportPerson.objects.create(report=self.report, order=1, name='Sam Rope', certification='Rope Access II', examined=True)
+        ReportPerson.objects.create(report=self.report, order=2, name='Rev Iewer', reviewed=True)
         Setup.objects.create(report=self.report, order=0, beam_formation='HydroFORM', scope_platform='OmniScan',
                              scope_model='X3 64', x_res='0.039', foc_depth='0.700', freq='7.5',
                              wave_propagation='Longitudinal', material_temp='80', tr_min='0.100', tr_max='1.500"')

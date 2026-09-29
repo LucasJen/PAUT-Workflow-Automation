@@ -26,6 +26,8 @@ def post_data(report=None, setups=(), columns=None, rows=None, **fields):
             data[f'setups-{i}-{k}'] = v
     data.update(management('images', 0))
     data.update(management('drawings', 0))
+    data.update(management('people', 0))
+    data.update(management('comparison', 0))
     if columns is not None:
         data['results_columns'] = json.dumps(columns)
         data['results_rows'] = json.dumps(rows or [])

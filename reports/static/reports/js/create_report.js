@@ -88,7 +88,7 @@ const setups = makeFormset({
     titleSelector: '.setup-block-title',
     titleText: n => `Setup #${n}`,
     removeSelector: '.remove-setup',
-    onChange: n => { document.getElementById('setup-count').textContent = n || ''; },
+    onChange: n => { document.getElementById('setups-count').textContent = n || ''; },
 });
 
 document.getElementById('add-setup').addEventListener('click', () => {
@@ -125,7 +125,7 @@ const drawings = makeFormset({
     titleSelector: '.image-num',
     titleText: n => String(n),
     removeSelector: '.remove-image',
-    onChange: n => { document.getElementById('drawing-count').textContent = n || ''; },
+    onChange: n => { document.getElementById('drawings-count').textContent = n || ''; },
 });
 
 const images = makeFormset({
@@ -136,7 +136,71 @@ const images = makeFormset({
     titleSelector: '.image-num',
     titleText: n => String(n),
     removeSelector: '.remove-image',
-    onChange: n => { document.getElementById('image-count').textContent = n || ''; },
+    onChange: n => { document.getElementById('images-count').textContent = n || ''; },
+});
+
+// ── Personnel ────────────────────────────────────────────────────────────
+
+const personContainer = document.getElementById('person-formset-container');
+
+const people = makeFormset({
+    prefix: 'people',
+    container: personContainer,
+    template: document.getElementById('person-empty-form'),
+    blockSelector: '.person-row',
+    titleSelector: '.no-title',
+    titleText: () => '',
+    removeSelector: '.remove-person',
+    onChange: n => {
+        document.getElementById('personnel-count').textContent = n || '';
+        document.getElementById('person-empty-hint').hidden = n > 0;
+    },
+});
+
+document.getElementById('add-person').addEventListener('click', () => {
+    const row = people.add();
+    row.querySelector('input[name$="-name"]').focus();
+    markDirty();
+});
+
+// Picking a name used on an earlier report fills in their certification (if still blank)
+personContainer.addEventListener('change', e => {
+    if (!e.target.matches('input[name$="-name"]')) return;
+    const known = Array.from(document.querySelectorAll('#known-people option')).find(o => o.value === e.target.value.trim());
+    const cert = e.target.closest('.person-row').querySelector('input[name$="-certification"]');
+    if (known && cert && !cert.value.trim()) cert.value = known.dataset.certification || '';
+});
+
+// ── Data comparison ──────────────────────────────────────────────────────
+
+const comparisonContainer = document.getElementById('comparison-formset-container');
+
+const comparisons = makeFormset({
+    prefix: 'comparison',
+    container: comparisonContainer,
+    template: document.getElementById('comparison-empty-form'),
+    blockSelector: '.image-block',
+    titleSelector: '.image-num',
+    titleText: n => String(n),
+    removeSelector: '.remove-image',
+    onChange: n => { document.getElementById('comparison-count').textContent = n || ''; },
+});
+
+// Offer figure titles already used, so a 2022/2026 pair shares one title exactly
+function refreshComparisonTitles() {
+    const list = document.getElementById('comparison-titles');
+    const titles = new Set(Array.from(comparisonContainer.querySelectorAll('input[name$="-caption"]'))
+        .map(i => i.value.trim()).filter(Boolean));
+    list.innerHTML = '';
+    titles.forEach(t => list.appendChild(new Option(t, t)));
+}
+
+comparisonContainer.addEventListener('input', refreshComparisonTitles);
+refreshComparisonTitles();
+
+document.getElementById('add-comparison').addEventListener('click', () => {
+    comparisons.add();
+    markDirty();
 });
 
 document.getElementById('add-drawing').addEventListener('click', () => {
