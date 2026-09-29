@@ -98,6 +98,7 @@ class ReportForm(StyledFormMixin, ModelForm):
 
 class SetupForm(StyledFormMixin, ModelForm):
     fieldsets_spec = [
+        ('Technique', ['title', 'procedure']),
         ('UT equipment', ['manufacturer', 'scope_platform', 'scope_model', 'scope_serial',
                           'transducer_model', 'transducer_serial', 'probe_diameter']),
         ('Wedge', ['wedge_model', 'wedge_angle']),
@@ -117,6 +118,8 @@ class SetupForm(StyledFormMixin, ModelForm):
         model = Setup
         exclude = ['report', 'order']
         labels = {
+            'title': 'Technique title',
+            'procedure': 'Procedure',
             'foc_depth': 'Focal depth',
             'wave_propagation': 'Wave mode',
             'freq': 'Frequency',
@@ -150,7 +153,10 @@ class SetupForm(StyledFormMixin, ModelForm):
         widgets = {
             'wave_propagation': TextInput(attrs={'list': 'wave_propagation_options'}),
             'gates': Textarea(attrs={'rows': 2}),
+            'title': TextInput(attrs={'placeholder': 'e.g. HydroFORM, Angle Beam, TFM'}),
+            'procedure': TextInput(attrs={'placeholder': 'e.g. 100-UT-031 Rev. 1'}),
         }
+        help_texts = {'title': 'Heads this setup\'s "Equipment Details" section in the report.'}
 
 
 class DrawingForm(StyledFormMixin, ModelForm):

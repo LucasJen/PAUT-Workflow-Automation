@@ -50,6 +50,10 @@ class Setup(models.Model):
     """
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='setups', null=True, blank=True)
 
+    # Technique: heads the report's "Equipment Details: <title>" section
+    title = models.CharField(max_length=100, blank=True)
+    procedure = models.CharField(max_length=200, blank=True)
+
     # UT Equipment Information
     manufacturer = models.CharField(max_length=200, blank=True, default="Evident")
     scope_platform = models.CharField(max_length=200, blank=True)
@@ -116,6 +120,19 @@ class Setup(models.Model):
 
     def __str__(self):
         return f"Setup {self.pk} - {self.report}"
+
+
+class SetupImage(models.Model):
+    """Calibration screenshots shown under a setup's Equipment Details section."""
+    setup = models.ForeignKey(Setup, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='setup_images/')
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'pk']
+
+    def __str__(self):
+        return f"Image {self.pk} for Setup {self.setup_id}"
 
 
 class ReportImage(models.Model):

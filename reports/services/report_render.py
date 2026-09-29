@@ -18,7 +18,7 @@ from docxtpl import DocxTemplate, InlineImage, Listing, RichText
 
 from ..models import ReportImage
 from ..report_types import get_report_type
-from ..results import report_scan_rows
+from ..results import report_results, report_scan_rows
 
 FULL_WIDTH = Inches(7.0)       # drawings, comparisons, scan images
 HALF_WIDTH = Inches(3.45)      # calibration screenshots, two per line
@@ -65,9 +65,10 @@ def _image(tpl, image_field, width):
     return InlineImage(tpl, path, width=width) if os.path.exists(path) else None
 
 
-def _setup_context(setup, number, report):
+def _setup_context(setup, number, report, tpl):
+    images = [_image(tpl, i.image, HALF_WIDTH) for i in setup.images.all()]
     return {
-        'title': setup.beam_formation or setup.transducer_model or f'Setup {number}',
+        'title': setup.title or setup.beam_formation or setup.transducer_model or f'Setup {number}',
         'equipment_type': setup.scope_platform or setup.manufacturer,
         'scope_model': setup.scope_model,
         'scope_serial': setup.scope_serial,
@@ -85,21 +86,28 @@ def _setup_context(setup, number, report):
         'surface_prep': setup.surface_prep,
         'tr_min': with_unit(setup.tr_min, '"'),
         'tr_max': with_unit(setup.tr_max, '"'),
-        'procedure': report.procedure,
-        'images': [],
+        'procedure': setup.procedure or ', '.join(lines(report.procedure)),
+        'images': [i for i in images if i],
     }
 
 
+# Fallback keys for report types without fixed results columns (mapped by position)
+DEFAULT_RESULT_KEYS = ('scan_id', 'orientation', 'x_range', 'y_range', 'avg_thk', 'min_thk', 'comments')
+
+
 def _scans(report):
-    """Results rows. Columns are mapped by position to the HIC results table."""
-    table = getattr(report, 'results_table', None)
-    if table is None:
+    """Results rows keyed by the report type's column keys (r.scan_id, r.min_thk, r.comments, ...)."""
+    columns, rows = report_results(report)
+    if not columns:
         return []
-    keys = ('scan_id', 'orientation', 'x_range', 'y_range', 'avg_thk', 'min_thk', 'comments')
+    keys = [key for key, _ in get_report_type(report.report_type).results_columns] or list(DEFAULT_RESULT_KEYS)
     scans = []
-    for row in table.rows.all():
-        cells = list(row.cells) + [''] * len(keys)
-        scans.append(dict(zip(keys, cells)))
+    for cells in rows:
+        cells = list(cells) + [''] * len(keys)
+        row = dict(zip(keys, cells))
+        for key in DEFAULT_RESULT_KEYS:
+            row.setdefault(key, '')
+        scans.append(row)
 
     # Highlight the thinnest reading in the table
     readings = [float(s['min_thk']) for s in scans if NUMBER.match((s['min_thk'] or '').strip())]
@@ -147,7 +155,11 @@ def _scan_images(report, tpl):
 
 
 def build_context(report, tpl):
-    setups = [_setup_context(s, i + 1, report) for i, s in enumerate(report.setups.order_by('order'))]
+    setup_objects = list(report.setups.order_by('order').prefetch_related('images'))
+    setups = [_setup_context(s, i + 1, report, tpl) for i, s in enumerate(setup_objects)]
+    # Cover "Procedures": each setup's procedure once, in order; else the report's procedure lines
+    procedures = list(dict.fromkeys(s.procedure.strip() for s in setup_objects if s.procedure.strip()))
+    procedures = procedures or lines(report.procedure)
     technician = {'name': report.technician_name, 'certification': report.certification}
     assistant = {'name': report.assistant_name, 'certification': report.assistant_certification}
     people = [p for p in (technician, assistant) if p['name']]
@@ -165,7 +177,7 @@ def build_context(report, tpl):
         'project_number': report.project_number or 'N/A',
         'work_order': report.work_order,
         'project_type': report.project_type,
-        'procedures': lines(report.procedure),
+        'procedures': procedures,
         'prepared_by': people[:1],
         'examined_by': people,
         'reviewed_by': [],

@@ -31,7 +31,7 @@ Rules that avoid broken templates:
 | `document_title`, `document_title_upper` | Report title, and the same in capitals for the cover. |
 | `report_date_long` | e.g. `3 September, 2026` (cover and footer). |
 | `test_dates` | e.g. `8/13/2026`. |
-| `procedures` | List of procedure lines. |
+| `procedures` | Each setup's procedure once, in setup order (falls back to the report's Procedure lines). |
 | `examination_scope`, `executive_summary`, `access`, `work_scope`, `asset_description` | Multi-paragraph text (blank line = new paragraph). |
 | `x_axis_reference`, `y_axis_reference` | Scan direction references. |
 | `prepared_by`, `examined_by`, `reviewed_by` | Lists of people: `p.name`, `p.certification`. |
@@ -44,8 +44,13 @@ Rules that avoid broken templates:
 `s.elements`, `s.cal_material`, `s.material_temp`, `s.cal_block`, `s.surface_prep`,
 `s.tr_min`, `s.tr_max`, `s.procedure`, `s.images` (calibration screenshots).
 
+`s.title` is the setup's Technique title (e.g. "HydroFORM"), falling back to its beam
+formation or probe model; `s.procedure` falls back to the report's Procedure; `s.images` are
+the setup's calibration screenshots at 3.45" wide (two per line).
+
 **Results** — `{%tr for r in scans %}`
 
+Keys follow the report type's `results_columns` (`reports/report_types.py`); for HIC:
 `results_title`, `r.scan_id`, `r.orientation`, `r.x_range`, `r.y_range`, `r.avg_thk`,
 `r.min_thk`, `r.is_min` (true for the thinnest reading, which is highlighted yellow),
 `r.comments`.

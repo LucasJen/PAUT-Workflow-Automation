@@ -32,8 +32,56 @@ def scan_rows(columns, rows):
     return out
 
 
+def _norm(heading):
+    return re.sub(r'[^a-z0-9]', '', (heading or '').lower())
+
+
+def fit_to_columns(columns, rows, headings):
+    """
+    Re-arranges a results table (columns, rows) to the fixed `headings` of a report type.
+    A heading takes the old column with the same name (ignoring case and punctuation), else
+    the next unused old column by position. Old columns left over are appended to the last
+    column's text as 'Heading: value', so no data is lost.
+    """
+    columns = list(columns or [])
+    headings = list(headings)
+    if not headings or columns == headings:
+        return headings or columns, [list(r) for r in rows or []]
+
+    source_for = {}
+    used = set()
+    by_name = {_norm(c): i for i, c in reversed(list(enumerate(columns)))}
+    for ti, heading in enumerate(headings):
+        si = by_name.get(_norm(heading))
+        if si is not None and si not in used:
+            source_for[ti] = si
+            used.add(si)
+    leftovers = [i for i in range(len(columns)) if i not in used]
+    for ti in range(len(headings)):
+        if ti not in source_for and leftovers:
+            source_for[ti] = leftovers.pop(0)
+
+    fitted = []
+    for cells in rows or []:
+        cells = list(cells or [])
+        new = [cells[source_for[ti]] if ti in source_for and source_for[ti] < len(cells) else ''
+               for ti in range(len(headings))]
+        extra = [f'{columns[si]}: {cells[si]}' for si in leftovers if si < len(cells) and (cells[si] or '').strip()]
+        if extra:
+            new[-1] = '\n'.join([new[-1]] + extra) if new[-1] else '\n'.join(extra)
+        fitted.append(new)
+    return headings, fitted
+
+
 def report_scan_rows(report):
+    return scan_rows(*report_results(report))
+
+
+def report_results(report):
+    """(columns, rows) of a report's results table, fitted to its report type's fixed columns."""
+    from .report_types import get_report_type
     table = getattr(report, 'results_table', None) if report is not None and report.pk else None
     if table is None:
-        return []
-    return scan_rows(table.columns, [r.cells for r in table.rows.all()])
+        return [], []
+    headings = get_report_type(report.report_type).results_headings
+    return fit_to_columns(table.columns, [r.cells for r in table.rows.all()], headings)

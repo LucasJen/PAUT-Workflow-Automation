@@ -1,14 +1,17 @@
 """
 Report types.
 
-Each report type picks the Word template used by "Generate" and which editor sections
-and fields are shown. Values in hidden fields are kept, just not displayed, so switching
-type never loses data.
+Each report type picks the Word template used by "Generate", which editor sections and
+fields are shown, and the results-table columns. Values in hidden fields are kept, just not
+displayed, so switching type never loses data.
 
 To add a type, append a ReportType to _TYPES:
-  - template:      a .docx file in word_templates/
-  - sections:      which of SECTIONS the editor shows (defaults to all)
-  - hidden_fields: Report or Setup field names to hide within the shown sections
+  - template:        a .docx file in word_templates/
+  - sections:        which of SECTIONS the editor shows (defaults to all)
+  - hidden_fields:   Report or Setup field names to hide within the shown sections
+  - results_columns: (key, heading) pairs for the results table; the template uses the keys
+                     (r.scan_id, r.comments, ...). The first column is the Scan ID and the
+                     'comments' column feeds the photo summary. Empty = free-form columns.
 No migration is needed; Report.report_type stores the key.
 """
 from dataclasses import dataclass
@@ -35,6 +38,17 @@ REPORT_SECTIONS = (
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)
 
+# Results columns of the HIC reference report (2026-08-PAUT-HIC_LVLA-15V3)
+HIC_RESULTS_COLUMNS = (
+    ('scan_id', 'Scan ID'),
+    ('orientation', 'Scan Orient.'),
+    ('x_range', 'X Axis (Circ.) Start/Stop (In.)'),
+    ('y_range', 'Y Axis (Axial) Start/Stop (In.)'),
+    ('avg_thk', 'Average Thk (in.)'),
+    ('min_thk', 'Min. Thk (in.)'),
+    ('comments', 'Results'),
+)
+
 
 @dataclass(frozen=True)
 class ReportType:
@@ -43,17 +57,24 @@ class ReportType:
     template: str
     sections: tuple = SECTIONS
     hidden_fields: frozenset = frozenset()
+    results_columns: tuple = ()
+
+    @property
+    def results_headings(self):
+        return [heading for _, heading in self.results_columns]
 
     def as_json(self):
         return {
             'label': self.label,
             'sections': list(self.sections),
             'hidden_fields': sorted(self.hidden_fields),
+            'results_columns': [{'key': key, 'heading': heading} for key, heading in self.results_columns],
         }
 
 
 _TYPES = [
-    ReportType('paut_long', 'PAUT long form (HIC)', 'paut_hic_long_form.docx'),
+    ReportType('paut_long', 'PAUT long form (HIC)', 'paut_hic_long_form.docx',
+               results_columns=HIC_RESULTS_COLUMNS),
 ]
 
 REPORT_TYPES = {t.key: t for t in _TYPES}

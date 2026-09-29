@@ -77,8 +77,10 @@ class CreateReportTests(TestCase):
         self.client.post(self.url, post_data(report=report, columns=['X', 'Y'], rows=[['1', '2'], ['3', '4']]))
 
         rt = ResultsTable.objects.get(report=report)
-        self.assertEqual(rt.columns, ['X', 'Y'])
-        self.assertEqual([r.cells for r in rt.rows.all()], [['1', '2'], ['3', '4']])
+        # The HIC report type fixes the columns; unnamed columns are mapped by position
+        from reports.report_types import HIC_RESULTS_COLUMNS
+        self.assertEqual(rt.columns, [heading for _, heading in HIC_RESULTS_COLUMNS])
+        self.assertEqual([r.cells[:2] for r in rt.rows.all()], [['1', '2'], ['3', '4']])
 
     def test_removing_all_columns_deletes_results_table(self):
         report = Report.objects.create()

@@ -10,14 +10,14 @@
                 {% if saved_setups.saved %}
                 <optgroup label="Saved setups">
                     {% for s in saved_setups.saved %}
-                    <option value="{{ s.pk }}">#{{ s.pk }} · {{ s.scope_model|default:"—" }} · {{ s.transducer_model|default:"—" }}</option>
+                    <option value="{{ s.pk }}">#{{ s.pk }}{% if s.title %} · {{ s.title }}{% endif %} · {{ s.scope_model|default:"—" }} · {{ s.transducer_model|default:"—" }}</option>
                     {% endfor %}
                 </optgroup>
                 {% endif %}
                 {% if saved_setups.in_reports %}
                 <optgroup label="From other reports">
                     {% for s in saved_setups.in_reports %}
-                    <option value="{{ s.pk }}">#{{ s.pk }} (report #{{ s.report_id }}) · {{ s.scope_model|default:"—" }} · {{ s.transducer_model|default:"—" }}</option>
+                    <option value="{{ s.pk }}">#{{ s.pk }} (report #{{ s.report_id }}){% if s.title %} · {{ s.title }}{% endif %} · {{ s.scope_model|default:"—" }} · {{ s.transducer_model|default:"—" }}</option>
                     {% endfor %}
                 </optgroup>
                 {% endif %}
@@ -28,10 +28,29 @@
         </div>
     </div>
 
+    {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
+
     {% for title, fields in form.fieldsets %}
     <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
     <div class="field-grid cols-4">
         {% for field in fields %}{{ field.as_field_group }}{% endfor %}
     </div>
     {% endfor %}
+
+    <h3 class="panel-subtitle">Calibration screenshots</h3>
+    <div class="cal-images">
+        {% if form.instance.pk %}
+        {% for image in form.instance.images.all %}
+        <label class="cal-image" title="Tick to remove this screenshot when saving">
+            <img src="{{ image.image.url }}" alt="Calibration screenshot {{ forloop.counter }}">
+            <span class="cal-image-remove"><input type="checkbox" class="form-check-input" name="remove_setup_image" value="{{ image.pk }}"> Remove</span>
+        </label>
+        {% endfor %}
+        {% endif %}
+        <div class="field cal-image-add">
+            <label for="id_{{ form.prefix }}-cal_images">Add screenshots</label>
+            <input type="file" class="form-control" id="id_{{ form.prefix }}-cal_images" name="{{ form.prefix }}-cal_images" accept="image/*" multiple>
+            <div class="form-text">Shown two per line under this setup's Equipment Details table.</div>
+        </div>
+    </div>
 </div>

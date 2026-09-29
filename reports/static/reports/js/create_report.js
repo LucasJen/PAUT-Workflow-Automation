@@ -175,11 +175,27 @@ const resultsEmptyHint = document.getElementById('results-empty-hint');
 
 let columns = [];  // column header strings
 
+// The Results/Comments column holds paragraphs, so it gets a text box that grows as you type
+const LONG_COLUMN = /result|comment/i;
+
+function autoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + 2}px`;
+}
+
 function cellInput(placeholder, value) {
     const td = document.createElement('td');
     td.className = 'result-cell';
-    const input = document.createElement('input');
-    input.type = 'text';
+    const long = LONG_COLUMN.test(placeholder || '');
+    const input = document.createElement(long ? 'textarea' : 'input');
+    if (long) {
+        input.rows = 2;
+        input.addEventListener('input', () => autoGrow(input));
+        requestAnimationFrame(() => autoGrow(input));
+        td.classList.add('result-cell-long');
+    } else {
+        input.type = 'text';
+    }
     input.className = 'result-cell-input';
     input.placeholder = placeholder || '';
     input.value = value || '';
@@ -203,7 +219,7 @@ function renderResultsTable() {
         for (let i = cells.length; i < columns.length; i++) tr.insertBefore(cellInput(columns[i]), actions);
         cells = tr.querySelectorAll('td.result-cell');
         for (let i = columns.length; i < cells.length; i++) cells[i].remove();
-        tr.querySelectorAll('td.result-cell input').forEach((input, ci) => { input.placeholder = columns[ci] || ''; });
+        tr.querySelectorAll('.result-cell-input').forEach((input, ci) => { input.placeholder = columns[ci] || ''; });
     });
 
     resultsEmptyHint.hidden = columns.length > 0;
@@ -220,7 +236,7 @@ function resultsScanRows() {
     let commentIndex = headers.findIndex((h, i) => i > 0 && /result|comment/i.test(h));
     if (commentIndex < 0) commentIndex = headers.length - 1;
     return Array.from(resultsTbody.querySelectorAll('tr')).map(tr => {
-        const cells = Array.from(tr.querySelectorAll('td.result-cell input')).map(i => i.value);
+        const cells = Array.from(tr.querySelectorAll('.result-cell-input')).map(i => i.value);
         return { id: (cells[0] || '').trim(), comments: commentIndex > 0 ? (cells[commentIndex] || '') : '' };
     }).filter(row => row.id);
 }
@@ -275,7 +291,7 @@ function addResultsRow(values) {
     refreshScanSelects();
 }
 
-function addResultsColumn(header) {
+function addResultsColumn(header, locked = false) {
     columns.push(header || '');
 
     const wrap = document.createElement('div');
@@ -307,6 +323,10 @@ function addResultsColumn(header) {
         markDirty();
     });
 
+    if (locked) {
+        input.readOnly = true;  // fixed by the report type
+        remove.hidden = true;
+    }
     wrap.append(input, remove);
     resultsColHeaders.appendChild(wrap);
     renderResultsTable();
@@ -327,10 +347,25 @@ document.getElementById('add-results-row').addEventListener('click', () => {
     markDirty();
 });
 
+// Report types with fixed results columns (e.g. HIC) lock the headings; the server has
+// already fitted saved tables to them (reports/results.py::fit_to_columns)
+function fixedResultsHeadings() {
+    const types = readJson('report-types', {});
+    const select = document.getElementById('id_report_type');
+    const type = types[select && select.value] || Object.values(types)[0];
+    const cols = type && type.results_columns;
+    return cols && cols.length ? cols.map(c => c.heading) : null;
+}
+
 (function loadResults() {
     const data = readJson('results-initial-data', {});
-    (data.columns || []).forEach(col => addResultsColumn(col));
+    const fixed = fixedResultsHeadings();
+    (fixed || data.columns || []).forEach(col => addResultsColumn(col, !!fixed));
     (data.rows || []).forEach(row => addResultsRow(row));
+    if (fixed) {
+        document.getElementById('add-results-col').hidden = true;
+        resultsColHeaders.hidden = true;  // the table header already shows the fixed headings
+    }
     renderResultsTable();
 })();
 
@@ -407,7 +442,7 @@ window.addEventListener('beforeunload', e => {
 reportForm.addEventListener('submit', () => {
     const cols = Array.from(resultsColHeaders.querySelectorAll('.col-header-input')).map(i => i.value);
     const rows = Array.from(resultsTbody.querySelectorAll('tr')).map(tr =>
-        Array.from(tr.querySelectorAll('td.result-cell input')).map(i => i.value));
+        Array.from(tr.querySelectorAll('.result-cell-input')).map(i => i.value));
     document.getElementById('results-columns-input').value = JSON.stringify(cols);
     document.getElementById('results-rows-input').value = JSON.stringify(rows);
     dirty = false;

@@ -7,8 +7,11 @@ from django.db import transaction
 from django.db.models import Count
 from ..services.report_render import render_report
 from ..forms import ReportForm, SetupFormSet, drawing_formset, scan_image_formset
-from ..models import Report, ReportImage, Setup, ResultsTable, ResultsRow
-from ..results import report_scan_rows, scan_rows
+from ..models import Report, ReportImage, Setup, SetupImage, ResultsTable, ResultsRow
+from ..report_types import get_report_type
+from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
+from django.core.exceptions import ValidationError
+from django.forms import ImageField
 from ..report_types import REPORT_TYPES
 import io
 import json
@@ -83,6 +86,37 @@ def _save_results_table(report, columns, rows):
         )
 
 
+def _setup_image_uploads(request, setup_formset):
+    """
+    Calibration screenshots uploaded per setup block (file input '<prefix>-cal_images').
+    Returns {form: [validated files]}; adds an error to the setup form for non-image files.
+    """
+    uploads, validator = {}, ImageField()
+    for f in setup_formset.forms:
+        files = request.FILES.getlist(f.add_prefix('cal_images'))
+        valid = []
+        for file in files:
+            try:
+                valid.append(validator.clean(file))
+            except ValidationError:
+                f.add_error(None, f'"{file.name}" is not an image, so it was not added as a calibration screenshot.')
+        if valid:
+            uploads[f] = valid
+    return uploads
+
+
+def _save_setup_images(request, report, setup_formset, uploads):
+    remove = [pk for pk in request.POST.getlist('remove_setup_image') if pk.isdigit()]
+    SetupImage.objects.filter(pk__in=remove, setup__report=report).delete()
+    for f, files in uploads.items():
+        setup = f.instance
+        if setup.pk is None or f in setup_formset.deleted_forms:
+            continue
+        start = setup.images.count()
+        for i, file in enumerate(files):
+            SetupImage.objects.create(setup=setup, image=file, order=start + i)
+
+
 def _get_report(pk):
     """The Report with this pk (from a query string or form field), or None."""
     return Report.objects.filter(pk=pk).first() if pk and str(pk).isdigit() else None
@@ -105,6 +139,9 @@ def create_report(request):
             results_ok = False
             messages.error(request, 'The results table data could not be read. Please re-enter it and try again.')
         if results:
+            # Fixed-column report types always store their own headings in their own order
+            headings = get_report_type(request.POST.get('report_type')).results_headings
+            results = fit_to_columns(*results, headings) if results[0] else results
             results_data = {'columns': results[0], 'rows': results[1]}
         scan_ids = [scan_id for scan_id, _ in (scan_rows(*results) if results else report_scan_rows(instance))]
 
@@ -114,10 +151,16 @@ def create_report(request):
         image_formset = scan_image_formset(request.POST, request.FILES, instance=form.instance, scan_ids=scan_ids)
         formsets = (setup_formset, drawings, image_formset)
 
-        if form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok:
+        valid = form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
+        if valid:
+            # Checked after the formsets so each file's error can be shown on its setup block
+            setup_uploads = _setup_image_uploads(request, setup_formset)
+            valid = not any(f.errors for f in setup_formset.forms)
+        if valid:
             with transaction.atomic():
                 report = form.save()
                 _save_ordered_formset(setup_formset)
+                _save_setup_images(request, report, setup_formset, setup_uploads)
                 _save_ordered_formset(drawings, kind=ReportImage.DRAWING)
                 _save_ordered_formset(image_formset, kind=ReportImage.SCAN)
                 if results is not None:
@@ -143,11 +186,8 @@ def create_report(request):
         scan_ids = [scan_id for scan_id, _ in report_scan_rows(loaded_report)]
         image_formset = scan_image_formset(instance=loaded_report, scan_ids=scan_ids)
         if loaded_report is not None and hasattr(loaded_report, 'results_table'):
-            rt = loaded_report.results_table
-            results_data = {
-                'columns': rt.columns,
-                'rows': [r.cells for r in rt.rows.all()],
-            }
+            columns, rows = report_results(loaded_report)
+            results_data = {'columns': columns, 'rows': rows}
 
     return render(request, 'reports/create_report.html', {
         'form': form,
