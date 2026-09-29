@@ -73,6 +73,13 @@
         updateBulkBar();
     }
 
+    // Clear: untick every row (including rows hidden by the search) and restart range selection
+    document.getElementById('clear-selection').addEventListener('click', () => {
+        rows().forEach(r => setChecked(r, false));
+        anchor = null;
+        updateBulkBar();
+    });
+
     // Stop the browser from highlighting text while shift-clicking rows
     tbody.addEventListener('mousedown', e => {
         if (e.shiftKey && e.target.closest('tr')) e.preventDefault();

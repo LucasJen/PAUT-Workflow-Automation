@@ -22,7 +22,7 @@ class ListPageTests(TestCase):
         header_start = html.index('id="list-header"')
         header = html[header_start:html.index('id="list-form"')]
         self.assertIn('class="page-header list-header"', html[header_start - 60:header_start + 20])
-        for part in ('id="bulk-bar"', 'name="delete"', 'name="duplicate"', 'id="list-search"'):
+        for part in ('id="bulk-bar"', 'id="clear-selection"', 'name="delete"', 'name="duplicate"', 'id="list-search"'):
             self.assertIn(part, header)
 
     def test_empty_list_shows_empty_state(self):
