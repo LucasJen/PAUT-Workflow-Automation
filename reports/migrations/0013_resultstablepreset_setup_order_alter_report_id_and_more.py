@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ResultsTablePreset',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(max_length=100, unique=True)),
                 ('columns', models.JSONField(default=list)),
             ],
@@ -24,20 +24,10 @@ class Migration(migrations.Migration):
             name='order',
             field=models.IntegerField(default=0),
         ),
-        migrations.AlterField(
-            model_name='report',
-            name='id',
-            field=models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
-        ),
-        migrations.AlterField(
-            model_name='setup',
-            name='id',
-            field=models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
-        ),
         migrations.CreateModel(
             name='ReportImage',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('image', models.ImageField(upload_to='report_images/')),
                 ('caption', models.CharField(blank=True, max_length=200)),
                 ('order', models.IntegerField(default=0)),
@@ -50,7 +40,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ResultsTable',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('columns', models.JSONField(default=list)),
                 ('report', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='results_table', to='reports.report')),
             ],
@@ -58,7 +48,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ResultsRow',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('cells', models.JSONField(default=list)),
                 ('order', models.IntegerField(default=0)),
                 ('table', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='rows', to='reports.resultstable')),
