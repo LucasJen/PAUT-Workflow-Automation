@@ -257,7 +257,8 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         }
         help_texts = {'title': 'Heads this setup\'s "Equipment Details" section. The Introduction\'s technique '
                                'bullet uses the Text library description with this name.',
-                      'index_offset': 'Wedge front to the weld centre line.'}
+                      'index_offset': 'Wedge front to the weld centre line.',
+                      'weld_cap_width': 'Leave blank to have scan plans calculate it from the bevel.'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

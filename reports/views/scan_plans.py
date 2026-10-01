@@ -61,7 +61,7 @@ def _setup_fill_values():
             'bevel_angle': _first_number(setup.weld_bevel_angle),
             'root_face': length(setup.weld_root_face),
             'root_gap': length(setup.weld_root_gap),
-            'cap_width': length(setup.weld_cap_width),
+            'cap_width': length(setup.weld_cap_width) or '',  # blank: calculated from the bevel
             'angle_start': angles[0] if angles else None,
             'angle_stop': angles[-1] if angles else None,
             'angle_step': _first_number(setup.angle_step),

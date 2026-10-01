@@ -99,7 +99,8 @@ class ScanPlanPageTests(TestCase):
         resp = self.client.get(reverse('new-scan-plan'))
         values = resp.context['setup_fill_values']
         self.assertEqual(list(values.values())[0]['fields'],
-                         {'thickness': 0.28, 'angle_start': 42.0, 'angle_stop': 73.0, 'angle_step': 1.0})
+                         {'thickness': 0.28, 'cap_width': '', 'angle_start': 42.0, 'angle_stop': 73.0,
+                          'angle_step': 1.0})
         # the wedge angle comes only from the wedge selector
 
     def test_duplicate_and_delete_from_list(self):
@@ -370,9 +371,9 @@ class UnitsTests(TestCase):
         imperial, metric = values['imperial'], values['metric']
         self.assertEqual((imperial['units'], metric['units']), ('imperial', 'metric'))
         self.assertEqual(imperial['weld_bevel_angle'], '37.5')
-        self.assertEqual((imperial['weld_root_face'], imperial['weld_root_gap'], imperial['weld_cap_width']),
-                         ('0.062', '0.125', '0.500'))
-        self.assertEqual((metric['weld_root_gap'], metric['weld_cap_width']), ('3.17', '12.70'))
+        self.assertEqual((imperial['weld_root_face'], imperial['weld_root_gap']), ('0.062', '0.125'))
+        self.assertEqual(metric['weld_root_gap'], '3.17')
+        self.assertNotIn('weld_cap_width', imperial)  # OmniScan's default cap; the scan plan calculates it
         self.assertEqual(imperial['specimen_thickness'], '0.300')
 
     def test_fill_from_a_metric_setup_is_in_inches(self):
@@ -394,6 +395,11 @@ class UnitsTests(TestCase):
         self.assertEqual(plan.thickness_text, '7.11 mm')
         form = self.client.get(reverse('edit-scan-plan', args=[plan.pk])).context['form']
         self.assertEqual((form['thickness'].initial, form['index_offset'].initial), (7.11, 12.19))
+
+    def test_fill_leaves_cap_width_blank_to_be_calculated(self):
+        setup = Setup.objects.create(specimen_thickness='0.280', weld_bevel_angle='37.5')
+        fill = self.client.get(reverse('new-scan-plan')).context['setup_fill_values'][setup.pk]['fields']
+        self.assertEqual(fill['cap_width'], '')
 
     def test_scan_plan_without_units_stays_imperial(self):
         data = {k: v for k, v in PLAN_FIELDS.items() if k != 'units'}

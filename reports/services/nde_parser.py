@@ -338,8 +338,9 @@ class _GroupContext:
     def _weld(self, system):
         """
         The specimen's weld definition (OmniScan V weld): bevel angle of the fill, land height as
-        the root face, twice the weld offset (centre line to the bevel at the root) as the root gap,
-        and the upper cap width.
+        the root face, and twice the weld offset (centre line to the bevel at the root) as the root
+        gap. The cap width isn't taken: OmniScan's default (about 43 mm) is rarely changed, so the
+        scan plan calculates it from the bevel instead.
         """
         weld = self.specimen.get('weldGeometry') or {}
         fills = weld.get('fills') or [{}]
@@ -348,7 +349,6 @@ class _GroupContext:
             'weld_bevel_angle': _plain(fills[0].get('angle'), 1),
             'weld_root_face': _dist(_get(weld, 'land', 'height'), system, 3, 2),
             'weld_root_gap': _dist(2 * offset, system, 3, 2) if offset is not None else None,
-            'weld_cap_width': _dist(_get(weld, 'upperCap', 'width'), system, 3, 2),
         }
         return {k: v for k, v in values.items() if v is not None}
 
