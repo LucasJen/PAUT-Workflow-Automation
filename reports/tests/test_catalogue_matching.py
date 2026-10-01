@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from equipment.compat import BEAMTOOL_SOURCE
-from equipment.matching import base_name, match_probe, match_wedge, normalize
+from equipment.matching import base_name, family_name, match_probe, match_wedge, normalize
 from equipment.models import ProbeModel, WedgeModel
 from reports.forms import SetupForm
 from reports.models import Setup
@@ -67,20 +67,34 @@ class MatchingTests(TestCase):
         self.assertEqual((match.item, match.how), (self.normal, 'by geometry'))
 
     def test_differences_are_listed(self):
-        match = match_wedge({**FILE_WEDGE, 'primary_offset': -26.0, 'velocity': 2337.0}, self.probe)
+        match = match_wedge({**FILE_WEDGE, 'primary_offset': -25.0, 'velocity': 2337.0}, self.probe)
         self.assertEqual(match.item, self.normal)
-        self.assertEqual(match.differences, [('primary offset', '-27.19 mm', '-26 mm')])
+        self.assertEqual(match.differences, [('primary offset', '-27.19 mm', '-25 mm')])
 
-    def test_suggests_the_wedge_whose_geometry_matches(self):
-        """Named SA1-N60S 10L32 in the file, but its geometry is the short -IHC-SA wedge."""
+    def test_ihc_and_sa_designations_are_the_same_name(self):
+        """Named SA1-N60S 10L32 in the file; its geometry is the -IHC-SA entry's, which is picked."""
         short = WedgeModel.objects.create(model='SA1-N60S-IHC-SA 10L32', manufacturer='Evident', probe_series='A1',
                                           probe_fit='10L32', wedge_angle=38.52, velocity=2330.0,
                                           primary_offset=-21.19, first_element_height=8.94, source=BEAMTOOL_SOURCE)
-        match = match_wedge({**FILE_WEDGE, 'wedge_angle': 38.6, 'primary_offset': -21.361,
-                             'first_element_height': 8.509}, self.probe)
-        self.assertEqual((match.item, match.how), (self.normal, 'by name'))   # the catalogue entry is kept
+        self.assertEqual(family_name('SA1-N60S-IHC-SA 10L32'), family_name('SA1-N60S 10L32'))
+        self.assertNotEqual(family_name('SA1-N60S-COD8 10L32'), family_name('SA1-N60S 10L32'))
+        match = match_wedge({**FILE_WEDGE, 'wedge_angle': 38.9, 'primary_offset': -21.361,
+                             'first_element_height': 8.382}, self.probe)
+        self.assertEqual((match.item, match.how, match.differences),
+                         (short, 'by name (IHC / SA designation ignored)', []))
+        # With the library geometry the exact name still wins
+        self.assertEqual(match_wedge(FILE_WEDGE, self.probe).item, self.normal)
+
+    def test_suggests_the_wedge_whose_geometry_matches(self):
+        """A differently named wedge whose geometry fits the file is offered."""
+        other = WedgeModel.objects.create(model='SA1-N55S 10L32', manufacturer='Evident', probe_series='A1',
+                                          probe_fit='10L32', wedge_angle=36.1, velocity=2330.0,
+                                          primary_offset=-20.0, first_element_height=7.0, source=BEAMTOOL_SOURCE)
+        match = match_wedge({**FILE_WEDGE, 'wedge_angle': 36.0, 'primary_offset': -20.2,
+                             'first_element_height': 7.1}, self.probe)
+        self.assertEqual((match.item, match.how), (self.normal, 'by name'))   # the named entry is kept
         self.assertTrue(match.differences)
-        self.assertEqual(match.suggestion, short)
+        self.assertEqual(match.suggestion, other)
 
     def test_no_wedge_match(self):
         self.assertIsNone(match_wedge({'model': 'HydroFORM', 'wedge_angle': 0.0, 'velocity': 1480.0,

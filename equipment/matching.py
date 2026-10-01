@@ -2,10 +2,11 @@
 Finds the catalogue probe and wedge for the ones an instrument file (OmniScan .nde) used.
 
 The file gives the probe and wedge names and, for the wedge, its geometry. Names are compared
-ignoring case, spaces, dashes and underscores; when a wedge name doesn't match exactly, its base
-name (SA1-N60S) and then its geometry pick among the wedges that fit the probe. A wedge that
-matches by name but whose geometry differs from the file is still linked, with the differences
-listed so the user can decide.
+ignoring case, spaces, dashes and underscores, and ignoring the IHC / IH / IC (irrigation and
+carbide wear pads) and SA designations, which don't change the wedge geometry; among same-named
+variants the file's geometry picks one. When the name doesn't match, the base name (SA1-N60S) and
+then the geometry pick among the wedges that fit the probe. A wedge that matches by name but whose
+geometry differs from the file is still linked, with the differences listed so the user can decide.
 """
 import re
 from dataclasses import dataclass, field
@@ -15,11 +16,13 @@ from .models import ProbeModel, WedgeModel
 
 # Geometry closer than this counts as the same wedge
 TOLERANCES = {
-    'wedge_angle': 0.3,             # degrees
+    'wedge_angle': 0.5,             # degrees
     'velocity': 20.0,               # m/s
-    'primary_offset': 0.5,          # mm
-    'first_element_height': 0.5,    # mm
+    'primary_offset': 0.75,         # mm
+    'first_element_height': 0.75,   # mm
 }
+# Wedge name designations that don't change its geometry: irrigation / carbide pads and SA
+IGNORED_DESIGNATIONS = {'ihc', 'ih', 'ic', 'sa'}
 GEOMETRY_LABELS = {
     'wedge_angle': ('wedge angle', '°'),
     'velocity': ('wedge velocity', ' m/s'),
@@ -44,6 +47,17 @@ def normalize(name):
 def base_name(name):
     """'SA1-N60S' for 'SA1-N60S 10L32' or 'SA1-N60S_10L32'."""
     return re.split(r'[\s_]', (name or '').strip(), maxsplit=1)[0]
+
+
+def family_name(name):
+    """
+    The name without the designations that don't change the geometry:
+    'SA1-N60S-IHC-SA 10L32' and 'SA1-N60S 10L32' are both 'sa1n60s10l32'.
+    """
+    parts = re.split(r'([\s_])', (name or '').strip(), maxsplit=1)
+    tokens = parts[0].split('-')
+    kept = tokens[:2] + [t for t in tokens[2:] if t.lower() not in IGNORED_DESIGNATIONS]
+    return normalize('-'.join(kept) + ''.join(parts[1:]))
 
 
 def match_probe(file_probe):
@@ -105,17 +119,23 @@ def match_wedge(file_wedge, probe=None):
         suggestion = _closest_geometry(file_wedge, [w for w in candidates if w != wedge]) if differences else None
         return Match(wedge, how, differences, suggestion)
 
-    # By name, unless that entry has no geometry and a variant below does (OmniScan may call the
-    # wedge just 'SA1-N60S'; the library has 'SA1-N60S 10L32', 'SA1-N60S 10L32R', ...)
+    # By name, IHC / -SA variants included: the one whose geometry is closest to the file's (the
+    # exact name on a tie). Skipped for an entry without geometry when the base-name variants
+    # below have it (OmniScan may call the wedge just 'SA1-N60S'; the library has 'SA1-N60S 10L32'...)
     name = normalize(file_wedge.get('model'))
+    family = family_name(file_wedge.get('model'))
     by_name = None
-    if name:
-        for wedge in candidates + [w for w in wedges if w not in candidates]:
-            if normalize(wedge.model) == name:
-                by_name = wedge
-                break
+    if family:
+        pool = candidates + [w for w in wedges if w not in candidates]
+        same = [w for w in pool if family_name(w.model) == family]
+        if same:
+            def rank(w):
+                distance = _distance(w, file_wedge)
+                return (distance is None, distance or 0, normalize(w.model) != name, len(w.model))
+            by_name = min(same, key=rank)
     if by_name is not None and (by_name.has_geometry or not _has_file_geometry(file_wedge)):
-        return found(by_name, 'by name')
+        how = 'by name' if normalize(by_name.model) == name else 'by name (IHC / SA designation ignored)'
+        return found(by_name, how)
 
     # Same base name (SA1-N60S), the variant with the closest geometry
     base = normalize(base_name(file_wedge.get('model')))
