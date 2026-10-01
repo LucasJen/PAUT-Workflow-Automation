@@ -9,25 +9,29 @@
 {% endblock %}
 
 {% block columns %}
-<th class="sortable">ID<span class="sort-indicator"></span></th>
+<th class="sortable">NPS / Sch<span class="sort-indicator"></span></th>
+<th class="sortable">Cal Std. #<span class="sort-indicator"></span></th>
 <th class="sortable">Block type<span class="sort-indicator"></span></th>
-<th class="sortable">Serial number<span class="sort-indicator"></span></th>
 <th class="sortable">Material<span class="sort-indicator"></span></th>
-<th class="sortable">Notes<span class="sort-indicator"></span></th>
+<th class="sortable">Test diameter<span class="sort-indicator"></span></th>
+<th class="sortable">Test thickness<span class="sort-indicator"></span></th>
+<th class="sortable">Bevel<span class="sort-indicator"></span></th>
 {% endblock %}
 
 {% block rows %}
 {% for block in items %}
 <tr data-href="{% url 'edit-sensitivity-block' block.pk %}">
     {% include 'reports/components/row_check.html' with pk=block.pk %}
-    <td class="mono text-muted-cell">{{ block.pk }}</td>
-    <td class="fw-medium">{{ block.block_type }}</td>
+    <td class="fw-medium">{{ block.pipe_size|default:"(no pipe size)" }}</td>
     <td class="mono">{{ block.serial_number }}</td>
+    <td>{{ block.block_type }}</td>
     <td>{{ block.material }}</td>
-    <td class="text-muted-cell">{{ block.notes|truncatechars:80 }}</td>
+    <td class="mono">{{ block.test_diameter }}</td>
+    <td class="mono">{{ block.test_thickness }}</td>
+    <td class="text-muted-cell">{{ block.bevel_geometry }}</td>
 </tr>
 {% endfor %}
 {% endblock %}
 
 {% block empty_icon %}box{% endblock %}
-{% block empty_text %}No sensitivity blocks yet.{% endblock %}
+{% block empty_text %}No sensitivity blocks yet. Each entry is a pipe size with its calibration standard, like the weld form's Cal Block Table.{% endblock %}

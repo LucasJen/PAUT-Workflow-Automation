@@ -1,0 +1,9 @@
+{% extends 'reports/components/edit_page.html' %}
+
+{% block title %}{{ item.model|default:"New probe model" }} · Probe catalogue · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'probe-model-list' %}{% endblock %}
+{% block back_label %}Probe catalogue{% endblock %}
+{% block page_title %}{{ item.model|default:"New probe model" }}{% endblock %}
+{% block page_subtitle %}Manufacturer specifications for this probe model. Probes in your inventory point to it, and scan plans use its pitch and size.{% endblock %}
+{% block item_noun %}probe model{% endblock %}
+{% block grid_cols %}cols-4{% endblock %}

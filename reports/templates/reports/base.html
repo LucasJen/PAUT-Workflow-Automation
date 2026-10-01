@@ -71,6 +71,12 @@
         <a class="nav-item-link {% nav_active 'probe-list' 'edit-probe' 'new-probe' %}" href="{% url 'probe-list' %}" title="Probes">
             <i class="bi bi-soundwave"></i><span class="nav-label">Probes</span>
         </a>
+        <a class="nav-item-link {% nav_active 'probe-model-list' 'edit-probe-model' 'new-probe-model' %}" href="{% url 'probe-model-list' %}" title="Probe catalogue">
+            <i class="bi bi-journal-text"></i><span class="nav-label">Probe catalogue</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'wedge-model-list' 'edit-wedge-model' 'new-wedge-model' %}" href="{% url 'wedge-model-list' %}" title="Wedge catalogue">
+            <i class="bi bi-triangle"></i><span class="nav-label">Wedge catalogue</span>
+        </a>
         <a class="nav-item-link {% nav_active 'cal-block-list' 'edit-cal-block' 'new-cal-block' %}" href="{% url 'cal-block-list' %}" title="Calibration blocks">
             <i class="bi bi-bricks"></i><span class="nav-label">Calibration blocks</span>
         </a>

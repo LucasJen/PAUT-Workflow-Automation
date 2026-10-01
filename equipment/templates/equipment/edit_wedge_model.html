@@ -1,0 +1,9 @@
+{% extends 'reports/components/edit_page.html' %}
+
+{% block title %}{{ item.model|default:"New wedge model" }} · Wedge catalogue · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'wedge-model-list' %}{% endblock %}
+{% block back_label %}Wedge catalogue{% endblock %}
+{% block page_title %}{{ item.model|default:"New wedge model" }}{% endblock %}
+{% block page_subtitle %}The scan plan places each beam's exit point from the geometry section. To fill it exactly, use Import from file on the Wedge catalogue with an OmniScan .nde file that used this wedge, or type the values from your beam-modelling tool.{% endblock %}
+{% block item_noun %}wedge model{% endblock %}
+{% block grid_cols %}cols-4{% endblock %}

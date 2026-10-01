@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import catalogue_views, views
 
 urlpatterns = [
     path('scopes/', views.scope_list, name='scope-list'),
@@ -17,6 +17,16 @@ urlpatterns = [
     path('sensitivity-blocks/', views.sensitivity_block_list, name='sensitivity-block-list'),
     path('sensitivity-blocks/new/', views.new_sensitivity_block, name='new-sensitivity-block'),
     path('sensitivity-block/<int:pk>/edit/', views.edit_sensitivity_block, name='edit-sensitivity-block'),
+
+    path('probe-catalogue/', catalogue_views.probe_model_list, name='probe-model-list'),
+    path('probe-catalogue/new/', catalogue_views.edit_probe_model, name='new-probe-model'),
+    path('probe-model/<int:pk>/edit/', catalogue_views.edit_probe_model, name='edit-probe-model'),
+
+    path('wedge-catalogue/', catalogue_views.wedge_model_list, name='wedge-model-list'),
+    path('wedge-catalogue/new/', catalogue_views.edit_wedge_model, name='new-wedge-model'),
+    path('wedge-model/<int:pk>/edit/', catalogue_views.edit_wedge_model, name='edit-wedge-model'),
+
+    path('catalogue/import/', catalogue_views.import_catalogue, name='import-catalogue'),
 
     path('encoders/', views.encoder_list, name='encoder-list'),
     path('encoders/new/', views.new_encoder, name='new-encoder'),

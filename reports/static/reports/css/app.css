@@ -1132,3 +1132,6 @@ textarea.result-cell-input {
 }
 
 .scan-plan-status { margin: 0; font-size: 0.8125rem; color: var(--text-3); }
+
+/* Catalogue import: a file button that sits in the page header actions */
+.catalogue-import { display: contents; }

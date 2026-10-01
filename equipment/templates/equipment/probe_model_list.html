@@ -1,0 +1,40 @@
+{% extends 'reports/components/list_page.html' %}
+
+{% block title %}Probe catalogue · PAUT Report Automation{% endblock %}
+{% block page_title %}Probe catalogue{% endblock %}
+{% block item_noun %}probe model{% endblock %}
+
+{% block new_button %}
+{% include 'equipment/_catalogue_import.html' with next='probe-model-list' %}
+<a href="{% url 'new-probe-model' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New probe model</a>
+{% endblock %}
+
+{% block columns %}
+<th class="sortable">Model<span class="sort-indicator"></span></th>
+<th class="sortable">Series<span class="sort-indicator"></span></th>
+<th class="sortable">Freq. (MHz)<span class="sort-indicator"></span></th>
+<th class="sortable">Elements<span class="sort-indicator"></span></th>
+<th class="sortable">Pitch (mm)<span class="sort-indicator"></span></th>
+<th class="sortable">Elevation (mm)<span class="sort-indicator"></span></th>
+<th class="sortable">L × W × H (mm)<span class="sort-indicator"></span></th>
+<th class="sortable">In inventory<span class="sort-indicator"></span></th>
+{% endblock %}
+
+{% block rows %}
+{% for item in items %}
+<tr data-href="{% url 'edit-probe-model' item.pk %}">
+    {% include 'reports/components/row_check.html' with pk=item.pk %}
+    <td class="fw-medium">{{ item.model }}</td>
+    <td>{{ item.series }}</td>
+    <td class="mono">{{ item.frequency|default_if_none:"" }}</td>
+    <td class="mono">{{ item.elements|default_if_none:"" }}</td>
+    <td class="mono">{{ item.pitch|default_if_none:"" }}</td>
+    <td class="mono">{{ item.elevation|default_if_none:"" }}</td>
+    <td class="mono">{% if item.length %}{{ item.length|floatformat }} × {{ item.width|floatformat }} × {{ item.height|floatformat }}{% endif %}</td>
+    <td class="text-muted-cell">{{ item.probes.count }}</td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block empty_icon %}soundwave{% endblock %}
+{% block empty_text %}No probe models yet.{% endblock %}
