@@ -71,6 +71,17 @@ class MatchingTests(TestCase):
         self.assertEqual(match.item, self.normal)
         self.assertEqual(match.differences, [('primary offset', '-27.19 mm', '-26 mm')])
 
+    def test_suggests_the_wedge_whose_geometry_matches(self):
+        """Named SA1-N60S 10L32 in the file, but its geometry is the short -IHC-SA wedge."""
+        short = WedgeModel.objects.create(model='SA1-N60S-IHC-SA 10L32', manufacturer='Evident', probe_series='A1',
+                                          probe_fit='10L32', wedge_angle=38.52, velocity=2330.0,
+                                          primary_offset=-21.19, first_element_height=8.94, source=BEAMTOOL_SOURCE)
+        match = match_wedge({**FILE_WEDGE, 'wedge_angle': 38.6, 'primary_offset': -21.361,
+                             'first_element_height': 8.509}, self.probe)
+        self.assertEqual((match.item, match.how), (self.normal, 'by name'))   # the catalogue entry is kept
+        self.assertTrue(match.differences)
+        self.assertEqual(match.suggestion, short)
+
     def test_no_wedge_match(self):
         self.assertIsNone(match_wedge({'model': 'HydroFORM', 'wedge_angle': 0.0, 'velocity': 1480.0,
                                        'primary_offset': -71.0, 'first_element_height': 13.0}, self.probe).item)
@@ -160,3 +171,23 @@ class SetupLinkTests(TestCase):
         choices = [label for _, label in SetupForm(instance=setup).fields['catalogue_wedge'].widget.choices]
         self.assertIn('SA1-N60S 10L32', choices)
         self.assertNotIn('SA1-N60S 5L16', choices)
+
+
+class LinkSetupsCommandTests(TestCase):
+    def test_links_by_name_and_skips_angle_only_geometry(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+        wedge = library_wedge('SA1-N60S 10L32', -27.19, 5.15)
+        library_wedge('SA1-0L 10L32', -19.89, 20.0)
+        named = Setup.objects.create(transducer_model='10L32-A1', wedge_model='SA1-N60S 10L32', wedge_angle='38.9',
+                                     active_elements='1–27')
+        hydroform = Setup.objects.create(transducer_model='7.5L64-I4', wedge_model='HydroFORM', wedge_angle='0')
+        out = StringIO()
+        call_command('link_setup_catalogue', stdout=out)
+        named.refresh_from_db()
+        hydroform.refresh_from_db()
+        self.assertEqual((named.catalogue_probe.model, named.catalogue_wedge), ('10L32-A1', wedge))
+        self.assertEqual((named.first_element, named.aperture_elements), (1, 27))
+        self.assertIsNone(hydroform.catalogue_wedge)  # a 0° angle alone must not pick SA1-0L
+        self.assertIn('No catalogue match', out.getvalue())

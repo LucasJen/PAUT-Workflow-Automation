@@ -34,6 +34,7 @@ class Match:
     item: object = None             # ProbeModel / WedgeModel, or None
     how: str = ''                   # e.g. 'by name', 'closest geometry among SA1-N60S variants'
     differences: list = field(default_factory=list)   # [(label, catalogue text, file text)]
+    suggestion: object = None       # another catalogue wedge whose geometry does match the file
 
 
 def normalize(name):
@@ -100,7 +101,9 @@ def match_wedge(file_wedge, probe=None):
     candidates = wedges_for_probe(probe, wedges) if probe is not None else wedges
 
     def found(wedge, how):
-        return Match(wedge, how, geometry_differences(wedge, file_wedge))
+        differences = geometry_differences(wedge, file_wedge)
+        suggestion = _closest_geometry(file_wedge, [w for w in candidates if w != wedge]) if differences else None
+        return Match(wedge, how, differences, suggestion)
 
     # By name, unless that entry has no geometry and a variant below does (OmniScan may call the
     # wedge just 'SA1-N60S'; the library has 'SA1-N60S 10L32', 'SA1-N60S 10L32R', ...)
@@ -118,7 +121,9 @@ def match_wedge(file_wedge, probe=None):
     base = normalize(base_name(file_wedge.get('model')))
     same_base = [w for w in candidates if base and normalize(base_name(w.model)) == base and w.has_geometry]
     if same_base:
-        ranked = sorted(same_base, key=lambda w: (_distance(w, file_wedge) is None, _distance(w, file_wedge) or 0))
+        # Closest geometry; on a tie (e.g. only the wedge angle known) the plain variant, not R / -IHC
+        ranked = sorted(same_base, key=lambda w: (_distance(w, file_wedge) is None, _distance(w, file_wedge) or 0,
+                                                  len(w.model), w.model))
         how = f'closest geometry among {base_name(file_wedge["model"])} variants' if len(same_base) > 1 \
             else f'by base name {base_name(file_wedge["model"])}'
         return found(ranked[0], how)
@@ -126,12 +131,19 @@ def match_wedge(file_wedge, probe=None):
     if by_name is not None:
         return found(by_name, 'by name')
 
-    # Geometry alone, within tolerance (only wedges whose geometry is complete)
-    near = [(d, w) for w in candidates
-            if w.has_geometry and (d := _distance(w, file_wedge)) is not None and d <= 1]
-    if near:
-        return found(min(near, key=lambda pair: pair[0])[1], 'by geometry')
-    return Match()
+    closest = _closest_geometry(file_wedge, candidates)
+    return found(closest, 'by geometry') if closest is not None else Match()
+
+
+def _closest_geometry(file_wedge, wedges):
+    """
+    The wedge whose geometry is within tolerance of the file's, closest first; only when both sides
+    have the complete geometry (a wedge angle alone would match any wedge of that angle).
+    """
+    if not all(file_wedge.get(name) is not None for name in TOLERANCES):
+        return None
+    near = [(d, w) for w in wedges if w.has_geometry and (d := _distance(w, file_wedge)) is not None and d <= 1]
+    return min(near, key=lambda pair: (pair[0], len(pair[1].model)))[1] if near else None
 
 
 def _has_file_geometry(file_wedge):

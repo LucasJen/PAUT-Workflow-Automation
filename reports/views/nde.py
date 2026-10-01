@@ -23,8 +23,12 @@ def _catalogue_match(hardware):
             return None
         if match is None or match.item is None:
             return {'file_name': file_fields.get('model', ''), 'file_fields': file_fields}
-        return {'file_name': file_fields.get('model', ''), 'pk': match.item.pk, 'name': str(match.item),
+        info = {'file_name': file_fields.get('model', ''), 'pk': match.item.pk, 'name': str(match.item),
                 'how': match.how, 'differences': match.differences}
+        suggestion = getattr(match, 'suggestion', None)
+        if suggestion is not None:
+            info['suggestion'] = {'pk': suggestion.pk, 'name': str(suggestion)}
+        return info
 
     fill = {
         'catalogue_probe': probe.item.pk if probe and probe.item else '',

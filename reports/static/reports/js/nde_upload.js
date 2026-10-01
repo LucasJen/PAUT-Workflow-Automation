@@ -102,6 +102,18 @@ function matchLine(group, kind) {
             warn.append(element('i', 'bi bi-exclamation-triangle-fill'),
                         ' Geometry differs from the file; the catalogue values are used: ');
             warn.append(info.differences.map(([label, catalogue, file]) => `${label} ${catalogue} in catalogue, ${file} in file`).join('; ') + '.');
+            if (info.suggestion) {
+                const use = element('button', 'btn btn-sm btn-outline-secondary', `Use ${info.suggestion.name} instead`);
+                use.type = 'button';
+                use.title = 'This catalogue wedge has the geometry the file records';
+                use.addEventListener('click', () => {
+                    group.catalogue.wedge = { ...info.suggestion, how: 'its geometry matches the file', differences: [],
+                                              file_name: info.file_name };
+                    Object.values(group.values).forEach(values => { values.catalogue_wedge = info.suggestion.pk; });
+                    fillForm();
+                });
+                warn.append(' The file\'s geometry matches ', element('strong', '', info.suggestion.name), '. ', use);
+            }
             line.append(warn);
         }
         return line;
