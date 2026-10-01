@@ -22,7 +22,8 @@ STEEL_SHEAR = 0.1276                  # in/µs
 STEEL_LONGITUDINAL = 0.2320
 REXOLITE_VELOCITY = 2330.0            # m/s, typical wedge material when the catalogue has none
 HEEL_FRACTION = 0.15                  # estimated probe face height at the wedge heel, of the wedge height
-PROBE_BLOCK_RATIO = 0.35              # drawn probe thickness, of its housing length
+PROBE_BLOCK_RATIO = 0.4               # drawn probe block thickness, of its length
+BLOCK_MARGIN = 1.0 / 25.4             # drawn probe block beyond the end elements, in
 
 # Stand-ins when only one of probe / wedge is picked (mm): an A1 probe on an SA1 wedge
 GENERIC_PROBE = SimpleNamespace(pitch=0.6, elements=16, length=17.0, height=25.0)
@@ -130,6 +131,7 @@ class Layout:
     aperture: tuple = None      # active aperture on the probe face (catalogue layout only)
     exact: bool = False
     estimated: list = field(default_factory=list)   # catalogue values that had to be estimated
+    from_file: bool = False     # wedge geometry from the .nde of the setup the plan was filled from
 
 
 def _related(plan, name):
@@ -181,6 +183,17 @@ def catalogue_layout(plan):
         estimated.append('probe (none picked)')
     if wedge is None:
         estimated.append('wedge (none picked)')
+
+    # Wedge geometry recorded in a setup's .nde file replaces the catalogue's (size still from the
+    # catalogue): the file is what the instrument used
+    file_offset = getattr(plan, 'wedge_primary_offset', None)
+    from_file = file_offset is not None
+    if from_file:
+        wedge_values = SimpleNamespace(
+            length=wedge_values.length, height=wedge_values.height, refracted_angle=wedge_values.refracted_angle,
+            wave_type=getattr(wedge_values, 'wave_type', 'SW'), wedge_angle=plan.wedge_angle,
+            velocity=getattr(plan, 'wedge_velocity', None) or wedge_values.velocity, primary_offset=file_offset,
+            first_element_height=getattr(plan, 'wedge_first_element_height', None))
 
     pitch = _known(probe_values.pitch, GENERIC_PROBE.pitch, 'pitch', estimated) / MM_PER_IN
     total = probe_values.elements or GENERIC_PROBE.elements
@@ -250,15 +263,26 @@ def catalogue_layout(plan):
     else:  # flat (0°) wedge: the probe sits in a pocket
         outline += [(front, -height), (back, -height), (back, 0.0)]
 
-    # Probe: a slim block the housing's length, centred on the array (as OmniScan draws it; the
-    # full housing height would tower over the wedge)
+    # Probe: the element block (the array plus a small margin), as OmniScan draws it, centred on
+    # the array; slid up the face if its back corner would pass the wedge heel
+    block = total * pitch + 2 * BLOCK_MARGIN
+    stand = block * PROBE_BLOCK_RATIO
     array_mid = (total - 1) / 2 * pitch
-    p1, p2 = face(array_mid - housing / 2), face(array_mid + housing / 2)
     nx, ny = -sin_a, -cos_a
-    probe_outline = [p1, p2, (p2[0] + nx * stand, p2[1] + ny * stand), (p1[0] + nx * stand, p1[1] + ny * stand)]
+
+    def block_outline(mid):
+        q1, q2 = face(mid - block / 2), face(mid + block / 2)
+        return [q1, q2, (q2[0] + nx * stand, q2[1] + ny * stand), (q1[0] + nx * stand, q1[1] + ny * stand)]
+
+    probe_outline = block_outline(array_mid)
+    overhang = back - min(x for x, _ in probe_outline)
+    if overhang > 0 and cos_a > 1e-6:
+        array_mid += overhang / cos_a
+        probe_outline = block_outline(array_mid)
+    p1, p2 = probe_outline[0], probe_outline[1]
     return Layout(outline, probe_outline, (p1, p2), (cx, cy), exits,
                   aperture=(face(s_first - pitch / 2), face(s_last + pitch / 2)),
-                  exact=not estimated, estimated=estimated)
+                  exact=not estimated, estimated=estimated, from_file=from_file)
 
 
 def exact_layout(plan):
@@ -438,6 +462,8 @@ def render_png(plan, side=1):
     probe_model, wedge_model = _related(plan, 'probe_model'), _related(plan, 'wedge_model')
     if probe_model or wedge_model:
         label += f'  ·  {probe_model or "probe?"} on {wedge_model or "wedge?"}'
+    if lay.from_file:
+        label += '  ·  wedge geometry from the .nde file'
     if lay.estimated:
         label += f'  ·  estimated: {", ".join(lay.estimated)}'
     c.draw.text(c.px(corner), label, fill=TEXT, font=_font(15 * SUPERSAMPLE), anchor='la' if side == 1 else 'ra')

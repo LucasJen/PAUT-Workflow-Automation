@@ -71,10 +71,19 @@ def _setup_fill_values():
             'aperture_elements': setup.aperture_elements,
         }
         fill = {k: v for k, v in fill.items() if v is not None}
-        if fill:
+        # The wedge geometry the .nde recorded: applied after the wedge is picked (scan_plan.js)
+        geometry = {
+            'wedge_primary_offset': setup.wedge_primary_offset,
+            'wedge_first_element_height': setup.wedge_first_element_height,
+            'wedge_velocity': setup.wedge_velocity,
+            'wedge_angle': _first_number(setup.wedge_angle),
+        }
+        geometry = geometry if setup.wedge_primary_offset is not None else {}
+        if fill or geometry:
             label = ' · '.join(filter(None, [setup.title, setup.transducer_model, setup.angle_range]))
             where = f'report #{setup.report_id}' if setup.report_id else 'saved'
-            values[setup.pk] = {'label': f'{label or "Setup"} ({where} #{setup.pk})', 'fields': fill}
+            values[setup.pk] = {'label': f'{label or "Setup"} ({where} #{setup.pk})', 'fields': fill,
+                                'wedge_geometry': {k: v for k, v in geometry.items() if v is not None}}
     return values
 
 
@@ -115,8 +124,9 @@ def _wedge_fill_values():
     for wedge in WedgeModel.objects.all():
         fill = {'wedge_angle': wedge.wedge_angle, 'exit_point': _wedge_exit_point(wedge)}
         fill = {k: v for k, v in fill.items() if v is not None}
-        if fill:
-            values[wedge.pk] = fill
+        # Picking a wedge drops any .nde geometry from a setup (it belonged to that setup's wedge)
+        values[wedge.pk] = {**fill, 'wedge_primary_offset': '', 'wedge_first_element_height': '',
+                            'wedge_velocity': ''}
     return values
 
 

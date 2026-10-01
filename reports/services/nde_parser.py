@@ -95,6 +95,10 @@ def _by_id(items, item_id):
     return items[0] if items else {}
 
 
+def _mm(metres):
+    return None if metres is None else round(metres * 1000, 3)
+
+
 def _plain(x, decimals=3):
     """Compact number: 5.0 -> '5', 7.5 -> '7.5', 0.23188 -> '0.232'."""
     if x is None:
@@ -255,6 +259,10 @@ class _GroupContext:
             'probe_diameter': self._probe_size(system),
             'wedge_model': self.wedge.get('model'),
             'wedge_angle': _plain(self.mounting.get('wedgeAngle'), 2),
+            # SI in both unit systems (mm, m/s): the scan plan draws with these
+            'wedge_primary_offset': _mm(self.mounting.get('primaryOffset')),
+            'wedge_first_element_height': _mm(self.mounting.get('tertiaryOffset')),
+            'wedge_velocity': _get(self.wedge, 'angleBeamWedge', 'longitudinalVelocity'),
 
             # UT settings
             'foc_depth': _dist(_get(ut, 'focusing', 'distance'), system, 3, 2),

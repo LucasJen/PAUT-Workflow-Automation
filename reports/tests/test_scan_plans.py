@@ -208,7 +208,7 @@ class ExactGeometryTests(TestCase):
         self.assertEqual(values['sensitivity_block'][block.pk],
                          {'pipe_size': '6in Sch 40', 'thickness': 0.28, 'bevel_angle': 37.0, 'shear_velocity': 0.128})
         wedge = WedgeModel.objects.get(model='SA1-N60S')
-        self.assertEqual(values['wedge_model'][wedge.pk], {'wedge_angle': 38.9})
+        self.assertEqual(values['wedge_model'][wedge.pk], {'wedge_angle': 38.9, 'wedge_primary_offset': '', 'wedge_first_element_height': '', 'wedge_velocity': ''})
 
 
 class WedgeForProbeTests(TestCase):
@@ -298,7 +298,8 @@ class ScanPlanFormLayoutTests(TestCase):
         self.assertIn('units', sections['Scan plan'])
         self.assertEqual(sections['Beams'], ['angle_start', 'angle_stop', 'legs', 'angle_step'])
         hidden = {f.name for f in form.hidden_fields()}
-        self.assertEqual(hidden, {'wedge_angle', 'exit_point'})
+        self.assertEqual(hidden, {'wedge_angle', 'exit_point', 'wedge_primary_offset', 'wedge_first_element_height',
+                                  'wedge_velocity'})
         self.assertFalse(any(name in hidden for names in sections.values() for name in names))
         self.assertEqual((form['angle_start'].initial, form['angle_stop'].initial), (40.0, 70.0))
         page = self.client.get(reverse('new-scan-plan')).content.decode()
@@ -313,7 +314,7 @@ class ScanPlanFormLayoutTests(TestCase):
         values = self.client.get(reverse('new-scan-plan')).context['catalogue_fill_values']['wedge_model'][wedge.pk]
         incident = math.asin(2330 / 25400 / 0.1276 * math.sin(math.radians(60)))
         expected = round((27.19 - 5.15 * math.tan(incident)) / 25.4, 3)
-        self.assertEqual(values, {'wedge_angle': 39.0, 'exit_point': expected})
+        self.assertEqual(values, {'wedge_angle': 39.0, 'exit_point': expected, 'wedge_primary_offset': '', 'wedge_first_element_height': '', 'wedge_velocity': ''})
 
 
 class OffsetAndPreviewTests(TestCase):
@@ -410,3 +411,61 @@ class UnitsTests(TestCase):
         from reports.services.report_render import length_unit, velocity_unit
         self.assertEqual((length_unit(Setup(units='metric')), velocity_unit(Setup(units='metric'))), (' mm', ' m/s'))
         self.assertEqual((length_unit(Setup()), velocity_unit(Setup())), ('"', ' in/µs'))
+
+
+class FileGeometryTests(TestCase):
+    """The wedge geometry a setup's .nde recorded draws the scan plan; the catalogue gives the size."""
+
+    def standard_and_short(self):
+        standard = WedgeModel.objects.create(model='SA1-N60S 10L32', probe_series='A1', probe_fit='10L32',
+                                             wedge_angle=39.0, velocity=2330.0, primary_offset=-27.19,
+                                             first_element_height=5.15, length=30.38, height=16.41)
+        short = WedgeModel.objects.create(model='SA1-N60S-IHC-SA 10L32', probe_series='A1', probe_fit='10L32',
+                                          wedge_angle=38.52, velocity=2330.0, primary_offset=-21.19,
+                                          first_element_height=8.94, length=23.62, height=19.17)
+        return standard, short
+
+    def test_file_geometry_replaces_the_catalogues(self):
+        standard, _ = self.standard_and_short()
+        plan = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'), wedge_model=standard,
+                         first_element=1, aperture_elements=27, wedge_angle=38.9,
+                         wedge_primary_offset=-21.361, wedge_first_element_height=8.382, wedge_velocity=2330.0)
+        lay = scan_plan.layout(plan)
+        self.assertTrue(lay.from_file)
+        self.assertTrue(lay.exact)
+        s = 13 * 0.31 / 25.4
+        a = math.radians(38.9)
+        self.assertAlmostEqual(lay.source[0], -0.48 - 21.361 / 25.4 + s * math.cos(a))
+        self.assertAlmostEqual(-lay.source[1], 8.382 / 25.4 + s * math.sin(a))
+        # size from the catalogue: 30.38 mm long, and a low heel (about 1.1 mm)
+        back = min(x for x, _ in lay.wedge)
+        self.assertAlmostEqual((max(x for x, _ in lay.wedge) - back) * 25.4, 30.38)
+        heel = max(-y for x, y in lay.wedge if abs(x - back) < 1e-9) * 25.4
+        self.assertAlmostEqual(heel, 1.1, delta=0.2)
+
+    def test_probe_block_stays_on_the_wedge(self):
+        for wedge in self.standard_and_short():
+            with self.subTest(wedge=wedge.model):
+                plan = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'), wedge_model=wedge,
+                                 first_element=6, aperture_elements=27)
+                lay = scan_plan.layout(plan)
+                back = min(x for x, _ in lay.wedge)
+                self.assertGreaterEqual(min(x for x, _ in lay.probe), back - 1e-9)
+                length = math.dist(lay.probe[0], lay.probe[1]) * 25.4
+                self.assertAlmostEqual(length, 32 * 0.31 + 2, places=3)  # element block, not the 17 mm housing
+
+    def test_setup_fill_carries_the_file_geometry(self):
+        setup = Setup.objects.create(specimen_thickness='0.280', wedge_angle='38.9', wedge_primary_offset=-21.361,
+                                     wedge_first_element_height=8.382, wedge_velocity=2330.0)
+        item = self.client.get(reverse('new-scan-plan')).context['setup_fill_values'][setup.pk]
+        self.assertEqual(item['wedge_geometry'], {'wedge_primary_offset': -21.361, 'wedge_first_element_height': 8.382,
+                                                  'wedge_velocity': 2330.0, 'wedge_angle': 38.9})
+
+    def test_nde_import_records_the_wedge_geometry(self):
+        from reports.services.nde_parser import extract_groups
+        setup = {**WELD_SETUP, 'wedges': [{'id': 0, 'model': 'SA1-N60S 10L32', 'angleBeamWedge': {
+            'longitudinalVelocity': 2330.0, 'mountingLocations': [
+                {'id': 0, 'wedgeAngle': 38.9, 'primaryOffset': -0.021361, 'tertiaryOffset': 0.008382}]}}]}
+        for values in extract_groups(setup)[0]['values'].values():
+            self.assertEqual((values['wedge_primary_offset'], values['wedge_first_element_height'],
+                              values['wedge_velocity']), ('-21.361', '8.382', '2330.0'))

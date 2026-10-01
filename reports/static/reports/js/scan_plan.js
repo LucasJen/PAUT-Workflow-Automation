@@ -56,16 +56,22 @@ redraw();
 const fillSelect = document.getElementById('fill-from-setup');
 if (fillSelect) {
     const fillValues = JSON.parse(document.getElementById('setup-fill-values').textContent);
-    fillSelect.addEventListener('change', () => {
+    fillSelect.addEventListener('change', async () => {
         const item = fillValues[fillSelect.value];
         if (!item) return;
+        fillSelect.value = '';
         const { probe_model: probe, wedge_model: wedge, ...fields } = item.fields;
         for (const [name, value] of Object.entries(fields)) {
             const input = form.elements[name];
             if (input) input.value = planValue(name, value);
         }
-        if (probe) window.CatalogueSelect.setPair(form.elements.probe_model, probe, wedge);
-        fillSelect.value = '';
+        // Pick the probe and wedge first: picking a wedge resets the wedge geometry fields...
+        if (probe) await window.CatalogueSelect.setPair(form.elements.probe_model, probe, wedge);
+        // ...then put back the geometry the setup's .nde recorded (hidden fields, mm / m/s)
+        for (const [name, value] of Object.entries(item.wedge_geometry || {})) {
+            const input = form.elements[name];
+            if (input) input.value = value;
+        }
         form.dispatchEvent(new Event('input'));
     });
 }

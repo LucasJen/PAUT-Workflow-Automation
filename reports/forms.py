@@ -208,7 +208,8 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                          'surface_prep', 'tr_min', 'tr_max']),
         ('Source', ['source_file', 'acquisition_date']),
         ('Catalogue probe and wedge (for scan plans)', ['catalogue_probe', 'catalogue_wedge', 'first_element',
-                                                        'aperture_elements', 'index_offset']),
+                                                        'aperture_elements', 'index_offset', 'wedge_primary_offset',
+                                                        'wedge_first_element_height', 'wedge_velocity']),
         ('Weld (for scan plans)', ['weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width']),
     ]
 
@@ -416,6 +417,9 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             # Set only by the wedge selector (scan_plan.js fills them from the chosen wedge)
             'wedge_angle': HiddenInput(),
             'exit_point': HiddenInput(),
+            'wedge_primary_offset': HiddenInput(),
+            'wedge_first_element_height': HiddenInput(),
+            'wedge_velocity': HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):

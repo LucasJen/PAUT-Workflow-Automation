@@ -100,6 +100,11 @@ class ScanPlan(models.Model):
                                      help_text='Wedge front to weld centre line. Blank = the weld toe (half the cap width).')
     exit_point = models.FloatField(default=0.45, help_text='Wedge front back to the beam exit (index) point.')
     wedge_angle = models.FloatField(default=36.0)
+    # The wedge geometry from the .nde of the setup this plan was filled from (mm, m/s); when set,
+    # the drawing uses it with the catalogue wedge's size. Cleared when another wedge is picked.
+    wedge_primary_offset = models.FloatField(null=True, blank=True)
+    wedge_first_element_height = models.FloatField(null=True, blank=True)
+    wedge_velocity = models.FloatField(null=True, blank=True)
     angle_start = models.FloatField(default=40.0)
     angle_stop = models.FloatField(default=70.0)
     angle_step = models.FloatField(default=1.0)
@@ -265,6 +270,12 @@ class Setup(models.Model):
     weld_root_face = models.CharField('Root face (land)', max_length=20, blank=True)
     weld_root_gap = models.CharField('Root gap', max_length=20, blank=True)
     weld_cap_width = models.CharField('Cap width', max_length=20, blank=True)
+
+    # Wedge geometry as the .nde file records it (always mm and m/s, whatever the units above);
+    # scan plans filled from this setup draw with it
+    wedge_primary_offset = models.FloatField('Wedge primary offset (mm)', null=True, blank=True)
+    wedge_first_element_height = models.FloatField('First element height (mm)', null=True, blank=True)
+    wedge_velocity = models.FloatField('Wedge velocity (m/s)', null=True, blank=True)
 
     # Catalogue probe / wedge (matched on NDE import) and the aperture used, for scan plans
     catalogue_probe = models.ForeignKey('equipment.ProbeModel', on_delete=models.SET_NULL, null=True, blank=True,
