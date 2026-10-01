@@ -109,6 +109,9 @@ document.addEventListener('change', e => {
         const el = document.getElementById(`id_${prefix}-${field}`);
         if (el) el.value = value ?? '';
     });
+    // The loaded setup's values are in its own units
+    const units = document.getElementById(`id_${prefix}-units`);
+    if (units) window.Units.sync(units);
     // The wedge list depends on the probe: load it, then pick the setup's wedge
     const probe = document.getElementById(`id_${prefix}-catalogue_probe`);
     if (probe && values.catalogue_probe) {

@@ -293,7 +293,8 @@ class ScanPlanFormLayoutTests(TestCase):
         from reports.forms import ScanPlanForm
         form = ScanPlanForm()
         sections = {title: [f.name for f in fields] for title, fields in form.fieldsets()}
-        self.assertIn('index_offset', sections['Weld (inches, degrees)'])
+        self.assertIn('index_offset', sections['Weld'])
+        self.assertIn('units', sections['Scan plan'])
         self.assertEqual(sections['Beams'], ['angle_start', 'angle_stop', 'legs', 'angle_step'])
         hidden = {f.name for f in form.hidden_fields()}
         self.assertEqual(hidden, {'wedge_angle', 'exit_point'})
@@ -349,3 +350,57 @@ class NdeIndexOffsetTests(TestCase):
         }
         values = extract_groups(setup)[0]['values']
         self.assertEqual((values['imperial']['index_offset'], values['metric']['index_offset']), ('0.350', '8.89'))
+
+
+WELD_SETUP = {
+    'probes': [{'id': 0, 'model': '10L32-A1', 'wedgeAssociation': {'wedgeId': 0, 'mountingLocationId': 0}}],
+    'wedges': [{'id': 0, 'model': 'SA1-N60S 10L32', 'positioning': {'vCoordinateOffset': -0.00889}}],
+    'specimens': [{'id': 0, 'plateGeometry': {'thickness': 0.00762}, 'weldGeometry': {
+        'bevelShape': 'V', 'offset': 0.0015875, 'upperCap': {'width': 0.0127, 'height': 0.002},
+        'fills': [{'angle': 37.5, 'height': 0.0056}], 'land': {'height': 0.0015875}}}],
+    'dataMappings': [{'id': 0, 'specimenId': 0}],
+    'groups': [{'id': 0, 'processes': [{'ultrasonicPhasedArray': {'pulseEcho': {'probeId': 0}}, 'dataMappingId': 0}]}],
+}
+
+
+class UnitsTests(TestCase):
+    def test_nde_import_gives_units_and_weld_data(self):
+        from reports.services.nde_parser import extract_groups
+        values = extract_groups(WELD_SETUP)[0]['values']
+        imperial, metric = values['imperial'], values['metric']
+        self.assertEqual((imperial['units'], metric['units']), ('imperial', 'metric'))
+        self.assertEqual(imperial['weld_bevel_angle'], '37.5')
+        self.assertEqual((imperial['weld_root_face'], imperial['weld_root_gap'], imperial['weld_cap_width']),
+                         ('0.062', '0.125', '0.500'))
+        self.assertEqual((metric['weld_root_gap'], metric['weld_cap_width']), ('3.17', '12.70'))
+        self.assertEqual(imperial['specimen_thickness'], '0.300')
+
+    def test_fill_from_a_metric_setup_is_in_inches(self):
+        setup = Setup.objects.create(units='metric', specimen_thickness='7.62', index_offset='8.89',
+                                     weld_bevel_angle='37.5', weld_root_face='1.59', weld_root_gap='3.18',
+                                     weld_cap_width='12.7')
+        fill = self.client.get(reverse('new-scan-plan')).context['setup_fill_values'][setup.pk]['fields']
+        self.assertEqual((fill['thickness'], fill['index_offset'], fill['bevel_angle']), (0.3, 0.35, 37.5))
+        self.assertEqual((fill['root_face'], fill['root_gap'], fill['cap_width']), (0.0626, 0.1252, 0.5))
+
+    def test_metric_scan_plan_is_entered_in_mm_and_stored_in_inches(self):
+        resp = self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'units': 'metric', 'thickness': '7.112',
+                                                           'index_offset': '12.192', 'shear_velocity': '3241'})
+        plan = ScanPlan.objects.get()
+        self.assertRedirects(resp, reverse('edit-scan-plan', args=[plan.pk]))
+        self.assertAlmostEqual(plan.thickness, 0.28)
+        self.assertAlmostEqual(plan.index_offset, 0.48)
+        self.assertAlmostEqual(plan.shear_velocity, 0.1276, places=4)
+        self.assertEqual(plan.thickness_text, '7.11 mm')
+        form = self.client.get(reverse('edit-scan-plan', args=[plan.pk])).context['form']
+        self.assertEqual((form['thickness'].initial, form['index_offset'].initial), (7.11, 12.19))
+
+    def test_scan_plan_without_units_stays_imperial(self):
+        data = {k: v for k, v in PLAN_FIELDS.items() if k != 'units'}
+        self.client.post(reverse('new-scan-plan'), data)
+        self.assertEqual(ScanPlan.objects.get().units, 'imperial')
+
+    def test_metric_setup_prints_mm_in_reports(self):
+        from reports.services.report_render import length_unit, velocity_unit
+        self.assertEqual((length_unit(Setup(units='metric')), velocity_unit(Setup(units='metric'))), (' mm', ' m/s'))
+        self.assertEqual((length_unit(Setup()), velocity_unit(Setup())), ('"', ' in/µs'))

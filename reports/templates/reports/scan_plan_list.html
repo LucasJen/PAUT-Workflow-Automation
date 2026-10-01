@@ -23,8 +23,8 @@
     {% include 'reports/components/row_check.html' with pk=plan.pk %}
     <td class="fw-medium">{{ plan.name }}</td>
     <td>{{ plan.pipe_size }}</td>
-    <td class="mono">{{ plan.thickness|floatformat:3 }}"</td>
-    <td class="mono">{% if plan.index_offset is not None %}{{ plan.index_offset|floatformat:3 }}"{% else %}weld toe{% endif %}</td>
+    <td class="mono">{{ plan.thickness_text }}</td>
+    <td class="mono">{% if plan.index_offset is not None %}{{ plan.index_offset_text }}{% else %}weld toe{% endif %}</td>
     <td class="mono">{{ plan.angle_start|floatformat }}°–{{ plan.angle_stop|floatformat }}°</td>
     <td class="text-muted-cell">{{ plan.reports.count }}</td>
 </tr>

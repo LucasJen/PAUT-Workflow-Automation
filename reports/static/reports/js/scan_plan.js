@@ -3,6 +3,16 @@
 // The probe / wedge lists and their filter boxes are catalogue_select.js.
 
 const preview = document.getElementById('scan-plan-preview');
+
+// Fill values come in inches (in/µs); a metric plan shows mm (m/s)
+function planValue(name, value) {
+    const units = form.elements.units;
+    if (!units || units.value !== 'metric' || value === null || value === '') return value;
+    const groups = JSON.parse(units.dataset.unitToggle || '{}');
+    if ((groups.length || []).includes(name)) return (value * window.Units.MM_PER_IN).toFixed(2);
+    if ((groups.velocity || []).includes(name)) return (value * window.Units.MM_PER_IN * 1000).toFixed(0);
+    return value;
+}
 const form = preview.closest('form');
 const status = document.getElementById('scan-plan-status');
 const sideTwo = preview.querySelector('[data-side-2]');
@@ -52,7 +62,7 @@ if (fillSelect) {
         const { probe_model: probe, wedge_model: wedge, ...fields } = item.fields;
         for (const [name, value] of Object.entries(fields)) {
             const input = form.elements[name];
-            if (input) input.value = value;
+            if (input) input.value = planValue(name, value);
         }
         if (probe) window.CatalogueSelect.setPair(form.elements.probe_model, probe, wedge);
         fillSelect.value = '';
@@ -68,7 +78,7 @@ for (const [name, byPk] of Object.entries(catalogueValues)) {
     select.addEventListener('change', () => {
         for (const [field, value] of Object.entries(byPk[select.value] || {})) {
             const input = form.elements[field];
-            if (input && value !== null) input.value = value;
+            if (input && value !== null) input.value = planValue(field, value);
         }
         scheduleRedraw();
     });

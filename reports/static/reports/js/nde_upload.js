@@ -61,6 +61,9 @@ function fillForm() {
         el.closest('.field')?.classList.add('from-file');
         filledFields.push(name);
     });
+    // The file's values are already in the chosen units; record that without converting them
+    const unitsSelect = setupForm.querySelector('select[name="units"]');
+    if (unitsSelect) window.Units.sync(unitsSelect);
     const probeSelect = setupForm.querySelector('[name="catalogue_probe"]');
     if (probeSelect && values.catalogue_probe) {
         window.CatalogueSelect.setPair(probeSelect, values.catalogue_probe, values.catalogue_wedge || null);

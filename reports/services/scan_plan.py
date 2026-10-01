@@ -67,6 +67,13 @@ def fmt_in(value):
     return f'{value:.3f}"'
 
 
+def fmt_length(plan, inches):
+    """A length for the drawing in the plan's units."""
+    if getattr(plan, 'units', 'imperial') == 'metric':
+        return f'{inches * MM_PER_IN:.2f} mm'
+    return fmt_in(inches)
+
+
 def angles(plan):
     """Beam angles from start to stop (inclusive) in steps of angle_step."""
     start, stop = sorted((plan.angle_start, plan.angle_stop))
@@ -422,12 +429,12 @@ def render_png(plan, side=1):
     c.line([(front, dim_y), (0, dim_y)], DIMENSION, 1.2)
     c.arrow_head((front, dim_y), (0, dim_y), DIMENSION)
     c.arrow_head((0, dim_y), (front, dim_y), DIMENSION)
-    c.draw.text(c.px((front / 2, dim_y - 0.03)), fmt_in(index_offset(plan)), fill=DIMENSION, font=_font(19 * SUPERSAMPLE),
+    c.draw.text(c.px((front / 2, dim_y - 0.03)), fmt_length(plan, index_offset(plan)), fill=DIMENSION, font=_font(19 * SUPERSAMPLE),
                 anchor='mb', stroke_width=SUPERSAMPLE * 3, stroke_fill='white')
 
     # Labels
     corner = (x_min + 0.05, y_min + 0.08)  # mirrored to the right-hand corner on side 2
-    label = f'{plan.angle_start:g}°–{plan.angle_stop:g}°  ·  t = {fmt_in(t)}'
+    label = f'{plan.angle_start:g}°–{plan.angle_stop:g}°  ·  t = {fmt_length(plan, t)}'
     probe_model, wedge_model = _related(plan, 'probe_model'), _related(plan, 'wedge_model')
     if probe_model or wedge_model:
         label += f'  ·  {probe_model or "probe?"} on {wedge_model or "wedge?"}'

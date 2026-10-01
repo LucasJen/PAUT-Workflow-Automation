@@ -11,6 +11,7 @@ from equipment.models import ProbeModel
 from .models import Report, ReportImage, ReportPerson, ScanPlan, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from datetime import date
+import json
 
 
 class AppFormRenderer(TemplatesSetting):
@@ -133,6 +134,30 @@ class ReportForm(StyledFormMixin, ModelForm):
             self.initial.setdefault('report_date', date.today())
 
 
+# Setup fields with a unit (converted by static/reports/js/units.js when the Units select changes)
+SETUP_UNIT_FIELDS = {
+    'length': ['probe_diameter', 'foc_depth', 'x_res', 'y_res', 'scan_length', 'scan_width', 'specimen_od',
+               'specimen_thickness', 'specimen_dimensions', 'tr_min', 'tr_max', 'pcs', 'index_offset',
+               'weld_root_face', 'weld_root_gap', 'weld_cap_width'],
+    'velocity': ['sound_velocity'],
+    'per_length': ['encoder_resolution'],
+}
+
+
+def unit_toggle(form, name, fields):
+    """
+    Marks a Units select so units.js converts `fields` ({kind: [names]}) when it changes. Not
+    required: a form posted without it keeps imperial (see UnitsCleanMixin).
+    """
+    form.fields[name].required = False
+    form.fields[name].widget.attrs.update({'data-unit-toggle': json.dumps(fields)})
+
+
+class UnitsCleanMixin:
+    def clean_units(self):
+        return self.cleaned_data.get('units') or 'imperial'
+
+
 def catalogue_choices(form, probe_name, wedge_name):
     """
     Probe / wedge catalogue selects on a form: the wedge list shows only wedges that fit the chosen
@@ -166,9 +191,9 @@ def catalogue_choices(form, probe_name, wedge_name):
     wedge_field.widget.choices = CallableChoiceIterator(wedge_choices)
 
 
-class SetupForm(StyledFormMixin, ModelForm):
+class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     fieldsets_spec = [
-        ('Technique', ['title', 'procedure']),
+        ('Technique', ['title', 'procedure', 'units']),
         ('UT equipment', ['manufacturer', 'scope_platform', 'scope_model', 'scope_serial',
                           'transducer_model', 'transducer_serial', 'probe_diameter']),
         ('Wedge', ['wedge_model', 'wedge_angle']),
@@ -184,6 +209,7 @@ class SetupForm(StyledFormMixin, ModelForm):
         ('Source', ['source_file', 'acquisition_date']),
         ('Catalogue probe and wedge (for scan plans)', ['catalogue_probe', 'catalogue_wedge', 'first_element',
                                                         'aperture_elements', 'index_offset']),
+        ('Weld (for scan plans)', ['weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width']),
     ]
 
     class Meta:
@@ -236,6 +262,7 @@ class SetupForm(StyledFormMixin, ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         catalogue_choices(self, 'catalogue_probe', 'catalogue_wedge')
+        unit_toggle(self, 'units', SETUP_UNIT_FIELDS)
 
 
 class DrawingForm(StyledFormMixin, ModelForm):
@@ -333,11 +360,19 @@ SCAN_PLAN_NUMBERS = (
 )
 
 
-class ScanPlanForm(StyledFormMixin, ModelForm):
+# Scan plan fields with a unit: stored in inches (in/µs), shown in mm (m/s) for metric plans
+SCAN_PLAN_UNIT_FIELDS = {
+    'length': ['thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset'],
+    'velocity': ['shear_velocity'],
+}
+UNIT_FACTORS = {'length': 25.4, 'velocity': 25400.0}   # imperial -> metric
+
+
+class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     fieldsets_spec = [
-        ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'sides']),
-        ('Weld (inches, degrees)', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'shear_velocity',
-                                    'index_offset']),
+        ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'sides', 'units']),
+        ('Weld', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'shear_velocity',
+                  'index_offset']),
         ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
         # Two columns: start / stop angle, then beam legs / angle step under them
         ('Beams', ['angle_start', 'angle_stop', 'legs', 'angle_step']),
@@ -365,7 +400,9 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
             'legs': 'Beam legs',
             'notes': 'Notes (printed under the scan plan)',
             'sensitivity_block': 'Sensitivity block (pipe size)',
-            'shear_velocity': 'Shear velocity (in/µs)',
+            'shear_velocity': 'Shear velocity (in/µs or m/s)',
+            'thickness': 'Thickness',
+            'units': 'Units',
             'aperture_elements': 'Aperture (elements)',
         }
         help_texts = {
@@ -383,9 +420,22 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         catalogue_choices(self, 'probe_model', 'wedge_model')
+        unit_toggle(self, 'units', SCAN_PLAN_UNIT_FIELDS)
+        # A metric plan shows its stored inches as mm (and in/µs as m/s)
+        if not self.is_bound and self.instance.units == 'metric':
+            for kind, names in SCAN_PLAN_UNIT_FIELDS.items():
+                for name in names:
+                    value = getattr(self.instance, name)
+                    if value is not None:
+                        self.initial[name] = round(value * UNIT_FACTORS[kind], 0 if kind == 'velocity' else 2)
 
     def clean(self):
         data = super().clean()
+        if data.get('units') == 'metric':  # stored in inches (in/µs)
+            for kind, names in SCAN_PLAN_UNIT_FIELDS.items():
+                for name in names:
+                    if data.get(name) is not None:
+                        data[name] = data[name] / UNIT_FACTORS[kind]
         if data.get('thickness') is not None and data['thickness'] <= 0:
             self.add_error('thickness', 'Enter a thickness above 0.')
         for name in self.LENGTHS:

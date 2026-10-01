@@ -104,6 +104,10 @@ class ScanPlan(models.Model):
     angle_stop = models.FloatField(default=70.0)
     angle_step = models.FloatField(default=1.0)
     legs = models.PositiveSmallIntegerField(choices=LEG_CHOICES, default=TWO_LEGS)
+    # Lengths are stored in inches (and velocity in in/µs); with metric the editor shows and takes
+    # mm (and m/s) and the drawing labels mm
+    units = models.CharField(max_length=10, choices=[('imperial', 'Imperial (in)'), ('metric', 'Metric (mm)')],
+                             default='imperial')
     sides = models.CharField(max_length=10, choices=SIDE_CHOICES, default=BOTH_SIDES)
 
     notes = models.TextField(blank=True)
@@ -114,6 +118,19 @@ class ScanPlan(models.Model):
 
     def __str__(self):
         return self.name
+
+    def _length_text(self, inches):
+        if inches is None:
+            return ''
+        return f'{inches * 25.4:.2f} mm' if self.units == 'metric' else f'{inches:.3f}"'
+
+    @property
+    def thickness_text(self):
+        return self._length_text(self.thickness)
+
+    @property
+    def index_offset_text(self):
+        return self._length_text(self.index_offset)
 
     @property
     def side_numbers(self):
@@ -235,8 +252,19 @@ class Setup(models.Model):
     source_file = models.CharField(max_length=255, blank=True)
     acquisition_date = models.CharField(max_length=50, blank=True)
 
+    # Unit system of this setup's measured values (lengths, velocity, encoder steps)
+    IMPERIAL, METRIC = 'imperial', 'metric'
+    UNIT_CHOICES = [(IMPERIAL, 'Imperial (in)'), (METRIC, 'Metric (mm)')]
+    units = models.CharField(max_length=10, choices=UNIT_CHOICES, default=IMPERIAL)
+
     # Wedge front to the weld centre line (from the .nde file's wedge position), for scan plans
     index_offset = models.CharField(max_length=50, blank=True)
+
+    # Weld geometry from the .nde file's weld definition (for scan plans)
+    weld_bevel_angle = models.CharField('Bevel angle (°)', max_length=20, blank=True)
+    weld_root_face = models.CharField('Root face (land)', max_length=20, blank=True)
+    weld_root_gap = models.CharField('Root gap', max_length=20, blank=True)
+    weld_cap_width = models.CharField('Cap width', max_length=20, blank=True)
 
     # Catalogue probe / wedge (matched on NDE import) and the aperture used, for scan plans
     catalogue_probe = models.ForeignKey('equipment.ProbeModel', on_delete=models.SET_NULL, null=True, blank=True,

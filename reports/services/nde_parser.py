@@ -290,6 +290,8 @@ class _GroupContext:
             # Specimen
             'specimen_od': self._outer_diameter(system),
             'specimen_thickness': _dist(geometry.get('thickness'), system, 3, 2),
+            'units': system,
+            **self._weld(system),
             'index_offset': self._index_offset(system),
             'specimen_dimensions': self._specimen_dimensions(system, unit),
             'cal_material': (_get(geometry, 'material', 'name') or '').replace('_', ' ') or None,
@@ -332,6 +334,23 @@ class _GroupContext:
             'first_element': first + 1 if first is not None else None,  # file ids are 0-based
             'aperture': aperture,
         }
+
+    def _weld(self, system):
+        """
+        The specimen's weld definition (OmniScan V weld): bevel angle of the fill, land height as
+        the root face, twice the weld offset (centre line to the bevel at the root) as the root gap,
+        and the upper cap width.
+        """
+        weld = self.specimen.get('weldGeometry') or {}
+        fills = weld.get('fills') or [{}]
+        offset = weld.get('offset')
+        values = {
+            'weld_bevel_angle': _plain(fills[0].get('angle'), 1),
+            'weld_root_face': _dist(_get(weld, 'land', 'height'), system, 3, 2),
+            'weld_root_gap': _dist(2 * offset, system, 3, 2) if offset is not None else None,
+            'weld_cap_width': _dist(_get(weld, 'upperCap', 'width'), system, 3, 2),
+        }
+        return {k: v for k, v in values.items() if v is not None}
 
     def _index_offset(self, system):
         """Wedge front to the weld centre line: the wedge's position across the weld (either side)."""

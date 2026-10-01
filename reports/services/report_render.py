@@ -34,6 +34,15 @@ def with_unit(value, unit):
     return f'{value}{unit}' if NUMBER.match(value) else value
 
 
+def length_unit(setup):
+    """'"' for imperial setups, ' mm' for metric."""
+    return ' mm' if getattr(setup, 'units', 'imperial') == 'metric' else '"'
+
+
+def velocity_unit(setup):
+    return ' m/s' if getattr(setup, 'units', 'imperial') == 'metric' else ' in/µs'
+
+
 def prose(text):
     """Multi-line text for the template: blank lines start new paragraphs, single newlines break lines."""
     text = (text or '').strip().replace('\r\n', '\n')
@@ -80,11 +89,11 @@ def _setup_context(setup, number, report, tpl):
         'equipment_type': setup.scope_platform or setup.manufacturer,
         'scope_model': setup.scope_model,
         'scope_serial': setup.scope_serial,
-        'x_res': with_unit(setup.x_res, '"'),
-        'y_res': with_unit(setup.y_res, '"'),
+        'x_res': with_unit(setup.x_res, length_unit(setup)),
+        'y_res': with_unit(setup.y_res, length_unit(setup)),
         'transducer_model': setup.transducer_model,
         'transducer_serial': setup.transducer_serial,
-        'foc_depth': with_unit(setup.foc_depth, '"'),
+        'foc_depth': with_unit(setup.foc_depth, length_unit(setup)),
         'wave_mode': wave_mode(setup.wave_propagation),
         'freq': setup.freq,
         'elements': setup.elements,
@@ -92,8 +101,8 @@ def _setup_context(setup, number, report, tpl):
         'material_temp': with_unit(setup.material_temp, '°F'),
         'cal_block': ' S/N: '.join(v for v in (setup.cal_block_type, setup.cal_block_serial) if v),
         'surface_prep': setup.surface_prep,
-        'tr_min': with_unit(setup.tr_min, '"'),
-        'tr_max': with_unit(setup.tr_max, '"'),
+        'tr_min': with_unit(setup.tr_min, length_unit(setup)),
+        'tr_max': with_unit(setup.tr_max, length_unit(setup)),
         'procedure': setup.procedure or ', '.join(lines(report.procedure)),
         'images': [i for i in images if i],
     }

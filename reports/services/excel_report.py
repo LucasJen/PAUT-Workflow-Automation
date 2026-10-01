@@ -20,7 +20,7 @@ from ..models import ReportImage
 from ..report_types import get_report_type
 from ..results import report_results
 from .office import lock, office_app_available
-from .report_render import with_unit
+from .report_render import length_unit, velocity_unit, with_unit
 from .scan_plan import render_png
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def _probe_column(col, setup, group_number):
         f'{col}21': _v(setup.transducer_serial),
         f'{col}23': _v(setup.wedge_model),
         f'{col}24': with_unit(setup.wedge_angle, '°'),
-        f'{col}25': with_unit(setup.specimen_od, '"'),
+        f'{col}25': with_unit(setup.specimen_od, length_unit(setup)),
         f'{col}27': 'Accept',
         f'{col}28': str(group_number),
         f'{col}29': 'N/A',
@@ -118,7 +118,7 @@ def _group_column(col, setup):
         f'{col}19': _v(setup.active_elements),
         f'{col}20': with_unit(setup.angle_step, '°'),
         f'{col}21': _vpa(setup),
-        f'{col}23': with_unit(setup.foc_depth, '"'),
+        f'{col}23': with_unit(setup.foc_depth, length_unit(setup)),
         f'{col}25': with_unit(setup.voltage, ' V'),
         f'{col}28': with_unit(setup.band_pass_filter, ' MHz'),
         f'{col}30': with_unit(setup.gain, ' dB'),
@@ -139,9 +139,9 @@ def _equipment(setups):
             'C17': _v(first.scope_model),
             'C18': _v(first.scope_serial),
             'C33': _v(first.encoder_resolution),
-            'C34': with_unit(first.x_res, '"'),
+            'C34': with_unit(first.x_res, length_unit(first)),
         })
-        velocity = with_unit(first.sound_velocity, ' in/µs')
+        velocity = with_unit(first.sound_velocity, velocity_unit(first))
         velocity_row = 19 if _v(first.wave_propagation) == 'Longitudinal' else 18
         cells.update({
             # Calibration standard
@@ -153,8 +153,8 @@ def _equipment(setups):
             # Item inspected
             'Y17': _v(first.cal_material),
             f'Y{velocity_row}': velocity,
-            'Y20': with_unit(first.specimen_od, '"'),
-            'Y21': with_unit(first.specimen_thickness, '"'),
+            'Y20': with_unit(first.specimen_od, length_unit(first)),
+            'Y21': with_unit(first.specimen_thickness, length_unit(first)),
             'Y22': _v(first.material_temp),
             'Y23': _v(first.surface_prep),
             # TCG

@@ -175,7 +175,7 @@ class OtherLayoutTests(SimpleTestCase):
     def test_sparse_file_does_not_crash(self):
         [group] = extract_groups({'groups': [{'id': 0}]})
         self.assertEqual(group['label'], 'Group 1')
-        self.assertEqual(group['values']['imperial'], {})
+        self.assertEqual(group['values']['imperial'], {'units': 'imperial'})  # only the unit system
 
     def test_every_extracted_key_is_a_setup_field(self):
         for group in extract_groups(sample_setup(), FIXTURE['properties'], 'x.nde'):

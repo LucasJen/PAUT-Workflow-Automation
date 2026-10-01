@@ -42,13 +42,26 @@ def _first_number(text):
 
 
 def _setup_fill_values():
-    """{pk: {label, field: value}} for filling a scan plan from a saved setup in the browser."""
+    """
+    {pk: {label, field: value}} for filling a scan plan from a saved setup in the browser. Lengths
+    are in inches whatever the setup's units; the page converts them for a metric plan.
+    """
     values = {}
     for setup in Setup.objects.order_by('report_id', '-pk'):
         angles = [float(n) for n in NUMBER.findall(setup.angle_range or '')]
+        per_inch = MM_PER_IN if setup.units == 'metric' else 1.0
+
+        def length(text):
+            value = _first_number(text)
+            return round(value / per_inch, 4) if value is not None else None
+
         fill = {
-            'thickness': _first_number(setup.specimen_thickness),
-            'index_offset': _first_number(setup.index_offset),
+            'thickness': length(setup.specimen_thickness),
+            'index_offset': length(setup.index_offset),
+            'bevel_angle': _first_number(setup.weld_bevel_angle),
+            'root_face': length(setup.weld_root_face),
+            'root_gap': length(setup.weld_root_gap),
+            'cap_width': length(setup.weld_cap_width),
             'angle_start': angles[0] if angles else None,
             'angle_stop': angles[-1] if angles else None,
             'angle_step': _first_number(setup.angle_step),
