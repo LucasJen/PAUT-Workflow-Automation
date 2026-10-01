@@ -22,7 +22,7 @@ STEEL_SHEAR = 0.1276                  # in/µs
 STEEL_LONGITUDINAL = 0.2320
 REXOLITE_VELOCITY = 2330.0            # m/s, typical wedge material when the catalogue has none
 HEEL_FRACTION = 0.15                  # estimated probe face height at the wedge heel, of the wedge height
-PROBE_BLOCK_RATIO = 0.4               # drawn probe block thickness, of its length
+PROBE_BLOCK_THICKNESS = 2.0 / 25.4    # drawn probe element block thickness, in (like OmniScan's)
 BLOCK_MARGIN = 1.0 / 25.4             # drawn probe block beyond the end elements, in
 
 # Stand-ins when only one of probe / wedge is picked (mm): an A1 probe on an SA1 wedge
@@ -132,6 +132,7 @@ class Layout:
     exact: bool = False
     estimated: list = field(default_factory=list)   # catalogue values that had to be estimated
     from_file: bool = False     # wedge geometry from the .nde of the setup the plan was filled from
+    wedge_data: dict = None     # the wedge numbers the layout used (mm, degrees, m/s), for the page
 
 
 def _related(plan, name):
@@ -200,7 +201,6 @@ def catalogue_layout(plan):
     pitch = _known(probe_values.pitch, GENERIC_PROBE.pitch, 'pitch', estimated) / MM_PER_IN
     total = probe_values.elements or GENERIC_PROBE.elements
     housing = _known(probe_values.length, total * pitch * MM_PER_IN + 4, 'probe length', estimated) / MM_PER_IN
-    stand = housing * PROBE_BLOCK_RATIO
     length = _known(wedge_values.length, GENERIC_WEDGE.length, 'wedge length', estimated) / MM_PER_IN
     height = _known(wedge_values.height, GENERIC_WEDGE.height, 'wedge height', estimated) / MM_PER_IN
     velocity = _known(wedge_values.velocity, REXOLITE_VELOCITY, 'wedge velocity', estimated)
@@ -265,32 +265,32 @@ def catalogue_layout(plan):
     else:  # flat (0°) wedge: the probe sits in a pocket
         outline += [(front, -height), (back, -height), (back, 0.0)]
 
-    # Probe: the element block (the array plus a small margin), as OmniScan draws it, centred on
-    # the array and trimmed at the wedge's back edge so it never hangs past the heel
+    # Probe: a thin element block (the array plus a small margin) lying on the face, as OmniScan
+    # draws it; drawn whole even where it passes the wedge's back
     block = total * pitch + 2 * BLOCK_MARGIN
-    stand = block * PROBE_BLOCK_RATIO
+    stand = PROBE_BLOCK_THICKNESS
     array_mid = (total - 1) / 2 * pitch
     nx, ny = -sin_a, -cos_a
     p1, p2 = face(array_mid - block / 2), face(array_mid + block / 2)
-    probe_outline = _clip_behind([p1, p2, (p2[0] + nx * stand, p2[1] + ny * stand),
-                                  (p1[0] + nx * stand, p1[1] + ny * stand)], back)
+    probe_outline = [p1, p2, (p2[0] + nx * stand, p2[1] + ny * stand), (p1[0] + nx * stand, p1[1] + ny * stand)]
+
+    heel = max(h1 - (x1 - back) * sin_a / cos_a, 0.0) if sin_a > 1e-6 else height
+    if from_file:
+        source = '.nde file'
+    elif estimated:
+        source = 'catalogue, estimated: ' + ', '.join(estimated)
+    else:
+        source = 'catalogue'
+    wedge_data = {
+        'source': source,
+        'length': length * MM_PER_IN, 'height': height * MM_PER_IN, 'angle': wedge_angle,
+        'velocity': velocity,
+        'first_element_behind_front': (front - x1) * MM_PER_IN, 'first_element_height': h1 * MM_PER_IN,
+        'heel_height': heel * MM_PER_IN,
+    }
     return Layout(outline, probe_outline, (p1, p2), (cx, cy), exits,
                   aperture=(face(s_first - pitch / 2), face(s_last + pitch / 2)),
-                  exact=not estimated, estimated=estimated, from_file=from_file)
-
-
-def _clip_behind(polygon, x_min):
-    """The part of a polygon at x >= x_min (one clipping edge of Sutherland-Hodgman)."""
-    out = []
-    for i, current in enumerate(polygon):
-        previous = polygon[i - 1]
-        inside_now, inside_before = current[0] >= x_min, previous[0] >= x_min
-        if inside_now != inside_before:
-            t = (x_min - previous[0]) / (current[0] - previous[0])
-            out.append((x_min, previous[1] + t * (current[1] - previous[1])))
-        if inside_now:
-            out.append(current)
-    return out
+                  exact=not estimated, estimated=estimated, from_file=from_file, wedge_data=wedge_data)
 
 
 def exact_layout(plan):

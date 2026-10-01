@@ -42,6 +42,46 @@ async function redraw() {
         img.src = url;
     }
     status.hidden = true;
+    showWedgeData(params);
+}
+
+// ── Wedge as drawn: the numbers the drawing uses, to check against the instrument ──
+
+const wedgeData = document.getElementById('wedge-data');
+
+async function showWedgeData(params) {
+    params.delete('side');
+    const response = await fetch(`${wedgeData.dataset.url}?${params}`, { cache: 'no-store' });
+    if (!response.ok) return;
+    const { wedge } = await response.json();
+    if (!wedge) {
+        wedgeData.replaceChildren(Object.assign(document.createElement('p'), {
+            className: 'scan-plan-status', textContent: 'No probe or wedge picked: the wedge is a sketch.',
+        }));
+        return;
+    }
+    const metric = form.elements.units?.value === 'metric';
+    const length = mm => metric ? `${mm.toFixed(2)} mm` : `${(mm / 25.4).toFixed(3)}"`;
+    const rows = [
+        ['Length × height', `${length(wedge.length)} × ${length(wedge.height)}`],
+        ['Wedge angle', `${wedge.angle.toFixed(2)}°`],
+        ['Wedge velocity', `${wedge.velocity.toFixed(0)} m/s`],
+        ['First element: behind front', length(wedge.first_element_behind_front)],
+        ['First element: height', length(wedge.first_element_height)],
+        ['Face height at the back', length(wedge.heel_height)],
+    ];
+    const table = document.createElement('table');
+    table.className = 'table table-sm wedge-data-table mb-0';
+    table.createCaption().textContent = `Wedge as drawn (from the ${wedge.source})`;
+    const body = table.createTBody();
+    for (const [label, value] of rows) {
+        const row = body.insertRow();
+        row.insertCell().textContent = label;
+        const cell = row.insertCell();
+        cell.textContent = value;
+        cell.className = 'mono';
+    }
+    wedgeData.replaceChildren(table);
 }
 
 function scheduleRedraw() {

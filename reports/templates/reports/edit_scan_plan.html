@@ -41,6 +41,8 @@
             <figcaption>Side 2</figcaption>
         </figure>
         <p class="scan-plan-status" id="scan-plan-status" role="status" hidden></p>
+        {# The wedge numbers the drawing uses (filled by scan_plan.js) #}
+        <div class="wedge-data" id="wedge-data" data-url="{% url 'scan-plan-wedge-data' %}"></div>
     </section>
 </div>
 {% endblock %}

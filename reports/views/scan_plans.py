@@ -11,7 +11,7 @@ from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
 from ..forms import ScanPlanForm
 from ..models import ScanPlan, Setup
 from ..services.scan_plan import (
-    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, render_png,
+    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, layout, render_png,
 )
 
 NUMBER = re.compile(r'-?\d+(?:\.\d+)?')
@@ -183,17 +183,31 @@ def _side(request):
     return 2 if request.GET.get('side') == '2' else 1
 
 
-def scan_plan_preview(request):
-    """
-    The drawing for the values currently in the form (not saved), for the live preview
-    """
+def _unsaved_plan(request):
+    """The scan plan the form's current values describe (not saved), or None if they are invalid."""
     data = request.GET.copy()
     if not data.get('name'):
         data['name'] = 'preview'  # a name is only needed to save
     form = ScanPlanForm(data)
-    if not form.is_valid():
+    return form.save(commit=False) if form.is_valid() else None
+
+
+def scan_plan_preview(request):
+    """
+    The drawing for the values currently in the form (not saved), for the live preview
+    """
+    plan = _unsaved_plan(request)
+    if plan is None:
         return HttpResponse('Check the highlighted values.', status=400, content_type='text/plain')
-    return _png(render_png(form.save(commit=False), _side(request)))
+    return _png(render_png(plan, _side(request)))
+
+
+def scan_plan_wedge_data(request):
+    """The wedge numbers the drawing uses for the form's current values (mm, degrees, m/s)"""
+    plan = _unsaved_plan(request)
+    if plan is None:
+        return JsonResponse({'error': 'Check the highlighted values.'}, status=400)
+    return JsonResponse({'wedge': layout(plan).wedge_data})
 
 
 def scan_plan_png(request, pk):

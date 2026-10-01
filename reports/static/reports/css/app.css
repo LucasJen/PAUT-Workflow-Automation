@@ -1148,3 +1148,8 @@ textarea.result-cell-input {
 .catalogue-match-line { margin: 0.25rem 0; }
 .catalogue-match-line .btn { margin-left: 0.5rem; }
 .catalogue-match-warning { margin-top: 0.25rem; color: var(--warning); font-size: 0.875rem; }
+
+/* Scan plan: the wedge numbers the drawing uses */
+.wedge-data-table { font-size: 0.8125rem; }
+.wedge-data-table caption { caption-side: top; padding: 0 0 0.25rem; color: var(--text-3); }
+.wedge-data-table td:last-child { text-align: right; }

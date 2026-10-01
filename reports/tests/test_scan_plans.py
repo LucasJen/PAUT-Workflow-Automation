@@ -443,16 +443,15 @@ class FileGeometryTests(TestCase):
         heel = max(-y for x, y in lay.wedge if abs(x - back) < 1e-9) * 25.4
         self.assertAlmostEqual(heel, 1.1, delta=0.2)
 
-    def test_probe_block_stays_on_the_wedge(self):
+    def test_probe_is_a_thin_untrimmed_element_block(self):
         for wedge in self.standard_and_short():
             with self.subTest(wedge=wedge.model):
                 plan = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'), wedge_model=wedge,
                                  first_element=6, aperture_elements=27)
                 lay = scan_plan.layout(plan)
-                back = min(x for x, _ in lay.wedge)
-                self.assertGreaterEqual(min(x for x, _ in lay.probe), back - 1e-9)
-                length = math.dist(*lay.face) * 25.4
-                self.assertAlmostEqual(length, 32 * 0.31 + 2, places=3)  # element block, not the 17 mm housing
+                self.assertEqual(len(lay.probe), 4)  # whole block, not cut at the wedge's back
+                self.assertAlmostEqual(math.dist(lay.probe[0], lay.probe[1]) * 25.4, 32 * 0.31 + 2)
+                self.assertAlmostEqual(math.dist(lay.probe[1], lay.probe[2]) * 25.4, 2.0)
 
     def test_setup_fill_carries_the_file_geometry(self):
         setup = Setup.objects.create(specimen_thickness='0.280', wedge_angle='38.9', wedge_primary_offset=-21.361,
@@ -490,4 +489,24 @@ class FileWedgeSizeTests(TestCase):
         xs = [x for x, _ in lay.wedge]
         self.assertAlmostEqual((max(xs) - min(xs)) * 25.4, 23.597)
         self.assertAlmostEqual(max(-y for _, y in lay.wedge) * 25.4, 18.771)
-        self.assertGreaterEqual(min(x for x, _ in lay.probe), min(xs) - 1e-9)
+        data = lay.wedge_data
+        self.assertEqual(data['source'], '.nde file')
+        self.assertAlmostEqual(data['length'], 23.597)
+        self.assertAlmostEqual(data['first_element_behind_front'], 21.361)
+        self.assertAlmostEqual(data['first_element_height'], 8.382)
+        # face height at the back: 8.382 - (23.597 - 21.361) * tan(38.9 deg)
+        self.assertAlmostEqual(data['heel_height'], 8.382 - (23.597 - 21.361) * math.tan(math.radians(38.9)))
+
+    def test_wedge_data_endpoint(self):
+        WedgeModel.objects.create(model='SA1-N60S 10L32', probe_series='A1', probe_fit='10L32', wedge_angle=39.0,
+                                  velocity=2330.0, primary_offset=-27.19, first_element_height=5.15,
+                                  length=30.38, height=16.41)
+        probe = ProbeModel.objects.get(model='10L32-A1')
+        wedge = WedgeModel.objects.get(model='SA1-N60S 10L32')
+        resp = self.client.get(reverse('scan-plan-wedge-data'),
+                               {**PLAN_FIELDS, 'probe_model': probe.pk, 'wedge_model': wedge.pk})
+        data = resp.json()['wedge']
+        self.assertEqual(data['source'], 'catalogue')
+        self.assertAlmostEqual(data['length'], 30.38)
+        self.assertEqual(self.client.get(reverse('scan-plan-wedge-data'), PLAN_FIELDS).json(), {'wedge': None})
+        self.assertEqual(self.client.get(reverse('scan-plan-wedge-data'), {**PLAN_FIELDS, 'thickness': ''}).status_code, 400)
