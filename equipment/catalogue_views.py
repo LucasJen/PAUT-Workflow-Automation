@@ -1,5 +1,9 @@
 """Probe and wedge catalogues: list, edit, and import from instrument files."""
+import json
+
 from django.contrib import messages
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import CatalogueImportForm, ProbeModelForm, WedgeModelForm
@@ -86,3 +90,35 @@ def import_catalogue(request):
     else:
         messages.warning(request, 'No probes or wedges were found in that file.')
     return redirect(back)
+
+
+ADDABLE_FIELDS = {
+    'probe': {'model', 'series', 'manufacturer', 'frequency', 'elements', 'pitch', 'elevation', 'length'},
+    'wedge': {'model', 'probe_series', 'manufacturer', 'length', 'width', 'height', 'velocity', 'wedge_angle',
+              'primary_offset', 'first_element_height'},
+}
+
+
+@require_POST
+def add_from_file(request):
+    """
+    Adds a probe or wedge that an instrument file used to the catalogue (the NDE import's 'Add to
+    catalogue'). JSON body: {"kind": "probe" | "wedge", "fields": {...}, "file": "scan.nde"}.
+    Returns {"pk": ..., "name": ...}.
+    """
+    try:
+        body = json.loads(request.body or b'{}')
+        kind, fields = body['kind'], dict(body['fields'])
+        allowed = ADDABLE_FIELDS[kind]
+    except (ValueError, KeyError, TypeError):
+        return JsonResponse({'error': 'Send kind ("probe" or "wedge") and fields.'}, status=400)
+    fields = {k: v for k, v in fields.items() if k in allowed and v not in (None, '')}
+    if not fields.get('model'):
+        return JsonResponse({'error': 'The file gives no model name.'}, status=400)
+    filename = str(body.get('file') or 'an instrument file')[:200]
+    fields['source'] = f'OmniScan file {filename}'
+    probes, wedges = ([fields], []) if kind == 'probe' else ([], [fields])
+    apply_catalogue(probes, wedges)
+    model_class = ProbeModel if kind == 'probe' else WedgeModel
+    item = model_class.objects.get(model=fields['model'])
+    return JsonResponse({'pk': item.pk, 'name': str(item)})

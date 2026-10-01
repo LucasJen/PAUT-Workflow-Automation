@@ -1135,3 +1135,16 @@ textarea.result-cell-input {
 
 /* Catalogue import: a file button that sits in the page header actions */
 .catalogue-import { display: contents; }
+
+/* NDE import: what the file's probe and wedge matched in the catalogue */
+.catalogue-match {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+}
+.catalogue-match:empty { display: none; }
+.catalogue-match-line { margin: 0.25rem 0; }
+.catalogue-match-line .btn { margin-left: 0.5rem; }
+.catalogue-match-warning { margin-top: 0.25rem; color: var(--warning); font-size: 0.875rem; }

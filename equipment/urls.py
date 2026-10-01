@@ -27,6 +27,7 @@ urlpatterns = [
     path('wedge-model/<int:pk>/edit/', catalogue_views.edit_wedge_model, name='edit-wedge-model'),
 
     path('catalogue/import/', catalogue_views.import_catalogue, name='import-catalogue'),
+    path('catalogue/add-from-file/', catalogue_views.add_from_file, name='catalogue-add-from-file'),
 
     path('encoders/', views.encoder_list, name='encoder-list'),
     path('encoders/new/', views.new_encoder, name='new-encoder'),

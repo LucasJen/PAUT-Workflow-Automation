@@ -61,6 +61,11 @@
             Highlighted fields were filled from the file. Check them, and fill in anything the file doesn't record (calibration block, surface prep, temperature).
         </p>
         {% endif %}
+        {% if nde_groups %}
+        {# Filled by nde_upload.js for the chosen group #}
+        <div class="catalogue-match" id="catalogue-match" role="status"
+             data-add-url="{% url 'catalogue-add-from-file' %}" data-file="{{ nde_filename }}"></div>
+        {% endif %}
         {% for title, fields in form.fieldsets %}
         <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
         <div class="field-grid cols-4">

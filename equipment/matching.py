@@ -52,14 +52,16 @@ def match_probe(file_probe):
         for probe in ProbeModel.objects.all():
             if normalize(probe.model) == name:
                 return Match(probe, 'by name')
-    # Same series and the same frequency, array type, element count and pitch
+    # Same series and the same frequency, array type, element count and pitch (what the file
+    # doesn't say isn't compared)
     file_like = ProbeModel(model=file_probe.get('model') or '', frequency=file_probe.get('frequency'),
                            elements=file_probe.get('elements'))
     wanted = probe_spec(file_like)
     pitch = file_probe.get('pitch')
     candidates = []
     for probe in ProbeModel.objects.filter(series__iexact=file_probe.get('series') or ''):
-        if probe_spec(probe) != wanted:
+        have = probe_spec(probe)
+        if any(w is not None and h is not None and w != h for w, h in zip(wanted, have)):
             continue
         if pitch is not None and probe.pitch is not None and abs(probe.pitch - pitch) > PITCH_TOLERANCE:
             continue
@@ -100,23 +102,37 @@ def match_wedge(file_wedge, probe=None):
     def found(wedge, how):
         return Match(wedge, how, geometry_differences(wedge, file_wedge))
 
+    # By name, unless that entry has no geometry and a variant below does (OmniScan may call the
+    # wedge just 'SA1-N60S'; the library has 'SA1-N60S 10L32', 'SA1-N60S 10L32R', ...)
     name = normalize(file_wedge.get('model'))
+    by_name = None
     if name:
         for wedge in candidates + [w for w in wedges if w not in candidates]:
             if normalize(wedge.model) == name:
-                return found(wedge, 'by name')
+                by_name = wedge
+                break
+    if by_name is not None and (by_name.has_geometry or not _has_file_geometry(file_wedge)):
+        return found(by_name, 'by name')
 
     # Same base name (SA1-N60S), the variant with the closest geometry
     base = normalize(base_name(file_wedge.get('model')))
-    same_base = [w for w in candidates if base and normalize(base_name(w.model)) == base]
+    same_base = [w for w in candidates if base and normalize(base_name(w.model)) == base and w.has_geometry]
     if same_base:
         ranked = sorted(same_base, key=lambda w: (_distance(w, file_wedge) is None, _distance(w, file_wedge) or 0))
         how = f'closest geometry among {base_name(file_wedge["model"])} variants' if len(same_base) > 1 \
             else f'by base name {base_name(file_wedge["model"])}'
         return found(ranked[0], how)
 
-    # Geometry alone, within tolerance
-    near = [(d, w) for w in candidates if (d := _distance(w, file_wedge)) is not None and d <= 1]
+    if by_name is not None:
+        return found(by_name, 'by name')
+
+    # Geometry alone, within tolerance (only wedges whose geometry is complete)
+    near = [(d, w) for w in candidates
+            if w.has_geometry and (d := _distance(w, file_wedge)) is not None and d <= 1]
     if near:
         return found(min(near, key=lambda pair: pair[0])[1], 'by geometry')
     return Match()
+
+
+def _has_file_geometry(file_wedge):
+    return any(file_wedge.get(name) is not None for name in TOLERANCES)

@@ -56,11 +56,96 @@ function fillForm() {
     filledFields = [];
     Object.entries(values).forEach(([name, value]) => {
         const el = setupForm.querySelector(`[name="${name}"]`);
-        if (!el) return;
+        if (!el || name === 'catalogue_wedge') return;  // the wedge is set after its list loads
         el.value = value;
         el.closest('.field')?.classList.add('from-file');
         filledFields.push(name);
     });
+    const probeSelect = setupForm.querySelector('[name="catalogue_probe"]');
+    if (probeSelect && values.catalogue_probe) {
+        window.CatalogueSelect.setPair(probeSelect, values.catalogue_probe, values.catalogue_wedge || null);
+        if (values.catalogue_wedge) {
+            setupForm.querySelector('[name="catalogue_wedge"]')?.closest('.field')?.classList.add('from-file');
+            filledFields.push('catalogue_wedge');
+        }
+    }
+    renderMatch(group);
+}
+
+// ── Catalogue match ──────────────────────────────────────────────────────
+// What the file's probe and wedge matched in the catalogue (reports/views/nde.py), with
+// 'Add to catalogue' for ones the catalogue doesn't have and a warning when the catalogue
+// wedge's geometry differs from the file's.
+
+const matchBox = document.getElementById('catalogue-match');
+
+function element(tag, className, text) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text) el.textContent = text;
+    return el;
+}
+
+function matchLine(group, kind) {
+    const info = group.catalogue[kind];
+    const noun = kind === 'probe' ? 'Probe' : 'Wedge';
+    const line = element('div', 'catalogue-match-line');
+    if (!info) {
+        line.append(element('span', 'text-muted-cell', `${noun}: not recorded in the file.`));
+        return line;
+    }
+    if (info.pk) {
+        line.append(element('i', 'bi bi-check-circle-fill text-success'), ` ${noun}: `, element('strong', '', info.name),
+                    element('span', 'text-muted-cell', ` (${info.how}${info.file_name && info.file_name !== info.name ? `, file: ${info.file_name}` : ''})`));
+        if (info.differences && info.differences.length) {
+            const warn = element('div', 'catalogue-match-warning');
+            warn.append(element('i', 'bi bi-exclamation-triangle-fill'),
+                        ' Geometry differs from the file; the catalogue values are used: ');
+            warn.append(info.differences.map(([label, catalogue, file]) => `${label} ${catalogue} in catalogue, ${file} in file`).join('; ') + '.');
+            line.append(warn);
+        }
+        return line;
+    }
+    line.append(element('i', 'bi bi-question-circle-fill text-warning'), ` ${noun} `,
+                element('strong', '', info.file_name || '(no name)'), ' is not in the catalogue. ');
+    const add = element('button', 'btn btn-sm btn-secondary', 'Add to catalogue');
+    add.type = 'button';
+    add.addEventListener('click', () => addToCatalogue(group, kind, add));
+    line.append(add);
+    return line;
+}
+
+function renderMatch(group) {
+    if (!matchBox || !group.catalogue) return;
+    matchBox.replaceChildren(element('h3', 'panel-subtitle mt-0', 'Catalogue match'),
+                             matchLine(group, 'probe'), matchLine(group, 'wedge'));
+}
+
+async function addToCatalogue(group, kind, button) {
+    const info = group.catalogue[kind];
+    button.disabled = true;
+    const response = await fetch(matchBox.dataset.addUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': setupForm.querySelector('[name=csrfmiddlewaretoken]').value,
+        },
+        body: JSON.stringify({ kind, fields: info.file_fields, file: matchBox.dataset.file }),
+    });
+    if (!response.ok) {
+        button.disabled = false;
+        button.textContent = 'Could not add; try again';
+        return;
+    }
+    const { pk, name } = await response.json();
+    group.catalogue[kind] = { pk, name, how: 'added from this file', file_name: info.file_name, differences: [] };
+    const field = kind === 'probe' ? 'catalogue_probe' : 'catalogue_wedge';
+    Object.values(group.values).forEach(values => { values[field] = pk; });
+    const probeSelect = setupForm.querySelector('[name="catalogue_probe"]');
+    if (kind === 'probe' && ![...probeSelect.options].some(o => o.value === String(pk))) {
+        probeSelect.append(new Option(name, pk));
+    }
+    fillForm();
 }
 
 function setUnit(next) {
