@@ -312,3 +312,40 @@ class ScanPlanFormLayoutTests(TestCase):
         incident = math.asin(2330 / 25400 / 0.1276 * math.sin(math.radians(60)))
         expected = round((27.19 - 5.15 * math.tan(incident)) / 25.4, 3)
         self.assertEqual(values, {'wedge_angle': 39.0, 'exit_point': expected})
+
+
+class OffsetAndPreviewTests(TestCase):
+    def test_preview_draws_before_a_name_or_offset_is_entered(self):
+        resp = self.client.get(reverse('scan-plan-preview'), {**PLAN_FIELDS, 'name': '', 'index_offset': ''})
+        self.assertEqual(resp['Content-Type'], 'image/png')
+
+    def test_name_still_needed_to_save(self):
+        resp = self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'name': ''})
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(ScanPlan.objects.exists())
+
+    def test_blank_offset_puts_the_wedge_at_the_weld_toe(self):
+        plan = make_plan(index_offset=None, cap_width=0.5)
+        self.assertEqual(scan_plan.index_offset(plan), 0.25)
+        self.assertEqual(max(x for x, _ in scan_plan.layout(plan).wedge), -0.25)  # wedge front at the toe
+        plan.index_offset = 0.48
+        self.assertEqual(scan_plan.index_offset(plan), 0.48)
+        self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'index_offset': ''})
+        self.assertIsNone(ScanPlan.objects.get(name=PLAN_FIELDS['name']).index_offset)
+
+    def test_setup_offset_fills_the_scan_plan(self):
+        setup = Setup.objects.create(title='PAUT 1', specimen_thickness='0.280', index_offset='0.350')
+        values = self.client.get(reverse('new-scan-plan')).context['setup_fill_values']
+        self.assertEqual(values[setup.pk]['fields']['index_offset'], 0.35)
+
+
+class NdeIndexOffsetTests(TestCase):
+    def test_wedge_position_gives_the_index_offset(self):
+        from reports.services.nde_parser import extract_groups
+        setup = {
+            'probes': [{'id': 0, 'model': '10L32-A1', 'wedgeAssociation': {'wedgeId': 0, 'mountingLocationId': 0}}],
+            'wedges': [{'id': 0, 'model': 'SA1-N60S 10L32', 'positioning': {'vCoordinateOffset': -0.00889}}],
+            'groups': [{'id': 0, 'processes': [{'ultrasonicPhasedArray': {'pulseEcho': {'probeId': 0}}}]}],
+        }
+        values = extract_groups(setup)[0]['values']
+        self.assertEqual((values['imperial']['index_offset'], values['metric']['index_offset']), ('0.350', '8.89'))

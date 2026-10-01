@@ -96,7 +96,8 @@ class ScanPlan(models.Model):
     cap_width = models.FloatField(null=True, blank=True, help_text='Blank = bevel opening plus 1/16" each side.')
 
     # Probe position and beams
-    index_offset = models.FloatField(help_text='Wedge front to weld centre line.')
+    index_offset = models.FloatField(null=True, blank=True,
+                                     help_text='Wedge front to weld centre line. Blank = the weld toe (half the cap width).')
     exit_point = models.FloatField(default=0.45, help_text='Wedge front back to the beam exit (index) point.')
     wedge_angle = models.FloatField(default=36.0)
     angle_start = models.FloatField(default=40.0)
@@ -233,6 +234,9 @@ class Setup(models.Model):
     # Source data file (filled by NDE import)
     source_file = models.CharField(max_length=255, blank=True)
     acquisition_date = models.CharField(max_length=50, blank=True)
+
+    # Wedge front to the weld centre line (from the .nde file's wedge position), for scan plans
+    index_offset = models.CharField(max_length=50, blank=True)
 
     # Catalogue probe / wedge (matched on NDE import) and the aperture used, for scan plans
     catalogue_probe = models.ForeignKey('equipment.ProbeModel', on_delete=models.SET_NULL, null=True, blank=True,

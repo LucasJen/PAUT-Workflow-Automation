@@ -91,9 +91,14 @@ def cap_width(plan):
     return -2 * weld_outline(plan)[0][0] + 0.125
 
 
+def index_offset(plan):
+    """Wedge front to the weld centre line: as entered, else the weld toe (half the cap width)."""
+    return plan.index_offset if plan.index_offset is not None else cap_width(plan) / 2
+
+
 def exit_x(plan):
     """Beam exit (index) point: behind the wedge front by the exit point distance."""
-    return -(plan.index_offset + plan.exit_point)
+    return -(index_offset(plan) + plan.exit_point)
 
 
 def beam_path(plan, angle, x0=None):
@@ -190,7 +195,7 @@ def catalogue_layout(plan):
     cos_a, sin_a = math.cos(a), math.sin(a)
     first = min(max(plan.first_element or 1, 1), total)
     count = min(plan.aperture_elements or total, total - first + 1)
-    front = -plan.index_offset
+    front = -index_offset(plan)
     back = front - length
 
     # First element: from the wedge's offsets, else the housing sits at the wedge's heel
@@ -269,7 +274,7 @@ def _wedge(plan):
     """Sketched wedge: (wedge polygon, probe polygon, probe face centre, probe face end points)."""
     a = math.radians(plan.wedge_angle)
     x0 = exit_x(plan)
-    front = -plan.index_offset
+    front = -index_offset(plan)
     # Probe face centre: up and back from the exit point along the central ray
     cx, cy = x0 - WEDGE_PATH * math.sin(a), -WEDGE_PATH * math.cos(a)
     along = (math.cos(a), -math.sin(a))        # up the slope, towards the front
@@ -409,7 +414,7 @@ def render_png(plan, side=1):
         c.line(lay.aperture, BEAM, 3)
 
     # Index offset: wedge front to weld centre line
-    front = -plan.index_offset
+    front = -index_offset(plan)
     top = min(p[1] for p in wedge)
     dim_y = top - 0.12
     c.line([(front, top - 0.02), (front, dim_y - 0.08)], DIMENSION, 1)
@@ -417,7 +422,7 @@ def render_png(plan, side=1):
     c.line([(front, dim_y), (0, dim_y)], DIMENSION, 1.2)
     c.arrow_head((front, dim_y), (0, dim_y), DIMENSION)
     c.arrow_head((0, dim_y), (front, dim_y), DIMENSION)
-    c.draw.text(c.px((front / 2, dim_y - 0.03)), fmt_in(plan.index_offset), fill=DIMENSION, font=_font(19 * SUPERSAMPLE),
+    c.draw.text(c.px((front / 2, dim_y - 0.03)), fmt_in(index_offset(plan)), fill=DIMENSION, font=_font(19 * SUPERSAMPLE),
                 anchor='mb', stroke_width=SUPERSAMPLE * 3, stroke_fill='white')
 
     # Labels

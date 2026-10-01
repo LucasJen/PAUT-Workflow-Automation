@@ -48,6 +48,7 @@ def _setup_fill_values():
         angles = [float(n) for n in NUMBER.findall(setup.angle_range or '')]
         fill = {
             'thickness': _first_number(setup.specimen_thickness),
+            'index_offset': _first_number(setup.index_offset),
             'angle_start': angles[0] if angles else None,
             'angle_stop': angles[-1] if angles else None,
             'angle_step': _first_number(setup.angle_step),
@@ -162,7 +163,8 @@ def scan_plan_preview(request):
     The drawing for the values currently in the form (not saved), for the live preview
     """
     data = request.GET.copy()
-    data.setdefault('name', 'preview')
+    if not data.get('name'):
+        data['name'] = 'preview'  # a name is only needed to save
     form = ScanPlanForm(data)
     if not form.is_valid():
         return HttpResponse('Check the highlighted values.', status=400, content_type='text/plain')

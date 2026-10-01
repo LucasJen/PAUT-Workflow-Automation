@@ -183,7 +183,7 @@ class SetupForm(StyledFormMixin, ModelForm):
                          'surface_prep', 'tr_min', 'tr_max']),
         ('Source', ['source_file', 'acquisition_date']),
         ('Catalogue probe and wedge (for scan plans)', ['catalogue_probe', 'catalogue_wedge', 'first_element',
-                                                        'aperture_elements']),
+                                                        'aperture_elements', 'index_offset']),
     ]
 
     class Meta:
@@ -221,6 +221,7 @@ class SetupForm(StyledFormMixin, ModelForm):
             'specimen_dimensions': 'Specimen dimensions',
             'source_file': 'Source data file',
             'acquisition_date': 'Acquisition date',
+            'index_offset': 'Index offset',
         }
         widgets = {
             'wave_propagation': TextInput(attrs={'list': 'wave_propagation_options'}),
@@ -229,7 +230,8 @@ class SetupForm(StyledFormMixin, ModelForm):
             'procedure': TextInput(attrs={'placeholder': 'e.g. 100-UT-031 Rev. 1'}),
         }
         help_texts = {'title': 'Heads this setup\'s "Equipment Details" section. The Introduction\'s technique '
-                               'bullet uses the Text library description with this name.'}
+                               'bullet uses the Text library description with this name.',
+                      'index_offset': 'Wedge front to the weld centre line.'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -367,7 +369,8 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
             'aperture_elements': 'Aperture (elements)',
         }
         help_texts = {
-            'index_offset': 'Wedge front to the weld centre line.',
+            'index_offset': 'Wedge front to the weld centre line. Leave blank to put the wedge at the weld toe '
+                            '(half the cap width).',
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),

@@ -290,6 +290,7 @@ class _GroupContext:
             # Specimen
             'specimen_od': self._outer_diameter(system),
             'specimen_thickness': _dist(geometry.get('thickness'), system, 3, 2),
+            'index_offset': self._index_offset(system),
             'specimen_dimensions': self._specimen_dimensions(system, unit),
             'cal_material': (_get(geometry, 'material', 'name') or '').replace('_', ' ') or None,
             'tr_min': _dist(self.thickness.get('min'), system, 3, 2),
@@ -331,6 +332,11 @@ class _GroupContext:
             'first_element': first + 1 if first is not None else None,  # file ids are 0-based
             'aperture': aperture,
         }
+
+    def _index_offset(self, system):
+        """Wedge front to the weld centre line: the wedge's position across the weld (either side)."""
+        offset = _get(self.wedge, 'positioning', 'vCoordinateOffset')
+        return _dist(abs(offset), system, 3, 2) if offset is not None else None
 
     def _active_elements(self):
         first = self.formation.get('probeFirstElementId')
