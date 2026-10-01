@@ -7,15 +7,14 @@ to the in-browser preview. Set REPORT_PDF_ENGINE = 'off' to disable.
 
 Each conversion starts a separate, hidden Word instance (so documents the user has open are
 never touched), updates all fields, exports to PDF and quits. Conversions are serialised with
-a lock because Word automation is not safe to run in parallel.
+the shared Office lock because Office automation is not safe to run in parallel.
 """
 import logging
 import os
 import shutil
 import tempfile
-import threading
 
-from django.conf import settings
+from .office import lock, office_app_available
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +24,6 @@ WD_EXPORT_CREATE_HEADING_BOOKMARKS = 1
 WD_DO_NOT_SAVE_CHANGES = 0
 WD_ALERTS_NONE = 0
 
-_lock = threading.Lock()
-
 
 class WordPdfError(Exception):
     """Word could not produce the PDF."""
@@ -34,15 +31,7 @@ class WordPdfError(Exception):
 
 def word_available():
     """True when PDF output via Word is enabled and Word is installed on this machine."""
-    if getattr(settings, 'REPORT_PDF_ENGINE', 'auto') == 'off' or os.name != 'nt':
-        return False
-    try:
-        import winreg
-        import win32com.client  # noqa: F401  (pywin32 installed)
-        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, r'Word.Application\CurVer'):
-            return True
-    except (ImportError, OSError):
-        return False
+    return office_app_available('Word.Application')
 
 
 def _update_fields(doc):
@@ -72,7 +61,7 @@ def docx_to_pdf(docx_bytes):
     with open(docx_path, 'wb') as f:
         f.write(docx_bytes)
 
-    with _lock:
+    with lock:
         pythoncom.CoInitialize()  # COM must be initialised on each request thread
         word = doc = None
         try:
