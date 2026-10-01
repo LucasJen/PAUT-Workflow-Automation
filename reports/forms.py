@@ -3,6 +3,8 @@ from django.forms import (
     TextInput, inlineformset_factory,
 )
 from django.forms.renderers import TemplatesSetting
+from django.urls import reverse_lazy
+from django.utils.choices import CallableChoiceIterator
 from equipment.compat import BEAMTOOL_SOURCE, wedge_fits_probe, wedges_for_probe
 from equipment.models import ProbeModel
 
@@ -131,6 +133,39 @@ class ReportForm(StyledFormMixin, ModelForm):
             self.initial.setdefault('report_date', date.today())
 
 
+def catalogue_choices(form, probe_name, wedge_name):
+    """
+    Probe / wedge catalogue selects on a form: the wedge list shows only wedges that fit the chosen
+    probe (the Beamtool library has many); static/reports/js/catalogue_select.js refreshes it when the
+    probe changes and adds type-to-filter boxes. Validation still accepts any wedge.
+    """
+    probe_field, wedge_field = form.fields[probe_name], form.fields[wedge_name]
+    probe_field.widget.attrs['data-catalogue'] = 'probe'
+    wedge_field.widget.attrs.update({'data-catalogue': 'wedge', 'data-wedges-url': reverse_lazy('scan-plan-wedges')})
+
+    def chosen(name):
+        value = form.data.get(form.add_prefix(name)) if form.is_bound else getattr(form.instance, f'{name}_id', None)
+        return value if value not in (None, '') else None
+
+    probe_pk, wedge_pk = chosen(probe_name), chosen(wedge_name)
+    if not (probe_pk and str(probe_pk).isdigit()):
+        probe_pk = None
+        wedge_field.help_text = 'Pick a probe first to list the library wedges made for it.'
+
+    def wedge_choices():
+        # Worked out when the select is drawn, so building the form doesn't query the catalogue
+        probe = ProbeModel.objects.filter(pk=probe_pk).first() if probe_pk else None
+        wedges = list(wedge_field.queryset)
+        if probe is not None:
+            shown = wedges_for_probe(probe, wedges)
+        else:
+            shown = [w for w in wedges if w.source != BEAMTOOL_SOURCE]
+        shown += [w for w in wedges if str(w.pk) == str(wedge_pk) and w not in shown]
+        return [('', wedge_field.empty_label)] + [(w.pk, str(w)) for w in shown]
+
+    wedge_field.widget.choices = CallableChoiceIterator(wedge_choices)
+
+
 class SetupForm(StyledFormMixin, ModelForm):
     fieldsets_spec = [
         ('Technique', ['title', 'procedure']),
@@ -147,6 +182,8 @@ class SetupForm(StyledFormMixin, ModelForm):
         ('Calibration', ['cal_material', 'material_temp', 'cal_block_type', 'cal_block_serial',
                          'surface_prep', 'tr_min', 'tr_max']),
         ('Source', ['source_file', 'acquisition_date']),
+        ('Catalogue probe and wedge (for scan plans)', ['catalogue_probe', 'catalogue_wedge', 'first_element',
+                                                        'aperture_elements']),
     ]
 
     class Meta:
@@ -193,6 +230,10 @@ class SetupForm(StyledFormMixin, ModelForm):
         }
         help_texts = {'title': 'Heads this setup\'s "Equipment Details" section. The Introduction\'s technique '
                                'bullet uses the Text library description with this name.'}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        catalogue_choices(self, 'catalogue_probe', 'catalogue_wedge')
 
 
 class DrawingForm(StyledFormMixin, ModelForm):
@@ -333,23 +374,7 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # The wedge list shows only wedges for the chosen probe (the Beamtool library has thousands);
-        # the page refreshes it when the probe changes. Validation still accepts any wedge that fits.
-        field = self.fields['wedge_model']
-        probe = self._chosen_probe()
-        current = self.data.get(self.add_prefix('wedge_model')) if self.is_bound else self.instance.wedge_model_id
-        wedges = list(field.queryset)
-        if probe is not None:
-            shown = wedges_for_probe(probe, wedges)
-        else:
-            shown = [w for w in wedges if w.source != BEAMTOOL_SOURCE]
-            field.help_text = 'Pick a probe first to list the library wedges made for it.'
-        shown += [w for w in wedges if str(w.pk) == str(current) and w not in shown]
-        field.widget.choices = [('', field.empty_label)] + [(w.pk, str(w)) for w in shown]
-
-    def _chosen_probe(self):
-        pk = self.data.get(self.add_prefix('probe_model')) if self.is_bound else self.instance.probe_model_id
-        return ProbeModel.objects.filter(pk=pk).first() if pk and str(pk).isdigit() else None
+        catalogue_choices(self, 'probe_model', 'wedge_model')
 
     def clean(self):
         data = super().clean()

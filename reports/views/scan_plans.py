@@ -49,6 +49,10 @@ def _setup_fill_values():
             'angle_start': angles[0] if angles else None,
             'angle_stop': angles[-1] if angles else None,
             'angle_step': _first_number(setup.angle_step),
+            'probe_model': setup.catalogue_probe_id,
+            'wedge_model': setup.catalogue_wedge_id,
+            'first_element': setup.first_element,
+            'aperture_elements': setup.aperture_elements,
         }
         fill = {k: v for k, v in fill.items() if v is not None}
         if fill:

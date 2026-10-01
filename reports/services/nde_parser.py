@@ -141,6 +141,7 @@ def extract_groups(setup, properties=None, filename=''):
             'id': group.get('id'),
             'label': context.label(),
             'values': {system: context.values(system) for system in UNIT_SYSTEMS},
+            'hardware': context.hardware(),
         })
     return groups
 
@@ -311,6 +312,25 @@ class _GroupContext:
         if 'phasedArrayLinear' in self.probe:
             return _plain(_get(self.probe_tech, 'primaryAxis', 'elementQuantity'), 0)
         return '1' if self.probe_tech else None
+
+    def hardware(self):
+        """
+        The probe and wedge this group used, as stored in the file (for matching them to the
+        probe / wedge catalogue), with the wedge mounting position and the aperture.
+        """
+        association = self.probe.get('wedgeAssociation') or {}
+        first = self.formation.get('probeFirstElementId')
+        last = self.formation.get('probeLastElementId')
+        aperture = self.formation.get('elementAperture')
+        if aperture is None and first is not None and last is not None:
+            aperture = last - first + 1
+        return {
+            'probe': self.probe,
+            'wedge': self.wedge,
+            'mounting_id': association.get('mountingLocationId'),
+            'first_element': first + 1 if first is not None else None,  # file ids are 0-based
+            'aperture': aperture,
+        }
 
     def _active_elements(self):
         first = self.formation.get('probeFirstElementId')

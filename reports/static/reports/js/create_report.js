@@ -109,6 +109,11 @@ document.addEventListener('change', e => {
         const el = document.getElementById(`id_${prefix}-${field}`);
         if (el) el.value = value ?? '';
     });
+    // The wedge list depends on the probe: load it, then pick the setup's wedge
+    const probe = document.getElementById(`id_${prefix}-catalogue_probe`);
+    if (probe && values.catalogue_probe) {
+        window.CatalogueSelect.setPair(probe, values.catalogue_probe, values.catalogue_wedge);
+    }
     select.value = '';
     markDirty();
 });

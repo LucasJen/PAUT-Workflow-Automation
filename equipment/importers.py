@@ -28,7 +28,7 @@ def _mm(metres):
     return None if metres is None else round(metres * 1000, 3)
 
 
-def _probe_from_nde(probe):
+def probe_from_nde(probe):
     tech = probe.get('phasedArrayLinear') or {}
     primary, secondary = tech.get('primaryAxis') or {}, tech.get('secondaryAxis') or {}
     length, gap = primary.get('elementLength'), primary.get('elementGap') or 0
@@ -45,9 +45,11 @@ def _probe_from_nde(probe):
     return {k: v for k, v in values.items() if v not in (None, '')}
 
 
-def _wedge_from_nde(wedge):
+def wedge_from_nde(wedge, mounting_id=None):
+    """Catalogue fields for a wedge in a .nde setup, at the probe mounting position the group used."""
     angle_beam = wedge.get('angleBeamWedge') or {}
-    mounting = (angle_beam.get('mountingLocations') or [{}])[0]
+    mountings = angle_beam.get('mountingLocations') or [{}]
+    mounting = next((m for m in mountings if m.get('id') == mounting_id), mountings[0])
     values = {
         'model': wedge.get('model'),
         'probe_series': (wedge.get('serie') or '').removeprefix('S') or None,
@@ -68,8 +70,8 @@ def read_nde_catalogue(uploaded):
         setup, _ = read_nde(uploaded)
     except NdeError as e:
         raise CatalogueImportError(str(e)) from e
-    probes = [_probe_from_nde(p) for p in setup.get('probes') or [] if p.get('model')]
-    wedges = [_wedge_from_nde(w) for w in setup.get('wedges') or [] if w.get('model')]
+    probes = [probe_from_nde(p) for p in setup.get('probes') or [] if p.get('model')]
+    wedges = [wedge_from_nde(w) for w in setup.get('wedges') or [] if w.get('model')]
     return probes, wedges
 
 

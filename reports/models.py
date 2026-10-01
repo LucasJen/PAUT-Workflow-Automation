@@ -234,6 +234,14 @@ class Setup(models.Model):
     source_file = models.CharField(max_length=255, blank=True)
     acquisition_date = models.CharField(max_length=50, blank=True)
 
+    # Catalogue probe / wedge (matched on NDE import) and the aperture used, for scan plans
+    catalogue_probe = models.ForeignKey('equipment.ProbeModel', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='setups', verbose_name='Catalogue probe')
+    catalogue_wedge = models.ForeignKey('equipment.WedgeModel', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='setups', verbose_name='Catalogue wedge')
+    first_element = models.PositiveIntegerField(null=True, blank=True)
+    aperture_elements = models.PositiveIntegerField('Aperture (elements)', null=True, blank=True)
+
     order = models.IntegerField(default=0)
 
     def __str__(self):
