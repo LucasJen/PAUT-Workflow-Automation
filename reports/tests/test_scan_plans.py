@@ -143,10 +143,27 @@ class ExactGeometryTests(TestCase):
         values.update(fields)
         return make_plan(**values)
 
-    def test_sketch_when_the_wedge_has_no_geometry(self):
-        plan = make_plan(wedge_model=WedgeModel.objects.get(model='SA1-N60S'))
-        self.assertIsNone(scan_plan.exact_layout(plan))
+    def test_sketch_only_without_probe_and_wedge(self):
+        plan = make_plan()
+        self.assertIsNone(scan_plan.catalogue_layout(plan))
         self.assertEqual(set(scan_plan.layout(plan).exits.values()), {scan_plan.exit_x(plan)})
+
+    def test_catalogue_sizes_with_estimates_when_geometry_is_incomplete(self):
+        """Seeded wedges lack velocity / primary offset; the drawing still uses their size."""
+        small = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'),
+                          wedge_model=WedgeModel.objects.get(model='SA1-N60S'))
+        large = make_plan(probe_model=ProbeModel.objects.get(model='5L64-A2'),
+                          wedge_model=WedgeModel.objects.get(model='SA2-N55S'))
+        a, b = scan_plan.layout(small), scan_plan.layout(large)
+        self.assertFalse(a.exact)
+        self.assertIn('wedge velocity', a.estimated)
+        self.assertIn('first element position', a.estimated)
+        self.assertNotIn('wedge angle', a.estimated)          # SA1-N60S has 38.9°
+        self.assertIn('wedge angle', b.estimated)              # worked out from 55° refracted
+        width = lambda lay: max(x for x, _ in lay.wedge) - min(x for x, _ in lay.wedge)
+        self.assertAlmostEqual(width(a), 30 / 25.4)
+        self.assertAlmostEqual(width(b), 69 / 25.4)
+        self.assertGreater(len(set(round(x, 6) for x in a.exits.values())), 1)  # per-angle exit points
 
     def test_exit_points_follow_snells_law(self):
         plan = self.plan()

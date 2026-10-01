@@ -10,7 +10,8 @@ import io
 import math
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from types import SimpleNamespace
 
 from django.core.exceptions import ObjectDoesNotExist
 from PIL import Image, ImageDraw, ImageFont
@@ -19,6 +20,13 @@ MM_PER_IN = 25.4
 M_PER_S_TO_IN_PER_US = 1 / 25400
 STEEL_SHEAR = 0.1276                  # in/µs
 STEEL_LONGITUDINAL = 0.2320
+REXOLITE_VELOCITY = 2330.0            # m/s, typical wedge material when the catalogue has none
+HEEL_FRACTION = 0.15                  # estimated probe face height at the wedge heel, of the wedge height
+
+# Stand-ins when only one of probe / wedge is picked (mm): an A1 probe on an SA1 wedge
+GENERIC_PROBE = SimpleNamespace(pitch=0.6, elements=16, length=17.0, height=25.0)
+GENERIC_WEDGE = SimpleNamespace(length=30.0, height=16.0, velocity=None, wedge_angle=None, refracted_angle=None,
+                                first_element_height=None, primary_offset=None, wave_type='SW')
 
 WIDTH_PX = 1100
 SUPERSAMPLE = 3                       # drawn large, then scaled down for smooth lines
@@ -106,8 +114,9 @@ class Layout:
     face: tuple                 # probe face end points
     source: tuple               # where the beams in the wedge start
     exits: dict
-    aperture: tuple = None      # active aperture on the probe face (exact layout only)
+    aperture: tuple = None      # active aperture on the probe face (catalogue layout only)
     exact: bool = False
+    estimated: list = field(default_factory=list)   # catalogue values that had to be estimated
 
 
 def _related(plan, name):
@@ -131,26 +140,73 @@ def first_number(text):
     return float(match.group()) if match else None
 
 
-def exact_layout(plan):
+def _known(value, default, name, estimated):
+    """`value`, or `default` noted in `estimated` under `name` when the catalogue doesn't have it."""
+    if value is None:
+        estimated.append(name)
+        return default
+    return value
+
+
+def catalogue_layout(plan):
     """
-    Exit point of every beam from the probe and wedge geometry, or None when either is missing.
+    Wedge, probe and beam exit points from the catalogue's probe and wedge, or None when neither is
+    picked. Values the catalogue entries don't have yet are estimated and listed in
+    Layout.estimated; with none estimated the layout is exact.
 
     The active aperture's centre sits on the probe face, `pitch` per element up the slope from the
     first element (whose position the wedge's primary offset and first element height give). Each
     beam leaves that point at the incident angle Snell's law gives for its refracted angle.
     """
     probe, wedge = _related(plan, 'probe_model'), _related(plan, 'wedge_model')
-    if probe is None or wedge is None or not wedge.has_geometry or not probe.pitch:
+    if probe is None and wedge is None:
         return None
-    a = math.radians(wedge.wedge_angle)
+    estimated = []
+    probe_values = probe if probe is not None else GENERIC_PROBE
+    wedge_values = wedge if wedge is not None else GENERIC_WEDGE
+    if probe is None:
+        estimated.append('probe (none picked)')
+    if wedge is None:
+        estimated.append('wedge (none picked)')
+
+    pitch = _known(probe_values.pitch, GENERIC_PROBE.pitch, 'pitch', estimated) / MM_PER_IN
+    total = probe_values.elements or GENERIC_PROBE.elements
+    housing = _known(probe_values.length, total * pitch * MM_PER_IN + 4, 'probe length', estimated) / MM_PER_IN
+    stand = _known(probe_values.height, GENERIC_PROBE.height, 'probe height', estimated) / MM_PER_IN
+    length = _known(wedge_values.length, GENERIC_WEDGE.length, 'wedge length', estimated) / MM_PER_IN
+    height = _known(wedge_values.height, GENERIC_WEDGE.height, 'wedge height', estimated) / MM_PER_IN
+    velocity = _known(wedge_values.velocity, REXOLITE_VELOCITY, 'wedge velocity', estimated)
+    ratio = (velocity * M_PER_S_TO_IN_PER_US) / part_velocity(plan, wedge)
+
+    wedge_angle = wedge_values.wedge_angle
+    if wedge_angle is None:
+        # Probe face angle that refracts the wedge's nominal angle
+        refracted = wedge_values.refracted_angle
+        sin_i = ratio * math.sin(math.radians(refracted)) if refracted is not None else None
+        wedge_angle = math.degrees(math.asin(sin_i)) if sin_i is not None and sin_i < 1 else plan.wedge_angle
+        estimated.append('wedge angle')
+    a = math.radians(wedge_angle)
     cos_a, sin_a = math.cos(a), math.sin(a)
-    pitch = probe.pitch / MM_PER_IN
-    total = probe.elements or 1
     first = min(max(plan.first_element or 1, 1), total)
     count = min(plan.aperture_elements or total, total - first + 1)
     front = -plan.index_offset
-    x1 = front + wedge.primary_offset / MM_PER_IN
-    h1 = wedge.first_element_height / MM_PER_IN
+    back = front - length
+
+    # First element: from the wedge's offsets, else the housing sits at the wedge's heel
+    margin = max((housing - total * pitch) / 2, 0) + pitch / 2   # housing end to first element centre
+    h1 = wedge_values.first_element_height
+    offset = wedge_values.primary_offset
+    if h1 is not None and offset is not None:
+        h1, x1 = h1 / MM_PER_IN, front + offset / MM_PER_IN
+    else:
+        estimated.append('first element position')
+        if h1 is not None:
+            h1 = h1 / MM_PER_IN
+            heel = max(h1 - margin * sin_a, 0.0)
+        else:
+            heel = height * 0.6 if sin_a < 1e-6 else max(height * HEEL_FRACTION, 0.04)
+            h1 = heel + margin * sin_a
+        x1 = back + (h1 - heel) / sin_a * cos_a if sin_a > 1e-6 else back + margin
 
     def face(s):
         """Point on the probe face, s inches up the slope from the first element's centre."""
@@ -158,7 +214,6 @@ def exact_layout(plan):
 
     s_first, s_last = (first - 1) * pitch, (first + count - 2) * pitch
     cx, cy = face((s_first + s_last) / 2)
-    ratio = (wedge.velocity * M_PER_S_TO_IN_PER_US) / part_velocity(plan, wedge)
     exits = {}
     for angle in angles(plan):
         sin_i = ratio * math.sin(math.radians(angle))
@@ -166,8 +221,6 @@ def exact_layout(plan):
             exits[angle] = cx - cy * math.tan(math.asin(sin_i))
 
     # Wedge outline at its catalogue size, the face passing through the first element
-    length, height = wedge.length / MM_PER_IN, wedge.height / MM_PER_IN
-    back = front - length
     outline = [(front, 0.0)]
     if sin_a > 1e-6:
         def h_at(x):
@@ -186,20 +239,25 @@ def exact_layout(plan):
 
     # Probe housing centred on the array, standing off the face
     array_mid = (total - 1) / 2 * pitch
-    housing = (probe.length / MM_PER_IN) if probe.length else total * pitch + 0.15
-    stand = (probe.height / MM_PER_IN) if probe.height else PROBE_HEIGHT
     p1, p2 = face(array_mid - housing / 2), face(array_mid + housing / 2)
     nx, ny = -sin_a, -cos_a
     probe_outline = [p1, p2, (p2[0] + nx * stand, p2[1] + ny * stand), (p1[0] + nx * stand, p1[1] + ny * stand)]
     return Layout(outline, probe_outline, (p1, p2), (cx, cy), exits,
-                  aperture=(face(s_first - pitch / 2), face(s_last + pitch / 2)), exact=True)
+                  aperture=(face(s_first - pitch / 2), face(s_last + pitch / 2)),
+                  exact=not estimated, estimated=estimated)
+
+
+def exact_layout(plan):
+    """The catalogue layout when nothing in it had to be estimated, else None."""
+    lay = catalogue_layout(plan)
+    return lay if lay is not None and lay.exact else None
 
 
 def layout(plan):
-    """The exact layout when the probe and wedge geometry is known, else the sketched wedge."""
-    exact = exact_layout(plan)
-    if exact is not None:
-        return exact
+    """The catalogue layout when a probe or wedge is picked, else the sketched wedge."""
+    lay = catalogue_layout(plan)
+    if lay is not None:
+        return lay
     wedge, probe, centre, face = _wedge(plan)
     x0 = exit_x(plan)
     return Layout(wedge, probe, face, (x0, 0.0), {angle: x0 for angle in angles(plan)})
@@ -329,9 +387,9 @@ def render_png(plan, side=1):
     # Weld centre line
     c.dashed((0, -cap_height - 0.12), (0, t + root_height + 0.12), CENTRE_LINE, width=1)
 
-    # Beams in the wedge: from the active aperture to each exit point (exact layout), or a
+    # Beams in the wedge: from the active aperture to each exit point (catalogue layout), or a
     # sketched fan from the probe face to the single entered exit point
-    if lay.exact:
+    if lay.aperture:  # catalogue layout: rays from the active aperture
         wedge_rays = [(lay.source, (x0, 0.0)) for x0 in lay.exits.values()]
     else:
         wedge_rays = [((p1[0] + (p2[0] - p1[0]) * i / 8, p1[1] + (p2[1] - p1[1]) * i / 8), lay.source)
@@ -364,9 +422,9 @@ def render_png(plan, side=1):
     corner = (x_min + 0.05, y_min + 0.08)  # mirrored to the right-hand corner on side 2
     label = f'{plan.angle_start:g}°–{plan.angle_stop:g}°  ·  t = {fmt_in(t)}'
     probe_model, wedge_model = _related(plan, 'probe_model'), _related(plan, 'wedge_model')
-    if probe_model and wedge_model:
-        label += f'  ·  {probe_model} on {wedge_model}'
-        if not lay.exact:
-            label += ' (wedge geometry missing: exit point as entered)'
+    if probe_model or wedge_model:
+        label += f'  ·  {probe_model or "probe?"} on {wedge_model or "wedge?"}'
+    if lay.estimated:
+        label += f'  ·  estimated: {", ".join(lay.estimated)}'
     c.draw.text(c.px(corner), label, fill=TEXT, font=_font(15 * SUPERSAMPLE), anchor='la' if side == 1 else 'ra')
     return c.png()
