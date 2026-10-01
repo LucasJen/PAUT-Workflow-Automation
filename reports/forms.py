@@ -281,6 +281,11 @@ class TextSnippetForm(StyledFormMixin, ModelForm):
         widgets = {'body': Textarea(attrs={'rows': 8})}
 
 
+def wedge_fits(wedge, probe):
+    """A wedge fits a probe of its series; entries without a series fit anything."""
+    return not (wedge.probe_series and probe.series) or wedge.probe_series.lower() == probe.series.lower()
+
+
 SCAN_PLAN_NUMBERS = (
     'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point',
     'wedge_angle', 'angle_start', 'angle_stop', 'angle_step', 'shear_velocity',
@@ -340,6 +345,9 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
                 self.add_error(name, 'Enter an angle from 0 to 89°.')
         if data.get('angle_step') is not None and data['angle_step'] <= 0:
             self.add_error('angle_step', 'Enter a step above 0.')
+        probe, wedge = data.get('probe_model'), data.get('wedge_model')
+        if probe and wedge and not wedge_fits(wedge, probe):
+            self.add_error('wedge_model', f'{wedge} fits {wedge.probe_series} probes, not {probe} ({probe.series}).')
         if (data.get('thickness') and data.get('root_face') is not None and data['root_face'] > data['thickness']):
             self.add_error('root_face', 'The root face cannot be thicker than the wall.')
         return data

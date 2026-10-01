@@ -206,3 +206,39 @@ class ExactGeometryTests(TestCase):
                          {'pipe_size': '6in Sch 40', 'thickness': 0.28, 'bevel_angle': 37.0, 'shear_velocity': 0.128})
         wedge = WedgeModel.objects.get(model='SA1-N60S')
         self.assertEqual(values['wedge_model'][wedge.pk], {'wedge_angle': 38.9})
+
+
+class WedgeForProbeTests(TestCase):
+    def test_mismatched_wedge_is_rejected(self):
+        probe = ProbeModel.objects.get(model='10L32-A1')
+        wrong = WedgeModel.objects.get(model='SA2-N55S')
+        resp = self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'probe_model': probe.pk, 'wedge_model': wrong.pk})
+        self.assertContains(resp, 'SA2-N55S fits A2 probes, not 10L32-A1 (A1).')
+        self.assertFalse(ScanPlan.objects.exists())
+
+    def test_matching_wedge_is_accepted(self):
+        probe = ProbeModel.objects.get(model='10L32-A1')
+        wedge = WedgeModel.objects.get(model='SA1-N60S')
+        self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'probe_model': probe.pk, 'wedge_model': wedge.pk})
+        self.assertEqual(ScanPlan.objects.get().wedge_model, wedge)
+
+    def test_page_lists_series_for_the_filter(self):
+        series = self.client.get(reverse('new-scan-plan')).context['catalogue_series']
+        probe = ProbeModel.objects.get(model='10L32-A1')
+        wedge = WedgeModel.objects.get(model='SA1-N60S')
+        self.assertEqual((series['probes'][probe.pk], series['wedges'][wedge.pk]), ('A1', 'A1'))
+
+
+class EstimatedPositionTests(TestCase):
+    def test_probe_face_starts_near_the_heel_and_probe_stays_on_the_wedge(self):
+        plan = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'),
+                         wedge_model=WedgeModel.objects.get(model='SA1-N60S'), aperture_elements=27)
+        lay = scan_plan.layout(plan)
+        back = min(x for x, _ in lay.wedge)
+        heel = max(-y for x, y in lay.wedge if abs(x - back) < 1e-9)
+        self.assertAlmostEqual(heel * 25.4, 16 * scan_plan.HEEL_FRACTION)
+        self.assertGreaterEqual(min(x for x, _ in lay.probe), back - 1e-9)
+        # The first element sits at its catalogue height (8.382 mm) on that face
+        a = math.radians(38.9)
+        s = 13 * 0.31 / 25.4
+        self.assertAlmostEqual(-lay.source[1] * 25.4, 8.382 + s * math.sin(a) * 25.4)

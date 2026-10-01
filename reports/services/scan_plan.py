@@ -22,6 +22,7 @@ STEEL_SHEAR = 0.1276                  # in/µs
 STEEL_LONGITUDINAL = 0.2320
 REXOLITE_VELOCITY = 2330.0            # m/s, typical wedge material when the catalogue has none
 HEEL_FRACTION = 0.15                  # estimated probe face height at the wedge heel, of the wedge height
+PROBE_BLOCK_RATIO = 0.35              # drawn probe thickness, of its housing length
 
 # Stand-ins when only one of probe / wedge is picked (mm): an A1 probe on an SA1 wedge
 GENERIC_PROBE = SimpleNamespace(pitch=0.6, elements=16, length=17.0, height=25.0)
@@ -172,7 +173,7 @@ def catalogue_layout(plan):
     pitch = _known(probe_values.pitch, GENERIC_PROBE.pitch, 'pitch', estimated) / MM_PER_IN
     total = probe_values.elements or GENERIC_PROBE.elements
     housing = _known(probe_values.length, total * pitch * MM_PER_IN + 4, 'probe length', estimated) / MM_PER_IN
-    stand = _known(probe_values.height, GENERIC_PROBE.height, 'probe height', estimated) / MM_PER_IN
+    stand = housing * PROBE_BLOCK_RATIO
     length = _known(wedge_values.length, GENERIC_WEDGE.length, 'wedge length', estimated) / MM_PER_IN
     height = _known(wedge_values.height, GENERIC_WEDGE.height, 'wedge height', estimated) / MM_PER_IN
     velocity = _known(wedge_values.velocity, REXOLITE_VELOCITY, 'wedge velocity', estimated)
@@ -199,13 +200,13 @@ def catalogue_layout(plan):
     if h1 is not None and offset is not None:
         h1, x1 = h1 / MM_PER_IN, front + offset / MM_PER_IN
     else:
+        # The probe face starts a little above the wedge heel (about 15% of the wedge height, as
+        # OmniScan draws the SA wedges); the first element sits on it at its catalogue height, or
+        # with the housing starting at the heel when that height isn't known either.
         estimated.append('first element position')
-        if h1 is not None:
-            h1 = h1 / MM_PER_IN
-            heel = max(h1 - margin * sin_a, 0.0)
-        else:
-            heel = height * 0.6 if sin_a < 1e-6 else max(height * HEEL_FRACTION, 0.04)
-            h1 = heel + margin * sin_a
+        heel = height * 0.6 if sin_a < 1e-6 else height * HEEL_FRACTION
+        h1 = h1 / MM_PER_IN if h1 is not None else heel + margin * sin_a
+        h1 = min(max(h1, heel), height)
         x1 = back + (h1 - heel) / sin_a * cos_a if sin_a > 1e-6 else back + margin
 
     def face(s):
@@ -237,7 +238,8 @@ def catalogue_layout(plan):
     else:  # flat (0°) wedge: the probe sits in a pocket
         outline += [(front, -height), (back, -height), (back, 0.0)]
 
-    # Probe housing centred on the array, standing off the face
+    # Probe: a slim block the housing's length, centred on the array (as OmniScan draws it; the
+    # full housing height would tower over the wedge)
     array_mid = (total - 1) / 2 * pitch
     p1, p2 = face(array_mid - housing / 2), face(array_mid + housing / 2)
     nx, ny = -sin_a, -cos_a

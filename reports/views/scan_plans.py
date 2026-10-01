@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from equipment.models import SensitivityBlock, WedgeModel
+from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
 
 from ..forms import ScanPlanForm
 from ..models import ScanPlan, Setup
@@ -78,6 +78,10 @@ def _wedge_fill_values():
 def _edit_page(request, form, plan):
     return render(request, 'reports/edit_scan_plan.html', {
         'form': form, 'plan': plan, 'setup_fill_values': _setup_fill_values(),
+        'catalogue_series': {
+            'probes': dict(ProbeModel.objects.values_list('pk', 'series')),
+            'wedges': dict(WedgeModel.objects.values_list('pk', 'probe_series')),
+        },
         'catalogue_fill_values': {
             'sensitivity_block': _block_fill_values(),
             'wedge_model': _wedge_fill_values(),
