@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
+from ..services.excel_report import ExcelReportError, build_workbook, excel_available
 from ..services.report_render import render_report
 from ..services.word_pdf import WordPdfError, docx_to_pdf, word_available
 from ..forms import (
@@ -26,6 +27,7 @@ import re
 logger = logging.getLogger(__name__)
 
 DOCX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 
 _WINDOWS_RESERVED = {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))}
@@ -219,7 +221,8 @@ def create_report(request):
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
         'saved_setups': _saved_setup_choices(),
         'saved_setup_values': _saved_setup_values(),
-        'pdf_available': word_available(),
+        'pdf_available': pdf_available(form.instance if form.instance.pk else None),
+        'excel': bool(form.instance.pk) and _is_excel(form.instance),
     })
 
 
@@ -259,7 +262,24 @@ def preview_report(request, pk):
     report, redirect_response = _report_with_setups(request, pk)
     if redirect_response:
         return redirect_response
-    return render(request, 'reports/preview.html', {'report': report, 'pdf_available': word_available()})
+    return render(request, 'reports/preview.html', {
+        'report': report,
+        'excel': _is_excel(report),
+        'pdf_available': pdf_available(report),
+    })
+
+
+def _is_excel(report):
+    return get_report_type(report.report_type).output_format == 'xlsx'
+
+
+def pdf_available(report=None):
+    """Whether a PDF can be made: by Excel for Excel report types, otherwise by Word."""
+    return excel_available() if report is not None and _is_excel(report) else word_available()
+
+
+def _excel_unavailable_message():
+    return 'Excel reports need Microsoft Excel on the computer running this app.'
 
 
 def report_docx(request, pk):
@@ -267,6 +287,9 @@ def report_docx(request, pk):
     report, redirect_response = _report_with_setups(request, pk)
     if redirect_response:
         return redirect_response
+    if _is_excel(report):  # no in-browser fallback for Excel reports
+        return render(request, 'reports/pdf_error.html',
+                      {'message': _excel_unavailable_message(), 'report': report, 'excel': True}, status=503)
     response = FileResponse(io.BytesIO(render_report(report)), content_type=DOCX_CONTENT_TYPE,
                             filename=f'{safe_filename(report.document_filename)}.docx')
     response['Cache-Control'] = 'no-store'
@@ -290,8 +313,8 @@ def _save_server_copy(name, content):
 @xframe_options_sameorigin  # shown inside the app's own preview page; other sites still can't frame it
 def report_pdf(request, pk):
     """
-    The report as a PDF made by Word: inline for the preview page, or as a download with
-    ?download=1 (which also keeps a server copy, like the .docx download)
+    The report as a PDF made by Word (or Excel, for Excel report types): inline for the preview
+    page, or as a download with ?download=1 (which also keeps a server copy, like the .docx download)
     """
     report, redirect_response = _report_with_setups(request, pk)
     if redirect_response:
@@ -299,14 +322,20 @@ def report_pdf(request, pk):
     download = request.GET.get('download') == '1'
     name = f'{safe_filename(report.document_filename)}.pdf'
     try:
-        if not word_available():
-            raise WordPdfError('PDF output needs Microsoft Word on the computer running this app.')
-        pdf = docx_to_pdf(render_report(report, update_fields_on_open=False))
-    except WordPdfError as e:
+        if _is_excel(report):
+            if not excel_available():
+                raise ExcelReportError(_excel_unavailable_message())
+            _, pdf = build_workbook(report, pdf=True)
+        else:
+            if not word_available():
+                raise WordPdfError('PDF output needs Microsoft Word on the computer running this app.')
+            pdf = docx_to_pdf(render_report(report, update_fields_on_open=False))
+    except (WordPdfError, ExcelReportError) as e:
         if download:
             messages.error(request, str(e))
             return redirect(f"{reverse('create-report')}?loaded={pk}")
-        return render(request, 'reports/pdf_error.html', {'message': str(e), 'report': report}, status=503)
+        return render(request, 'reports/pdf_error.html',
+                      {'message': str(e), 'report': report, 'excel': _is_excel(report)}, status=503)
     if download:
         _save_server_copy(name, pdf)
     response = FileResponse(io.BytesIO(pdf), as_attachment=download, filename=name, content_type='application/pdf')
@@ -316,11 +345,15 @@ def report_pdf(request, pk):
 
 def generate_report(request, pk):
     """
-    Renders the report's Word template (per report type) and returns it as a download
+    Renders the report's template (per report type) and returns it as a download: .docx for
+    Word report types, .xlsx (filled by Excel) for Excel ones
     """
     report, redirect_response = _report_with_setups(request, pk)
     if redirect_response:
         return redirect_response
+
+    if _is_excel(report):
+        return _excel_download(request, report)
 
     output_name = f'{safe_filename(report.document_filename)}.docx'
     content = render_report(report)
@@ -328,6 +361,19 @@ def generate_report(request, pk):
     _save_server_copy(output_name, content)
 
     return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=DOCX_CONTENT_TYPE)
+
+
+def _excel_download(request, report):
+    output_name = f'{safe_filename(report.document_filename)}.xlsx'
+    try:
+        if not excel_available():
+            raise ExcelReportError(_excel_unavailable_message())
+        content, _ = build_workbook(report)
+    except ExcelReportError as e:
+        messages.error(request, str(e))
+        return redirect(f"{reverse('create-report')}?loaded={report.pk}")
+    _save_server_copy(output_name, content)
+    return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=XLSX_CONTENT_TYPE)
 
 
 @transaction.atomic
@@ -381,7 +427,12 @@ def report_list(request):
             duplicate = _duplicate_report(get_object_or_404(Report, pk=selected_pks[0]))
             messages.success(request, 'Report duplicated. Results, scan images and dates start empty.')
             return redirect(f"{reverse('create-report')}?loaded={duplicate.pk}")
-    return render(request, 'reports/report_list.html', {'items': reports, 'pdf_available': word_available()})
+    word_ok, excel_ok = word_available(), excel_available()
+    reports = list(reports)
+    for report in reports:
+        report.is_excel = _is_excel(report)
+        report.pdf_ok = excel_ok if report.is_excel else word_ok
+    return render(request, 'reports/report_list.html', {'items': reports})
 
 
 def new_report(request):

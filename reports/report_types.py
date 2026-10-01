@@ -7,7 +7,9 @@ displayed, so switching type never loses data.
 
 To add a type, append a ReportType to _TYPES:
   - template:        a .docx file in word_templates/ (default: the master template, whose
-                     section blocks print only for the sections this type lists)
+                     section blocks print only for the sections this type lists), or an
+                     .xlsx file in excel_templates/ when output_format is 'xlsx'
+  - output_format:   'docx' (Word report) or 'xlsx' (Excel form, filled through Excel)
   - sections:        which of SECTIONS the editor shows (defaults to all)
   - hidden_fields:   Report or Setup field names to hide within the shown sections
   - results_columns: (key, heading) pairs for the results table; the template uses the keys
@@ -21,7 +23,8 @@ from dataclasses import dataclass
 REPORT_SECTIONS = (
     ('project', 'Project information', (
         'document_title', 'client', 'location', 'work_order', 'project_number',
-        'project_type', 'procedure', 'report_date', 'test_date', 'test_end_date',
+        'project_type', 'procedure', 'procedure_rev', 'report_date', 'test_date', 'test_end_date',
+        'address', 'contractor', 'item_description', 'exam_code', 'acceptance_standard',
     )),
     ('personnel', 'Personnel', None),
     ('summary', 'Executive summary', ('examination_scope', 'executive_summary')),
@@ -33,10 +36,18 @@ REPORT_SECTIONS = (
     ('drawings', 'Equipment drawings', None),
     ('setups', 'UT setups', None),
     ('results', 'Results table', None),
+    ('weld_cal', 'Calibration & notes', (
+        'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'notes',
+    )),
     ('images', 'Photo summary', None),
 )
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)
+
+# Fields only the Excel weld form uses
+WELD_ONLY_FIELDS = frozenset({
+    'address', 'contractor', 'item_description', 'exam_code', 'acceptance_standard', 'procedure_rev',
+})
 
 MASTER_TEMPLATE = 'paut_master.docx'
 
@@ -51,6 +62,29 @@ HIC_RESULTS_COLUMNS = (
     ('comments', 'Results'),
 )
 
+# Results columns of the weld form (100-UTFORM-010). One row per flaw: a row with a blank
+# Weld ID is another flaw on the weld above it; a row with a flaw Type gets an indication page.
+WELD_RESULTS_COLUMNS = (
+    ('weld_id', 'Weld ID'),
+    ('welder_id', 'Welder ID'),
+    ('cl_offset', 'C/L Offset (in)'),
+    ('weld_width', 'Weld Width (in)'),
+    ('scan_start', 'Scan Start'),
+    ('scan_direction', 'Scan Direction'),
+    ('probe1_location', 'Probe 1 Location'),
+    ('probe1_thk', 'Probe 1 Thickness'),
+    ('probe2_thk', 'Probe 2 Thickness'),
+    ('circ_start', 'Circ Start (in)'),
+    ('length', 'Length (in)'),
+    ('axial_pos', 'Axial Pos. (in)'),
+    ('depth', 'Depth (in)'),
+    ('height', 'Height (in)'),
+    ('amp', '% Amp'),
+    ('flaw_type', 'Type'),
+    ('accept', 'Accept / Reject'),
+    ('comments', 'Notes / Comments'),
+)
+
 
 @dataclass(frozen=True)
 class ReportType:
@@ -60,6 +94,7 @@ class ReportType:
     sections: tuple = SECTIONS
     hidden_fields: frozenset = frozenset()
     results_columns: tuple = ()
+    output_format: str = 'docx'
 
     @property
     def results_headings(self):
@@ -75,7 +110,19 @@ class ReportType:
 
 
 _TYPES = [
-    ReportType('paut_long', 'PAUT long form (HIC)', results_columns=HIC_RESULTS_COLUMNS),
+    ReportType(
+        'paut_long', 'PAUT long form (HIC)',
+        sections=tuple(s for s in SECTIONS if s != 'weld_cal'),
+        hidden_fields=WELD_ONLY_FIELDS,
+        results_columns=HIC_RESULTS_COLUMNS,
+    ),
+    ReportType(
+        'paut_weld', 'PAUT weld (Excel)',
+        template='paut_weld.xlsx', output_format='xlsx',
+        sections=('project', 'personnel', 'setups', 'results', 'weld_cal', 'images'),
+        hidden_fields=frozenset({'document_title', 'project_number', 'project_type', 'test_date', 'test_end_date'}),
+        results_columns=WELD_RESULTS_COLUMNS,
+    ),
 ]
 
 REPORT_TYPES = {t.key: t for t in _TYPES}

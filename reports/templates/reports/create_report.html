@@ -65,19 +65,21 @@
         {# Save first in the DOM so pressing Enter saves #}
         <button type="submit" class="btn btn-secondary"><i class="bi bi-check-lg"></i> Save</button>
         {% if form.instance.pk and form.instance.setups.exists %}
+        {% with app=excel|yesno:"Excel,Word" %}
         <a href="{% url 'generate-report' form.instance.pk %}" class="btn btn-secondary" id="download-link" download
-           title="Download the Word report as last saved"{% if request.GET.download %} data-auto-download{% endif %}>
-            <i class="bi bi-download"></i> Download .docx
+           title="Download the {{ app }} report as last saved"{% if excel %} data-busy="Preparing workbook…"{% endif %}{% if request.GET.download %} data-auto-download{% endif %}>
+            <i class="bi bi-download"></i> Download {% if excel %}.xlsx{% else %}.docx{% endif %}
         </a>
         {% if pdf_available %}
         <a href="{% url 'report-pdf' form.instance.pk %}?download=1" class="btn btn-secondary" id="pdf-link" download
-           data-busy="Preparing PDF…" title="PDF made by Word from the report as last saved">
+           data-busy="Preparing PDF…" title="PDF made by {{ app }} from the report as last saved">
             <i class="bi bi-file-earmark-pdf"></i> PDF
         </a>
         {% endif %}
+        {% endwith %}
         {% endif %}
         <button type="submit" name="preview" class="btn btn-secondary"><i class="bi bi-eye"></i> Save &amp; preview</button>
-        <button type="submit" name="generate" class="btn btn-primary"><i class="bi bi-file-earmark-word"></i> Save &amp; download</button>
+        <button type="submit" name="generate" class="btn btn-primary"><i class="bi bi-file-earmark-arrow-down"></i> Save &amp; download</button>
         {% if form.instance.pk %}
         <button type="submit" name="delete" formaction="{% url 'report-list' %}" formnovalidate
                 class="btn btn-ghost-danger order-first" data-confirm="Delete this report? This can't be undone.">

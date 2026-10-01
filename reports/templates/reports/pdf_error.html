@@ -7,13 +7,15 @@
     <link rel="stylesheet" href="{% static_v 'reports/css/app.css' %}">
 </head>
 <body class="p-4">
-    {# Shown inside the preview page's PDF viewer when Word could not make the PDF #}
+    {# Shown inside the preview page's PDF viewer when Word or Excel could not make the PDF #}
     <div class="alert alert-danger" role="alert">
         <strong>The PDF could not be created.</strong> {{ message }}
     </div>
     <p class="text-body-secondary small mb-0">
-        The Word file can still be downloaded from the preview page and saved as PDF from Word.
-        If Word is stuck, close any open Word dialogs on this computer and use Refresh.
+        {% with app=excel|yesno:"Excel,Word" %}
+        The {{ app }} file can still be downloaded from the preview page and saved as PDF from {{ app }}.
+        If {{ app }} is stuck, close any open {{ app }} dialogs on this computer and use Refresh.
+        {% endwith %}
     </p>
 </body>
 </html>

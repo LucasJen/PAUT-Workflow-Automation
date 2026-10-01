@@ -9,13 +9,19 @@
     <h1>Preview: {{ report.document_filename|default:"Untitled report" }}</h1>
     <div class="header-actions">
         <button type="button" class="btn btn-secondary" id="refresh-preview"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+        {% if excel %}
+        <a href="{% url 'generate-report' report.pk %}" class="btn btn-secondary" download data-busy="Preparing workbook…"><i class="bi bi-file-earmark-spreadsheet"></i> Download .xlsx</a>
+        {% else %}
         <a href="{% url 'generate-report' report.pk %}" class="btn btn-secondary" download><i class="bi bi-file-earmark-word"></i> Download .docx</a>
+        {% endif %}
         {% if pdf_available %}
         <a href="{% url 'report-pdf' report.pk %}?download=1" class="btn btn-primary" download data-busy="Preparing PDF…"><i class="bi bi-file-earmark-pdf"></i> Download PDF</a>
         {% endif %}
     </div>
     <p class="page-subtitle">
-        {% if pdf_available %}
+        {% if excel %}
+        Made by Microsoft Excel from the weld form, exactly as in the final PDF.
+        {% elif pdf_available %}
         Made by Microsoft Word, so pages, the table of contents and page numbers are exactly as in the final PDF.
         {% else %}
         An approximate preview drawn in the browser (Word isn't available on this server). Page breaks, the table
@@ -24,13 +30,15 @@
     </p>
 </div>
 
-<div class="preview-stage{% if pdf_available %} is-pdf{% endif %}" id="preview-stage"
-     {% if pdf_available %}data-pdf-url="{% url 'report-pdf' report.pk %}"{% else %}data-docx-url="{% url 'report-docx' report.pk %}"{% endif %}>
+{# Excel reports always use the PDF path: without Excel it shows the reason instead of a fallback #}
+<div class="preview-stage{% if pdf_available or excel %} is-pdf{% endif %}" id="preview-stage"
+     data-building="{% if excel %}Excel{% else %}Word{% endif %} is building the PDF (usually a few seconds)…"
+     {% if pdf_available or excel %}data-pdf-url="{% url 'report-pdf' report.pk %}"{% else %}data-docx-url="{% url 'report-docx' report.pk %}"{% endif %}>
     <div class="preview-status" id="preview-status" role="status">
         <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-        {% if pdf_available %}Word is building the PDF (usually a few seconds)…{% else %}Building preview…{% endif %}
+        {% if pdf_available or excel %}{% if excel %}Excel{% else %}Word{% endif %} is building the PDF (usually a few seconds)…{% else %}Building preview…{% endif %}
     </div>
-    {% if pdf_available %}
+    {% if pdf_available or excel %}
     <iframe id="preview-pdf" class="preview-pdf" title="Report PDF preview" hidden></iframe>
     {% else %}
     <div id="preview-pages"></div>
@@ -39,7 +47,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% if not pdf_available %}
+{% if not pdf_available and not excel %}
 <script src="{% static_v 'reports/vendor/docx-preview/jszip.min.js' %}"></script>
 <script src="{% static_v 'reports/vendor/docx-preview/docx-preview.min.js' %}"></script>
 {% endif %}

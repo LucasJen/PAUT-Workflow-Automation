@@ -91,14 +91,24 @@ class ReportForm(StyledFormMixin, ModelForm):
             'discussion': 'Discussion',
             'test_date': 'Test start date',
             'test_end_date': 'Test end date',
+            'procedure_rev': 'Procedure rev.',
+            'item_description': 'Item description',
+            'exam_code': 'Exam code / specification',
+            'cal_time_initial': 'Initial calibration time',
+            'cal_time_check1': 'Calibration check time',
+            'cal_time_check2': 'Second calibration check time',
+            'cal_time_out': 'Calibration out time',
         }
         widgets = {
             'document_title': Textarea(attrs={'rows': 1, 'style': 'min-height: 0; resize: vertical;'}),
             'report_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'test_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'test_end_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'notes': Textarea(attrs={'rows': 3}),
         }
         help_texts = {
+            'cal_time_initial': '24-hour time, e.g. 0700. Amp, sweep and probe position print as Accept.',
+            'notes': 'Notes box at the bottom of the weld form.',
             'test_end_date': 'Leave blank for a single-day test.',
             'asset_description': 'Opening paragraph of the Introduction: what the asset is, material, design and service conditions.',
             'discussion': 'Leave blank to use the standard Discussion from the Text library.',

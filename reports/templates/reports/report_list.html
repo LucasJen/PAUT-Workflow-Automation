@@ -34,16 +34,18 @@
            title="Preview report" aria-label="Preview report {{ report.document_filename|default:'report' }}">
             <i class="bi bi-eye"></i>
         </a>
-        <a href="{% url 'generate-report' report.pk %}" class="btn btn-icon btn-sm" download
-           title="Download Word report" aria-label="Download Word report for {{ report.document_filename|default:'report' }}">
+        {% with app=report.is_excel|yesno:"Excel,Word" %}
+        <a href="{% url 'generate-report' report.pk %}" class="btn btn-icon btn-sm" download{% if report.is_excel %} data-busy=""{% endif %}
+           title="Download {{ app }} report" aria-label="Download {{ app }} report for {{ report.document_filename|default:'report' }}">
             <i class="bi bi-download"></i>
         </a>
-        {% if pdf_available %}
+        {% if report.pdf_ok %}
         <a href="{% url 'report-pdf' report.pk %}?download=1" class="btn btn-icon btn-sm" download data-busy=""
-           title="Download PDF (made by Word)" aria-label="Download PDF for {{ report.document_filename|default:'report' }}">
+           title="Download PDF (made by {{ app }})" aria-label="Download PDF for {{ report.document_filename|default:'report' }}">
             <i class="bi bi-file-earmark-pdf"></i>
         </a>
         {% endif %}
+        {% endwith %}
         {% else %}
         <span class="btn btn-icon btn-sm disabled" title="Add a UT setup to generate this report"><i class="bi bi-download"></i></span>
         {% endif %}

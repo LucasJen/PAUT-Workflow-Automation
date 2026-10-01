@@ -23,6 +23,20 @@ class Report(models.Model):
     project_type = models.CharField(max_length=200, blank=True)
     procedure = models.CharField(max_length=200, blank=True)
 
+    # Weld form header (Excel weld report)
+    address = models.CharField(max_length=300, blank=True)
+    contractor = models.CharField(max_length=200, blank=True)
+    item_description = models.CharField(max_length=300, blank=True)
+    exam_code = models.CharField(max_length=200, blank=True)
+    acceptance_standard = models.CharField(max_length=200, blank=True)
+    procedure_rev = models.CharField(max_length=50, blank=True)
+
+    # Weld form calibration times and notes
+    cal_time_initial = models.CharField(max_length=20, blank=True)
+    cal_time_check1 = models.CharField(max_length=20, blank=True)
+    cal_time_check2 = models.CharField(max_length=20, blank=True)
+    cal_time_out = models.CharField(max_length=20, blank=True)
+    notes = models.TextField(blank=True)
 
     # Executive Summary
     examination_scope = models.TextField(blank=True)

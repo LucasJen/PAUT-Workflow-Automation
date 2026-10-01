@@ -22,8 +22,9 @@ class RegistryTests(SimpleTestCase):
         for key, report_type in REPORT_TYPES.items():
             with self.subTest(type=key):
                 self.assertEqual(report_type.key, key)
-                path = os.path.join(settings.BASE_DIR, 'word_templates', report_type.template)
-                self.assertTrue(os.path.exists(path), f'missing Word template {report_type.template}')
+                folder = {'docx': 'word_templates', 'xlsx': 'excel_templates'}[report_type.output_format]
+                path = os.path.join(settings.BASE_DIR, folder, report_type.template)
+                self.assertTrue(os.path.exists(path), f'missing template {folder}/{report_type.template}')
                 self.assertLessEqual(set(report_type.sections), set(SECTIONS))
                 self.assertLessEqual(set(report_type.hidden_fields), REPORT_FIELDS | SETUP_FIELDS)
 

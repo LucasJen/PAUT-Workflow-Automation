@@ -1,5 +1,6 @@
-// Report preview. With Word available the server returns a PDF made by Word, shown in the
-// browser's PDF viewer; otherwise the .docx is drawn in the browser with docx-preview.
+// Report preview. With Word available the server returns a PDF made by Word (Excel for the
+// Excel report types), shown in the browser's PDF viewer; otherwise the .docx is drawn in the
+// browser with docx-preview.
 
 const stage = document.getElementById('preview-stage');
 const status = document.getElementById('preview-status');
@@ -13,11 +14,11 @@ function showStatus(html, isError = false) {
 
 const LOADING = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> ';
 
-// ── Word-made PDF ────────────────────────────────────────────────────────
+// ── PDF made by Word / Excel ─────────────────────────────────────────────
 
 function renderPdf() {
     const frame = document.getElementById('preview-pdf');
-    showStatus(LOADING + 'Word is building the PDF (usually a few seconds)…');
+    showStatus(LOADING + stage.dataset.building);
     frame.hidden = true;
     frame.onload = () => {
         status.hidden = true;
