@@ -3,7 +3,7 @@ Finds the catalogue probe and wedge for the ones an instrument file (OmniScan .n
 
 The file gives the probe and wedge names and, for the wedge, its geometry. Names are compared
 ignoring case, spaces, dashes and underscores, and ignoring the IHC / IH / IC (irrigation and
-carbide wear pads) and SA designations, which don't change the wedge geometry; among same-named
+carbide wear pads) designations, which don't change the wedge geometry (SA does: a shorter front); among same-named
 variants the file's geometry picks one. When the name doesn't match, the base name (SA1-N60S) and
 then the geometry pick among the wedges that fit the probe. A wedge that matches by name but whose
 geometry differs from the file is still linked, with the differences listed so the user can decide.
@@ -21,8 +21,9 @@ TOLERANCES = {
     'primary_offset': 0.75,         # mm
     'first_element_height': 0.75,   # mm
 }
-# Wedge name designations that don't change its geometry: irrigation / carbide pads and SA
-IGNORED_DESIGNATIONS = {'ihc', 'ih', 'ic', 'sa'}
+# Wedge name designations that don't change its geometry: irrigation / carbide pads. SA does
+# (Beamtool's -SA wedges are shorter at the front), so it stays part of the name.
+IGNORED_DESIGNATIONS = {'ihc', 'ih', 'ic'}
 GEOMETRY_LABELS = {
     'wedge_angle': ('wedge angle', '°'),
     'velocity': ('wedge velocity', ' m/s'),
@@ -134,7 +135,7 @@ def match_wedge(file_wedge, probe=None):
                 return (distance is None, distance or 0, normalize(w.model) != name, len(w.model))
             by_name = min(same, key=rank)
     if by_name is not None and (by_name.has_geometry or not _has_file_geometry(file_wedge)):
-        how = 'by name' if normalize(by_name.model) == name else 'by name (IHC / SA designation ignored)'
+        how = 'by name' if normalize(by_name.model) == name else 'by name (IHC designation ignored)'
         return found(by_name, how)
 
     # Same base name (SA1-N60S), the variant with the closest geometry

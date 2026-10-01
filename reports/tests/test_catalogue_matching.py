@@ -71,17 +71,15 @@ class MatchingTests(TestCase):
         self.assertEqual(match.item, self.normal)
         self.assertEqual(match.differences, [('primary offset', '-27.19 mm', '-25 mm')])
 
-    def test_ihc_and_sa_designations_are_the_same_name(self):
-        """Named SA1-N60S 10L32 in the file; its geometry is the -IHC-SA entry's, which is picked."""
-        short = WedgeModel.objects.create(model='SA1-N60S-IHC-SA 10L32', manufacturer='Evident', probe_series='A1',
-                                          probe_fit='10L32', wedge_angle=38.52, velocity=2330.0,
-                                          primary_offset=-21.19, first_element_height=8.94, source=BEAMTOOL_SOURCE)
-        self.assertEqual(family_name('SA1-N60S-IHC-SA 10L32'), family_name('SA1-N60S 10L32'))
-        self.assertNotEqual(family_name('SA1-N60S-COD8 10L32'), family_name('SA1-N60S 10L32'))
+    def test_ihc_is_ignored_but_sa_is_a_different_wedge(self):
+        ihc = WedgeModel.objects.create(model='SA1-N60S-IHC 10L32', manufacturer='Evident', probe_series='A1',
+                                        probe_fit='10L32', wedge_angle=39.0, velocity=2330.0,
+                                        primary_offset=-21.3, first_element_height=8.4, source=BEAMTOOL_SOURCE)
+        self.assertEqual(family_name('SA1-N60S-IHC 10L32'), family_name('SA1-N60S 10L32'))
+        self.assertNotEqual(family_name('SA1-N60S-IHC-SA 10L32'), family_name('SA1-N60S 10L32'))
         match = match_wedge({**FILE_WEDGE, 'wedge_angle': 38.9, 'primary_offset': -21.361,
                              'first_element_height': 8.382}, self.probe)
-        self.assertEqual((match.item, match.how, match.differences),
-                         (short, 'by name (IHC / SA designation ignored)', []))
+        self.assertEqual((match.item, match.how, match.differences), (ihc, 'by name (IHC designation ignored)', []))
         # With the library geometry the exact name still wins
         self.assertEqual(match_wedge(FILE_WEDGE, self.probe).item, self.normal)
 
