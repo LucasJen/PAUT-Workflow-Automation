@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from PIL import Image
 
+from equipment.compat import BEAMTOOL_SOURCE
 from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
 from reports.models import Report, ScanPlan, Setup
 from reports.services import scan_plan
@@ -136,7 +137,7 @@ class ExactGeometryTests(TestCase):
     def plan(self, **fields):
         probe = ProbeModel.objects.get(model='10L32-A1')
         wedge = WedgeModel.objects.get(model='SA1-N60S')
-        wedge.velocity, wedge.primary_offset = 2330.0, -24.0
+        wedge.velocity, wedge.primary_offset, wedge.first_element_height = 2330.0, -24.0, 8.382
         wedge.save()
         values = dict(probe_model=probe, wedge_model=wedge, first_element=1, aperture_elements=27,
                       angle_start=42, angle_stop=73, angle_step=1)
@@ -213,7 +214,7 @@ class WedgeForProbeTests(TestCase):
         probe = ProbeModel.objects.get(model='10L32-A1')
         wrong = WedgeModel.objects.get(model='SA2-N55S')
         resp = self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'probe_model': probe.pk, 'wedge_model': wrong.pk})
-        self.assertContains(resp, 'SA2-N55S fits A2 probes, not 10L32-A1 (A1).')
+        self.assertContains(resp, 'SA2-N55S fits A2 probes, not 10L32-A1.')
         self.assertFalse(ScanPlan.objects.exists())
 
     def test_matching_wedge_is_accepted(self):
@@ -222,23 +223,65 @@ class WedgeForProbeTests(TestCase):
         self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'probe_model': probe.pk, 'wedge_model': wedge.pk})
         self.assertEqual(ScanPlan.objects.get().wedge_model, wedge)
 
-    def test_page_lists_series_for_the_filter(self):
-        series = self.client.get(reverse('new-scan-plan')).context['catalogue_series']
+    def test_wedges_endpoint_lists_the_probes_wedges(self):
         probe = ProbeModel.objects.get(model='10L32-A1')
-        wedge = WedgeModel.objects.get(model='SA1-N60S')
-        self.assertEqual((series['probes'][probe.pk], series['wedges'][wedge.pk]), ('A1', 'A1'))
+        WedgeModel.objects.create(model='SA1-N60S 10L32', probe_series='A1', probe_fit='10L32', source=BEAMTOOL_SOURCE)
+        WedgeModel.objects.create(model='SA1-N60S 5L16', probe_series='A1', probe_fit='5L16', source=BEAMTOOL_SOURCE)
+        names = [name for _, name in self.client.get(reverse('scan-plan-wedges'), {'probe': probe.pk}).json()['wedges']]
+        self.assertIn('SA1-N60S 10L32', names)
+        self.assertIn('SA1-N60S', names)
+        self.assertNotIn('SA1-N60S 5L16', names)
+        self.assertNotIn('SA2-N55S', names)
+        self.assertEqual(self.client.get(reverse('scan-plan-wedges')).json(), {'wedges': []})
+
+    def test_wedge_list_on_the_page_follows_the_probe(self):
+        WedgeModel.objects.create(model='SA1-N60S 10L32', probe_series='A1', probe_fit='10L32', source=BEAMTOOL_SOURCE)
+        probe = ProbeModel.objects.get(model='10L32-A1')
+        plan = make_plan(probe_model=probe)
+        page = self.client.get(reverse('edit-scan-plan', args=[plan.pk])).content.decode()
+        self.assertIn('SA1-N60S 10L32', page)
+        self.assertNotIn('SA2-N55S', page)
+        blank = self.client.get(reverse('new-scan-plan')).content.decode()
+        self.assertNotIn('SA1-N60S 10L32', blank)  # library wedges wait for a probe
+        self.assertIn('Pick a probe first', blank)
 
 
 class EstimatedPositionTests(TestCase):
     def test_probe_face_starts_near_the_heel_and_probe_stays_on_the_wedge(self):
-        plan = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'),
-                         wedge_model=WedgeModel.objects.get(model='SA1-N60S'), aperture_elements=27)
+        wedge = WedgeModel.objects.get(model='SA1-N60S')
+        wedge.first_element_height = 8.382
+        wedge.save()
+        plan = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'), wedge_model=wedge, aperture_elements=27)
         lay = scan_plan.layout(plan)
         back = min(x for x, _ in lay.wedge)
         heel = max(-y for x, y in lay.wedge if abs(x - back) < 1e-9)
         self.assertAlmostEqual(heel * 25.4, 16 * scan_plan.HEEL_FRACTION)
-        self.assertGreaterEqual(min(x for x, _ in lay.probe), back - 1e-9)
+        self.assertGreaterEqual(min(x for x, _ in lay.face), back - 1e-9)  # the probe sits on the wedge's face
         # The first element sits at its catalogue height (8.382 mm) on that face
         a = math.radians(38.9)
         s = 13 * 0.31 / 25.4
         self.assertAlmostEqual(-lay.source[1] * 25.4, 8.382 + s * math.sin(a) * 25.4)
+
+
+class BeamtoolGeometryTests(TestCase):
+    def test_library_geometry_reproduces_the_omniscan_scan_plan(self):
+        """
+        SA1-N60S 10L32 from the Beamtool library (X 27.19, Z 5.15, 39 deg, 2330 m/s) with elements
+        1-27 of a 10L32-A1 puts the beams where the reference report's OmniScan scan plan shows
+        them: aperture centre about 23.5 mm behind the wedge front at 7.5 mm, exits 16.4-19.3 mm.
+        """
+        wedge = WedgeModel.objects.create(model='SA1-N60S 10L32', probe_series='A1', probe_fit='10L32',
+                                          wedge_angle=39.0, velocity=2330.0, primary_offset=-27.19,
+                                          first_element_height=5.15, length=30.38, height=16.41)
+        plan = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'), wedge_model=wedge,
+                         aperture_elements=27, angle_start=42, angle_stop=73)
+        lay = scan_plan.layout(plan)
+        self.assertTrue(lay.exact)
+
+        def behind(x):
+            return (-plan.index_offset - x) * 25.4
+        self.assertAlmostEqual(behind(lay.source[0]), 23.5, delta=1.0)
+        self.assertAlmostEqual(-lay.source[1] * 25.4, 7.5, delta=0.5)
+        exits = [behind(x) for x in lay.exits.values()]
+        self.assertAlmostEqual(min(exits), 16.4, delta=0.7)
+        self.assertAlmostEqual(max(exits), 19.3, delta=0.7)

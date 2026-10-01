@@ -2,8 +2,8 @@
 <form method="post" action="{% url 'import-catalogue' %}" enctype="multipart/form-data" class="catalogue-import">
     {% csrf_token %}
     <input type="hidden" name="next" value="{{ next }}">
-    <label class="btn btn-secondary mb-0" title="Add or update probe and wedge models from an OmniScan .nde file">
+    <label class="btn btn-secondary mb-0" title="Add or update probe and wedge models from an OmniScan .nde file or the Beamtool library (PATransducers.csv, PAWedges.csv)">
         <i class="bi bi-upload"></i> Import from file
-        <input type="file" name="file" accept=".nde" hidden onchange="this.form.submit()">
+        <input type="file" name="file" accept=".nde,.csv" multiple hidden onchange="this.form.submit()">
     </label>
 </form>

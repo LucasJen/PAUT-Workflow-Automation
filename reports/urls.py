@@ -21,6 +21,7 @@ urlpatterns = [
     path('scan-plans/', views.scan_plan_list, name='scan-plan-list'),
     path('scan-plans/new/', views.new_scan_plan, name='new-scan-plan'),
     path('scan-plans/preview.png', views.scan_plan_preview, name='scan-plan-preview'),
+    path('scan-plans/wedges.json', views.scan_plan_wedges, name='scan-plan-wedges'),
     path('scan-plan/<int:pk>/edit/', views.edit_scan_plan, name='edit-scan-plan'),
     path('scan-plan/<int:pk>.png', views.scan_plan_png, name='scan-plan-png'),
 ]

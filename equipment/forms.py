@@ -91,9 +91,10 @@ class ProbeModelForm(StyledFormMixin, forms.ModelForm):
 
 class WedgeModelForm(StyledFormMixin, forms.ModelForm):
     fieldsets_spec = [
-        ('Model', ['model', 'probe_series', 'manufacturer', 'refracted_angle', 'wave_type', 'sweep']),
-        ('Size (mm)', ['length', 'width', 'width_wings', 'height']),
-        ('Geometry for the scan plan', ['wedge_angle', 'velocity', 'first_element_height', 'primary_offset']),
+        ('Model', ['model', 'manufacturer', 'probe_series', 'probe_fit', 'refracted_angle', 'wave_type', 'sweep']),
+        ('Size (mm)', ['length', 'width', 'width_wings', 'height', 'bottom_face', 'part_diameter']),
+        ('Geometry for the scan plan', ['wedge_angle', 'velocity', 'first_element_height', 'primary_offset',
+                                        'secondary_offset', 'roof_angle']),
         ('Source', ['source', 'notes']),
     ]
 
@@ -104,4 +105,4 @@ class WedgeModelForm(StyledFormMixin, forms.ModelForm):
 
 
 class CatalogueImportForm(forms.Form):
-    file = forms.FileField(label='File', help_text='OmniScan / OmniPC .nde file.')
+    file = forms.FileField(label='File', help_text='OmniScan / OmniPC .nde file, or Beamtool PATransducers.csv / PAWedges.csv.')

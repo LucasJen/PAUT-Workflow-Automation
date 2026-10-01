@@ -68,6 +68,12 @@ class WedgeModel(models.Model):
         null=True, blank=True,
         help_text='Wedge front to the first element centre along the scan axis, mm '
                   '(negative = behind the front face, as OmniScan shows it).')
+    secondary_offset = models.FloatField(null=True, blank=True, help_text='Wedge side to the element centre, mm')
+    roof_angle = models.FloatField(null=True, blank=True, help_text='°')
+    bottom_face = models.CharField(max_length=20, blank=True, help_text='Flat, AOD, COD, AID, …')
+    part_diameter = models.FloatField(null=True, blank=True, help_text='Diameter the curved face fits, mm')
+    probe_fit = models.CharField(max_length=100, blank=True,
+                                 help_text='Probe this geometry is for, e.g. 10L32 or 5/10L32 (from the library name).')
     source = models.CharField(max_length=300, blank=True)
     notes = models.TextField(blank=True)
 

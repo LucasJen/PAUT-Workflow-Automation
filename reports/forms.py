@@ -3,6 +3,9 @@ from django.forms import (
     TextInput, inlineformset_factory,
 )
 from django.forms.renderers import TemplatesSetting
+from equipment.compat import BEAMTOOL_SOURCE, wedge_fits_probe, wedges_for_probe
+from equipment.models import ProbeModel
+
 from .models import Report, ReportImage, ReportPerson, ScanPlan, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from datetime import date
@@ -281,11 +284,6 @@ class TextSnippetForm(StyledFormMixin, ModelForm):
         widgets = {'body': Textarea(attrs={'rows': 8})}
 
 
-def wedge_fits(wedge, probe):
-    """A wedge fits a probe of its series; entries without a series fit anything."""
-    return not (wedge.probe_series and probe.series) or wedge.probe_series.lower() == probe.series.lower()
-
-
 SCAN_PLAN_NUMBERS = (
     'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point',
     'wedge_angle', 'angle_start', 'angle_stop', 'angle_step', 'shear_velocity',
@@ -333,6 +331,26 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
             **{name: NumberInput(attrs={'step': 'any'}) for name in SCAN_PLAN_NUMBERS},
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The wedge list shows only wedges for the chosen probe (the Beamtool library has thousands);
+        # the page refreshes it when the probe changes. Validation still accepts any wedge that fits.
+        field = self.fields['wedge_model']
+        probe = self._chosen_probe()
+        current = self.data.get(self.add_prefix('wedge_model')) if self.is_bound else self.instance.wedge_model_id
+        wedges = list(field.queryset)
+        if probe is not None:
+            shown = wedges_for_probe(probe, wedges)
+        else:
+            shown = [w for w in wedges if w.source != BEAMTOOL_SOURCE]
+            field.help_text = 'Pick a probe first to list the library wedges made for it.'
+        shown += [w for w in wedges if str(w.pk) == str(current) and w not in shown]
+        field.widget.choices = [('', field.empty_label)] + [(w.pk, str(w)) for w in shown]
+
+    def _chosen_probe(self):
+        pk = self.data.get(self.add_prefix('probe_model')) if self.is_bound else self.instance.probe_model_id
+        return ProbeModel.objects.filter(pk=pk).first() if pk and str(pk).isdigit() else None
+
     def clean(self):
         data = super().clean()
         if data.get('thickness') is not None and data['thickness'] <= 0:
@@ -346,8 +364,9 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
         if data.get('angle_step') is not None and data['angle_step'] <= 0:
             self.add_error('angle_step', 'Enter a step above 0.')
         probe, wedge = data.get('probe_model'), data.get('wedge_model')
-        if probe and wedge and not wedge_fits(wedge, probe):
-            self.add_error('wedge_model', f'{wedge} fits {wedge.probe_series} probes, not {probe} ({probe.series}).')
+        if probe and wedge and not wedge_fits_probe(wedge, probe):
+            fits = f'{wedge.probe_series} probes' if wedge.probe_series else 'a different probe'
+            self.add_error('wedge_model', f'{wedge} fits {fits}, not {probe}.')
         if (data.get('thickness') and data.get('root_face') is not None and data['root_face'] > data['thickness']):
             self.add_error('root_face', 'The root face cannot be thicker than the wall.')
         return data

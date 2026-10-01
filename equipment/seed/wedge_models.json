@@ -23,8 +23,7 @@
   "height": 16.0,
   "source": "Evident PA probe catalogue (2016), Olympus-Phase-Array-Probe-Catalog-2016-08-12.pdf",
   "wedge_angle": 38.9,
-  "first_element_height": 8.382,
-  "notes": "Wedge angle and first element height from the OmniScan setup of PPI-31-37575 (38.90°, 0.330 in)."
+  "notes": "Wedge angle from the OmniScan setup of PPI-31-37575 (38.90°). For the scan plan, use the probe-specific entries from the Beamtool library (e.g. SA1-N60S 10L32)."
  },
  {
   "model": "SA1-N60L",

@@ -3,7 +3,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import CatalogueImportForm, ProbeModelForm, WedgeModelForm
-from .importers import CatalogueImportError, read_catalogue_file
+from .importers import CatalogueImportError, apply_catalogue, read_catalogue_file
 from .models import ProbeModel, WedgeModel
 
 CATALOGUES = {
@@ -62,45 +62,27 @@ def edit_wedge_model(request, pk=None):
     return _edit(request, 'wedge', pk)
 
 
-def _apply(model_class, rows):
-    """Creates or updates catalogue entries; returns ['Added X', 'Updated Y: a, b'] lines."""
-    lines = []
-    for row in rows:
-        row = dict(row)
-        name = row.pop('model')
-        item, created = model_class.objects.get_or_create(model=name, defaults=row)
-        if created:
-            lines.append(f'added {name}')
-            continue
-        changed = [field for field, value in row.items() if getattr(item, field) != value]
-        for field in changed:
-            setattr(item, field, row[field])
-        if changed:
-            item.save()
-            labels = ', '.join(str(model_class._meta.get_field(f).verbose_name) for f in changed)
-            lines.append(f'updated {name} ({labels})')
-        else:
-            lines.append(f'{name} already up to date')
-    return lines
-
-
 def import_catalogue(request):
-    """Adds or updates probe and wedge models from an instrument file (e.g. an OmniScan .nde)."""
+    """Adds or updates probe and wedge models from instrument / Beamtool files (several at once)."""
     back = request.POST.get('next')
     if back not in ('probe-model-list', 'wedge-model-list'):
         back = 'wedge-model-list'
-    form = CatalogueImportForm(request.POST or None, request.FILES or None)
-    if request.method != 'POST' or not form.is_valid():
+    files = request.FILES.getlist('file') if request.method == 'POST' else []
+    if not files:
         messages.error(request, 'Choose a file to import.')
         return redirect(back)
-    try:
-        probes, wedges = read_catalogue_file(form.cleaned_data['file'])
-    except CatalogueImportError as e:
-        messages.error(request, str(e))
-        return redirect(back)
-    lines = _apply(ProbeModel, probes) + _apply(WedgeModel, wedges)
-    if lines:
-        messages.success(request, 'Import: ' + '; '.join(lines) + '.')
+    probes, wedges = [], []
+    for uploaded in files:
+        try:
+            found_probes, found_wedges = read_catalogue_file(uploaded)
+        except CatalogueImportError as e:
+            messages.error(request, str(e))
+            return redirect(back)
+        probes += found_probes
+        wedges += found_wedges
+    summary = apply_catalogue(probes, wedges)
+    if summary:
+        messages.success(request, f'Import: {summary}.')
     else:
         messages.warning(request, 'No probes or wedges were found in that file.')
     return redirect(back)

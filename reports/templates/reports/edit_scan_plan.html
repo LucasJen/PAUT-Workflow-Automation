@@ -29,7 +29,8 @@
             {% endfor %}
         </section>
     </div>
-    <section class="panel scan-plan-preview" id="scan-plan-preview" data-url="{% url 'scan-plan-preview' %}">
+    <section class="panel scan-plan-preview" id="scan-plan-preview" data-url="{% url 'scan-plan-preview' %}"
+             data-wedges-url="{% url 'scan-plan-wedges' %}">
         <h2 class="panel-subtitle mt-0">Drawing</h2>
         <figure class="scan-plan-figure">
             <img alt="Scan plan, side 1" data-side="1">
@@ -47,6 +48,5 @@
 {% block scripts %}
 {{ setup_fill_values|json_script:"setup-fill-values" }}
 {{ catalogue_fill_values|json_script:"catalogue-fill-values" }}
-{{ catalogue_series|json_script:"catalogue-series" }}
 <script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
 {% endblock %}

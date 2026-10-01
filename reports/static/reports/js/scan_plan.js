@@ -71,27 +71,23 @@ for (const [name, byPk] of Object.entries(catalogueValues)) {
     });
 }
 
-// Only wedges for the selected probe's series (e.g. SA1 wedges for A1 probes) can be picked;
-// wedges or probes without a series are always offered
-const series = JSON.parse(document.getElementById('catalogue-series').textContent);
+// Only wedges that fit the selected probe can be picked: the list is fetched for each probe
+// (the Beamtool library has thousands of probe-specific wedges)
 const probeSelect = form.elements.probe_model;
 const wedgeSelect = form.elements.wedge_model;
 
-function filterWedges() {
-    const probeSeries = (series.probes[probeSelect.value] || '').toLowerCase();
-    for (const option of wedgeSelect.options) {
-        if (!option.value) continue;
-        const wedgeSeries = (series.wedges[option.value] || '').toLowerCase();
-        const fits = !probeSeries || !wedgeSeries || wedgeSeries === probeSeries;
-        option.hidden = option.disabled = !fits;
-    }
-    if (wedgeSelect.selectedOptions[0] && wedgeSelect.selectedOptions[0].disabled) {
-        wedgeSelect.value = '';
-        scheduleRedraw();
-    }
+async function loadWedges() {
+    if (!probeSelect.value) return;  // without a probe the page lists the general wedges
+    const response = await fetch(`${preview.dataset.wedgesUrl}?probe=${probeSelect.value}`);
+    if (!response.ok) return;
+    const { wedges } = await response.json();
+    const current = wedgeSelect.value;
+    const blank = wedgeSelect.options[0];
+    wedgeSelect.replaceChildren(blank, ...wedges.map(([pk, name]) => new Option(name, pk)));
+    wedgeSelect.value = wedges.some(([pk]) => String(pk) === current) ? current : '';
+    if (wedgeSelect.value !== current) scheduleRedraw();
 }
 
 if (probeSelect && wedgeSelect) {
-    probeSelect.addEventListener('change', filterWedges);
-    filterWedges();
+    probeSelect.addEventListener('change', loadWedges);
 }

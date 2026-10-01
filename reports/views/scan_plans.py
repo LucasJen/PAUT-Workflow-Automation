@@ -1,9 +1,10 @@
 import re
 
 from django.contrib import messages
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from equipment.compat import wedges_for_probe
 from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
 
 from ..forms import ScanPlanForm
@@ -78,10 +79,6 @@ def _wedge_fill_values():
 def _edit_page(request, form, plan):
     return render(request, 'reports/edit_scan_plan.html', {
         'form': form, 'plan': plan, 'setup_fill_values': _setup_fill_values(),
-        'catalogue_series': {
-            'probes': dict(ProbeModel.objects.values_list('pk', 'series')),
-            'wedges': dict(WedgeModel.objects.values_list('pk', 'probe_series')),
-        },
         'catalogue_fill_values': {
             'sensitivity_block': _block_fill_values(),
             'wedge_model': _wedge_fill_values(),
@@ -145,3 +142,10 @@ def scan_plan_preview(request):
 def scan_plan_png(request, pk):
     """The saved scan plan's drawing (?side=2 for the other side)"""
     return _png(render_png(get_object_or_404(ScanPlan, pk=pk), _side(request)))
+
+
+def scan_plan_wedges(request):
+    """[[pk, name], ...] of the wedges that fit ?probe=<pk>, for the scan plan's wedge list"""
+    probe = ProbeModel.objects.filter(pk=request.GET.get('probe') or None).first()         if (request.GET.get('probe') or '').isdigit() else None
+    wedges = wedges_for_probe(probe, WedgeModel.objects.all()) if probe else []
+    return JsonResponse({'wedges': [[w.pk, str(w)] for w in wedges]})
