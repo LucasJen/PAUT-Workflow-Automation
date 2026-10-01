@@ -283,15 +283,16 @@ class TextSnippetForm(StyledFormMixin, ModelForm):
 
 SCAN_PLAN_NUMBERS = (
     'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point',
-    'wedge_angle', 'angle_start', 'angle_stop', 'angle_step',
+    'wedge_angle', 'angle_start', 'angle_stop', 'angle_step', 'shear_velocity',
 )
 
 
 class ScanPlanForm(StyledFormMixin, ModelForm):
     fieldsets_spec = [
-        ('Scan plan', ['name', 'pipe_size', 'sides', 'legs']),
-        ('Weld (inches, degrees)', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width']),
-        ('Probe and beams', ['index_offset', 'exit_point', 'wedge_angle', 'angle_start', 'angle_stop', 'angle_step']),
+        ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'sides', 'legs']),
+        ('Weld (inches, degrees)', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'shear_velocity']),
+        ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
+        ('Position and beams', ['index_offset', 'exit_point', 'wedge_angle', 'angle_start', 'angle_stop', 'angle_step']),
         (None, ['notes']),
     ]
     LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point')
@@ -314,6 +315,13 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
             'angle_step': 'Angle step (°)',
             'legs': 'Beam legs',
             'notes': 'Notes (printed under the scan plan)',
+            'sensitivity_block': 'Sensitivity block (pipe size)',
+            'shear_velocity': 'Shear velocity (in/µs)',
+            'aperture_elements': 'Aperture (elements)',
+        }
+        help_texts = {
+            'exit_point': 'Used only when the wedge has no geometry; otherwise each beam’s exit point is calculated.',
+            'wedge_angle': 'Filled from the wedge; used for the sketched wedge.',
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),

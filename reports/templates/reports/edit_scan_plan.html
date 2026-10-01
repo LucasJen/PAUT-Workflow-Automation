@@ -46,5 +46,6 @@
 
 {% block scripts %}
 {{ setup_fill_values|json_script:"setup-fill-values" }}
+{{ catalogue_fill_values|json_script:"catalogue-fill-values" }}
 <script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
 {% endblock %}

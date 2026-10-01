@@ -4,6 +4,8 @@ from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from equipment.models import SensitivityBlock, WedgeModel
+
 from ..forms import ScanPlanForm
 from ..models import ScanPlan, Setup
 from ..services.scan_plan import render_png
@@ -55,9 +57,31 @@ def _setup_fill_values():
     return values
 
 
+def _block_fill_values():
+    """{pk: {field: value}} filled into a scan plan when its sensitivity block is picked."""
+    values = {}
+    for block in SensitivityBlock.objects.all():
+        fill = {
+            'pipe_size': block.pipe_size,
+            'thickness': _first_number(block.test_thickness) or _first_number(block.cal_thickness),
+            'bevel_angle': _first_number(block.bevel_geometry),
+            'shear_velocity': _first_number(block.velocity_shear),
+        }
+        values[block.pk] = {k: v for k, v in fill.items() if v not in (None, '')}
+    return values
+
+
+def _wedge_fill_values():
+    return {w.pk: {'wedge_angle': w.wedge_angle} for w in WedgeModel.objects.exclude(wedge_angle=None)}
+
+
 def _edit_page(request, form, plan):
     return render(request, 'reports/edit_scan_plan.html', {
         'form': form, 'plan': plan, 'setup_fill_values': _setup_fill_values(),
+        'catalogue_fill_values': {
+            'sensitivity_block': _block_fill_values(),
+            'wedge_model': _wedge_fill_values(),
+        },
     })
 
 

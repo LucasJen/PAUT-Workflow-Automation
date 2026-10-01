@@ -9,8 +9,16 @@ render_png(plan, side) returns PNG bytes for the scan plan page and the Excel re
 import io
 import math
 import os
+import re
+from dataclasses import dataclass
 
+from django.core.exceptions import ObjectDoesNotExist
 from PIL import Image, ImageDraw, ImageFont
+
+MM_PER_IN = 25.4
+M_PER_S_TO_IN_PER_US = 1 / 25400
+STEEL_SHEAR = 0.1276                  # in/µs
+STEEL_LONGITUDINAL = 0.2320
 
 WIDTH_PX = 1100
 SUPERSAMPLE = 3                       # drawn large, then scaled down for smooth lines
@@ -79,10 +87,10 @@ def exit_x(plan):
     return -(plan.index_offset + plan.exit_point)
 
 
-def beam_path(plan, angle):
-    """(exit, back-wall bounce, top-surface return) points of one beam."""
+def beam_path(plan, angle, x0=None):
+    """(exit, back-wall bounce, top-surface return) points of one beam leaving the wedge at x0."""
     t = plan.thickness
-    x0 = exit_x(plan)
+    x0 = exit_x(plan) if x0 is None else x0
     run = t * math.tan(math.radians(angle))
     points = [(x0, 0.0), (x0 + run, t)]
     if plan.legs >= 2:
@@ -90,8 +98,115 @@ def beam_path(plan, angle):
     return points
 
 
+@dataclass
+class Layout:
+    """Where the wedge, probe and beams go. `exits` maps each beam angle to its exit point x."""
+    wedge: list
+    probe: list
+    face: tuple                 # probe face end points
+    source: tuple               # where the beams in the wedge start
+    exits: dict
+    aperture: tuple = None      # active aperture on the probe face (exact layout only)
+    exact: bool = False
+
+
+def _related(plan, name):
+    """A plan's probe_model / wedge_model, or None (also for unsaved plans built from a form)."""
+    try:
+        return getattr(plan, name, None)
+    except ObjectDoesNotExist:
+        return None
+
+
+def part_velocity(plan, wedge):
+    """Part velocity in in/µs for the wedge's wave type (L-wave wedges refract a longitudinal beam)."""
+    if wedge is not None and wedge.wave_type == 'LW':
+        block = _related(plan, 'sensitivity_block')
+        return first_number(block.velocity_long if block else '') or STEEL_LONGITUDINAL
+    return plan.shear_velocity or STEEL_SHEAR
+
+
+def first_number(text):
+    match = re.search(r'-?\d+(?:\.\d+)?', text or '')
+    return float(match.group()) if match else None
+
+
+def exact_layout(plan):
+    """
+    Exit point of every beam from the probe and wedge geometry, or None when either is missing.
+
+    The active aperture's centre sits on the probe face, `pitch` per element up the slope from the
+    first element (whose position the wedge's primary offset and first element height give). Each
+    beam leaves that point at the incident angle Snell's law gives for its refracted angle.
+    """
+    probe, wedge = _related(plan, 'probe_model'), _related(plan, 'wedge_model')
+    if probe is None or wedge is None or not wedge.has_geometry or not probe.pitch:
+        return None
+    a = math.radians(wedge.wedge_angle)
+    cos_a, sin_a = math.cos(a), math.sin(a)
+    pitch = probe.pitch / MM_PER_IN
+    total = probe.elements or 1
+    first = min(max(plan.first_element or 1, 1), total)
+    count = min(plan.aperture_elements or total, total - first + 1)
+    front = -plan.index_offset
+    x1 = front + wedge.primary_offset / MM_PER_IN
+    h1 = wedge.first_element_height / MM_PER_IN
+
+    def face(s):
+        """Point on the probe face, s inches up the slope from the first element's centre."""
+        return (x1 + s * cos_a, -(h1 + s * sin_a))
+
+    s_first, s_last = (first - 1) * pitch, (first + count - 2) * pitch
+    cx, cy = face((s_first + s_last) / 2)
+    ratio = (wedge.velocity * M_PER_S_TO_IN_PER_US) / part_velocity(plan, wedge)
+    exits = {}
+    for angle in angles(plan):
+        sin_i = ratio * math.sin(math.radians(angle))
+        if sin_i < 1:  # beyond the critical angle there is no refracted beam
+            exits[angle] = cx - cy * math.tan(math.asin(sin_i))
+
+    # Wedge outline at its catalogue size, the face passing through the first element
+    length, height = wedge.length / MM_PER_IN, wedge.height / MM_PER_IN
+    back = front - length
+    outline = [(front, 0.0)]
+    if sin_a > 1e-6:
+        def h_at(x):
+            return h1 + (x - x1) * sin_a / cos_a
+        x_top = x1 + (height - h1) * cos_a / sin_a
+        if x_top < front:
+            outline += [(front, -height), (x_top, -height)]
+        else:
+            outline.append((front, -h_at(front)))
+        if h_at(back) > 0:
+            outline += [(back, -h_at(back)), (back, 0.0)]
+        else:
+            outline.append((x1 - h1 * cos_a / sin_a, 0.0))
+    else:  # flat (0°) wedge: the probe sits in a pocket
+        outline += [(front, -height), (back, -height), (back, 0.0)]
+
+    # Probe housing centred on the array, standing off the face
+    array_mid = (total - 1) / 2 * pitch
+    housing = (probe.length / MM_PER_IN) if probe.length else total * pitch + 0.15
+    stand = (probe.height / MM_PER_IN) if probe.height else PROBE_HEIGHT
+    p1, p2 = face(array_mid - housing / 2), face(array_mid + housing / 2)
+    nx, ny = -sin_a, -cos_a
+    probe_outline = [p1, p2, (p2[0] + nx * stand, p2[1] + ny * stand), (p1[0] + nx * stand, p1[1] + ny * stand)]
+    return Layout(outline, probe_outline, (p1, p2), (cx, cy), exits,
+                  aperture=(face(s_first - pitch / 2), face(s_last + pitch / 2)), exact=True)
+
+
+def layout(plan):
+    """The exact layout when the probe and wedge geometry is known, else the sketched wedge."""
+    exact = exact_layout(plan)
+    if exact is not None:
+        return exact
+    wedge, probe, centre, face = _wedge(plan)
+    x0 = exit_x(plan)
+    return Layout(wedge, probe, face, (x0, 0.0), {angle: x0 for angle in angles(plan)})
+
+
 def _wedge(plan):
-    """(wedge polygon, probe polygon, probe face centre, probe face end points)."""
+    """Sketched wedge: (wedge polygon, probe polygon, probe face centre, probe face end points)."""
     a = math.radians(plan.wedge_angle)
     x0 = exit_x(plan)
     front = -plan.index_offset
@@ -174,14 +289,15 @@ class _Canvas:
 def render_png(plan, side=1):
     """The scan plan drawing as PNG bytes; side 2 shows the probe on the other side of the weld."""
     t = plan.thickness
-    wedge, probe, centre, (p1, p2) = _wedge(plan)
-    beams = [beam_path(plan, a) for a in angles(plan)]
+    lay = layout(plan)
+    wedge, probe, (p1, p2) = lay.wedge, lay.probe, lay.face
+    beams = [beam_path(plan, a, x0) for a, x0 in lay.exits.items()]
     half_cap = cap_width(plan) / 2
     cap_height = min(0.08, t * 0.3)
     root_height = min(0.05, t * 0.2)
 
-    reach = max(p[0] for path in beams for p in path)
-    x_min = min(p[0] for p in wedge) - 0.25
+    reach = max((p[0] for path in beams for p in path), default=half_cap)
+    x_min = min(p[0] for p in wedge + probe) - 0.25
     x_max = max(half_cap + 0.35, min(reach, half_cap + 2.5) + 0.1)
     y_min = min(p[1] for p in wedge + probe) - 0.3
     y_max = t + root_height + 0.25
@@ -213,20 +329,24 @@ def render_png(plan, side=1):
     # Weld centre line
     c.dashed((0, -cap_height - 0.12), (0, t + root_height + 0.12), CENTRE_LINE, width=1)
 
-    # Beams: inside the wedge, then in the part
-    exit_point = (exit_x(plan), 0.0)
-    for i in range(9):
-        f = i / 8
-        c.line([(p1[0] + (p2[0] - p1[0]) * f, p1[1] + (p2[1] - p1[1]) * f), exit_point], WEDGE_BEAM, 0.8)
+    # Beams in the wedge: from the active aperture to each exit point (exact layout), or a
+    # sketched fan from the probe face to the single entered exit point
+    if lay.exact:
+        wedge_rays = [(lay.source, (x0, 0.0)) for x0 in lay.exits.values()]
+    else:
+        wedge_rays = [((p1[0] + (p2[0] - p1[0]) * i / 8, p1[1] + (p2[1] - p1[1]) * i / 8), lay.source)
+                      for i in range(9)]
+
     for path in beams:
         c.line(path, BEAM, 0.8)
 
     # Wedge and probe
     c.polygon(wedge, fill=WEDGE_FILL, outline=WEDGE_LINE, width=1.2)
-    for i in range(9):  # wedge beams again, over the wedge fill
-        f = i / 8
-        c.line([(p1[0] + (p2[0] - p1[0]) * f, p1[1] + (p2[1] - p1[1]) * f), exit_point], WEDGE_BEAM, 0.8)
+    for ray in wedge_rays:
+        c.line(ray, WEDGE_BEAM, 0.8)
     c.polygon(probe, fill=PROBE_FILL, outline=WEDGE_LINE, width=1.2)
+    if lay.aperture:
+        c.line(lay.aperture, BEAM, 3)
 
     # Index offset: wedge front to weld centre line
     front = -plan.index_offset
@@ -243,5 +363,10 @@ def render_png(plan, side=1):
     # Labels
     corner = (x_min + 0.05, y_min + 0.08)  # mirrored to the right-hand corner on side 2
     label = f'{plan.angle_start:g}°–{plan.angle_stop:g}°  ·  t = {fmt_in(t)}'
+    probe_model, wedge_model = _related(plan, 'probe_model'), _related(plan, 'wedge_model')
+    if probe_model and wedge_model:
+        label += f'  ·  {probe_model} on {wedge_model}'
+        if not lay.exact:
+            label += ' (wedge geometry missing: exit point as entered)'
     c.draw.text(c.px(corner), label, fill=TEXT, font=_font(15 * SUPERSAMPLE), anchor='la' if side == 1 else 'ra')
     return c.png()

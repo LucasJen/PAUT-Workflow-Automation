@@ -1,5 +1,5 @@
 // Scan plan page: redraws the preview from the form's current values (debounced) and fills
-// fields from a saved setup.
+// fields from a saved setup, or from the sensitivity block / wedge when one is picked.
 
 const preview = document.getElementById('scan-plan-preview');
 const form = preview.closest('form');
@@ -54,5 +54,19 @@ if (fillSelect) {
         }
         fillSelect.value = '';
         form.dispatchEvent(new Event('input'));
+    });
+}
+
+// Picking a sensitivity block or wedge fills the values it carries
+const catalogueValues = JSON.parse(document.getElementById('catalogue-fill-values').textContent);
+for (const [name, byPk] of Object.entries(catalogueValues)) {
+    const select = form.elements[name];
+    if (!select) continue;
+    select.addEventListener('change', () => {
+        for (const [field, value] of Object.entries(byPk[select.value] || {})) {
+            const input = form.elements[field];
+            if (input && value !== null) input.value = value;
+        }
+        scheduleRedraw();
     });
 }

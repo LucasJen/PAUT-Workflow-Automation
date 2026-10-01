@@ -77,6 +77,16 @@ class ScanPlan(models.Model):
 
     name = models.CharField(max_length=100)
     pipe_size = models.CharField(max_length=100, blank=True, help_text='For your reference, e.g. 6in Sch 40.')
+    sensitivity_block = models.ForeignKey(
+        'equipment.SensitivityBlock', on_delete=models.SET_NULL, null=True, blank=True, related_name='scan_plans',
+        help_text="Fills thickness, pipe size, bevel and velocity, and the weld report's Material Information.")
+    probe_model = models.ForeignKey('equipment.ProbeModel', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='scan_plans', verbose_name='Probe')
+    wedge_model = models.ForeignKey('equipment.WedgeModel', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='scan_plans', verbose_name='Wedge')
+    first_element = models.PositiveIntegerField(default=1)
+    aperture_elements = models.PositiveIntegerField(null=True, blank=True, help_text='Blank = all elements.')
+    shear_velocity = models.FloatField(default=0.1276, help_text='Part shear velocity, in/µs.')
 
     # Weld
     thickness = models.FloatField()

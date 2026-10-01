@@ -9,6 +9,7 @@ from django.contrib.messages import get_messages
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from equipment.models import SensitivityBlock
 from reports.models import Report, ReportImage, ReportPerson, ResultsRow, ResultsTable, ScanPlan, Setup
 from reports.report_types import get_report_type
 from reports.services import excel_report
@@ -36,6 +37,29 @@ def weld_report(rows=(), **fields):
         for i, cells in enumerate(rows):
             ResultsRow.objects.create(table=table, cells=cells, order=i)
     return report
+
+
+class WeldBlockTests(TestCase):
+    def test_scan_plans_block_fills_material_information(self):
+        report = weld_report()
+        block = SensitivityBlock.objects.get(pipe_size='6in Sch 40')
+        report.scan_plan = ScanPlan.objects.create(name='6in', thickness=0.28, index_offset=0.48, sensitivity_block=block)
+        report.save()
+        cells = weld_pages(report).report
+        self.assertEqual((cells['U15'], cells['W14'], cells['W16'], cells['W17']),
+                         ('6in Sch 40', '19019', 'Notch', 'Carbon Steel'))
+        self.assertEqual((cells['Y20'], cells['Y21'], cells['Y26']), ('6.625"', 'Sch 40 / 0.280"', '37 degrees'))
+        self.assertEqual((cells['C33'], cells['C34'], cells['L34']), ('480.5833 step/in.', '0.039"', '19019'))
+        self.assertEqual((cells['L36'], cells['N36'], cells['P36']), ('0.280', '0.560', '0.840'))
+
+    def test_side_drilled_hole_distances(self):
+        self.assertEqual(excel_report._tcg_distances('0.1875'), {'L36': '0.188', 'N36': '0.562', 'P36': '1.125'})
+        self.assertEqual(excel_report._tcg_distances(''), {})
+
+    def test_without_a_block_the_setup_values_stay(self):
+        cells = weld_pages(weld_report()).report
+        self.assertEqual(cells['W14'], '19019')  # from the setup's cal block serial
+        self.assertNotIn('U15', cells)
 
 
 class WeldCellMapTests(TestCase):

@@ -169,6 +169,50 @@ def _equipment(setups):
     return cells
 
 
+def _tcg_distances(depth):
+    """
+    TCG distances from the block's notch / SDH depth, as the reference workbook works them out:
+    1×, 2× and 3× the depth, or 1×, 3× and 6× for 0.1875" side-drilled holes.
+    """
+    try:
+        d = float(depth)
+    except (TypeError, ValueError):
+        return {}
+    second, third = (3, 6) if abs(d - 0.1875) < 1e-6 else (2, 3)
+    return {'L36': f'{d:.3f}', 'N36': f'{d * second:.3f}', 'P36': f'{d * third:.3f}'}
+
+
+def _block(report):
+    """
+    Material Information, encoder and TCG cells from the scan plan's sensitivity block (the
+    weld form's Cal Block Table row); these take precedence over the setup's values.
+    """
+    plan = report.scan_plan
+    block = plan.sensitivity_block if plan is not None else None
+    if block is None:
+        return {}
+    cells = {
+        'U15': _v(block.pipe_size),
+        # Calibration standard
+        'W14': _v(block.serial_number), 'W16': _v(block.block_type), 'W17': _v(block.material),
+        'W18': _v(block.velocity_shear), 'W19': _v(block.velocity_long), 'W20': _v(block.cal_diameter),
+        'W21': _v(block.cal_sch_nom), 'W22': _v(block.temperature), 'W23': _v(block.surface_cal),
+        'W25': _v(block.couplant),
+        # Item inspected
+        'Y17': _v(block.material), 'Y18': _v(block.velocity_shear), 'Y19': _v(block.velocity_long),
+        'Y20': _v(block.test_diameter), 'Y21': _v(block.test_sch_nom), 'Y22': _v(block.temperature),
+        'Y23': _v(block.surface_test), 'Y25': _v(block.couplant), 'Y26': _v(block.bevel_geometry),
+        # Scanner and encoder
+        'C25': _v(block.encoder), 'C33': _v(block.encoder_steps), 'C34': _v(block.scan_res),
+        'C35': _v(block.scan_speed),
+        # TCG
+        'L34': _v(block.serial_number), 'Q34': _v(block.serial_number),
+        'L35': _v(block.block_type), 'N35': _v(block.block_type), 'P35': _v(block.block_type),
+        **_tcg_distances(block.reflector_depth),
+    }
+    return {ref: value for ref, value in cells.items() if value}
+
+
 def _calibration(report):
     cells = {}
     times = (report.cal_time_initial, report.cal_time_check1, report.cal_time_check2, report.cal_time_out)
@@ -261,7 +305,7 @@ def weld_pages(report):
     _, rows = report_results(report)
     report_cells, continuation = _results(rows)
     pages = WeldPages(
-        report={**_header(report), **_equipment(setups), **_calibration(report), **report_cells},
+        report={**_header(report), **_equipment(setups), **_block(report), **_calibration(report), **report_cells},
         continuation=continuation,
         indications=_indications(report, rows),
         scan_plan=report.scan_plan,

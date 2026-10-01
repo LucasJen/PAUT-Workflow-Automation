@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from PIL import Image
 
+from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
 from reports.models import Report, ScanPlan, Setup
 from reports.services import scan_plan
 from reports.services.excel_report import weld_pages
@@ -15,6 +16,7 @@ PLAN_FIELDS = {
     'thickness': '0.28', 'bevel_angle': '37.5', 'root_gap': '0.0625', 'root_face': '0.0625', 'cap_width': '',
     'index_offset': '0.48', 'exit_point': '0.45', 'wedge_angle': '38.9',
     'angle_start': '42', 'angle_stop': '73', 'angle_step': '1', 'notes': '',
+    'first_element': '1', 'aperture_elements': '', 'shear_velocity': '0.1276',
 }
 
 
@@ -126,3 +128,64 @@ class WeldReportScanPlanTests(TestCase):
     def test_editor_offers_scan_plans(self):
         make_plan(name='Pick me')
         self.assertContains(self.client.get(reverse('create-report')), 'Pick me')
+
+
+class ExactGeometryTests(TestCase):
+    """Exit points from the probe (pitch) and wedge geometry, by Snell's law."""
+
+    def plan(self, **fields):
+        probe = ProbeModel.objects.get(model='10L32-A1')
+        wedge = WedgeModel.objects.get(model='SA1-N60S')
+        wedge.velocity, wedge.primary_offset = 2330.0, -24.0
+        wedge.save()
+        values = dict(probe_model=probe, wedge_model=wedge, first_element=1, aperture_elements=27,
+                      angle_start=42, angle_stop=73, angle_step=1)
+        values.update(fields)
+        return make_plan(**values)
+
+    def test_sketch_when_the_wedge_has_no_geometry(self):
+        plan = make_plan(wedge_model=WedgeModel.objects.get(model='SA1-N60S'))
+        self.assertIsNone(scan_plan.exact_layout(plan))
+        self.assertEqual(set(scan_plan.layout(plan).exits.values()), {scan_plan.exit_x(plan)})
+
+    def test_exit_points_follow_snells_law(self):
+        plan = self.plan()
+        lay = scan_plan.exact_layout(plan)
+        self.assertTrue(lay.exact)
+        cx, cy = lay.source
+        # Aperture centre: element 14 (1 + 26/2) up the face from the first element
+        s = 13 * 0.31 / 25.4
+        a = math.radians(38.9)
+        self.assertAlmostEqual(cx, -0.48 - 24 / 25.4 + s * math.cos(a))
+        self.assertAlmostEqual(-cy, 8.382 / 25.4 + s * math.sin(a))
+        for angle, x in lay.exits.items():
+            incident = math.asin(2330 / 25400 / 0.1276 * math.sin(math.radians(angle)))
+            self.assertAlmostEqual(x, cx - cy * math.tan(incident))
+        # Higher refracted angles leave the wedge further forward
+        xs = [lay.exits[a] for a in sorted(lay.exits)]
+        self.assertEqual(xs, sorted(xs))
+
+    def test_angles_past_critical_have_no_beam(self):
+        plan = self.plan(shear_velocity=0.09, angle_start=40, angle_stop=89)
+        exits = scan_plan.exact_layout(plan).exits
+        self.assertIn(40, exits)
+        self.assertNotIn(89, exits)
+
+    def test_longitudinal_wedge_uses_the_blocks_l_wave_velocity(self):
+        plan = self.plan(sensitivity_block=SensitivityBlock.objects.get(pipe_size='6in Sch 40'))
+        wedge = plan.wedge_model
+        self.assertEqual(scan_plan.part_velocity(plan, wedge), 0.1276)
+        wedge.wave_type = 'LW'
+        self.assertEqual(scan_plan.part_velocity(plan, wedge), 0.232)
+
+    def test_renders_exact_layout(self):
+        image = Image.open(io.BytesIO(scan_plan.render_png(self.plan(), 2)))
+        self.assertEqual(image.width, scan_plan.WIDTH_PX)
+
+    def test_page_offers_block_and_wedge_values(self):
+        values = self.client.get(reverse('new-scan-plan')).context['catalogue_fill_values']
+        block = SensitivityBlock.objects.get(pipe_size='6in Sch 40')
+        self.assertEqual(values['sensitivity_block'][block.pk],
+                         {'pipe_size': '6in Sch 40', 'thickness': 0.28, 'bevel_angle': 37.0, 'shear_velocity': 0.128})
+        wedge = WedgeModel.objects.get(model='SA1-N60S')
+        self.assertEqual(values['wedge_model'][wedge.pk], {'wedge_angle': 38.9})
