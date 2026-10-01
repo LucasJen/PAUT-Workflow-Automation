@@ -208,7 +208,7 @@ class ExactGeometryTests(TestCase):
         self.assertEqual(values['sensitivity_block'][block.pk],
                          {'pipe_size': '6in Sch 40', 'thickness': 0.28, 'bevel_angle': 37.0, 'shear_velocity': 0.128})
         wedge = WedgeModel.objects.get(model='SA1-N60S')
-        self.assertEqual(values['wedge_model'][wedge.pk], {'wedge_angle': 38.9, 'wedge_primary_offset': '', 'wedge_first_element_height': '', 'wedge_velocity': ''})
+        self.assertEqual(values['wedge_model'][wedge.pk], {'wedge_angle': 38.9, 'wedge_primary_offset': '', 'wedge_first_element_height': '', 'wedge_velocity': '', 'wedge_length': '', 'wedge_height': ''})
 
 
 class WedgeForProbeTests(TestCase):
@@ -299,7 +299,7 @@ class ScanPlanFormLayoutTests(TestCase):
         self.assertEqual(sections['Beams'], ['angle_start', 'angle_stop', 'legs', 'angle_step'])
         hidden = {f.name for f in form.hidden_fields()}
         self.assertEqual(hidden, {'wedge_angle', 'exit_point', 'wedge_primary_offset', 'wedge_first_element_height',
-                                  'wedge_velocity'})
+                                  'wedge_velocity', 'wedge_length', 'wedge_height'})
         self.assertFalse(any(name in hidden for names in sections.values() for name in names))
         self.assertEqual((form['angle_start'].initial, form['angle_stop'].initial), (40.0, 70.0))
         page = self.client.get(reverse('new-scan-plan')).content.decode()
@@ -314,7 +314,7 @@ class ScanPlanFormLayoutTests(TestCase):
         values = self.client.get(reverse('new-scan-plan')).context['catalogue_fill_values']['wedge_model'][wedge.pk]
         incident = math.asin(2330 / 25400 / 0.1276 * math.sin(math.radians(60)))
         expected = round((27.19 - 5.15 * math.tan(incident)) / 25.4, 3)
-        self.assertEqual(values, {'wedge_angle': 39.0, 'exit_point': expected, 'wedge_primary_offset': '', 'wedge_first_element_height': '', 'wedge_velocity': ''})
+        self.assertEqual(values, {'wedge_angle': 39.0, 'exit_point': expected, 'wedge_primary_offset': '', 'wedge_first_element_height': '', 'wedge_velocity': '', 'wedge_length': '', 'wedge_height': ''})
 
 
 class OffsetAndPreviewTests(TestCase):
@@ -451,7 +451,7 @@ class FileGeometryTests(TestCase):
                 lay = scan_plan.layout(plan)
                 back = min(x for x, _ in lay.wedge)
                 self.assertGreaterEqual(min(x for x, _ in lay.probe), back - 1e-9)
-                length = math.dist(lay.probe[0], lay.probe[1]) * 25.4
+                length = math.dist(*lay.face) * 25.4
                 self.assertAlmostEqual(length, 32 * 0.31 + 2, places=3)  # element block, not the 17 mm housing
 
     def test_setup_fill_carries_the_file_geometry(self):
@@ -460,6 +460,11 @@ class FileGeometryTests(TestCase):
         item = self.client.get(reverse('new-scan-plan')).context['setup_fill_values'][setup.pk]
         self.assertEqual(item['wedge_geometry'], {'wedge_primary_offset': -21.361, 'wedge_first_element_height': 8.382,
                                                   'wedge_velocity': 2330.0, 'wedge_angle': 38.9})
+        setup.wedge_length, setup.wedge_height = 23.597, 18.771
+        setup.save()
+        item = self.client.get(reverse('new-scan-plan')).context['setup_fill_values'][setup.pk]
+        self.assertEqual((item['wedge_geometry']['wedge_length'], item['wedge_geometry']['wedge_height']),
+                         (23.597, 18.771))
 
     def test_nde_import_records_the_wedge_geometry(self):
         from reports.services.nde_parser import extract_groups
@@ -469,3 +474,20 @@ class FileGeometryTests(TestCase):
         for values in extract_groups(setup)[0]['values'].values():
             self.assertEqual((values['wedge_primary_offset'], values['wedge_first_element_height'],
                               values['wedge_velocity']), ('-21.361', '8.382', '2330.0'))
+
+
+class FileWedgeSizeTests(TestCase):
+    def test_the_files_wedge_size_is_drawn(self):
+        """PPI 31-37575: the file's 'SA1-N60S 10L32' is 23.6 x 18.8 mm, the short wedge."""
+        standard = WedgeModel.objects.create(model='SA1-N60S 10L32', probe_series='A1', probe_fit='10L32',
+                                             wedge_angle=39.0, velocity=2330.0, primary_offset=-27.19,
+                                             first_element_height=5.15, length=30.38, height=16.41)
+        plan = make_plan(probe_model=ProbeModel.objects.get(model='10L32-A1'), wedge_model=standard,
+                         first_element=1, aperture_elements=27, wedge_angle=38.9, wedge_primary_offset=-21.361,
+                         wedge_first_element_height=8.382, wedge_velocity=2330.0, wedge_length=23.597,
+                         wedge_height=18.771)
+        lay = scan_plan.layout(plan)
+        xs = [x for x, _ in lay.wedge]
+        self.assertAlmostEqual((max(xs) - min(xs)) * 25.4, 23.597)
+        self.assertAlmostEqual(max(-y for _, y in lay.wedge) * 25.4, 18.771)
+        self.assertGreaterEqual(min(x for x, _ in lay.probe), min(xs) - 1e-9)

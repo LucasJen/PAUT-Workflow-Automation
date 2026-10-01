@@ -105,6 +105,8 @@ class ScanPlan(models.Model):
     wedge_primary_offset = models.FloatField(null=True, blank=True)
     wedge_first_element_height = models.FloatField(null=True, blank=True)
     wedge_velocity = models.FloatField(null=True, blank=True)
+    wedge_length = models.FloatField(null=True, blank=True)
+    wedge_height = models.FloatField(null=True, blank=True)
     angle_start = models.FloatField(default=40.0)
     angle_stop = models.FloatField(default=70.0)
     angle_step = models.FloatField(default=1.0)
@@ -276,6 +278,8 @@ class Setup(models.Model):
     wedge_primary_offset = models.FloatField('Wedge primary offset (mm)', null=True, blank=True)
     wedge_first_element_height = models.FloatField('First element height (mm)', null=True, blank=True)
     wedge_velocity = models.FloatField('Wedge velocity (m/s)', null=True, blank=True)
+    wedge_length = models.FloatField('Wedge length (mm)', null=True, blank=True)
+    wedge_height = models.FloatField('Wedge height (mm)', null=True, blank=True)
 
     # Catalogue probe / wedge (matched on NDE import) and the aperture used, for scan plans
     catalogue_probe = models.ForeignKey('equipment.ProbeModel', on_delete=models.SET_NULL, null=True, blank=True,

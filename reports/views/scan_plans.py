@@ -76,6 +76,8 @@ def _setup_fill_values():
             'wedge_primary_offset': setup.wedge_primary_offset,
             'wedge_first_element_height': setup.wedge_first_element_height,
             'wedge_velocity': setup.wedge_velocity,
+            'wedge_length': setup.wedge_length,
+            'wedge_height': setup.wedge_height,
             'wedge_angle': _first_number(setup.wedge_angle),
         }
         geometry = geometry if setup.wedge_primary_offset is not None else {}
@@ -126,7 +128,7 @@ def _wedge_fill_values():
         fill = {k: v for k, v in fill.items() if v is not None}
         # Picking a wedge drops any .nde geometry from a setup (it belonged to that setup's wedge)
         values[wedge.pk] = {**fill, 'wedge_primary_offset': '', 'wedge_first_element_height': '',
-                            'wedge_velocity': ''}
+                            'wedge_velocity': '', 'wedge_length': '', 'wedge_height': ''}
     return values
 
 

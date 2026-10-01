@@ -209,7 +209,8 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         ('Source', ['source_file', 'acquisition_date']),
         ('Catalogue probe and wedge (for scan plans)', ['catalogue_probe', 'catalogue_wedge', 'first_element',
                                                         'aperture_elements', 'index_offset', 'wedge_primary_offset',
-                                                        'wedge_first_element_height', 'wedge_velocity']),
+                                                        'wedge_first_element_height', 'wedge_velocity',
+                                                        'wedge_length', 'wedge_height']),
         ('Weld (for scan plans)', ['weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width']),
     ]
 
@@ -420,6 +421,8 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'wedge_primary_offset': HiddenInput(),
             'wedge_first_element_height': HiddenInput(),
             'wedge_velocity': HiddenInput(),
+            'wedge_length': HiddenInput(),
+            'wedge_height': HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):

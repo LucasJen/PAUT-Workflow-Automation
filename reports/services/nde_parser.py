@@ -263,6 +263,8 @@ class _GroupContext:
             'wedge_primary_offset': _mm(self.mounting.get('primaryOffset')),
             'wedge_first_element_height': _mm(self.mounting.get('tertiaryOffset')),
             'wedge_velocity': _get(self.wedge, 'angleBeamWedge', 'longitudinalVelocity'),
+            'wedge_length': _mm(_get(self.wedge, 'angleBeamWedge', 'length')),
+            'wedge_height': _mm(_get(self.wedge, 'angleBeamWedge', 'height')),
 
             # UT settings
             'foc_depth': _dist(_get(ut, 'focusing', 'distance'), system, 3, 2),

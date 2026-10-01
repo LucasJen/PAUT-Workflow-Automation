@@ -184,13 +184,15 @@ def catalogue_layout(plan):
     if wedge is None:
         estimated.append('wedge (none picked)')
 
-    # Wedge geometry recorded in a setup's .nde file replaces the catalogue's (size still from the
-    # catalogue): the file is what the instrument used
+    # Wedge geometry recorded in a setup's .nde file (offsets, angle, velocity and its size)
+    # replaces the catalogue's: the file is what the instrument used
     file_offset = getattr(plan, 'wedge_primary_offset', None)
     from_file = file_offset is not None
     if from_file:
         wedge_values = SimpleNamespace(
-            length=wedge_values.length, height=wedge_values.height, refracted_angle=wedge_values.refracted_angle,
+            length=getattr(plan, 'wedge_length', None) or wedge_values.length,
+            height=getattr(plan, 'wedge_height', None) or wedge_values.height,
+            refracted_angle=wedge_values.refracted_angle,
             wave_type=getattr(wedge_values, 'wave_type', 'SW'), wedge_angle=plan.wedge_angle,
             velocity=getattr(plan, 'wedge_velocity', None) or wedge_values.velocity, primary_offset=file_offset,
             first_element_height=getattr(plan, 'wedge_first_element_height', None))
@@ -264,25 +266,31 @@ def catalogue_layout(plan):
         outline += [(front, -height), (back, -height), (back, 0.0)]
 
     # Probe: the element block (the array plus a small margin), as OmniScan draws it, centred on
-    # the array; slid up the face if its back corner would pass the wedge heel
+    # the array and trimmed at the wedge's back edge so it never hangs past the heel
     block = total * pitch + 2 * BLOCK_MARGIN
     stand = block * PROBE_BLOCK_RATIO
     array_mid = (total - 1) / 2 * pitch
     nx, ny = -sin_a, -cos_a
-
-    def block_outline(mid):
-        q1, q2 = face(mid - block / 2), face(mid + block / 2)
-        return [q1, q2, (q2[0] + nx * stand, q2[1] + ny * stand), (q1[0] + nx * stand, q1[1] + ny * stand)]
-
-    probe_outline = block_outline(array_mid)
-    overhang = back - min(x for x, _ in probe_outline)
-    if overhang > 0 and cos_a > 1e-6:
-        array_mid += overhang / cos_a
-        probe_outline = block_outline(array_mid)
-    p1, p2 = probe_outline[0], probe_outline[1]
+    p1, p2 = face(array_mid - block / 2), face(array_mid + block / 2)
+    probe_outline = _clip_behind([p1, p2, (p2[0] + nx * stand, p2[1] + ny * stand),
+                                  (p1[0] + nx * stand, p1[1] + ny * stand)], back)
     return Layout(outline, probe_outline, (p1, p2), (cx, cy), exits,
                   aperture=(face(s_first - pitch / 2), face(s_last + pitch / 2)),
                   exact=not estimated, estimated=estimated, from_file=from_file)
+
+
+def _clip_behind(polygon, x_min):
+    """The part of a polygon at x >= x_min (one clipping edge of Sutherland-Hodgman)."""
+    out = []
+    for i, current in enumerate(polygon):
+        previous = polygon[i - 1]
+        inside_now, inside_before = current[0] >= x_min, previous[0] >= x_min
+        if inside_now != inside_before:
+            t = (x_min - previous[0]) / (current[0] - previous[0])
+            out.append((x_min, previous[1] + t * (current[1] - previous[1])))
+        if inside_now:
+            out.append(current)
+    return out
 
 
 def exact_layout(plan):
@@ -395,7 +403,7 @@ def render_png(plan, side=1):
     reach = max((p[0] for path in beams for p in path), default=half_cap)
     x_min = min(p[0] for p in wedge + probe) - 0.25
     x_max = max(half_cap + 0.35, min(reach, half_cap + 2.5) + 0.1)
-    y_min = min(p[1] for p in wedge + probe) - 0.3
+    y_min = min(p[1] for p in wedge + probe) - 0.42  # room for the dimension and the caption
     y_max = t + root_height + 0.25
     c = _Canvas(x_min, x_max, y_min, y_max, mirror=(side == 2))
 
