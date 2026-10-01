@@ -9,7 +9,7 @@ from django.contrib.messages import get_messages
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from reports.models import Report, ReportImage, ReportPerson, ResultsRow, ResultsTable, Setup
+from reports.models import Report, ReportImage, ReportPerson, ResultsRow, ResultsTable, ScanPlan, Setup
 from reports.report_types import get_report_type
 from reports.services import excel_report
 from reports.services.excel_report import CHECK, CROSS, weld_pages
@@ -178,6 +178,8 @@ class ExcelMissingTests(TestCase):
 class RealExcelTests(TestCase):
     def test_excel_makes_the_workbook_and_pdf(self):
         report = weld_report([weld_row('W5', 'LOF'), weld_row('W6')])
+        report.scan_plan = ScanPlan.objects.create(name='6in', thickness=0.28, index_offset=0.48)
+        report.save()
         xlsx, pdf = excel_report.build_workbook(report, pdf=True)
         self.assertTrue(xlsx.startswith(b'PK'))
         self.assertTrue(pdf.startswith(b'%PDF'))

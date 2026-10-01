@@ -36,8 +36,8 @@ REPORT_SECTIONS = (
     ('drawings', 'Equipment drawings', None),
     ('setups', 'UT setups', None),
     ('results', 'Results table', None),
-    ('weld_cal', 'Calibration & notes', (
-        'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'notes',
+    ('weld_cal', 'Calibration, scan plan & notes', (
+        'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'scan_plan', 'notes',
     )),
     ('images', 'Photo summary', None),
 )
@@ -46,7 +46,7 @@ SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)
 
 # Fields only the Excel weld form uses
 WELD_ONLY_FIELDS = frozenset({
-    'address', 'contractor', 'item_description', 'exam_code', 'acceptance_standard', 'procedure_rev',
+    'address', 'contractor', 'item_description', 'exam_code', 'acceptance_standard', 'procedure_rev', 'scan_plan',
 })
 
 MASTER_TEMPLATE = 'paut_master.docx'

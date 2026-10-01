@@ -1,0 +1,50 @@
+{% extends 'reports/components/edit_page.html' %}
+{% load ui %}
+
+{% block title %}{% if plan %}{{ plan.name }}{% else %}New scan plan{% endif %} · Scan plans · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'scan-plan-list' %}{% endblock %}
+{% block back_label %}Scan plans{% endblock %}
+{% block page_title %}{% if plan %}{{ plan.name }}{% else %}New scan plan{% endif %}{% endblock %}
+{% block page_subtitle %}A single-V butt weld with the probe at the index offset and the sectorial beam fan. Pick it in a weld report's editor to print it on the report's Scan Plan page.{% endblock %}
+{% block item_noun %}scan plan{% endblock %}
+
+{% block form_body %}
+<div class="scan-plan-layout">
+    <div>
+        {% if setup_fill_values %}
+        <section class="panel">
+            <label class="form-label" for="fill-from-setup">Fill from a setup</label>
+            <select class="form-select" id="fill-from-setup">
+                <option value="">Choose a setup to copy its thickness, wedge angle and angles…</option>
+                {% for pk, item in setup_fill_values.items %}<option value="{{ pk }}">{{ item.label }}</option>{% endfor %}
+            </select>
+        </section>
+        {% endif %}
+        <section class="panel">
+            {% for title, fields in form.fieldsets %}
+            {% if title %}<h2 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h2>{% endif %}
+            <div class="field-grid cols-2">
+                {% for field in fields %}{{ field.as_field_group }}{% endfor %}
+            </div>
+            {% endfor %}
+        </section>
+    </div>
+    <section class="panel scan-plan-preview" id="scan-plan-preview" data-url="{% url 'scan-plan-preview' %}">
+        <h2 class="panel-subtitle mt-0">Drawing</h2>
+        <figure class="scan-plan-figure">
+            <img alt="Scan plan, side 1" data-side="1">
+            <figcaption>Side 1</figcaption>
+        </figure>
+        <figure class="scan-plan-figure" data-side-2>
+            <img alt="Scan plan, side 2" data-side="2">
+            <figcaption>Side 2</figcaption>
+        </figure>
+        <p class="scan-plan-status" id="scan-plan-status" role="status" hidden></p>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ setup_fill_values|json_script:"setup-fill-values" }}
+<script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
+{% endblock %}

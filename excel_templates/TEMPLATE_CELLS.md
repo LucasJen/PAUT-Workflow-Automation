@@ -4,7 +4,7 @@
 
 Built from the reference report `PPI-31-37575-W5&W6-6inch.xlsx` by clearing the job data and
 removing the lookup sheets (setup export, Probe Table, Scope and Encoder, Cal Block Table, All
-Probes) and the scan plan sheet. The app writes final values into the cells through Excel; the
+Probes) and its scan plan sheet. The app writes final values into the cells through Excel; the
 template has no lookups. The cell map lives in `reports/services/excel_report.py`.
 
 Sheets:
@@ -16,6 +16,10 @@ Sheets:
   (A12:Z56).
 - **Continuation**: results rows 15–47, used only when the results don't fit on the Report
   page.
+- **Scan Plan** (last page, only when the report has a scan plan): the Indication layout with
+  the report's scan plan drawings side by side in the picture area (A12:Z56), the Scan Plan
+  name (C57), Pipe Size (L57) and Notes (C60). The reference's own scan plan sheet is password
+  protected, so this page is built from the Indication sheet instead.
 
 The header cells on Indication and Continuation link to the Report sheet
 (`=IF(Report!X2="","",Report!X2)`), so editing the Report header in the downloaded file

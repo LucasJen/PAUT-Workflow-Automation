@@ -1099,3 +1099,36 @@ textarea.result-cell-input {
     font-size: 0.8rem;
     white-space: pre;
 }
+
+/* ── Scan plan page: fields beside the live drawing ───────────────────── */
+
+.scan-plan-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+@media (min-width: 1100px) {
+    .scan-plan-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+    .scan-plan-preview { position: sticky; top: 1rem; }
+}
+
+.scan-plan-figure { margin: 0 0 1rem; }
+
+.scan-plan-figure img {
+    display: block;
+    width: 100%;
+    min-height: 3rem;
+    background: #fff;  /* the drawing is always on white, as printed */
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.scan-plan-figure figcaption {
+    margin-top: 0.35rem;
+    font-size: 0.8125rem;
+    color: var(--text-3);
+}
+
+.scan-plan-status { margin: 0; font-size: 0.8125rem; color: var(--text-3); }

@@ -1,9 +1,9 @@
 from django.forms import (
-    CheckboxInput, ChoiceField, ClearableFileInput, DateInput, HiddenInput, ModelForm, Select, Textarea,
+    CheckboxInput, ChoiceField, ClearableFileInput, DateInput, HiddenInput, ModelForm, NumberInput, Select, Textarea,
     TextInput, inlineformset_factory,
 )
 from django.forms.renderers import TemplatesSetting
-from .models import Report, ReportImage, ReportPerson, Setup, TextSnippet
+from .models import Report, ReportImage, ReportPerson, ScanPlan, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from datetime import date
 
@@ -23,6 +23,8 @@ MONO_FIELDS = {
     'frequency', 'diameter', 'step_count',
     'beam_gain', 'active_elements', 'element_aperture', 'element_step', 'pcs', 'digitizing_frequency',
     'pulse_width', 'band_pass_filter', 'acquisition_date',
+    'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point',
+    'wedge_angle', 'angle_start', 'angle_stop', 'angle_step',
 }
 
 
@@ -98,6 +100,7 @@ class ReportForm(StyledFormMixin, ModelForm):
             'cal_time_check1': 'Calibration check time',
             'cal_time_check2': 'Second calibration check time',
             'cal_time_out': 'Calibration out time',
+            'scan_plan': 'Scan plan',
         }
         widgets = {
             'document_title': Textarea(attrs={'rows': 1, 'style': 'min-height: 0; resize: vertical;'}),
@@ -109,6 +112,7 @@ class ReportForm(StyledFormMixin, ModelForm):
         help_texts = {
             'cal_time_initial': '24-hour time, e.g. 0700. Amp, sweep and probe position print as Accept.',
             'notes': 'Notes box at the bottom of the weld form.',
+            'scan_plan': 'Printed on the last page. Create and edit scan plans under Scan plans.',
             'test_end_date': 'Leave blank for a single-day test.',
             'asset_description': 'Opening paragraph of the Introduction: what the asset is, material, design and service conditions.',
             'discussion': 'Leave blank to use the standard Discussion from the Text library.',
@@ -275,3 +279,59 @@ class TextSnippetForm(StyledFormMixin, ModelForm):
         fields = ['kind', 'name', 'title', 'body']
         labels = {'name': 'Name', 'title': 'Bold lead', 'body': 'Text'}
         widgets = {'body': Textarea(attrs={'rows': 8})}
+
+
+SCAN_PLAN_NUMBERS = (
+    'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point',
+    'wedge_angle', 'angle_start', 'angle_stop', 'angle_step',
+)
+
+
+class ScanPlanForm(StyledFormMixin, ModelForm):
+    fieldsets_spec = [
+        ('Scan plan', ['name', 'pipe_size', 'sides', 'legs']),
+        ('Weld (inches, degrees)', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width']),
+        ('Probe and beams', ['index_offset', 'exit_point', 'wedge_angle', 'angle_start', 'angle_stop', 'angle_step']),
+        (None, ['notes']),
+    ]
+    LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point')
+    ANGLES = ('bevel_angle', 'wedge_angle', 'angle_start', 'angle_stop')
+
+    class Meta:
+        model = ScanPlan
+        exclude = ['updated_at']
+        labels = {
+            'pipe_size': 'Pipe size',
+            'bevel_angle': 'Bevel angle (°)',
+            'root_gap': 'Root gap',
+            'root_face': 'Root face (land)',
+            'cap_width': 'Cap width',
+            'index_offset': 'Index offset',
+            'exit_point': 'Exit point',
+            'wedge_angle': 'Wedge angle (°)',
+            'angle_start': 'Start angle (°)',
+            'angle_stop': 'Stop angle (°)',
+            'angle_step': 'Angle step (°)',
+            'legs': 'Beam legs',
+            'notes': 'Notes (printed under the scan plan)',
+        }
+        widgets = {
+            'notes': Textarea(attrs={'rows': 2}),
+            **{name: NumberInput(attrs={'step': 'any'}) for name in SCAN_PLAN_NUMBERS},
+        }
+
+    def clean(self):
+        data = super().clean()
+        if data.get('thickness') is not None and data['thickness'] <= 0:
+            self.add_error('thickness', 'Enter a thickness above 0.')
+        for name in self.LENGTHS:
+            if data.get(name) is not None and data[name] < 0:
+                self.add_error(name, 'Cannot be negative.')
+        for name in self.ANGLES:
+            if data.get(name) is not None and not 0 <= data[name] < 90:
+                self.add_error(name, 'Enter an angle from 0 to 89°.')
+        if data.get('angle_step') is not None and data['angle_step'] <= 0:
+            self.add_error('angle_step', 'Enter a step above 0.')
+        if (data.get('thickness') and data.get('root_face') is not None and data['root_face'] > data['thickness']):
+            self.add_error('root_face', 'The root face cannot be thicker than the wall.')
+        return data

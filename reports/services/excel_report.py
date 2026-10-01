@@ -3,7 +3,8 @@ Excel weld report (form 100-UTFORM-010): fills excel_templates/paut_weld.xlsx th
 
 weld_pages(report) works out every value and where it goes (pure Python, unit tested);
 build_workbook(report) writes them with a separate, hidden Excel instance, adds one
-Indication page per flaw with its scan image, saves the .xlsx and optionally exports the PDF.
+Indication page per flaw with its scan image and the Scan Plan page with the report's scan
+plan drawings, saves the .xlsx and optionally exports the PDF.
 The template's cell positions are described in excel_templates/TEMPLATE_CELLS.md.
 """
 import logging
@@ -20,6 +21,7 @@ from ..report_types import get_report_type
 from ..results import report_results
 from .office import lock, office_app_available
 from .report_render import with_unit
+from .scan_plan import render_png
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +65,11 @@ class WeldPages:
     report: dict = field(default_factory=dict)        # cell -> value on the Report sheet
     continuation: dict = field(default_factory=dict)  # cell -> value; empty = no Continuation page
     indications: list = field(default_factory=list)
+    scan_plan: object = None                          # ScanPlan, printed on the last page
 
     @property
     def page_count(self):
-        return 1 + bool(self.continuation) + len(self.indications)
+        return 1 + bool(self.continuation) + len(self.indications) + bool(self.scan_plan)
 
 
 # ── Values ───────────────────────────────────────────────────────────────
@@ -261,6 +264,7 @@ def weld_pages(report):
         report={**_header(report), **_equipment(setups), **_calibration(report), **report_cells},
         continuation=continuation,
         indications=_indications(report, rows),
+        scan_plan=report.scan_plan,
     )
     if pages.continuation:
         pages.continuation['C13'] = _v(report.location)
@@ -289,21 +293,28 @@ def _page_numbers(ws, page, total):
     ws.Range('Z4').Value = total
 
 
-def _add_picture(ws, path):
-    """The scan image, as large as fits the picture area, centred."""
+def _add_picture(ws, path, part=0, parts=1):
+    """
+    The picture, as large as fits the picture area, centred. With parts > 1 the area is split
+    into equal side-by-side columns and the picture goes in column `part`.
+    """
     area = ws.Range(INDICATION_PICTURE)
-    pic = ws.Shapes.AddPicture(path, False, True, area.Left, area.Top, -1, -1)
+    gap = 6  # points between side-by-side pictures
+    width = (area.Width - gap * (parts - 1)) / parts
+    left = area.Left + part * (width + gap)
+    pic = ws.Shapes.AddPicture(path, False, True, left, area.Top, -1, -1)
     pic.LockAspectRatio = True
-    scale = min(area.Width / pic.Width, area.Height / pic.Height)
+    scale = min(width / pic.Width, area.Height / pic.Height)
     pic.Width = pic.Width * scale
-    pic.Left = area.Left + (area.Width - pic.Width) / 2
+    pic.Left = left + (width - pic.Width) / 2
     pic.Top = area.Top + (area.Height - pic.Height) / 2
 
 
-def _fill(wb, pages):
+def _fill(wb, pages, scan_plan_pictures):
     report = wb.Worksheets('Report')
     master = wb.Worksheets('Indication')
     continuation = wb.Worksheets('Continuation')
+    plan_sheet = wb.Worksheets('Scan Plan')
     total = pages.page_count
 
     _write(report, pages.report)
@@ -330,7 +341,28 @@ def _fill(wb, pages):
         if ind.image_path and os.path.exists(ind.image_path):
             _add_picture(ws, ind.image_path)
     master.Delete()
+
+    plan = pages.scan_plan
+    if plan is not None:
+        plan_sheet.Move(None, wb.Worksheets(wb.Worksheets.Count))  # last page, as on the paper form
+        _write(plan_sheet, {'C57': plan.name, 'L57': plan.pipe_size, 'C60': plan.notes})
+        _page_numbers(plan_sheet, total, total)
+        for part, path in enumerate(scan_plan_pictures):
+            _add_picture(plan_sheet, path, part, len(scan_plan_pictures))
+    else:
+        plan_sheet.Delete()
     report.Activate()
+
+
+def _scan_plan_pictures(plan, workdir):
+    """The scan plan drawings written to PNG files for Excel, one per side."""
+    paths = []
+    for side in plan.side_numbers if plan else ():
+        path = os.path.join(workdir, f'scan_plan_{side}.png')
+        with open(path, 'wb') as f:
+            f.write(render_png(plan, side))
+        paths.append(path)
+    return paths
 
 
 def build_workbook(report, pdf=False):
@@ -348,6 +380,7 @@ def build_workbook(report, pdf=False):
     xlsx_path = os.path.join(workdir, 'report.xlsx')
     pdf_path = os.path.join(workdir, 'report.pdf')
     shutil.copyfile(template_path(report), xlsx_path)
+    scan_plan_pictures = _scan_plan_pictures(pages.scan_plan, workdir)
 
     with lock:
         pythoncom.CoInitialize()  # COM must be initialised on each request thread
@@ -358,7 +391,7 @@ def build_workbook(report, pdf=False):
             excel.DisplayAlerts = False
             excel.ScreenUpdating = False
             wb = excel.Workbooks.Open(xlsx_path, UpdateLinks=0, AddToMru=False)
-            _fill(wb, pages)
+            _fill(wb, pages, scan_plan_pictures)
             excel.CalculateFull()
             wb.Save()
             if pdf:

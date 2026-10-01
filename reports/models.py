@@ -37,6 +37,7 @@ class Report(models.Model):
     cal_time_check2 = models.CharField(max_length=20, blank=True)
     cal_time_out = models.CharField(max_length=20, blank=True)
     notes = models.TextField(blank=True)
+    scan_plan = models.ForeignKey('ScanPlan', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
 
     # Executive Summary
     examination_scope = models.TextField(blank=True)
@@ -61,6 +62,51 @@ class Report(models.Model):
     @property
     def prepared_by_names(self):
         return ', '.join(p.name for p in self.people.all() if p.prepared)
+
+
+class ScanPlan(models.Model):
+    """
+    Scan plan for a basic single-V butt weld, drawn by reports/services/scan_plan.py and printed
+    on the weld report's Scan Plan page. Saved on its own so one plan serves every report for the
+    same pipe size and setup. Lengths are in inches, angles in degrees.
+    """
+    ONE_LEG, TWO_LEGS = 1, 2
+    LEG_CHOICES = [(ONE_LEG, 'First leg only'), (TWO_LEGS, 'First and second leg')]
+    BOTH_SIDES, ONE_SIDE = 'both', 'one'
+    SIDE_CHOICES = [(BOTH_SIDES, 'Both sides of the weld'), (ONE_SIDE, 'One side')]
+
+    name = models.CharField(max_length=100)
+    pipe_size = models.CharField(max_length=100, blank=True, help_text='For your reference, e.g. 6in Sch 40.')
+
+    # Weld
+    thickness = models.FloatField()
+    bevel_angle = models.FloatField(default=37.5, help_text='Each side, from vertical.')
+    root_gap = models.FloatField(default=0.0625)
+    root_face = models.FloatField(default=0.0625)
+    cap_width = models.FloatField(null=True, blank=True, help_text='Blank = bevel opening plus 1/16" each side.')
+
+    # Probe position and beams
+    index_offset = models.FloatField(help_text='Wedge front to weld centre line.')
+    exit_point = models.FloatField(default=0.45, help_text='Wedge front back to the beam exit (index) point.')
+    wedge_angle = models.FloatField(default=36.0)
+    angle_start = models.FloatField(default=45.0)
+    angle_stop = models.FloatField(default=70.0)
+    angle_step = models.FloatField(default=1.0)
+    legs = models.PositiveSmallIntegerField(choices=LEG_CHOICES, default=TWO_LEGS)
+    sides = models.CharField(max_length=10, choices=SIDE_CHOICES, default=BOTH_SIDES)
+
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def side_numbers(self):
+        return (1, 2) if self.sides == self.BOTH_SIDES else (1,)
 
 
 class TextSnippet(models.Model):

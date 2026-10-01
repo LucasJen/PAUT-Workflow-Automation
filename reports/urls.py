@@ -18,4 +18,9 @@ urlpatterns = [
     path('texts/', views.snippet_list, name='snippet-list'),
     path('texts/new/', views.new_snippet, name='new-snippet'),
     path('text/<int:pk>/edit/', views.edit_snippet, name='edit-snippet'),
+    path('scan-plans/', views.scan_plan_list, name='scan-plan-list'),
+    path('scan-plans/new/', views.new_scan_plan, name='new-scan-plan'),
+    path('scan-plans/preview.png', views.scan_plan_preview, name='scan-plan-preview'),
+    path('scan-plan/<int:pk>/edit/', views.edit_scan_plan, name='edit-scan-plan'),
+    path('scan-plan/<int:pk>.png', views.scan_plan_png, name='scan-plan-png'),
 ]
