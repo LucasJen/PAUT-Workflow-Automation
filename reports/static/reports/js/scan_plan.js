@@ -91,3 +91,41 @@ async function loadWedges() {
 if (probeSelect && wedgeSelect) {
     probeSelect.addEventListener('change', loadWedges);
 }
+
+// Type-to-filter boxes above the probe and wedge lists. Letters and digits only are compared,
+// so '5L16A1' finds 5L16-A1; when one option is left it is picked.
+function simplify(text) {
+    return text.toLowerCase().replace(/[^a-z0-9.]/g, '');
+}
+
+function addFilter(select, placeholder) {
+    if (!select) return;
+    const box = document.createElement('input');
+    box.type = 'search';
+    box.className = 'form-control form-control-sm mb-1 select-filter';
+    box.placeholder = placeholder;
+    box.setAttribute('aria-label', placeholder);
+    select.before(box);
+
+    const apply = () => {
+        const query = simplify(box.value);
+        const visible = [];
+        for (const option of select.options) {
+            if (!option.value) continue;
+            option.hidden = Boolean(query) && !simplify(option.text).includes(query);
+            if (!option.hidden) visible.push(option);
+        }
+        if (query && visible.length === 1 && select.value !== visible[0].value) {
+            select.value = visible[0].value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    };
+    box.addEventListener('input', apply);
+    // The wedge list is rebuilt when the probe changes; keep its filter applied
+    new MutationObserver(apply).observe(select, { childList: true });
+    // Typing in the box is not a change to the scan plan itself
+    box.addEventListener('input', event => event.stopPropagation());
+}
+
+addFilter(probeSelect, 'Type to filter probes, e.g. 5L16A1');
+addFilter(wedgeSelect, 'Type to filter wedges, e.g. N60S');

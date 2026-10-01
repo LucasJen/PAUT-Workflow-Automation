@@ -13,7 +13,7 @@ from django.urls import reverse
 from equipment.forms import ProbeForm
 from django.core.management import call_command
 
-from equipment.compat import fit_tokens, probe_token, wedge_fits_probe
+from equipment.compat import ProbeSpec, fit_specs, wedge_fits_probe
 from equipment.importers import CatalogueImportError, read_catalogue_file
 from equipment.models import Probe, ProbeModel, SensitivityBlock, WedgeModel
 
@@ -163,13 +163,28 @@ class BeamtoolImportTests(TestCase):
 
 
 class WedgeFitTests(TestCase):
-    def test_tokens(self):
-        self.assertEqual(probe_token('10L32-A1'), '10L32')
-        self.assertEqual(probe_token('7.5CCEV35-A15'), '7.5CCEV35')
-        self.assertEqual(fit_tokens('5/10L32'), ({'5L32', '10L32'}, set()))
-        self.assertEqual(fit_tokens('10L32R'), ({'10L32'}, set()))
-        self.assertEqual(fit_tokens('10L32-A10'), ({'10L32'}, set()))
-        self.assertEqual(fit_tokens('2.25-3-5'), (set(), {2.25, 3.0, 5.0}))
+    def test_probe_text_forms(self):
+        """The ways Beamtool names the probe after a wedge (see equipment/compat.py)."""
+        cases = {
+            '10L32': [ProbeSpec(frozenset({10.0}), 'L', 32)],
+            '10L32R': [ProbeSpec(frozenset({10.0}), 'L', 32)],
+            '10L32-A10P': [ProbeSpec(frozenset({10.0}), 'L', 32)],
+            '5/10L32': [ProbeSpec(frozenset({5.0, 10.0}), 'L', 32)],
+            '1-2-5-7-10L16': [ProbeSpec(frozenset({1.5, 2.25, 5.0, 7.5, 10.0}), 'L', 16)],
+            '2L16': [ProbeSpec(frozenset({2.25}), 'L', 16)],
+            'L16': [ProbeSpec(None, 'L', 16)],
+            '5L16-': [ProbeSpec(frozenset({5.0}), 'L', 16)],
+            '2.25/3/5CCEV35-16': [ProbeSpec(frozenset({2.25, 3.5, 5.0}), 'CCEV', 16)],
+            '3.5CCEV-35-16': [ProbeSpec(frozenset({3.5}), 'CCEV', 16)],
+            '7CCEV-16': [ProbeSpec(frozenset({7.5}), 'CCEV', 16)],
+            '2.25-3-5': [ProbeSpec(frozenset({2.25, 3.5, 5.0}))],
+            '5L64R Pos2L64': [ProbeSpec(frozenset({5.0}), 'L', 64)],
+            'dual 2L64R': [ProbeSpec(frozenset({2.25}), 'L', 64)],
+            'GroupA': [],
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(fit_specs(text), expected)
 
     def fits(self, wedge, probe='10L32-A1'):
         defaults = dict(manufacturer='Evident', probe_series='A1', probe_fit='', source='ES Beamtool library')
@@ -186,3 +201,8 @@ class WedgeFitTests(TestCase):
         self.assertTrue(self.fits({'probe_series': '', 'source': ''}))              # entered by hand
         self.assertTrue(self.fits({'probe_series': 'A15', 'probe_fit': '2.25-3-5'}, '5CCEV35-A15'))
         self.assertFalse(self.fits({'probe_series': 'A15', 'probe_fit': '2.25-3-5'}, '7.5CCEV35-A15'))
+        self.assertTrue(self.fits({'probe_fit': '2L16'}, '2.25L16-A1'))              # old 2 MHz shorthand
+        self.assertFalse(self.fits({'probe_fit': '2L16'}, '5L16-A1'))
+        self.assertTrue(self.fits({'probe_fit': '5L64R Pos2L64', 'probe_series': 'A2'}, '5L64-A2'))
+        self.assertFalse(self.fits({'probe_fit': '5L64R Pos2L64', 'probe_series': 'A2'}, '2.25L64-A2'))
+        self.assertTrue(self.fits({'probe_fit': 'GroupA', 'probe_series': 'A32'}, '5L32-A32'))  # series only

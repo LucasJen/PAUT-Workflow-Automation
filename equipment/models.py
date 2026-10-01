@@ -35,7 +35,7 @@ class ProbeModel(models.Model):
     notes = models.TextField(blank=True)
 
     class Meta:
-        ordering = ['series', 'model']
+        ordering = ['series', 'frequency', 'elements', 'model']
 
     def __str__(self):
         return self.model
