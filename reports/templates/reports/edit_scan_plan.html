@@ -21,6 +21,7 @@
         </section>
         {% endif %}
         <section class="panel">
+            {% for field in form.hidden_fields %}{{ field }}{% endfor %}
             {% for title, fields in form.fieldsets %}
             {% if title %}<h2 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h2>{% endif %}
             <div class="field-grid cols-2">

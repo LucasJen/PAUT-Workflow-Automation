@@ -99,7 +99,8 @@ class ScanPlanPageTests(TestCase):
         resp = self.client.get(reverse('new-scan-plan'))
         values = resp.context['setup_fill_values']
         self.assertEqual(list(values.values())[0]['fields'],
-                         {'thickness': 0.28, 'wedge_angle': 38.9, 'angle_start': 42.0, 'angle_stop': 73.0, 'angle_step': 1.0})
+                         {'thickness': 0.28, 'angle_start': 42.0, 'angle_stop': 73.0, 'angle_step': 1.0})
+        # the wedge angle comes only from the wedge selector
 
     def test_duplicate_and_delete_from_list(self):
         plan = make_plan(name='Original')
@@ -285,3 +286,29 @@ class BeamtoolGeometryTests(TestCase):
         exits = [behind(x) for x in lay.exits.values()]
         self.assertAlmostEqual(min(exits), 16.4, delta=0.7)
         self.assertAlmostEqual(max(exits), 19.3, delta=0.7)
+
+
+class ScanPlanFormLayoutTests(TestCase):
+    def test_layout_and_defaults(self):
+        from reports.forms import ScanPlanForm
+        form = ScanPlanForm()
+        sections = {title: [f.name for f in fields] for title, fields in form.fieldsets()}
+        self.assertIn('index_offset', sections['Weld (inches, degrees)'])
+        self.assertEqual(sections['Beams'], ['angle_start', 'angle_stop', 'legs', 'angle_step'])
+        hidden = {f.name for f in form.hidden_fields()}
+        self.assertEqual(hidden, {'wedge_angle', 'exit_point'})
+        self.assertFalse(any(name in hidden for names in sections.values() for name in names))
+        self.assertEqual((form['angle_start'].initial, form['angle_stop'].initial), (40.0, 70.0))
+        page = self.client.get(reverse('new-scan-plan')).content.decode()
+        self.assertIn('type="hidden" name="wedge_angle"', page)
+        self.assertIn('type="hidden" name="exit_point"', page)
+
+    def test_wedge_selector_fills_wedge_angle_and_exit_point(self):
+        """SA1-N60S 10L32: 39 deg, X 27.19, Z 5.15 mm; the 60 deg beam leaves about 0.85 in behind the front."""
+        wedge = WedgeModel.objects.create(model='SA1-N60S 10L32', probe_series='A1', probe_fit='10L32', wave_type='SW',
+                                          refracted_angle=60.0, wedge_angle=39.0, velocity=2330.0,
+                                          primary_offset=-27.19, first_element_height=5.15)
+        values = self.client.get(reverse('new-scan-plan')).context['catalogue_fill_values']['wedge_model'][wedge.pk]
+        incident = math.asin(2330 / 25400 / 0.1276 * math.sin(math.radians(60)))
+        expected = round((27.19 - 5.15 * math.tan(incident)) / 25.4, 3)
+        self.assertEqual(values, {'wedge_angle': 39.0, 'exit_point': expected})

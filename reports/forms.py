@@ -333,11 +333,14 @@ SCAN_PLAN_NUMBERS = (
 
 class ScanPlanForm(StyledFormMixin, ModelForm):
     fieldsets_spec = [
-        ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'sides', 'legs']),
-        ('Weld (inches, degrees)', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'shear_velocity']),
+        ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'sides']),
+        ('Weld (inches, degrees)', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'shear_velocity',
+                                    'index_offset']),
         ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
-        ('Position and beams', ['index_offset', 'exit_point', 'wedge_angle', 'angle_start', 'angle_stop', 'angle_step']),
+        # Two columns: start / stop angle, then beam legs / angle step under them
+        ('Beams', ['angle_start', 'angle_stop', 'legs', 'angle_step']),
         (None, ['notes']),
+        # wedge_angle and exit_point are hidden: they come from the selected wedge
     ]
     LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point')
     ANGLES = ('bevel_angle', 'wedge_angle', 'angle_start', 'angle_stop')
@@ -364,12 +367,14 @@ class ScanPlanForm(StyledFormMixin, ModelForm):
             'aperture_elements': 'Aperture (elements)',
         }
         help_texts = {
-            'exit_point': 'Used only when the wedge has no geometry; otherwise each beam’s exit point is calculated.',
-            'wedge_angle': 'Filled from the wedge; used for the sketched wedge.',
+            'index_offset': 'Wedge front to the weld centre line.',
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),
             **{name: NumberInput(attrs={'step': 'any'}) for name in SCAN_PLAN_NUMBERS},
+            # Set only by the wedge selector (scan_plan.js fills them from the chosen wedge)
+            'wedge_angle': HiddenInput(),
+            'exit_point': HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):

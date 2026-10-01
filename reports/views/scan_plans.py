@@ -1,3 +1,4 @@
+import math
 import re
 
 from django.contrib import messages
@@ -9,7 +10,9 @@ from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
 
 from ..forms import ScanPlanForm
 from ..models import ScanPlan, Setup
-from ..services.scan_plan import render_png
+from ..services.scan_plan import (
+    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, render_png,
+)
 
 NUMBER = re.compile(r'-?\d+(?:\.\d+)?')
 
@@ -45,7 +48,6 @@ def _setup_fill_values():
         angles = [float(n) for n in NUMBER.findall(setup.angle_range or '')]
         fill = {
             'thickness': _first_number(setup.specimen_thickness),
-            'wedge_angle': _first_number(setup.wedge_angle),
             'angle_start': angles[0] if angles else None,
             'angle_stop': angles[-1] if angles else None,
             'angle_step': _first_number(setup.angle_step),
@@ -76,8 +78,32 @@ def _block_fill_values():
     return values
 
 
+def _wedge_exit_point(wedge):
+    """
+    Wedge front to where the wedge's nominal beam leaves it, in inches, from the first element
+    (the scan plan works out each beam's own exit point when it draws; this is the plan's
+    single exit point for when it can't).
+    """
+    if not wedge.has_geometry:
+        return None
+    refracted = wedge.refracted_angle if wedge.refracted_angle is not None else 60.0
+    part = STEEL_LONGITUDINAL if wedge.wave_type == 'LW' else STEEL_SHEAR
+    sin_i = wedge.velocity * M_PER_S_TO_IN_PER_US / part * math.sin(math.radians(refracted))
+    if sin_i >= 1:
+        return None
+    behind_front_mm = -wedge.primary_offset - wedge.first_element_height * math.tan(math.asin(sin_i))
+    return round(max(behind_front_mm, 0.0) / MM_PER_IN, 3)
+
+
 def _wedge_fill_values():
-    return {w.pk: {'wedge_angle': w.wedge_angle} for w in WedgeModel.objects.exclude(wedge_angle=None)}
+    """{pk: {field: value}} the wedge selector fills in (wedge angle and exit point are hidden fields)."""
+    values = {}
+    for wedge in WedgeModel.objects.all():
+        fill = {'wedge_angle': wedge.wedge_angle, 'exit_point': _wedge_exit_point(wedge)}
+        fill = {k: v for k, v in fill.items() if v is not None}
+        if fill:
+            values[wedge.pk] = fill
+    return values
 
 
 def _edit_page(request, form, plan):

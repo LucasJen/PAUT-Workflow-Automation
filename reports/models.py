@@ -99,7 +99,7 @@ class ScanPlan(models.Model):
     index_offset = models.FloatField(help_text='Wedge front to weld centre line.')
     exit_point = models.FloatField(default=0.45, help_text='Wedge front back to the beam exit (index) point.')
     wedge_angle = models.FloatField(default=36.0)
-    angle_start = models.FloatField(default=45.0)
+    angle_start = models.FloatField(default=40.0)
     angle_stop = models.FloatField(default=70.0)
     angle_step = models.FloatField(default=1.0)
     legs = models.PositiveSmallIntegerField(choices=LEG_CHOICES, default=TWO_LEGS)
