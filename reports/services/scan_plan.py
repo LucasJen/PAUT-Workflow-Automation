@@ -417,7 +417,7 @@ def render_png(plan, side=1, position=1):
     reach = max((p[0] for path in beams for p in path), default=half_cap)
     x_min = min(p[0] for p in wedge + probe) - 0.25
     x_max = max(half_cap + 0.35, min(reach, half_cap + 2.5) + 0.1)
-    y_min = min(p[1] for p in wedge + probe) - 0.42  # room for the dimension and the caption
+    y_min = min(p[1] for p in wedge + probe) - 0.3  # room for the offset dimension
     y_max = t + root_height + 0.25
     c = _Canvas(x_min, x_max, y_min, y_max, mirror=(side == 2))
 
@@ -478,15 +478,4 @@ def render_png(plan, side=1, position=1):
     c.draw.text(c.px((front / 2, dim_y - 0.03)), fmt_length(plan, index_offset(plan)), fill=DIMENSION, font=_font(19 * SUPERSAMPLE),
                 anchor='mb', stroke_width=SUPERSAMPLE * 3, stroke_fill='white')
 
-    # Labels
-    corner = (x_min + 0.05, y_min + 0.08)  # mirrored to the right-hand corner on side 2
-    label = f'{90 if side == 1 else 270}° skew  ·  {plan.angle_start:g}°–{plan.angle_stop:g}°  ·  t = {fmt_length(plan, t)}'
-    probe_model, wedge_model = _related(plan, 'probe_model'), _related(plan, 'wedge_model')
-    if probe_model or wedge_model:
-        label += f'  ·  {probe_model or "probe?"} on {wedge_model or "wedge?"}'
-    if lay.from_file:
-        label += '  ·  wedge geometry from the .nde file'
-    if lay.estimated:
-        label += f'  ·  estimated: {", ".join(lay.estimated)}'
-    c.draw.text(c.px(corner), label, fill=TEXT, font=_font(15 * SUPERSAMPLE), anchor='la' if side == 1 else 'ra')
     return c.png()
