@@ -1,7 +1,8 @@
 {% extends 'reports/components/list_page.html' %}
 
-{% block title %}Text library · PAUT Report Automation{% endblock %}
-{% block page_title %}Text library{% endblock %}
+{% block title %}Texts · Library · PAUT Report Automation{% endblock %}
+{% block page_title %}Library{% endblock %}
+{% block page_tabs %}{% include 'reports/components/library_tabs.html' with tab='texts' %}{% endblock %}
 {% block item_noun %}text{% endblock %}
 
 {% block new_button %}

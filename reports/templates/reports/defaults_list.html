@@ -1,0 +1,26 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}Defaults · Library · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Library</h1>
+</div>
+{% include 'reports/components/library_tabs.html' with tab='defaults' %}
+<p class="page-subtitle">The values a new report starts with, per report type: its report fields and every new setup block. Anything typed on the report, or filled by a client, a loaded setup, an NDE import or a scan plan, replaces them.</p>
+<div class="table-wrap">
+    <table class="table list-table">
+        <thead><tr><th>Report type</th><th>Report values</th><th>Setup values</th><th>Saved</th></tr></thead>
+        <tbody>
+        {% for item in items %}
+        <tr data-href="{% url 'edit-defaults' item.type.key %}">
+            <td class="fw-medium"><a href="{% url 'edit-defaults' item.type.key %}">{{ item.type.label }}</a></td>
+            <td>{{ item.record.report_values|length|default:"None" }}</td>
+            <td>{{ item.record.setup_values|length|default:"None" }}</td>
+            <td class="text-muted-cell">{% if item.record %}{{ item.record.updated_at|timesince }} ago{% else %}Not set{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

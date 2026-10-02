@@ -270,8 +270,10 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        catalogue_choices(self, 'catalogue_probe', 'catalogue_wedge')
-        unit_toggle(self, 'units', SETUP_UNIT_FIELDS)
+        if 'catalogue_probe' in self.fields and 'catalogue_wedge' in self.fields:
+            catalogue_choices(self, 'catalogue_probe', 'catalogue_wedge')
+        if 'units' in self.fields:
+            unit_toggle(self, 'units', SETUP_UNIT_FIELDS)
 
 
 class DrawingForm(StyledFormMixin, ModelForm):

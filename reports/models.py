@@ -159,6 +159,21 @@ class ScanPlan(models.Model):
         return out
 
 
+class ReportDefaults(models.Model):
+    """
+    Library › Defaults: the values a new report of a type starts with, for its report fields and
+    for each new setup block. Kept apart from reports so a defaults record is never listed or
+    generated as a report. Values are {field name: value} (foreign keys as their pk).
+    """
+    report_type = models.CharField(max_length=50, unique=True)
+    report_values = models.JSONField(default=dict, blank=True)
+    setup_values = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+
+    def __str__(self):
+        return f'Defaults for {self.report_type}'
+
+
 class TextSnippet(models.Model):
     """
     Reusable report text, edited in the app's Text library. Technique descriptions are used for
