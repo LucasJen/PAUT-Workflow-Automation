@@ -4,12 +4,15 @@ import re
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from equipment.compat import wedges_for_probe
 from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
 
 from ..forms import ScanPlanForm
-from ..models import ReportGroup, ScanPlan, Setup
+from ..models import Report, ReportGroup, ScanPlan, Setup
+from ..weld_form import PAUT
 from ..services.scan_plan import (
     M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, layout, render_png,
 )
@@ -89,45 +92,52 @@ def _setup_fill_values():
     return values
 
 
+def group_fill(group):
+    """
+    (fields, wedge geometry) a scan plan takes from a weld report's group column: its angles and
+    aperture, and its probe column's catalogue probe / wedge and .nde wedge geometry.
+    """
+    probe = group.probe
+    angles = [float(n) for n in NUMBER.findall(group.angles or '')]
+    fill = {
+        'angle_start': angles[0] if angles else None,
+        'angle_stop': angles[-1] if angles else None,
+        'angle_step': _first_number(group.angle_increment),
+        'first_element': group.first_element,
+        'aperture_elements': group.aperture_elements,
+        'probe_model': probe.catalogue_probe_id if probe else None,
+        'wedge_model': probe.catalogue_wedge_id if probe else None,
+    }
+    geometry = {}
+    if probe is not None and probe.wedge_primary_offset is not None:
+        geometry = {
+            'wedge_primary_offset': probe.wedge_primary_offset,
+            'wedge_first_element_height': probe.wedge_first_element_height,
+            'wedge_velocity': probe.wedge_velocity,
+            'wedge_length': probe.wedge_length,
+            'wedge_height': probe.wedge_height,
+            'wedge_angle': _first_number(probe.wedge_angle),
+        }
+    return ({k: v for k, v in fill.items() if v is not None},
+            {k: v for k, v in geometry.items() if v is not None})
+
+
 def _group_fill_values():
     """
     {'g<pk>': {label, fields, wedge_geometry}} for filling a scan plan from a weld report's group
-    column: its angles and aperture, and its probe column's catalogue probe / wedge and .nde wedge
-    geometry. (Thickness and the weld come from the sensitivity block.)
+    column (group_fill). (Thickness and the weld come from the sensitivity block.)
     """
     values = {}
     groups = ReportGroup.objects.select_related('probe', 'report').order_by('-report_id', 'order')
     for group in groups:
-        probe = group.probe
-        angles = [float(n) for n in NUMBER.findall(group.angles or '')]
-        fill = {
-            'angle_start': angles[0] if angles else None,
-            'angle_stop': angles[-1] if angles else None,
-            'angle_step': _first_number(group.angle_increment),
-            'first_element': group.first_element,
-            'aperture_elements': group.aperture_elements,
-            'probe_model': probe.catalogue_probe_id if probe else None,
-            'wedge_model': probe.catalogue_wedge_id if probe else None,
-        }
-        fill = {k: v for k, v in fill.items() if v is not None}
-        geometry = {}
-        if probe is not None and probe.wedge_primary_offset is not None:
-            geometry = {
-                'wedge_primary_offset': probe.wedge_primary_offset,
-                'wedge_first_element_height': probe.wedge_first_element_height,
-                'wedge_velocity': probe.wedge_velocity,
-                'wedge_length': probe.wedge_length,
-                'wedge_height': probe.wedge_height,
-                'wedge_angle': _first_number(probe.wedge_angle),
-            }
+        fill, geometry = group_fill(group)
         if not (fill or geometry):
             continue
-        report = group.report
+        probe, report = group.probe, group.report
         name = report.document_filename or f'Report #{report.pk}'
         column = f'Group {group.order + 1}' + (f' ({group.label})' if group.label else '')
         label = ' · '.join(filter(None, [name, column, probe.model if probe else '', group.angles]))
-        values[f'g{group.pk}'] = {'label': label, 'fields': fill,
-                                  'wedge_geometry': {k: v for k, v in geometry.items() if v is not None}}
+        values[f'g{group.pk}'] = {'label': label, 'fields': fill, 'wedge_geometry': geometry}
     return values
 
 
@@ -162,12 +172,17 @@ def _wedge_exit_point(wedge):
     return round(max(behind_front_mm, 0.0) / MM_PER_IN, 3)
 
 
+def _wedge_fill(wedge):
+    """The wedge angle and exit point a scan plan takes from a catalogue wedge."""
+    fill = {'wedge_angle': wedge.wedge_angle, 'exit_point': _wedge_exit_point(wedge)}
+    return {k: v for k, v in fill.items() if v is not None}
+
+
 def _wedge_fill_values():
     """{pk: {field: value}} the wedge selector fills in (wedge angle and exit point are hidden fields)."""
     values = {}
     for wedge in WedgeModel.objects.all():
-        fill = {'wedge_angle': wedge.wedge_angle, 'exit_point': _wedge_exit_point(wedge)}
-        fill = {k: v for k, v in fill.items() if v is not None}
+        fill = _wedge_fill(wedge)
         # Picking a wedge drops any .nde geometry from a setup (it belonged to that setup's wedge)
         values[wedge.pk] = {**fill, 'wedge_primary_offset': '', 'wedge_first_element_height': '',
                             'wedge_velocity': '', 'wedge_length': '', 'wedge_height': ''}
@@ -267,3 +282,108 @@ def scan_plan_wedges(request):
     probe = ProbeModel.objects.filter(pk=request.GET.get('probe') or None).first()         if (request.GET.get('probe') or '').isdigit() else None
     wedges = wedges_for_probe(probe, WedgeModel.objects.all()) if probe else []
     return JsonResponse({'wedges': [[w.pk, str(w)] for w in wedges]})
+
+
+# ── A weld report's weld → its scan plan ─────────────────────────────────
+
+OFFSET_TOLERANCE = 0.001   # inches: offsets this close are the same offset (one image per skew)
+
+
+def _weld_skews(location):
+    """Probe 1 Location -> the skews it scans: '90/270' both, '90' or '270' one; no number, both."""
+    numbers = {int(float(n)) for n in NUMBER.findall(location or '')}
+    skews = {skew for skew in (90, 270) if skew in numbers}
+    return skews or {90, 270}
+
+
+def _same_offset(a, b):
+    return (a is None and b is None) or (a is not None and b is not None and abs(a - b) < OFFSET_TOLERANCE)
+
+
+def _inches(value):
+    return f'{value:.3f}"' if value is not None else 'the weld toe'
+
+
+def _new_plan_from_weld(report, thickness, cap_width, offset, skews):
+    """A scan plan for the report from a weld, with the probe / wedge / angles of its first PAUT group."""
+    plan = ScanPlan(name=(report.document_filename or f'Report #{report.pk}')[:100], thickness=thickness,
+                    cap_width=cap_width, index_offset=offset, skew_90=90 in skews, skew_270=270 in skews)
+    group = next((g for g in report.groups.select_related('probe')
+                  if not g.not_applicable and g.probe is not None and g.probe.kind == PAUT), None)
+    if group is not None:
+        fill, geometry = group_fill(group)
+        for name, value in fill.items():
+            setattr(plan, f'{name}_id' if name in ('probe_model', 'wedge_model') else name, value)
+        wedge = WedgeModel.objects.filter(pk=fill.get('wedge_model')).first() if fill.get('wedge_model') else None
+        if wedge is not None:   # as picking the wedge on the scan plan page does
+            for name, value in _wedge_fill(wedge).items():
+                setattr(plan, name, value)
+        for name, value in geometry.items():
+            setattr(plan, name, value)
+    plan.save()
+    return plan, group
+
+
+def _plan_json(plan):
+    return {'pk': plan.pk, 'name': plan.name, 'url': reverse('edit-scan-plan', args=[plan.pk])}
+
+
+@require_POST
+def scan_plan_from_weld(request):
+    """
+    Adds a weld from the weld report's Results to the report's scan plan: thickness, cap width,
+    C/L offset (wedge front to the weld centre line) and the skews of its Probe 1 Location. The
+    first weld creates the plan (probe, wedge and angles from the report's first PAUT group);
+    later welds add only what isn't in it yet: a skew not yet drawn for the same offset, or a
+    second offset. JSON {ok, message, plan: {pk, name, url}}.
+    """
+    report_id = request.POST.get('report_id') or ''
+    report = Report.objects.filter(pk=report_id).first() if report_id.isdigit() else None
+    if report is None:
+        return JsonResponse({'ok': False, 'message': 'Save the report first.'})
+    thickness = _first_number(request.POST.get('probe1_thk'))
+    cap_width = _first_number(request.POST.get('weld_width'))
+    offset = _first_number(request.POST.get('cl_offset'))
+    skews = _weld_skews(request.POST.get('probe1_location'))
+    skew_text = ' and '.join(f'{s}°' for s in sorted(skews))
+
+    plan = report.scan_plan
+    if plan is None:
+        if thickness is None:
+            return JsonResponse({'ok': False, 'message': 'Enter Probe 1 Thickness first.'})
+        plan, group = _new_plan_from_weld(report, thickness, cap_width, offset, skews)
+        report.scan_plan = plan
+        report.save(update_fields=['scan_plan'])
+        source = (f' with the probe and angles of Group {group.order + 1}' if group is not None
+                  else '; pick its probe and wedge there (the report has no PAUT group)')
+        message = f'Made scan plan "{plan.name}" at offset {_inches(offset)} ({skew_text}){source}.'
+        return JsonResponse({'ok': True, 'message': message, 'plan': _plan_json(plan)})
+
+    warnings = []
+    if thickness is not None and abs(thickness - plan.thickness) >= OFFSET_TOLERANCE:
+        warnings.append(f'Thickness {thickness:.3f}" differs from the plan\'s {plan.thickness:.3f}".')
+    if cap_width is not None and plan.cap_width is not None and abs(cap_width - plan.cap_width) >= OFFSET_TOLERANCE:
+        warnings.append(f'Weld width {cap_width:.3f}" differs from the plan\'s {plan.cap_width:.3f}".')
+
+    second_free = plan.index_offset_2 is None and not (plan.skew_90_2 or plan.skew_270_2)
+    if _same_offset(offset, plan.index_offset):
+        fields = {90: 'skew_90', 270: 'skew_270'}
+    elif not second_free and _same_offset(offset, plan.index_offset_2):
+        fields = {90: 'skew_90_2', 270: 'skew_270_2'}
+    elif second_free and offset is not None:
+        plan.index_offset_2 = offset
+        fields = {90: 'skew_90_2', 270: 'skew_270_2'}
+    else:
+        return JsonResponse({'ok': False, 'plan': _plan_json(plan), 'message': (
+            f'Scan plan "{plan.name}" already has two offsets ({_inches(plan.index_offset)} and '
+            f'{_inches(plan.index_offset_2)}); offset {_inches(offset)} wasn\'t added.')})
+
+    added = sorted(skew for skew in skews if not getattr(plan, fields[skew]))
+    if added:
+        for skew in added:
+            setattr(plan, fields[skew], True)
+        plan.save()
+        message = f'Added offset {_inches(offset)} ({", ".join(f"{s}°" for s in added)}) to scan plan "{plan.name}".'
+    else:
+        message = f'Offset {_inches(offset)} with {skew_text} is already in scan plan "{plan.name}"; nothing added.'
+    return JsonResponse({'ok': True, 'plan': _plan_json(plan), 'message': ' '.join([message, *warnings])})

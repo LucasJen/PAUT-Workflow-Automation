@@ -84,10 +84,12 @@
         block.className = 'weld-block weld-grid-wrap';
         block.innerHTML = `
             <table class="weld-grid results-grid"><thead></thead><tbody><tr class="weld-row"></tr></tbody></table>
+            <p class="weld-status" role="status" hidden></p>
             <table class="weld-grid results-grid weld-verdict"><tbody><tr></tr></tbody></table>
             <table class="weld-grid results-grid indications" hidden><thead></thead><tbody></tbody></table>`;
         const [weldTable, verdictTable, indicationTable] = block.querySelectorAll('table');
         weldTable.tHead.append(headRow(WELD, `
+            <button type="button" class="btn btn-secondary btn-sm" data-weld-scan-plan title="Add this weld's offset and skews to the report's scan plan"><i class="bi bi-rulers"></i> Scan plan</button>
             <button type="button" class="btn btn-secondary btn-sm" data-add-indication><i class="bi bi-plus-lg"></i> Add indication</button>
             <button type="button" class="btn btn-icon btn-sm" data-remove-weld title="Remove this weld"><i class="bi bi-x-lg"></i></button>`));
         const row = weldTable.querySelector('.weld-row');
@@ -195,6 +197,44 @@
         }
     }
 
+    // ── Scan plan from a weld: thickness, width, C/L offset and skews into the report's plan ──
+
+    async function addToScanPlan(block) {
+        const status = block.querySelector('.weld-status');
+        const weld = block.querySelector('.weld-row');
+        const body = new FormData();
+        body.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
+        body.append('report_id', form.querySelector('[name=report_id]').value);
+        for (const key of ['cl_offset', 'weld_width', 'probe1_location', 'probe1_thk']) body.append(key, value(weld, key));
+        status.hidden = false;
+        status.classList.remove('text-danger');
+        status.textContent = 'Updating the scan plan…';
+        try {
+            const response = await fetch(root.dataset.scanPlanUrl, { method: 'POST', body });
+            const data = await response.json();
+            status.textContent = data.message;
+            status.classList.toggle('text-danger', !data.ok);
+            if (data.plan) {
+                const link = document.createElement('a');
+                link.href = data.plan.url;
+                link.target = '_blank';
+                link.textContent = 'Open scan plan';
+                status.append(' ', link);
+                // The report's Scan plan select shows the plan (its next save keeps it)
+                const select = document.getElementById('id_scan_plan');
+                if (select) {
+                    if (![...select.options].some(o => o.value === String(data.plan.pk))) {
+                        select.add(new Option(data.plan.name, data.plan.pk));
+                    }
+                    select.value = String(data.plan.pk);
+                }
+            }
+        } catch (error) {
+            status.textContent = "Couldn't reach the scan plan.";
+            status.classList.add('text-danger');
+        }
+    }
+
     // ── Events ────────────────────────────────────────────────────────────
 
     document.getElementById('add-weld').addEventListener('click', () => {
@@ -208,6 +248,10 @@
 
     list.addEventListener('click', event => {
         const block = event.target.closest('.weld-block');
+        if (event.target.closest('[data-weld-scan-plan]')) {
+            addToScanPlan(block);
+            return;   // changes the scan plan, not the report
+        }
         if (event.target.closest('[data-add-indication]')) {
             addIndication(block).querySelector('input, select').focus();
         } else if (event.target.closest('[data-remove-indication]')) {

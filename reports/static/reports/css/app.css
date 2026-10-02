@@ -1012,10 +1012,12 @@ textarea.result-cell-input {
 .weld-grid .add-col .btn { white-space: normal; }
 /* Weld results (reports/editor/weld_results.html): a block per weld, its indications under it */
 .weld-block { margin-bottom: 0.75rem; }
-.weld-block .results-grid + .results-grid { border-top: 1px solid var(--border); }
+.weld-block .results-grid + .results-grid,
+.weld-block .weld-status + .results-grid { border-top: 1px solid var(--border); }
 .results-grid thead th { font-weight: 500; color: var(--text-2); line-height: 1.2; vertical-align: bottom; }
 .results-grid thead th:first-child { color: var(--text-2); font-weight: 500; width: auto; }
-.results-grid .results-actions { width: 11.5rem; text-align: right; white-space: nowrap; }
+.results-grid .results-actions { width: 17.5rem; text-align: right; white-space: nowrap; }
+.weld-status { margin: 0; padding: 4px 8px; font-size: 0.8125rem; border-top: 1px solid var(--border); background: var(--surface-2); }
 .results-grid.indications .results-actions { width: 2.5rem; }
 .results-grid.indications thead th { background: var(--surface); }
 .results-grid .weld-row input[data-key="weld_id"] { font-weight: 600; }

@@ -548,3 +548,79 @@ class SkewTests(TestCase):
                                                     'index_offset': '12.192', 'index_offset_2': '19.05',
                                                     'skew_90_2': 'on', 'shear_velocity': '3241'})
         self.assertAlmostEqual(ScanPlan.objects.get().index_offset_2, 0.75)
+
+
+class ScanPlanFromWeldTests(TestCase):
+    """The weld report's Results: a weld's Scan plan button adds it to the report's scan plan."""
+    url = reverse('scan-plan-from-weld')
+
+    def setUp(self):
+        from reports.models import ReportGroup, ReportProbe
+        self.report = Report.objects.create(report_type='paut_weld', document_filename='PPI-31-W5')
+        ReportProbe.objects.create(report=self.report, order=0, kind='na')
+        probe = ReportProbe.objects.create(report=self.report, order=1, kind='paut', model='10L32-A1',
+                                           wedge_angle='36°', wedge_primary_offset=-20.0, wedge_first_element_height=8.0)
+        ReportGroup.objects.create(report=self.report, order=0, not_applicable=True)
+        ReportGroup.objects.create(report=self.report, order=1, probe=probe, angles='42.0° - 73.0°',
+                                   angle_increment='1.0°', first_element=1, aperture_elements=16)
+
+    def weld(self, **fields):
+        data = {'report_id': self.report.pk, 'cl_offset': '0.475', 'weld_width': '0.8', 'probe1_location': '90/270',
+                'probe1_thk': '0.280', **fields}
+        return self.client.post(self.url, data).json()
+
+    def plan(self):
+        self.report.refresh_from_db()
+        return self.report.scan_plan
+
+    def test_first_weld_makes_and_links_the_plan(self):
+        data = self.weld()
+        plan = self.plan()
+        self.assertTrue(data['ok'])
+        self.assertEqual((plan.name, plan.thickness, plan.cap_width, plan.index_offset), ('PPI-31-W5', 0.28, 0.8, 0.475))
+        self.assertEqual((plan.skew_90, plan.skew_270, plan.index_offset_2), (True, True, None))
+        # probe / wedge / angles from the first PAUT group (not the N/A one)
+        self.assertEqual((plan.angle_start, plan.angle_stop, plan.aperture_elements), (42.0, 73.0, 16))
+        self.assertEqual((plan.wedge_primary_offset, plan.wedge_angle), (-20.0, 36.0))
+        self.assertEqual(data['plan']['url'], reverse('edit-scan-plan', args=[plan.pk]))
+        self.assertEqual(len(plan.drawings), 2)
+
+    def test_same_offset_and_skews_add_nothing(self):
+        self.weld()
+        data = self.weld()
+        self.assertIn('already in scan plan', data['message'])
+        self.assertEqual(ScanPlan.objects.count(), 1)
+        self.assertEqual(len(self.plan().drawings), 2)
+
+    def test_same_offset_adds_only_the_missing_skew(self):
+        self.weld(probe1_location='90')
+        plan = self.plan()
+        self.assertEqual((plan.skew_90, plan.skew_270), (True, False))
+        data = self.weld(probe1_location='90/270')
+        plan = self.plan()
+        self.assertEqual((plan.skew_90, plan.skew_270), (True, True))
+        self.assertIn('(270°)', data['message'])
+
+    def test_new_offset_is_the_second_then_a_third_is_refused(self):
+        self.weld()
+        self.weld(cl_offset='0.600', probe1_location='270')
+        plan = self.plan()
+        self.assertEqual((plan.index_offset_2, plan.skew_90_2, plan.skew_270_2), (0.6, False, True))
+        self.assertEqual(len(plan.drawings), 3)
+        self.weld(cl_offset='0.600', probe1_location='90')     # same second offset: its other skew
+        self.assertTrue(self.plan().skew_90_2)
+        data = self.weld(cl_offset='0.750')
+        self.assertFalse(data['ok'])
+        self.assertIn('already has two offsets', data['message'])
+        self.assertEqual(len(self.plan().drawings), 4)
+
+    def test_thickness_difference_is_a_warning(self):
+        self.weld()
+        data = self.weld(probe1_thk='0.300')
+        self.assertIn('Thickness 0.300" differs', data['message'])
+        self.assertEqual(self.plan().thickness, 0.28)
+
+    def test_unsaved_report_or_no_thickness(self):
+        self.assertEqual(self.client.post(self.url, {'report_id': ''}).json()['message'], 'Save the report first.')
+        self.assertFalse(self.weld(probe1_thk='')['ok'])
+        self.assertIsNone(self.plan())
