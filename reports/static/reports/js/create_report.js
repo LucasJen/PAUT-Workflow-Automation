@@ -543,7 +543,10 @@ reloadButton.addEventListener('click', async event => {
     reportForm.elements.tcg_thickness?.dispatchEvent(new Event('input', { bubbles: true }));
     markDirty();
     window.FillMarks?.refresh();
-    reloadStatus.textContent = 'Defaults reloaded' + (columnsAdded ? ', with their probe and group columns.' : '.');
+    reloadStatus.textContent = 'Defaults reloaded' + ({
+        added: ', with their probe and group columns.',
+        updated: ', including the probe and group columns.',
+    }[columnsAdded] || '.');
     setTimeout(() => { reloadStatus.textContent = ''; }, 6000);
 });
 reportTypeSelect.addEventListener('change', updateReloadButton);

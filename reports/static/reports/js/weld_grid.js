@@ -10,6 +10,7 @@
     const grids = { probes: document.getElementById('probe-grid'), groups: document.getElementById('group-grid') };
 
     const NOT_USED = 'na';   // weld_form.NOT_USED: the N/A kind / Probe choice
+    const PAUT = 'paut';     // weld_form.PAUT: a column's kind when none is given
 
     const totalInput = prefix => document.getElementById(`id_${prefix}-TOTAL_FORMS`);
     const field = (prefix, name) => document.getElementById(`id_${prefix}-${name}`);
@@ -275,6 +276,43 @@
         refresh();
     }
 
+    function pickColumn(kind, index, defaultKind, ofColumn, used) {
+        const cols = columns(kind).filter(col => !used.has(col));
+        const inPlace = columns(kind)[index];
+        if (inPlace && !used.has(inPlace) && ofColumn(inPlace) === defaultKind) return inPlace;
+        return cols.find(col => ofColumn(col) === defaultKind) || null;
+    }
+
+    async function overlayDefaultColumns(type) {
+        const { probes = [], groups = [] } = typeDefaults(type);
+        const used = new Set();
+        const probeAt = {};   // default probe index -> the report's column
+        let updated = 0;
+        for (const [i, values] of probes.entries()) {
+            const kind = values.kind || PAUT;
+            const col = pickColumn('probes', i, kind, c => field(c, 'kind').value, used);
+            if (!col) continue;
+            used.add(col);
+            probeAt[String(i)] = col;
+            const { kind: _, catalogue_probe: probe, catalogue_wedge: wedge, ...rest } = values;
+            await fillColumn(col, Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== null && v !== '')));
+            if (probe && window.CatalogueSelect) await window.CatalogueSelect.setPair(field(col, 'catalogue_probe'), probe, wedge || null);
+            updated += 1;
+        }
+        for (const [i, values] of groups.entries()) {
+            const column = String(values.probe_column ?? '');
+            const kind = column === NOT_USED ? NOT_USED : (probes[Number(column)]?.kind || (column === '' ? null : PAUT));
+            const col = pickColumn('groups', i, kind, c => probeKind(field(c, 'probe_column').value), used);
+            if (!col) continue;
+            used.add(col);
+            const { probe_column: _, ...rest } = values;
+            await fillColumn(col, Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== null && v !== '')));
+            updated += 1;
+        }
+        refresh();
+        return updated;
+    }
+
     if (typeSelect && reportId) {
         // Editing a cell makes its column the user's own
         ['input', 'change'].forEach(type => root.addEventListener(type, event => {
@@ -284,11 +322,16 @@
         const empty = () => !columns('probes').length && !columns('groups').length;
         if (!reportId.value && empty()) addDefaultColumns(typeSelect.value);
         // "Reload defaults" (create_report.js): the default columns, when the grid has none
+        // "Reload defaults" (create_report.js): an empty grid gets the default columns; otherwise each
+        // default column's values go over the report's column of the same kind (the one in its
+        // place, else the next of that kind). Returns what it did, for the status line.
         window.WeldGrid = {
             async reloadDefaultColumns() {
-                if (!empty()) return false;
-                await addDefaultColumns(typeSelect.value);
-                return true;
+                if (empty()) {
+                    await addDefaultColumns(typeSelect.value);
+                    return 'added';
+                }
+                return (await overlayDefaultColumns(typeSelect.value)) ? 'updated' : '';
             },
         };
         typeSelect.addEventListener('change', async () => {
