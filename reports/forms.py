@@ -117,7 +117,9 @@ class ReportForm(StyledFormMixin, ModelForm):
             'notes': Textarea(attrs={'rows': 3}),
         }
         help_texts = {
-            'cal_time_initial': '24-hour time, e.g. 0700. Amp, sweep and probe position print as Accept.',
+            'cal_accept': 'Prints Accept for amp, sweep and probe position on every calibration row, for a check '
+                          "with no time, and for each probe's probe check (anything typed there wins).",
+            'cal_time_initial': '24-hour time, e.g. 0700.',
             'notes': 'Notes box at the bottom of the weld form.',
             'scan_plan': 'Printed on the last page. Create and edit scan plans under Scan plans.',
             'test_end_date': 'Leave blank for a single-day test.',

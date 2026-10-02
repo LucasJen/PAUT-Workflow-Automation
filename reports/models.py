@@ -38,6 +38,9 @@ class Report(models.Model):
     cal_time_check1 = models.CharField(max_length=20, blank=True)
     cal_time_check2 = models.CharField(max_length=20, blank=True)
     cal_time_out = models.CharField(max_length=20, blank=True)
+    # Weld form: Accept in every place the reference has it (calibration amp / sweep / probe
+    # position, a check's time when none is given, and the probe check of each probe in use)
+    cal_accept = models.BooleanField('Accept calibration', default=False)
     notes = models.TextField(blank=True)
     scan_plan = models.ForeignKey('ScanPlan', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
 

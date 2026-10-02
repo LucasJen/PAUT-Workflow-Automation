@@ -98,12 +98,17 @@ class WeldCellMapTests(TestCase):
         self.assertEqual(cells['W14'], '19019')
         self.assertEqual(cells['Y21'], '0.280"')
 
-    def test_calibration_rows_only_for_entered_times(self):
-        cells = weld_pages(weld_report(cal_time_initial='0700', cal_time_out='0900')).report
+    def test_accept_calibration_fills_every_accept(self):
+        cells = weld_pages(weld_report(cal_time_initial='0700', cal_time_out='0900', cal_accept=True)).report
         self.assertEqual((cells['F34'], cells['G34'], cells['I34']), ('0700', 'Accept', 'Accept'))
+        self.assertEqual((cells['F35'], cells['G35'], cells['H36'], cells['F36']), ('Accept',) * 4)   # checks with no time
         self.assertEqual((cells['F37'], cells['H37']), ('0900', 'Accept'))
-        self.assertNotIn('F35', cells)
-        self.assertNotIn('G35', cells)
+
+    def test_without_accept_calibration_only_the_times(self):
+        cells = weld_pages(weld_report(cal_time_initial='0700')).report
+        self.assertEqual(cells['F34'], '0700')
+        for ref in ('G34', 'F35', 'G35', 'I37'):
+            self.assertNotIn(ref, cells)
 
     def test_results_rows_and_verdict_marks(self):
         report = weld_report([weld_row('W5', 'LOF', 'Accept'), weld_row('W6', '', 'Reject', 'Cut out')])
@@ -285,6 +290,16 @@ class EquipmentGridTests(TestCase):
         self.assertEqual((cells['Q13'], cells['Q15'], cells['Q19'], cells['Q22'], cells['Q20']),
                          ('Group 4 (0°)', '0deg 1: Olympus D791', 'Dual', 'N/A', 'N/A'))
         self.assertEqual((cells['S13'], cells['S17'], cells['S18']), ('Group 5 (Trans)', 'Shear', '45°'))
+
+    def test_accept_calibration_fills_blank_probe_checks(self):
+        self.report.probes.filter(order=2).update(probe_check='Reject')
+        self.report.cal_accept = True
+        self.report.save()
+        cells = weld_pages(self.report).report
+        self.assertEqual((cells['F27'], cells['G27'], cells['H27'], cells['I27']), ('Accept', 'Accept', 'Reject', 'Accept'))
+        self.report.cal_accept = False
+        self.report.save()
+        self.assertEqual(weld_pages(self.report).report['G27'], '')
 
     def test_na_probe_and_group_columns(self):
         self.report.probes.filter(order=1).update(kind='na')

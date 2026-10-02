@@ -244,6 +244,8 @@ def _grid(report):
         cells[f'{col}15'] = keys[probe.pk]
         for name, _, row in weld_form.PROBE_ROWS:
             cells[f'{col}{row}'] = 'N/A' if name in na else _v(getattr(probe, name))
+        if report.cal_accept and not cells[f'{col}27']:
+            cells[f'{col}27'] = 'Accept'   # the probe check
         used = [str(j + 1) for j, group in enumerate(groups) if group.probe_id == probe.pk]
         # Three rows: a 4th or 5th group on the probe joins the last one ('3, 4, 5')
         last = len(weld_form.RELEVANT_GROUP_ROWS) - 1
@@ -327,11 +329,17 @@ def _block(report):
 
 
 def _calibration(report):
+    """
+    The calibration times; with Accept calibration, Accept for amp, sweep and probe position on
+    every row and for a row's time when it has none (as the reference's two Cal. Checks).
+    """
     cells = {}
     times = (report.cal_time_initial, report.cal_time_check1, report.cal_time_check2, report.cal_time_out)
     for row, time in zip(CAL_ROWS, times):
         if _v(time):
             cells[f'F{row}'] = _v(time)
+        if report.cal_accept:
+            cells.setdefault(f'F{row}', 'Accept')
             cells.update({f'{col}{row}': 'Accept' for col in 'GHI'})
     return cells
 

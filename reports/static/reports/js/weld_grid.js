@@ -11,6 +11,8 @@
 
     const NOT_USED = 'na';   // weld_form.NOT_USED: the N/A kind / Probe choice
 
+    const calAccept = document.getElementById('id_cal_accept');
+
     const totalInput = prefix => document.getElementById(`id_${prefix}-TOTAL_FORMS`);
     const field = (prefix, name) => document.getElementById(`id_${prefix}-${name}`);
 
@@ -86,6 +88,9 @@
         for (const col of columns('probes')) {
             const na = new Set(rows.probe_na[field(col, 'kind').value] || []);
             rows.probe.forEach(([name]) => setNa(field(col, name), na.has(name)));
+            // Accept calibration prints Accept for a blank probe check: show it
+            const check = field(col, 'probe_check');
+            if (!na.has('probe_check')) check.placeholder = calAccept?.checked ? 'Accept' : '';
             // A wedge-less probe has no catalogue wedge either
             const wedge = field(col, 'catalogue_wedge');
             wedge.disabled = na.has('wedge_model');
@@ -198,6 +203,8 @@
         }
         markDirty();
     });
+
+    calAccept?.addEventListener('change', refresh);
 
     // Kind, probe choice, label and model changes renumber / re-grey
     root.addEventListener('change', event => {
