@@ -111,11 +111,14 @@ def columns_from(probe_formset, group_formset):
         probes.append(kept)
     groups = []
     for form in in_page_order(group_formset):
-        kept = values(form)
-        if form in group_formset.deleted_forms or not kept:
+        if form in group_formset.deleted_forms:
             continue
+        kept = values(form)
         column = form.cleaned_data.get('probe_column') or ''
         probe = column if column == weld_form.NOT_USED else place.get(column)
+        # A column with only its probe (or N/A) still keeps its place among the groups
+        if not kept and probe is None:
+            continue
         groups.append({**kept, 'probe_column': probe} if probe is not None else kept)
     return probes, groups
 

@@ -190,7 +190,7 @@ PROBE_AUTO_FIELDS = {'make', 'model', 'frequency', 'serial', 'wedge_model', 'wed
 PROBE_USER_FIELDS = {'label', 'cable_type', 'cable_length', 'wedge_material', 'wedge_curve', 'probe_check'}
 GROUP_AUTO_FIELDS = {'scan', 'wave_mode', 'angles', 'elements', 'angle_increment', 'vpa', 'focal_distance',
                      'time_base', 'voltage', 'points_quantity', 'filter', 'reference_db'}
-GROUP_USER_FIELDS = {'label', 'focal_plane', 'smoothing', 'amplitude_range', 'transfer_db', 'scanning_db'}
+GROUP_USER_FIELDS = {'focal_plane', 'smoothing', 'amplitude_range', 'transfer_db', 'scanning_db'}
 REPORT_AUTO_FIELDS = ({name for name, _, _ in INSTRUMENT_ROWS} | {name for name, _ in material_fields()}
                       | {'sensitivity_block'})
 REPORT_USER_FIELDS = {

@@ -29,17 +29,17 @@ class WeldGridTests(TestCase):
         resp = self.post(
             probes=[{'kind': 'paut', 'label': '90°', 'model': '10L32-A1'},
                     {'kind': 'conv_long', 'label': '0°', 'model': 'D791'}],
-            groups=[{'label': 'G1', 'probe_column': '0', 'scan': 'Sectorial'},
-                    {'label': '0°', 'probe_column': '1', 'scan': 'Linear'},
-                    {'label': 'Loose', 'probe_column': ''}],
+            groups=[{'probe_column': '0', 'scan': 'Sectorial'},
+                    {'probe_column': '1', 'scan': 'Linear'},
+                    {'probe_column': '', 'scan': 'Loose'}],
         )
         report = Report.objects.get()
         self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
         self.assertEqual(list(report.probes.values_list('model', 'order', 'kind')),
                          [('10L32-A1', 0, 'paut'), ('D791', 1, 'conv_long')])
         self.assertEqual(
-            [(g.label, g.order, g.probe.model if g.probe else None) for g in report.groups.all()],
-            [('G1', 0, '10L32-A1'), ('0°', 1, 'D791'), ('Loose', 2, None)])
+            [(g.scan, g.order, g.probe.model if g.probe else None) for g in report.groups.all()],
+            [('Sectorial', 0, '10L32-A1'), ('Linear', 1, 'D791'), ('Loose', 2, None)])
 
     def test_columns_save_in_their_page_order(self):
         report = Report.objects.create(report_type='paut_weld')

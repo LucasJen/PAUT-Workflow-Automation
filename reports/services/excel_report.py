@@ -259,7 +259,7 @@ def _grid(report):
         group = groups[i]
         kind = group.probe.kind if group.probe else weld_form.PAUT
         na = weld_form.GROUP_NA.get(kind, set())
-        cells[f'{col}13'] = f'Group {i + 1} ({group.label})' if _v(group.label) else f'Group {i + 1}'
+        cells[f'{col}13'] = f'Group {i + 1}'   # as the reference heads them
         if group.not_applicable or kind == weld_form.NOT_USED:
             cells.update(_unused_column(col, range(15, 33)))
             continue
@@ -501,6 +501,10 @@ def _page_numbers(ws, page, total):
     ws.Range('Z4').Value = total
 
 
+XL_CENTER = -4108
+GROUP_HEADER_CELLS = [f'{col}13' for col in weld_form.GROUP_COLUMNS]
+
+
 def _fill(wb, pages, scan_plan_pictures):
     report = wb.Worksheets('Report')
     master = wb.Worksheets('Indication')
@@ -509,6 +513,9 @@ def _fill(wb, pages, scan_plan_pictures):
     total = pages.page_count
 
     _write(report, pages.report)
+    for ref in GROUP_HEADER_CELLS:   # centred in their (merged) cells
+        area = report.Range(ref).MergeArea
+        area.HorizontalAlignment = area.VerticalAlignment = XL_CENTER
     _page_numbers(report, 1, total)
     page = 1
     if pages.continuation:

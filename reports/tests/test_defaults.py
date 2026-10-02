@@ -59,7 +59,7 @@ class DefaultsPageTests(TestCase):
             'probes-2-kind': 'conv_long', 'probes-2-label': '0°', 'probes-2-probe_check': 'Accept',
             'groups-TOTAL_FORMS': '3', 'groups-INITIAL_FORMS': '0',
             'groups-0-probe_column': '0', 'groups-0-scan': 'Sectorial', 'groups-0-smoothing': 'On',
-            'groups-1-probe_column': '2', 'groups-1-label': '0°', 'groups-1-scan': 'Conventional',
+            'groups-1-probe_column': '2', 'groups-1-scan': 'Conventional',
             'groups-2-probe_column': '', 'groups-2-kind': '',
         }
         self.client.post(reverse('new-defaults', args=['paut_weld']), data)
@@ -71,7 +71,7 @@ class DefaultsPageTests(TestCase):
         ])
         self.assertEqual(record.group_columns, [
             {'scan': 'Sectorial', 'smoothing': 'On', 'probe_column': '0'},
-            {'label': '0°', 'scan': 'Conventional', 'probe_column': '1'},
+            {'scan': 'Conventional', 'probe_column': '1'},
         ])
 
         # Shown again as columns, with the groups on their probes
@@ -90,21 +90,21 @@ class DefaultsPageTests(TestCase):
             'probes-0-kind': 'paut', 'probes-0-label': 'first', 'probes-0-ORDER': '2',
             'probes-1-kind': 'conv_long', 'probes-1-label': 'second', 'probes-1-ORDER': '1',
             'groups-TOTAL_FORMS': '2', 'groups-INITIAL_FORMS': '0',
-            'groups-0-probe_column': '0', 'groups-0-label': 'on first', 'groups-0-ORDER': '2',
-            'groups-1-probe_column': '1', 'groups-1-label': 'on second', 'groups-1-ORDER': '1',
+            'groups-0-probe_column': '0', 'groups-0-scan': 'on first', 'groups-0-ORDER': '2',
+            'groups-1-probe_column': '1', 'groups-1-scan': 'on second', 'groups-1-ORDER': '1',
         })
         record = ReportDefaults.objects.get()
         self.assertEqual([p['label'] for p in record.probe_columns], ['second', 'first'])
-        self.assertEqual(record.group_columns, [{'label': 'on second', 'probe_column': '0'},
-                                                {'label': 'on first', 'probe_column': '1'}])
+        self.assertEqual(record.group_columns, [{'scan': 'on second', 'probe_column': '0'},
+                                                {'scan': 'on first', 'probe_column': '1'}])
 
     def test_weld_defaults_keep_na_groups(self):
         self.client.post(reverse('new-defaults', args=['paut_weld']), {
             'defaults_name': 'Standard',
             'probes-TOTAL_FORMS': '0', 'probes-INITIAL_FORMS': '0',
-            'groups-TOTAL_FORMS': '1', 'groups-INITIAL_FORMS': '0', 'groups-0-probe_column': 'na', 'groups-0-label': 'x',
+            'groups-TOTAL_FORMS': '1', 'groups-INITIAL_FORMS': '0', 'groups-0-probe_column': 'na',
         })
-        self.assertEqual(ReportDefaults.objects.get().group_columns, [{'label': 'x', 'probe_column': 'na'}])
+        self.assertEqual(ReportDefaults.objects.get().group_columns, [{'probe_column': 'na'}])
 
     def test_weld_save_keeps_setup_values_and_unposted_columns(self):
         record = ReportDefaults.objects.create(report_type='paut_weld', name='Old', setup_values={'couplant': 'Water'},

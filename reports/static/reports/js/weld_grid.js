@@ -189,7 +189,8 @@
         const markDirty = () => table.dispatchEvent(new Event('input', { bubbles: true }));
         if (add) {
             const col = addColumn(kind);
-            if (col) field(col, 'label').focus();
+            // A probe column starts at its label; a group column (headed Group n) at its first cell
+            if (col) (field(col, 'label') || cells(kind, col)[1]?.querySelector('input, select'))?.focus();
         } else {
             const col = event.target.closest('th[data-col]').dataset.col;
             if (remove) removeColumn(kind, col);

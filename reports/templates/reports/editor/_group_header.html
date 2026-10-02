@@ -9,7 +9,6 @@
             <button type="button" class="btn btn-icon btn-sm" data-remove-column title="Remove this group"><i class="bi bi-x-lg"></i></button>
         </span>
     </div>
-    {{ f.label }}
     {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
     <span hidden>{{ f.DELETE }}</span>
     {{ f.ORDER.as_hidden }}

@@ -291,8 +291,8 @@ class EquipmentGridTests(TestCase):
         self.assertEqual((cells['L13'], cells['L15'], cells['L16'], cells['L22'], cells['L32']),
                          ('Group 1', 'PAUT 1: Olympus 10L32-A1', 'Sectorial', 'Depth', '+6dB'))
         self.assertEqual((cells['Q13'], cells['Q15'], cells['Q19'], cells['Q22'], cells['Q20']),
-                         ('Group 4 (0°)', '0deg 1: Olympus D791', 'Dual', 'N/A', 'N/A'))
-        self.assertEqual((cells['S13'], cells['S17'], cells['S18']), ('Group 5 (Trans)', 'Shear', '45°'))
+                         ('Group 4', '0deg 1: Olympus D791', 'Dual', 'N/A', 'N/A'))
+        self.assertEqual((cells['S13'], cells['S17'], cells['S18']), ('Group 5', 'Shear', '45°'))
 
     def test_na_probe_and_group_columns(self):
         self.report.probes.filter(order=1).update(kind='na')

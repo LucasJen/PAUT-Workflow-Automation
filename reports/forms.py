@@ -536,7 +536,7 @@ class ReportGroupForm(GridCellsMixin, StyledFormMixin, ModelForm):
 
     class Meta:
         model = ReportGroup
-        exclude = ['report', 'order', 'probe', 'not_applicable']
+        exclude = ['report', 'order', 'probe', 'not_applicable', 'label']   # headed Group 1, 2... as on the form
         widgets = {'source_file': HiddenInput()}
 
     def __init__(self, *args, probe_choices=(), **kwargs):
