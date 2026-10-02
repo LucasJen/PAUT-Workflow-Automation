@@ -37,6 +37,8 @@
     </div>
     {% endfor %}
 
+    {# data-field lets a report type hide this part (report_types.py, hidden_fields) #}
+    <div data-field="cal_images">
     <h3 class="panel-subtitle">Calibration screenshots</h3>
     <div class="cal-images">
         {% if form.instance.pk %}
@@ -52,5 +54,6 @@
             <input type="file" class="form-control" id="id_{{ form.prefix }}-cal_images" name="{{ form.prefix }}-cal_images" accept="image/*" multiple>
             <div class="form-text">Shown two per line under this setup's Equipment Details table.</div>
         </div>
+    </div>
     </div>
 </div>

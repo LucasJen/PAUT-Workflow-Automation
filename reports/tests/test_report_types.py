@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from reports.models import Report, Setup
 from reports.report_types import (
-    DEFAULT_REPORT_TYPE, REPORT_SECTIONS, REPORT_TYPES, SECTIONS, ReportType, get_report_type,
+    DEFAULT_REPORT_TYPE, EDITOR_PARTS, REPORT_SECTIONS, REPORT_TYPES, SECTIONS, ReportType, get_report_type,
 )
 
 REPORT_FIELDS = {f.name for f in Report._meta.concrete_fields}
@@ -26,7 +26,7 @@ class RegistryTests(SimpleTestCase):
                 path = os.path.join(settings.BASE_DIR, folder, report_type.template)
                 self.assertTrue(os.path.exists(path), f'missing template {folder}/{report_type.template}')
                 self.assertLessEqual(set(report_type.sections), set(SECTIONS))
-                self.assertLessEqual(set(report_type.hidden_fields), REPORT_FIELDS | SETUP_FIELDS)
+                self.assertLessEqual(set(report_type.hidden_fields), REPORT_FIELDS | SETUP_FIELDS | EDITOR_PARTS)
 
     def test_sections_reference_real_fields(self):
         for key, _, names in REPORT_SECTIONS:
@@ -108,3 +108,18 @@ class GenerateUsesTypeTemplateTests(TestCase):
         self.assertTrue(all(c.args == ('other',) for c in lookup.call_args_list))
         self.assertTrue(template.call_args.args[0].endswith(os.path.join('word_templates', 'other_template.docx')))
         self.assertEqual(resp.status_code, 200)
+
+
+class WeldEditorTests(TestCase):
+    def test_weld_report_hides_results_photos_and_screenshots(self):
+        weld = get_report_type('paut_weld')
+        self.assertNotIn('results', weld.sections)
+        self.assertNotIn('images', weld.sections)
+        self.assertIn('cal_images', weld.hidden_fields)
+        hic = get_report_type('paut_long')
+        self.assertIn('results', hic.sections)
+        self.assertNotIn('cal_images', hic.hidden_fields)
+        report = Report.objects.create(report_type='paut_weld')
+        Setup.objects.create(report=report)
+        page = self.client.get(f"{reverse('create-report')}?loaded={report.pk}")
+        self.assertContains(page, 'data-field="cal_images"')

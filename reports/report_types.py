@@ -11,7 +11,8 @@ To add a type, append a ReportType to _TYPES:
                      .xlsx file in excel_templates/ when output_format is 'xlsx'
   - output_format:   'docx' (Word report) or 'xlsx' (Excel form, filled through Excel)
   - sections:        which of SECTIONS the editor shows (defaults to all)
-  - hidden_fields:   Report or Setup field names to hide within the shown sections
+  - hidden_fields:   Report or Setup field names to hide within the shown sections, or one of
+                     EDITOR_PARTS (parts of the editor that aren't model fields)
   - results_columns: (key, heading) pairs for the results table; the template uses the keys
                      (r.scan_id, r.comments, ...). The first column is the Scan ID and the
                      'comments' column feeds the photo summary. Empty = free-form columns.
@@ -43,6 +44,9 @@ REPORT_SECTIONS = (
 )
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)
+
+# Parts of the editor a report type can hide like a field (data-field in the templates)
+EDITOR_PARTS = frozenset({'cal_images'})   # a setup's calibration screenshots
 
 # Fields only the Excel weld form uses
 WELD_ONLY_FIELDS = frozenset({
@@ -119,8 +123,10 @@ _TYPES = [
     ReportType(
         'paut_weld', 'PAUT weld (Excel)',
         template='paut_weld.xlsx', output_format='xlsx',
-        sections=('project', 'personnel', 'setups', 'results', 'weld_cal', 'images'),
-        hidden_fields=frozenset({'document_title', 'project_number', 'project_type', 'test_date', 'test_end_date'}),
+        # Results, the photo summary and calibration screenshots are filled in the workbook
+        sections=('project', 'personnel', 'setups', 'weld_cal'),
+        hidden_fields=frozenset({'document_title', 'project_number', 'project_type', 'test_date', 'test_end_date',
+                                 'cal_images'}),
         results_columns=WELD_RESULTS_COLUMNS,
     ),
 ]
