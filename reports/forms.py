@@ -8,7 +8,8 @@ from django.utils.choices import CallableChoiceIterator
 from equipment.compat import BEAMTOOL_SOURCE, wedge_fits_probe, wedges_for_probe
 from equipment.models import ProbeModel
 
-from .models import Report, ReportImage, ReportPerson, ScanPlan, Setup, TextSnippet
+from . import weld_form
+from .models import Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from datetime import date
 import json
@@ -165,8 +166,10 @@ def catalogue_choices(form, probe_name, wedge_name):
     probe changes and adds type-to-filter boxes. Validation still accepts any wedge.
     """
     probe_field, wedge_field = form.fields[probe_name], form.fields[wedge_name]
-    probe_field.widget.attrs['data-catalogue'] = 'probe'
-    wedge_field.widget.attrs.update({'data-catalogue': 'wedge', 'data-wedges-url': reverse_lazy('scan-plan-wedges')})
+    pair = form.prefix or 'form'  # links a probe select to its own wedge select (grid columns sit side by side)
+    probe_field.widget.attrs.update({'data-catalogue': 'probe', 'data-catalogue-pair': pair})
+    wedge_field.widget.attrs.update({'data-catalogue': 'wedge', 'data-catalogue-pair': pair,
+                                     'data-wedges-url': reverse_lazy('scan-plan-wedges')})
 
     def chosen(name):
         value = form.data.get(form.add_prefix(name)) if form.is_bound else getattr(form.instance, f'{name}_id', None)
@@ -481,3 +484,59 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         if (data.get('thickness') and data.get('root_face') is not None and data['root_face'] > data['thickness']):
             self.add_error('root_face', 'The root face cannot be thicker than the wall.')
         return data
+
+
+# ── Weld form equipment grid (reports/weld_form.py): probe and group columns ──
+
+class GridCellsMixin:
+    """Small inputs for grid cells."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            widget = field.widget
+            if isinstance(widget, HiddenInput):
+                continue
+            widget.attrs['class'] = widget.attrs.get('class', '').replace('form-control', 'form-control form-control-sm') \
+                .replace('form-select', 'form-select form-select-sm')
+
+
+class ReportProbeForm(GridCellsMixin, StyledFormMixin, ModelForm):
+    class Meta:
+        model = ReportProbe
+        exclude = ['report', 'order']
+        widgets = {name: HiddenInput() for name in (
+            'wedge_primary_offset', 'wedge_first_element_height', 'wedge_velocity', 'wedge_length', 'wedge_height')}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        catalogue_choices(self, 'catalogue_probe', 'catalogue_wedge')
+
+
+class ReportGroupForm(GridCellsMixin, StyledFormMixin, ModelForm):
+    # Which probe column the group uses: the probe form's index in the probes formset, so a group
+    # can use a probe added in the same save (the view resolves it)
+    probe_column = ChoiceField(required=False, label='Probe')
+
+    class Meta:
+        model = ReportGroup
+        exclude = ['report', 'order', 'probe']
+
+    def __init__(self, *args, probe_choices=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['probe_column'].choices = [('', '—')] + list(probe_choices)
+        if not self.is_bound and self.instance.probe_id is not None:
+            self.initial['probe_column'] = self.instance.probe_id and str(self.instance.probe.order)
+
+
+ProbeFormSet = inlineformset_factory(Report, ReportProbe, form=ReportProbeForm, extra=0, can_delete=True)
+GroupFormSet = inlineformset_factory(Report, ReportGroup, form=ReportGroupForm, extra=0, can_delete=True)
+
+
+def equipment_formsets(data=None, instance=None):
+    """(probes formset, groups formset) for the weld form's grid; groups choose among probe columns."""
+    probes = ProbeFormSet(data, instance=instance, prefix='probes')
+    count = int(data.get('probes-TOTAL_FORMS', 0)) if data is not None else len(probes.forms)
+    choices = [(str(i), f'P{i + 1}') for i in range(max(count, weld_form.MAX_PROBES))]
+    groups = GroupFormSet(data, instance=instance, prefix='groups', form_kwargs={'probe_choices': choices})
+    return probes, groups

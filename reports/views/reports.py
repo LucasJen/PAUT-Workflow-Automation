@@ -10,11 +10,12 @@ from ..services.excel_report import ExcelReportError, build_workbook, excel_avai
 from ..services.report_render import render_report
 from ..services.word_pdf import WordPdfError, docx_to_pdf, word_available
 from ..forms import (
-    PersonFormSet, ReportForm, SetupFormSet, drawing_formset, scan_image_formset,
+    PersonFormSet, ReportForm, SetupFormSet, drawing_formset, equipment_formsets, scan_image_formset,
 )
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
 from ..report_types import DEFAULT_REPORT_TYPE, get_report_type
 from ..defaults import all_defaults, defaults_for, only_defaults
+from ..weld_form import weld_grid_rows
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
 from django.core.exceptions import ValidationError
 from django.forms import ImageField
@@ -167,7 +168,10 @@ def create_report(request):
         people = PersonFormSet(request.POST, instance=form.instance, prefix='people')
         drawings = drawing_formset(request.POST, request.FILES, instance=form.instance)
         image_formset = scan_image_formset(request.POST, request.FILES, instance=form.instance, scan_ids=scan_ids)
-        formsets = (setup_formset, people, drawings, image_formset)
+        # The weld form's equipment grid (only posted by editors that show it)
+        probes, groups = equipment_formsets(request.POST, instance=form.instance) \
+            if 'probes-TOTAL_FORMS' in request.POST else (None, None)
+        formsets = tuple(fs for fs in (setup_formset, people, drawings, image_formset, probes, groups) if fs is not None)
 
         valid = form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
         if valid:
@@ -182,13 +186,15 @@ def create_report(request):
                 _save_ordered_formset(setup_formset, skip_new=lambda f: only_defaults(f, setup_defaults))
                 _save_setup_images(request, report, setup_formset, setup_uploads)
                 _save_ordered_formset(people)
+                if probes is not None:
+                    _save_equipment(report, probes, groups)
                 _save_ordered_formset(drawings, kind=ReportImage.DRAWING)
                 _save_ordered_formset(image_formset, kind=ReportImage.SCAN)
                 if results is not None:
                     _save_results_table(report, *results)
 
             wants_output = 'generate' in request.POST or 'preview' in request.POST
-            if wants_output and not report.setups.exists():
+            if wants_output and not has_equipment(report):
                 messages.success(request, 'Report saved.')
                 messages.error(request, NEEDS_SETUP_MESSAGE)
                 return redirect(f"{reverse('create-report')}?loaded={report.pk}")
@@ -214,6 +220,7 @@ def create_report(request):
             form = ReportForm(instance=loaded_report)
             setup_formset = SetupFormSet(instance=loaded_report)
         people = PersonFormSet(instance=loaded_report, prefix='people')
+        probes, groups = equipment_formsets(instance=loaded_report)
         drawings = drawing_formset(instance=loaded_report)
         scan_ids = [scan_id for scan_id, _ in report_scan_rows(loaded_report)]
         image_formset = scan_image_formset(instance=loaded_report, scan_ids=scan_ids)
@@ -225,6 +232,10 @@ def create_report(request):
         'form': form,
         'setup_formset': setup_formset,
         'person_formset': people,
+        'probe_formset': probes if probes is not None else equipment_formsets(instance=form.instance)[0],
+        'group_formset': groups if groups is not None else equipment_formsets(instance=form.instance)[1],
+        'weld_grid': weld_grid_rows(),
+        'has_equipment': bool(form.instance.pk) and has_equipment(form.instance),
         'drawing_formset': drawings,
         'image_formset': image_formset,
         'known_people': _known_people(),
@@ -254,13 +265,43 @@ def _saved_setup_values():
     return {s['id']: {n: s[n] for n in names} for s in Setup.objects.values('id', *names)}
 
 
-NEEDS_SETUP_MESSAGE = 'Add at least one UT setup before generating the report.'
+NEEDS_SETUP_MESSAGE = 'Add at least one UT setup (or, on a weld report, a probe or group) before generating the report.'
+
+
+def has_equipment(report):
+    """A report can be generated once it has a setup, or a probe / group column on the weld form."""
+    return report.setups.exists() or report.probes.exists() or report.groups.exists()
+
+
+def _save_equipment(report, probes, groups):
+    """
+    Saves the weld form's probe and group columns in their order on the page; a group's probe is
+    the probe column it chose (by its index in the probes formset, so it can be a new one).
+    """
+    def kept(formset):
+        formset.save(commit=False)
+        for obj in formset.deleted_objects:
+            obj.delete()
+        for f in formset.forms:
+            if f in formset.deleted_forms or (f.instance.pk is None and not f.has_changed()):
+                continue
+            yield f
+
+    by_index = {}
+    for order, f in enumerate(kept(probes)):
+        f.instance.report, f.instance.order = report, order
+        f.instance.save()
+        by_index[f.prefix.rsplit('-', 1)[1]] = f.instance
+    for order, f in enumerate(kept(groups)):
+        f.instance.report, f.instance.order = report, order
+        f.instance.probe = by_index.get(f.cleaned_data.get('probe_column') or '')
+        f.instance.save()
 
 
 def _report_with_setups(request, pk):
     """(report, None) when the report can be generated, else (report, redirect to the editor)."""
     report = get_object_or_404(Report, pk=pk)
-    if not report.setups.exists():
+    if not has_equipment(report):
         messages.error(request, NEEDS_SETUP_MESSAGE)
         return report, redirect(f"{reverse('create-report')}?loaded={pk}")
     return report, None

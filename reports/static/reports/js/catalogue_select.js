@@ -7,7 +7,11 @@
 
 (function () {
     function wedgeFor(probeSelect) {
-        // The wedge select that belongs with this probe select (same setup block / form)
+        // The wedge select that belongs with this probe select: same pair, else same block / form
+        const pair = probeSelect.dataset.cataloguePair;
+        const paired = pair && document.querySelector(
+            `select[data-catalogue="wedge"][data-catalogue-pair="${CSS.escape(pair)}"]`);
+        if (paired) return paired;
         let node = probeSelect.parentElement;
         while (node) {
             const wedge = node.querySelector('select[data-catalogue="wedge"]');

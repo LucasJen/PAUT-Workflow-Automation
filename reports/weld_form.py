@@ -47,6 +47,12 @@ PROBE_ROWS = [
     ('wedge_curve', 'Wedge curve type', 26),
     ('probe_check', 'Probe check', 27),
 ]
+# Editor-only rows above the probe rows (not on the sheet: the kind sets row 15's key)
+PROBE_HEAD_ROWS = [
+    ('kind', 'Kind'),
+    ('catalogue_probe', 'Catalogue probe'),
+    ('catalogue_wedge', 'Catalogue wedge'),
+]
 RELEVANT_GROUP_ROWS = (28, 29, 30)   # 'Relevant Group', 'Add Relevant Group' x2: the groups using the probe
 
 GROUP_ROWS = [
@@ -81,3 +87,17 @@ GROUP_NA = {
     CONV_SHEAR: {'angle_increment', 'vpa', 'focal_plane', 'focal_distance'},
     CONV_LONG: {'angle_increment', 'vpa', 'focal_plane', 'focal_distance'},
 }
+
+
+def weld_grid_rows():
+    """Row definitions and limits for the editor's grid template and weld_grid.js."""
+    return {
+        'instrument': INSTRUMENT_ROWS,
+        'probe_head': PROBE_HEAD_ROWS,
+        'probe': PROBE_ROWS,
+        'group': GROUP_ROWS,
+        'max_probes': MAX_PROBES,
+        'max_groups': MAX_GROUPS,
+        'probe_na': {kind: sorted(rows) for kind, rows in PROBE_NA.items()},
+        'group_na': {kind: sorted(rows) for kind, rows in GROUP_NA.items()},
+    }

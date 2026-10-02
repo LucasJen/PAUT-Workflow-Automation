@@ -63,3 +63,9 @@ def nav_active(context, *url_names):
     if current == 'create-report' and request.GET.get('loaded'):
         current = 'edit-report'
     return 'active' if current in url_names else ''
+
+
+@register.filter
+def bound(form, name):
+    """form|bound:'field' -> the form's bound field called `field` (field names from a loop)."""
+    return form[name]

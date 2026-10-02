@@ -1,0 +1,14 @@
+{# Header cell of a probe column: number, label, remove / duplicate, and the column's hidden fields #}
+<th scope="col" data-row="__header__" data-col="{{ f.prefix }}" class="grid-col-head">
+    <div class="grid-col-title">
+        <span class="grid-col-number">Probe</span>
+        <span class="grid-col-actions">
+            <button type="button" class="btn btn-icon btn-sm" data-duplicate-column title="Duplicate this probe"><i class="bi bi-copy"></i></button>
+            <button type="button" class="btn btn-icon btn-sm" data-remove-column title="Remove this probe"><i class="bi bi-x-lg"></i></button>
+        </span>
+    </div>
+    {{ f.label }}
+    {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
+    <span hidden>{{ f.DELETE }}</span>
+    {% if f.errors %}<div class="text-danger small">{{ f.errors }}</div>{% endif %}
+</th>

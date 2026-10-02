@@ -36,6 +36,7 @@ REPORT_SECTIONS = (
     ('discussion', 'Discussion', ('discussion',)),
     ('drawings', 'Equipment drawings', None),
     ('setups', 'UT setups', None),
+    ('equipment', 'Equipment & parameters', None),
     ('results', 'Results table', None),
     ('weld_cal', 'Calibration, scan plan & notes', (
         'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'scan_plan', 'notes',
@@ -116,7 +117,7 @@ class ReportType:
 _TYPES = [
     ReportType(
         'paut_long', 'PAUT long form (HIC)',
-        sections=tuple(s for s in SECTIONS if s != 'weld_cal'),
+        sections=tuple(s for s in SECTIONS if s not in ('weld_cal', 'equipment')),
         hidden_fields=WELD_ONLY_FIELDS,
         results_columns=HIC_RESULTS_COLUMNS,
     ),
@@ -124,7 +125,7 @@ _TYPES = [
         'paut_weld', 'PAUT weld (Excel)',
         template='paut_weld.xlsx', output_format='xlsx',
         # Results, the photo summary and calibration screenshots are filled in the workbook
-        sections=('project', 'personnel', 'setups', 'weld_cal'),
+        sections=('project', 'personnel', 'equipment', 'weld_cal'),
         hidden_fields=frozenset({'document_title', 'project_number', 'project_type', 'test_date', 'test_end_date',
                                  'cal_images'}),
         results_columns=WELD_RESULTS_COLUMNS,

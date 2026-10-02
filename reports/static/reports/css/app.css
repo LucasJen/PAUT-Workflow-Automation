@@ -957,6 +957,62 @@ textarea.result-cell-input {
 
 .editor-section { scroll-margin-top: 1rem; }
 
+/* ── Weld form equipment grid (reports/editor/equipment.html) ───────────── */
+
+.weld-grids { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 0.75rem; }
+.weld-grid-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.weld-grid { border-collapse: collapse; font-size: 0.8125rem; min-width: 100%; }
+.weld-grid th, .weld-grid td {
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 2px 4px;
+    vertical-align: middle;
+}
+.weld-grid tr:last-child > * { border-bottom: 0; }
+.weld-grid > * > tr > :last-child { border-right: 0; }
+.weld-grid thead th { background: var(--surface-2); font-weight: 600; text-align: left; }
+/* Row labels stay in view while the columns scroll */
+.weld-grid tbody th, .weld-grid thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-weight: 500;
+    white-space: nowrap;
+    width: 11rem;
+    min-width: 11rem;
+}
+.weld-grid thead th:first-child { color: var(--text); font-weight: 600; }
+.weld-grid td[data-col], .weld-grid .grid-col-head { width: 12rem; min-width: 12rem; }
+.weld-grid .form-control-sm, .weld-grid .form-select-sm {
+    border-color: transparent;
+    background-color: transparent;
+    border-radius: 3px;
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+    min-height: 0;
+}
+.weld-grid .form-select-sm { background-color: transparent; }
+.weld-grid td:hover .form-control-sm, .weld-grid td:hover .form-select-sm { border-color: var(--border); }
+.weld-grid .form-control-sm:focus, .weld-grid .form-select-sm:focus {
+    border-color: var(--accent);
+    background-color: var(--surface);
+}
+.weld-grid td.na { background: var(--surface-hover); }
+.weld-grid td.na .form-control-sm, .weld-grid td.na .form-select-sm { color: var(--text-3); pointer-events: none; }
+.weld-grid td.na .form-control-sm::placeholder { color: var(--text-3); font-style: italic; }
+.weld-grid .grid-col-title { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; }
+.weld-grid .grid-col-number { font-weight: 600; }
+.weld-grid .grid-col-actions { display: inline-flex; gap: 2px; }
+.weld-grid .grid-col-actions .btn { padding: 0 0.25rem; line-height: 1.4; color: var(--text-3); }
+.weld-grid .grid-col-actions .btn:hover { color: var(--text); }
+.weld-grid .grid-col-head .form-control-sm { font-weight: 500; }
+.weld-grid .add-col { width: 8rem; min-width: 8rem; text-align: center; }
+.weld-grid .add-col .btn { white-space: nowrap; }
+.weld-grid.instrument-grid { min-width: 0; width: auto; }
+.weld-grid.instrument-grid td { width: 18rem; min-width: 14rem; }
+
 @media (max-width: 1199.98px) {
     .editor-layout { grid-template-columns: minmax(0, 1fr); }
     .section-nav { display: none; }

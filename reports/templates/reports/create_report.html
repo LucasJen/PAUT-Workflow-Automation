@@ -64,7 +64,7 @@
         </span>
         {# Save first in the DOM so pressing Enter saves #}
         <button type="submit" class="btn btn-secondary"><i class="bi bi-check-lg"></i> Save</button>
-        {% if form.instance.pk and form.instance.setups.exists %}
+        {% if has_equipment %}
         {% with app=excel|yesno:"Excel,Word" %}
         <a href="{% url 'generate-report' form.instance.pk %}" class="btn btn-secondary" id="download-link" download
            title="Download the {{ app }} report as last saved"{% if excel %} data-busy="Preparing workbook…"{% endif %}{% if request.GET.download %} data-auto-download{% endif %}>
@@ -97,4 +97,5 @@
 
 {% block scripts %}
 <script src="{% static_v 'reports/js/create_report.js' %}"></script>
+<script src="{% static_v 'reports/js/weld_grid.js' %}"></script>
 {% endblock %}
