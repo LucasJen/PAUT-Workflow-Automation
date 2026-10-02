@@ -5,8 +5,9 @@ from .models import CalibrationBlock, Encoder, Probe, ProbeModel, Scope, Sensiti
 
 class ScopeForm(StyledFormMixin, forms.ModelForm):
     fieldsets_spec = [
-        ('Instrument', ['manufacturer', 'model', 'serial_number']),
-        ('Software', ['software', 'software_version']),
+        ('Instrument', ['name', 'manufacturer', 'model', 'serial_number', 'instrument_software_version', 'scanner_type']),
+        ('Module / pulser', ['module_model', 'module_serial', 'module_cal_due']),
+        ('Analysis software', ['software', 'software_version']),
         ('Calibration', ['calibration_date', 'calibration_due_date']),
     ]
 
@@ -16,6 +17,7 @@ class ScopeForm(StyledFormMixin, forms.ModelForm):
         widgets = {
             'calibration_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'calibration_due_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'module_cal_due': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
         }
 
 
@@ -24,6 +26,8 @@ class ProbeForm(StyledFormMixin, forms.ModelForm):
         ('Probe', ['catalogue', 'serial_number']),
         ('Details (filled from the catalogue model when left blank)',
          ['manufacturer', 'model', 'frequency', 'elements', 'diameter']),
+        ('Element check', ['inactive_elements', 'defective_elements', 'previous_inactive_elements',
+                           'previous_defective_elements', 'calibration_obtainable']),
     ]
 
     class Meta:
@@ -32,17 +36,7 @@ class ProbeForm(StyledFormMixin, forms.ModelForm):
 
     def save(self, commit=True):
         probe = super().save(commit=False)
-        model = probe.catalogue
-        if model is not None:
-            filled = {
-                'manufacturer': model.manufacturer,
-                'model': model.model,
-                'frequency': f'{model.frequency:g} MHz' if model.frequency else '',
-                'elements': str(model.elements or ''),
-            }
-            for name, value in filled.items():
-                if not getattr(probe, name):
-                    setattr(probe, name, value)
+        probe.fill_from_catalogue()
         if commit:
             probe.save()
         return probe

@@ -11,10 +11,12 @@
 
 {% block columns %}
 <th class="sortable">ID<span class="sort-indicator"></span></th>
-<th class="sortable">Model<span class="sort-indicator"></span></th>
+<th class="sortable">Unit<span class="sort-indicator"></span></th>
 <th class="sortable">Serial number<span class="sort-indicator"></span></th>
 <th class="sortable">Manufacturer<span class="sort-indicator"></span></th>
 <th class="sortable">Software<span class="sort-indicator"></span></th>
+<th class="sortable">Module<span class="sort-indicator"></span></th>
+<th class="sortable">Analysis software<span class="sort-indicator"></span></th>
 <th class="sortable">Calibrated<span class="sort-indicator"></span></th>
 <th class="sortable">Cal due<span class="sort-indicator"></span></th>
 {% endblock %}
@@ -24,9 +26,11 @@
 <tr data-href="{% url 'edit-scope' scope.pk %}">
     {% include 'reports/components/row_check.html' with pk=scope.pk %}
     <td class="mono text-muted-cell">{{ scope.pk }}</td>
-    <td class="fw-medium">{{ scope.model }}</td>
+    <td class="fw-medium">{{ scope.name|default:scope.model }}{% if scope.name and scope.model %} <span class="text-muted-cell">{{ scope.model }}</span>{% endif %}</td>
     <td class="mono">{{ scope.serial_number }}</td>
     <td>{{ scope.manufacturer }}</td>
+    <td class="mono">{{ scope.instrument_software_version }}</td>
+    <td>{{ scope.module_model }}{% if scope.module_serial %} <span class="mono text-muted-cell">{{ scope.module_serial }}</span>{% endif %}</td>
     <td>{{ scope.software }}{% if scope.software_version %} <span class="mono text-muted-cell">{{ scope.software_version }}</span>{% endif %}</td>
     <td data-sort-value="{{ scope.calibration_date|date:'Y-m-d' }}">{{ scope.calibration_date|date:'M j, Y' }}</td>
     <td data-sort-value="{{ scope.calibration_due_date|date:'Y-m-d' }}">

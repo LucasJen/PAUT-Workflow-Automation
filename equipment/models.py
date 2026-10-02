@@ -2,11 +2,19 @@ from django.db import models
 
 
 class Scope(models.Model):
+    """An instrument in the inventory (the weld form's Scope and Encoder table)."""
+    name = models.CharField('Unit', max_length=200, blank=True, help_text='As the report names it, e.g. Omniscan X3.')
     manufacturer = models.CharField(max_length=200, blank=True, default='Evident')
-    software = models.CharField(max_length=200, blank=True, default='OmniPC')
-    software_version = models.CharField(max_length=100, blank=True)
+    software = models.CharField('Analysis software', max_length=200, blank=True, default='OmniPC')
+    software_version = models.CharField('Analysis software version', max_length=100, blank=True)
     model = models.CharField(max_length=200, blank=True)
     serial_number = models.CharField(max_length=200, blank=True)
+    instrument_software_version = models.CharField('Instrument software version', max_length=100, blank=True,
+                                                   help_text="The unit's own software, e.g. 5.20.0 or MXU 4.4R4.")
+    module_model = models.CharField('Module / pulser model', max_length=200, blank=True)
+    module_serial = models.CharField('Module S/N', max_length=200, blank=True)
+    module_cal_due = models.DateField('Module cal. due', blank=True, null=True)
+    scanner_type = models.CharField(max_length=100, blank=True, help_text='e.g. SAUT')
     calibration_date = models.DateField(blank=True, null=True)
     calibration_due_date = models.DateField(blank=True, null=True)
 
@@ -98,9 +106,30 @@ class Probe(models.Model):
     frequency = models.CharField(max_length=100, blank=True)
     elements = models.CharField(max_length=100, blank=True)
     diameter = models.CharField(max_length=100, blank=True)
+    # Element checks (the inventory's All Probes sheet): this one and the one before
+    inactive_elements = models.PositiveIntegerField('Inactive elements', null=True, blank=True)
+    defective_elements = models.PositiveIntegerField('Defective elements', null=True, blank=True)
+    previous_inactive_elements = models.PositiveIntegerField('Previous inactive elements', null=True, blank=True)
+    previous_defective_elements = models.PositiveIntegerField('Previous defective elements', null=True, blank=True)
+    calibration_obtainable = models.BooleanField('Calibration obtainable', null=True, blank=True)
 
     def __str__(self):
         return f"{self.model} ({self.serial_number})"
+
+    def fill_from_catalogue(self):
+        """Blank manufacturer, model, frequency and elements from the catalogue model."""
+        model = self.catalogue
+        if model is None:
+            return
+        filled = {
+            'manufacturer': model.manufacturer,
+            'model': model.model,
+            'frequency': f'{model.frequency:g} MHz' if model.frequency else '',
+            'elements': str(model.elements or ''),
+        }
+        for name, value in filled.items():
+            if not getattr(self, name):
+                setattr(self, name, value)
 
 
 class CalibrationBlock(models.Model):
