@@ -6,6 +6,7 @@ All geometry is in inches with the weld centre line at x = 0, the scanning surfa
 and depth increasing downwards. The probe sits on the -x side; side 2 is the mirror image.
 render_png(plan, side) returns PNG bytes for the scan plan page and the Excel report.
 """
+import copy
 import io
 import math
 import os
@@ -390,8 +391,21 @@ class _Canvas:
         return buffer.getvalue()
 
 
-def render_png(plan, side=1):
-    """The scan plan drawing as PNG bytes; side 2 shows the probe on the other side of the weld."""
+def at_position(plan, position):
+    """The plan with its second index offset as the index offset (position 2), else the plan."""
+    if position != 2:
+        return plan
+    second = copy.copy(plan)
+    second.index_offset = plan.index_offset_2
+    return second
+
+
+def render_png(plan, side=1, position=1):
+    """
+    The scan plan drawing as PNG bytes: side 1 is the 90 deg skew, side 2 the 270 deg skew (the
+    probe on the other side of the weld); position 2 uses the second index offset.
+    """
+    plan = at_position(plan, position)
     t = plan.thickness
     lay = layout(plan)
     wedge, probe, (p1, p2) = lay.wedge, lay.probe, lay.face
@@ -466,7 +480,7 @@ def render_png(plan, side=1):
 
     # Labels
     corner = (x_min + 0.05, y_min + 0.08)  # mirrored to the right-hand corner on side 2
-    label = f'{plan.angle_start:g}°–{plan.angle_stop:g}°  ·  t = {fmt_length(plan, t)}'
+    label = f'{90 if side == 1 else 270}° skew  ·  {plan.angle_start:g}°–{plan.angle_stop:g}°  ·  t = {fmt_length(plan, t)}'
     probe_model, wedge_model = _related(plan, 'probe_model'), _related(plan, 'wedge_model')
     if probe_model or wedge_model:
         label += f'  ·  {probe_model or "probe?"} on {wedge_model or "wedge?"}'

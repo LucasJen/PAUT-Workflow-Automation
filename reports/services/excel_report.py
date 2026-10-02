@@ -340,18 +340,22 @@ def _page_numbers(ws, page, total):
 def _add_picture(ws, path, part=0, parts=1):
     """
     The picture, as large as fits the picture area, centred. With parts > 1 the area is split
-    into equal side-by-side columns and the picture goes in column `part`.
+    into equal cells: side by side for 2, a 2 x 2 grid for 3 or 4; the picture goes in cell `part`.
     """
     area = ws.Range(INDICATION_PICTURE)
-    gap = 6  # points between side-by-side pictures
-    width = (area.Width - gap * (parts - 1)) / parts
-    left = area.Left + part * (width + gap)
-    pic = ws.Shapes.AddPicture(path, False, True, left, area.Top, -1, -1)
+    gap = 6  # points between pictures
+    columns = min(parts, 2)
+    rows = 1 if parts <= 2 else 2
+    width = (area.Width - gap * (columns - 1)) / columns
+    height = (area.Height - gap * (rows - 1)) / rows
+    left = area.Left + (part % columns) * (width + gap)
+    top = area.Top + (part // columns) * (height + gap)
+    pic = ws.Shapes.AddPicture(path, False, True, left, top, -1, -1)
     pic.LockAspectRatio = True
-    scale = min(width / pic.Width, area.Height / pic.Height)
+    scale = min(width / pic.Width, height / pic.Height)
     pic.Width = pic.Width * scale
     pic.Left = left + (width - pic.Width) / 2
-    pic.Top = area.Top + (area.Height - pic.Height) / 2
+    pic.Top = top + (height - pic.Height) / 2
 
 
 def _fill(wb, pages, scan_plan_pictures):
@@ -399,12 +403,13 @@ def _fill(wb, pages, scan_plan_pictures):
 
 
 def _scan_plan_pictures(plan, workdir):
-    """The scan plan drawings written to PNG files for Excel, one per side."""
+    """The scan plan drawings written to PNG files for Excel: one per ticked skew per index offset."""
     paths = []
-    for side in plan.side_numbers if plan else ():
-        path = os.path.join(workdir, f'scan_plan_{side}.png')
+    for position, _, skew in plan.drawings if plan else ():
+        side = 1 if skew == 90 else 2
+        path = os.path.join(workdir, f'scan_plan_{position}_{skew}.png')
         with open(path, 'wb') as f:
-            f.write(render_png(plan, side))
+            f.write(render_png(plan, side, position))
         paths.append(path)
     return paths
 

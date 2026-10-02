@@ -13,7 +13,7 @@ from reports.services import scan_plan
 from reports.services.excel_report import weld_pages
 
 PLAN_FIELDS = {
-    'name': '6in Sch 40', 'pipe_size': '6in Sch 40', 'sides': 'both', 'legs': '2',
+    'name': '6in Sch 40', 'pipe_size': '6in Sch 40', 'skew_90': 'on', 'skew_270': 'on', 'legs': '2',
     'thickness': '0.28', 'bevel_angle': '37.5', 'root_gap': '0.0625', 'root_face': '0.0625', 'cap_width': '',
     'index_offset': '0.48', 'exit_point': '0.45', 'wedge_angle': '38.9',
     'angle_start': '42', 'angle_stop': '73', 'angle_step': '1', 'notes': '',
@@ -294,7 +294,8 @@ class ScanPlanFormLayoutTests(TestCase):
         from reports.forms import ScanPlanForm
         form = ScanPlanForm()
         sections = {title: [f.name for f in fields] for title, fields in form.fieldsets()}
-        self.assertIn('index_offset', sections['Weld'])
+        self.assertEqual(sections['Probe positions'],
+                         ['index_offset', 'skew_90', 'skew_270', 'index_offset_2', 'skew_90_2', 'skew_270_2'])
         self.assertIn('units', sections['Scan plan'])
         self.assertEqual(sections['Beams'], ['angle_start', 'angle_stop', 'legs', 'angle_step'])
         hidden = {f.name for f in form.hidden_fields()}
@@ -510,3 +511,40 @@ class FileWedgeSizeTests(TestCase):
         self.assertAlmostEqual(data['length'], 30.38)
         self.assertEqual(self.client.get(reverse('scan-plan-wedge-data'), PLAN_FIELDS).json(), {'wedge': None})
         self.assertEqual(self.client.get(reverse('scan-plan-wedge-data'), {**PLAN_FIELDS, 'thickness': ''}).status_code, 400)
+
+
+class SkewTests(TestCase):
+    def test_one_to_four_drawings(self):
+        plan = make_plan()
+        self.assertEqual(plan.drawings, [(1, 0.48, 90), (1, 0.48, 270)])
+        plan.skew_270 = False
+        self.assertEqual(plan.drawings, [(1, 0.48, 90)])
+        plan.skew_270 = True
+        plan.index_offset_2, plan.skew_90_2, plan.skew_270_2 = 0.75, True, True
+        self.assertEqual(plan.drawings, [(1, 0.48, 90), (1, 0.48, 270), (2, 0.75, 90), (2, 0.75, 270)])
+
+    def test_at_least_one_skew_and_second_offset_needs_a_value(self):
+        fields = {k: v for k, v in PLAN_FIELDS.items() if k not in ('skew_90', 'skew_270')}
+        resp = self.client.post(reverse('new-scan-plan'), fields)
+        self.assertContains(resp, 'Tick at least one skew to draw.')
+        resp = self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'skew_90_2': 'on'})
+        self.assertContains(resp, 'Enter the second index offset, or untick its skews.')
+        self.assertFalse(ScanPlan.objects.exists())
+        self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'index_offset_2': '0.75', 'skew_270_2': 'on'})
+        plan = ScanPlan.objects.get()
+        self.assertEqual(plan.drawings[-1], (2, 0.75, 270))
+
+    def test_second_position_draws_at_its_offset(self):
+        plan = make_plan(index_offset=0.48, index_offset_2=0.75)
+        second = scan_plan.at_position(plan, 2)
+        self.assertEqual(scan_plan.index_offset(second), 0.75)
+        self.assertEqual(plan.index_offset, 0.48)  # the plan itself is unchanged
+        resp = self.client.get(reverse('scan-plan-preview'),
+                               {**PLAN_FIELDS, 'index_offset_2': '0.75', 'skew_90_2': 'on', 'side': '2', 'position': '2'})
+        self.assertEqual(resp['Content-Type'], 'image/png')
+
+    def test_metric_second_offset_is_stored_in_inches(self):
+        self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'units': 'metric', 'thickness': '7.112',
+                                                    'index_offset': '12.192', 'index_offset_2': '19.05',
+                                                    'skew_90_2': 'on', 'shear_velocity': '3241'})
+        self.assertAlmostEqual(ScanPlan.objects.get().index_offset_2, 0.75)

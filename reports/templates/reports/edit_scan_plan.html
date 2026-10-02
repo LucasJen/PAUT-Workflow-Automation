@@ -24,22 +24,21 @@
             {% for field in form.hidden_fields %}{{ field }}{% endfor %}
             {% for title, fields in form.fieldsets %}
             {% if title %}<h2 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h2>{% endif %}
-            <div class="field-grid cols-2">
+            <div class="field-grid {% if title == 'Probe positions' %}cols-3 probe-positions{% else %}cols-2{% endif %}">
                 {% for field in fields %}{{ field.as_field_group }}{% endfor %}
             </div>
+            {% if title == 'Probe positions' %}
+            <button type="button" class="btn btn-sm btn-secondary mt-2" id="toggle-second-offset">
+                <i class="bi bi-plus-lg"></i> Add a second index offset
+            </button>
+            {% endif %}
             {% endfor %}
         </section>
     </div>
     <section class="panel scan-plan-preview" id="scan-plan-preview" data-url="{% url 'scan-plan-preview' %}">
         <h2 class="panel-subtitle mt-0">Drawing</h2>
-        <figure class="scan-plan-figure">
-            <img alt="Scan plan, side 1" data-side="1">
-            <figcaption>Side 1</figcaption>
-        </figure>
-        <figure class="scan-plan-figure" data-side-2>
-            <img alt="Scan plan, side 2" data-side="2">
-            <figcaption>Side 2</figcaption>
-        </figure>
+        {# One figure per ticked skew per index offset (1 to 4), built by scan_plan.js #}
+        <div id="scan-plan-figures"></div>
         <p class="scan-plan-status" id="scan-plan-status" role="status" hidden></p>
         {# The wedge numbers the drawing uses (filled by scan_plan.js) #}
         <div class="wedge-data" id="wedge-data" data-url="{% url 'scan-plan-wedge-data' %}"></div>

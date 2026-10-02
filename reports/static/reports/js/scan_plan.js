@@ -15,8 +15,63 @@ function planValue(name, value) {
 }
 const form = preview.closest('form');
 const status = document.getElementById('scan-plan-status');
-const sideTwo = preview.querySelector('[data-side-2]');
+const figures = document.getElementById('scan-plan-figures');
 let timer = null;
+
+// ── Probe positions: the index offset and an optional second one, each with 90 / 270 deg skews ──
+
+const SECOND = ['index_offset_2', 'skew_90_2', 'skew_270_2'];
+const secondButton = document.getElementById('toggle-second-offset');
+
+function secondShown() {
+    return !form.querySelector('[data-field="index_offset_2"]').hidden;
+}
+
+function showSecond(show) {
+    SECOND.forEach(name => { form.querySelector(`[data-field="${name}"]`).hidden = !show; });
+    if (!show) {  // removing the second position clears it
+        form.elements.index_offset_2.value = '';
+        form.elements.skew_90_2.checked = form.elements.skew_270_2.checked = false;
+    }
+    secondButton.innerHTML = show
+        ? '<i class="bi bi-dash-lg"></i> Remove the second index offset'
+        : '<i class="bi bi-plus-lg"></i> Add a second index offset';
+}
+
+secondButton.addEventListener('click', () => {
+    const show = !secondShown();
+    showSecond(show);
+    if (show) form.elements.skew_90_2.checked = true;
+    scheduleRedraw();
+});
+showSecond(Boolean(form.elements.index_offset_2.value) || form.elements.skew_90_2.checked
+           || form.elements.skew_270_2.checked);
+
+function drawings() {
+    // [{position, side}] for each ticked skew: side 1 = 90 deg, side 2 = 270 deg
+    const out = [];
+    const boxes = [[1, 'skew_90', 'skew_270']];
+    if (secondShown()) boxes.push([2, 'skew_90_2', 'skew_270_2']);
+    for (const [position, ninety, twoSeventy] of boxes) {
+        if (form.elements[ninety].checked) out.push({ position, side: 1 });
+        if (form.elements[twoSeventy].checked) out.push({ position, side: 2 });
+    }
+    return out;
+}
+
+function figureFor(key, caption) {
+    let figure = figures.querySelector(`[data-key="${key}"]`);
+    if (!figure) {
+        figure = document.createElement('figure');
+        figure.className = 'scan-plan-figure';
+        figure.dataset.key = key;
+        figure.append(document.createElement('img'), document.createElement('figcaption'));
+        figures.append(figure);
+    }
+    figure.querySelector('img').alt = `Scan plan, ${caption}`;
+    figure.querySelector('figcaption').textContent = caption;
+    return figure;
+}
 
 function formParams() {
     const params = new URLSearchParams(new FormData(form));
@@ -26,10 +81,17 @@ function formParams() {
 
 async function redraw() {
     const params = formParams();
-    sideTwo.hidden = params.get('sides') !== 'both';
-    for (const img of preview.querySelectorAll('img[data-side]')) {
-        if (img.closest('[hidden]')) continue;
-        params.set('side', img.dataset.side);
+    const wanted = drawings();
+    const keys = wanted.map(d => `${d.position}-${d.side}`);
+    figures.querySelectorAll('figure').forEach(f => { if (!keys.includes(f.dataset.key)) f.remove(); });
+    for (const { position, side } of wanted) {
+        const offsetName = position === 1 ? 'index_offset' : 'index_offset_2';
+        const offset = form.elements[offsetName].value;
+        const where = position === 1 ? (offset ? `index offset ${offset}` : 'index offset at the weld toe')
+                                     : `second index offset ${offset}`;
+        const img = figureFor(`${position}-${side}`, `${side === 1 ? 90 : 270}° skew, ${where}`).querySelector('img');
+        params.set('side', side);
+        params.set('position', position);
         const response = await fetch(`${preview.dataset.url}?${params}`, { cache: 'no-store' });
         if (!response.ok) {
             // Keep the last good drawing while a value is incomplete
@@ -42,6 +104,7 @@ async function redraw() {
         img.src = url;
     }
     status.hidden = true;
+    params.delete('position');
     showWedgeData(params);
 }
 

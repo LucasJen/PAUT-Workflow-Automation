@@ -358,14 +358,14 @@ class TextSnippetForm(StyledFormMixin, ModelForm):
 
 
 SCAN_PLAN_NUMBERS = (
-    'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point',
+    'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'index_offset_2', 'exit_point',
     'wedge_angle', 'angle_start', 'angle_stop', 'angle_step', 'shear_velocity',
 )
 
 
 # Scan plan fields with a unit: stored in inches (in/µs), shown in mm (m/s) for metric plans
 SCAN_PLAN_UNIT_FIELDS = {
-    'length': ['thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset'],
+    'length': ['thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'index_offset_2'],
     'velocity': ['shear_velocity'],
 }
 UNIT_FACTORS = {'length': 25.4, 'velocity': 25400.0}   # imperial -> metric
@@ -373,16 +373,17 @@ UNIT_FACTORS = {'length': 25.4, 'velocity': 25400.0}   # imperial -> metric
 
 class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     fieldsets_spec = [
-        ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'sides', 'units']),
-        ('Weld', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'shear_velocity',
-                  'index_offset']),
+        ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'units']),
+        ('Weld', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'shear_velocity']),
+        # Three columns: each index offset with its 90 / 270 deg skew boxes (1 to 4 drawings)
+        ('Probe positions', ['index_offset', 'skew_90', 'skew_270', 'index_offset_2', 'skew_90_2', 'skew_270_2']),
         ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
         # Two columns: start / stop angle, then beam legs / angle step under them
         ('Beams', ['angle_start', 'angle_stop', 'legs', 'angle_step']),
         (None, ['notes']),
         # wedge_angle and exit_point are hidden: they come from the selected wedge
     ]
-    LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'exit_point')
+    LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'index_offset_2', 'exit_point')
     ANGLES = ('bevel_angle', 'wedge_angle', 'angle_start', 'angle_stop')
 
     class Meta:
@@ -395,6 +396,11 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'root_face': 'Root face (land)',
             'cap_width': 'Cap width',
             'index_offset': 'Index offset',
+            'index_offset_2': 'Second index offset',
+            'skew_90': '90° skew',
+            'skew_270': '270° skew',
+            'skew_90_2': '90° skew',
+            'skew_270_2': '270° skew',
             'exit_point': 'Exit point',
             'wedge_angle': 'Wedge angle (°)',
             'angle_start': 'Start angle (°)',
@@ -411,6 +417,7 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         help_texts = {
             'index_offset': 'Wedge front to the weld centre line. Leave blank to put the wedge at the weld toe '
                             '(half the cap width).',
+            'index_offset_2': 'An optional second probe position, drawn for its ticked skews.',
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),
@@ -444,6 +451,11 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                 for name in names:
                     if data.get(name) is not None:
                         data[name] = data[name] / UNIT_FACTORS[kind]
+        skews = ('skew_90', 'skew_270', 'skew_90_2', 'skew_270_2')
+        if not any(data.get(name) for name in skews):
+            self.add_error('skew_90', 'Tick at least one skew to draw.')
+        if (data.get('skew_90_2') or data.get('skew_270_2')) and data.get('index_offset_2') is None:
+            self.add_error('index_offset_2', 'Enter the second index offset, or untick its skews.')
         if data.get('thickness') is not None and data['thickness'] <= 0:
             self.add_error('thickness', 'Enter a thickness above 0.')
         for name in self.LENGTHS:

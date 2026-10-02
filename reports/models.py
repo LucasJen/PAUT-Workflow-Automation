@@ -72,8 +72,7 @@ class ScanPlan(models.Model):
     """
     ONE_LEG, TWO_LEGS = 1, 2
     LEG_CHOICES = [(ONE_LEG, 'First leg only'), (TWO_LEGS, 'First and second leg')]
-    BOTH_SIDES, ONE_SIDE = 'both', 'one'
-    SIDE_CHOICES = [(BOTH_SIDES, 'Both sides of the weld'), (ONE_SIDE, 'One side')]
+    SKEW_90, SKEW_270 = 90, 270
 
     name = models.CharField(max_length=100)
     pipe_size = models.CharField(max_length=100, blank=True, help_text='For your reference, e.g. 6in Sch 40.')
@@ -98,6 +97,13 @@ class ScanPlan(models.Model):
     # Probe position and beams
     index_offset = models.FloatField(null=True, blank=True,
                                      help_text='Wedge front to weld centre line. Blank = the weld toe (half the cap width).')
+    # Skews drawn at the index offset (90 deg: probe on one side of the weld; 270 deg: the other)
+    skew_90 = models.BooleanField(default=True)
+    skew_270 = models.BooleanField(default=True)
+    # An optional second probe position, with its own skews
+    index_offset_2 = models.FloatField(null=True, blank=True)
+    skew_90_2 = models.BooleanField(default=False)
+    skew_270_2 = models.BooleanField(default=False)
     exit_point = models.FloatField(default=0.45, help_text='Wedge front back to the beam exit (index) point.')
     wedge_angle = models.FloatField(default=36.0)
     # The wedge geometry from the .nde of the setup this plan was filled from (mm, m/s); when set,
@@ -115,7 +121,6 @@ class ScanPlan(models.Model):
     # mm (and m/s) and the drawing labels mm
     units = models.CharField(max_length=10, choices=[('imperial', 'Imperial (in)'), ('metric', 'Metric (mm)')],
                              default='imperial')
-    sides = models.CharField(max_length=10, choices=SIDE_CHOICES, default=BOTH_SIDES)
 
     notes = models.TextField(blank=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
@@ -140,8 +145,18 @@ class ScanPlan(models.Model):
         return self._length_text(self.index_offset)
 
     @property
-    def side_numbers(self):
-        return (1, 2) if self.sides == self.BOTH_SIDES else (1,)
+    def drawings(self):
+        """
+        [(position, index offset in inches or None, skew)] for each drawing: position 1 or 2, and a
+        skew of 90 or 270 deg for each ticked box (1 to 4 drawings).
+        """
+        out = []
+        for position, offset, skews in ((1, self.index_offset, (self.skew_90, self.skew_270)),
+                                        (2, self.index_offset_2, (self.skew_90_2, self.skew_270_2))):
+            for skew, ticked in zip((self.SKEW_90, self.SKEW_270), skews):
+                if ticked:
+                    out.append((position, offset, skew))
+        return out
 
 
 class TextSnippet(models.Model):

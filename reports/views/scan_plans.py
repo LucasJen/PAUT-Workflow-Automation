@@ -183,6 +183,10 @@ def _side(request):
     return 2 if request.GET.get('side') == '2' else 1
 
 
+def _position(request):
+    return 2 if request.GET.get('position') == '2' else 1
+
+
 def _unsaved_plan(request):
     """The scan plan the form's current values describe (not saved), or None if they are invalid."""
     data = request.GET.copy()
@@ -199,7 +203,7 @@ def scan_plan_preview(request):
     plan = _unsaved_plan(request)
     if plan is None:
         return HttpResponse('Check the highlighted values.', status=400, content_type='text/plain')
-    return _png(render_png(plan, _side(request)))
+    return _png(render_png(plan, _side(request), _position(request)))
 
 
 def scan_plan_wedge_data(request):
@@ -211,8 +215,8 @@ def scan_plan_wedge_data(request):
 
 
 def scan_plan_png(request, pk):
-    """The saved scan plan's drawing (?side=2 for the other side)"""
-    return _png(render_png(get_object_or_404(ScanPlan, pk=pk), _side(request)))
+    """The saved scan plan's drawing (?side=2 for the 270 deg skew, ?position=2 for the second offset)"""
+    return _png(render_png(get_object_or_404(ScanPlan, pk=pk), _side(request), _position(request)))
 
 
 def scan_plan_wedges(request):
