@@ -182,34 +182,6 @@ def tcg_distances(thickness):
     return [f'{t * k:.3f}' for k in TCG_MULTIPLES]
 
 
-# ── Fill marks: empty fields outlined in the weld editor (fill_marks.js) ─────────
-# 'auto': an .nde import, the scope library or the sensitivity block usually fills it (yellow);
-# 'user': only the technician can (red). Fields in neither list aren't marked.
-
-PROBE_AUTO_FIELDS = {'make', 'model', 'frequency', 'wedge_model', 'wedge_angle', 'wedge_diameter'}
-PROBE_USER_FIELDS = {'label', 'serial', 'cable_type', 'cable_length', 'wedge_material', 'wedge_curve', 'probe_check'}
-GROUP_AUTO_FIELDS = {'scan', 'wave_mode', 'angles', 'elements', 'angle_increment', 'vpa', 'focal_distance',
-                     'time_base', 'voltage', 'points_quantity', 'filter', 'reference_db'}
-GROUP_USER_FIELDS = {'focal_plane', 'smoothing', 'amplitude_range', 'transfer_db', 'scanning_db'}
-REPORT_AUTO_FIELDS = ({name for name, _, _ in INSTRUMENT_ROWS} | {name for name, _ in material_fields()}
-                      | {'sensitivity_block'})
-REPORT_USER_FIELDS = {
-    'client', 'location', 'work_order', 'procedure', 'procedure_rev', 'report_date', 'address', 'contractor',
-    'item_description', 'exam_code', 'acceptance_standard',
-    'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'notes',
-    'weld_technician', 'weld_technician_cert', 'weld_reviewer', 'weld_reviewer_cert',
-}
-
-
 def wedge_diameter_for(probe_kind, pipe_diameter):
     """A probe's Wedge dia.: the pipe it's on (the item inspected's diameter); None when it has no wedge."""
     return None if 'wedge_diameter' in PROBE_NA.get(probe_kind, set()) else pipe_diameter
-
-
-def mark_fill(form, auto, user):
-    """Tags the form's fields data-fill="auto" / "user" (see above) for fill_marks.js."""
-    for name, field in form.fields.items():
-        if name in auto:
-            field.widget.attrs['data-fill'] = 'auto'
-        elif name in user:
-            field.widget.attrs['data-fill'] = 'user'

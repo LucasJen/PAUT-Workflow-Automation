@@ -1,7 +1,7 @@
-// Fill marks for the weld report editor, like the form's conditional formatting: an empty field
+// Fill marks for the report editor, like the weld form's conditional formatting: an empty field
 // only the technician can fill is outlined red, an empty field an .nde import, the scope library
 // or the sensitivity block usually fills is outlined yellow (data-fill="user" / "auto", set by
-// reports/weld_form.py). On while the report type has fill_marks (create_report.js adds the
+// reports/fill_marks.py). On while the report type has fill_marks (create_report.js adds the
 // form's fill-marks class); N/A and hidden fields aren't marked.
 
 (function () {

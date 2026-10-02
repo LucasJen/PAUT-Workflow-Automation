@@ -326,7 +326,27 @@ class FillMarkTests(TestCase):
         self.assertIn('id="fill-count-user"', html)
         self.assertIn('fill_marks.js', html)
 
-    def test_only_the_weld_type_turns_them_on(self):
+    def test_both_report_types_turn_them_on(self):
         from reports.report_types import get_report_type
         self.assertTrue(get_report_type('paut_weld').as_json()['fill_marks'])
-        self.assertFalse(get_report_type('paut_long').as_json()['fill_marks'])
+        self.assertTrue(get_report_type('paut_long').as_json()['fill_marks'])
+
+    def test_long_form_setups_and_people(self):
+        import re
+        from reports.models import ReportPerson, Setup
+        report = Report.objects.create(report_type='paut_long')
+        Setup.objects.create(report=report)
+        ReportPerson.objects.create(report=report, name='')
+        html = self.client.get(f"{reverse('create-report')}?loaded={report.pk}").content.decode()
+
+        def fill(name):
+            tag = re.search(rf'<(?:input|select|textarea)[^>]*name="{name}"[^>]*>', html).group(0)
+            found = re.search(r'data-fill="(\w+)"', tag)
+            return found.group(1) if found else None
+
+        self.assertEqual([fill(n) for n in ('setups-0-title', 'setups-0-transducer_serial', 'setups-0-couplant')],
+                         ['user'] * 3)
+        self.assertEqual([fill(n) for n in ('setups-0-scope_serial', 'setups-0-angle_range', 'setups-0-source_file')],
+                         ['auto'] * 3)
+        self.assertIsNone(fill('setups-0-pcs'))   # only some techniques have it
+        self.assertEqual((fill('people-0-name'), fill('executive_summary'), fill('discussion')), ('user', 'user', None))

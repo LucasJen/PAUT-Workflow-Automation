@@ -8,7 +8,7 @@ from django.utils.choices import CallableChoiceIterator
 from equipment.compat import BEAMTOOL_SOURCE, wedge_fits_probe, wedges_for_probe
 from equipment.models import ProbeModel
 
-from . import weld_form
+from . import fill_marks, weld_form
 from .models import Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from datetime import date
@@ -143,7 +143,7 @@ class ReportForm(StyledFormMixin, ModelForm):
         if self.instance.pk is None:
             self.initial.setdefault('report_date', date.today())
         # Weld editor: empty fields outlined by where their value comes from (fill_marks.js)
-        weld_form.mark_fill(self, weld_form.REPORT_AUTO_FIELDS, weld_form.REPORT_USER_FIELDS)
+        fill_marks.mark_fill(self, fill_marks.REPORT_AUTO_FIELDS, fill_marks.REPORT_USER_FIELDS)
 
 
 # Setup fields with a unit (converted by static/reports/js/units.js when the Units select changes)
@@ -289,6 +289,8 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             catalogue_choices(self, 'catalogue_probe', 'catalogue_wedge')
         if 'units' in self.fields:
             unit_toggle(self, 'units', SETUP_UNIT_FIELDS)
+        # The long form editor's fill marks (fill_marks.js; only shown where the report type has them)
+        fill_marks.mark_fill(self, fill_marks.SETUP_AUTO_FIELDS, fill_marks.SETUP_USER_FIELDS)
 
 
 class DrawingForm(StyledFormMixin, ModelForm):
@@ -348,6 +350,10 @@ class ReportPersonForm(StyledFormMixin, ModelForm):
             'name': TextInput(attrs={'list': 'known-people', 'autocomplete': 'off'}),
             'certification': TextInput(attrs={'placeholder': 'e.g. Ultrasonic Level II'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        fill_marks.mark_fill(self, set(), fill_marks.PERSON_USER_FIELDS)
 
 
 PersonFormSet = inlineformset_factory(
@@ -526,7 +532,7 @@ class ReportProbeForm(GridCellsMixin, StyledFormMixin, ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         catalogue_choices(self, 'catalogue_probe', 'catalogue_wedge')
-        weld_form.mark_fill(self, weld_form.PROBE_AUTO_FIELDS, weld_form.PROBE_USER_FIELDS)
+        fill_marks.mark_fill(self, fill_marks.PROBE_AUTO_FIELDS, fill_marks.PROBE_USER_FIELDS)
 
 
 class ReportGroupForm(GridCellsMixin, StyledFormMixin, ModelForm):
@@ -547,7 +553,7 @@ class ReportGroupForm(GridCellsMixin, StyledFormMixin, ModelForm):
             self.initial['probe_column'] = weld_form.NOT_USED
         elif not self.is_bound and self.instance.probe_id is not None:
             self.initial['probe_column'] = str(self.instance.probe.order)
-        weld_form.mark_fill(self, weld_form.GROUP_AUTO_FIELDS, weld_form.GROUP_USER_FIELDS)
+        fill_marks.mark_fill(self, fill_marks.GROUP_AUTO_FIELDS, fill_marks.GROUP_USER_FIELDS)
 
 
 ProbeFormSet = inlineformset_factory(Report, ReportProbe, form=ReportProbeForm, extra=0, can_delete=True, can_order=True)

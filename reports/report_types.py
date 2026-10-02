@@ -115,7 +115,7 @@ class ReportType:
     hidden_fields: frozenset = frozenset()
     results_columns: tuple = ()
     output_format: str = 'docx'
-    # The editor outlines empty fields by where their value comes from (weld_form fill marks)
+    # The editor outlines empty fields by where their value comes from (reports/fill_marks.py)
     fill_marks: bool = False
 
     @property
@@ -139,6 +139,7 @@ _TYPES = [
                        if s not in ('weld_cal', 'equipment', 'materials', 'weld_results', 'weld_personnel')),
         hidden_fields=WELD_ONLY_FIELDS,
         results_columns=HIC_RESULTS_COLUMNS,
+        fill_marks=True,
     ),
     ReportType(
         'paut_weld', 'PAUT weld (Excel)',
