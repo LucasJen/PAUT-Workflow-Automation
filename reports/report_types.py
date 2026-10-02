@@ -48,6 +48,9 @@ REPORT_SECTIONS = (
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)
 
+# Field sections laid out in two columns (pairs: a name and its certification) instead of three
+TWO_COLUMN_SECTIONS = frozenset({'weld_personnel'})
+
 # Parts of the editor a report type can hide like a field (data-field in the templates)
 EDITOR_PARTS = frozenset({'cal_images'})   # a setup's calibration screenshots
 

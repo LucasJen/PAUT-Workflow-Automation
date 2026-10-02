@@ -34,9 +34,9 @@
     </section>
     <section class="panel">
         <h2 class="panel-title">Report</h2>
-        {% for title, fields in sections %}
+        {% for key, title, fields in sections %}
         <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
-        <div class="field-grid cols-3">
+        <div class="{{ key|section_grid }}">
             {% for field in fields %}{{ field.as_field_group }}{% endfor %}
         </div>
         {% endfor %}

@@ -35,7 +35,7 @@ def has_grid(report_type):
 
 
 def report_fields(report_type):
-    """The report fields a type's defaults cover: those its editor shows, by section."""
+    """The report fields a type's defaults cover: those its editor shows, as (section key, title, names)."""
     rtype = get_report_type(report_type)
     sections = []
     for key, title, names in REPORT_SECTIONS:
@@ -43,7 +43,7 @@ def report_fields(report_type):
             continue
         names = [n for n in names if n not in REPORT_EXCLUDED and n not in rtype.hidden_fields]
         if names:
-            sections.append((title, names))
+            sections.append((key, title, names))
     return sections
 
 
@@ -52,7 +52,7 @@ def setup_fields():
 
 
 def report_defaults_form(report_type, *args, **kwargs):
-    names = [n for _, ns in report_fields(report_type) for n in ns]
+    names = [n for _, _, ns in report_fields(report_type) for n in ns]
     if has_grid(report_type):
         names += INSTRUMENT_FIELDS  # shown in the grid's Testing instrument table
     form = modelform_factory(Report, form=ReportForm, fields=names)(*args, **kwargs)

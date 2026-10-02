@@ -212,3 +212,10 @@ class WeldPersonnelTests(TestCase):
 
     def test_weld_defaults_include_the_lines(self):
         self.assertContains(self.client.get(reverse('new-defaults', args=['paut_weld'])), 'name="weld_reviewer"')
+
+    def test_lines_pair_up_in_two_columns(self):
+        import re
+        for url in (reverse('create-report'), reverse('new-defaults', args=['paut_weld'])):
+            html = self.client.get(url).content.decode()
+            grid = re.search(r'<div class="([^"]*)">\s*<div class="field[^"]*" data-field="weld_technician"', html)
+            self.assertEqual(grid.group(1), 'field-grid', url)

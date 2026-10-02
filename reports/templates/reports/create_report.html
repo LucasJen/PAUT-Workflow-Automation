@@ -42,7 +42,7 @@
             {% if fields %}
             <section class="panel editor-section" id="sec-{{ key }}" data-section="{{ key }}">
                 <div class="panel-header"><h2 class="panel-title">{{ title }}</h2></div>
-                <div class="field-grid cols-3">
+                <div class="{{ key|section_grid }}">
                     {% for field in fields %}{{ field.as_field_group }}{% endfor %}
                 </div>
             </section>

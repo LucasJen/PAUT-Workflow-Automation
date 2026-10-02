@@ -94,7 +94,7 @@ def _edit(request, item):
             else:
                 messages.success(request, f'"{item.name}" saved.')
                 return redirect('edit-defaults', pk=item.pk)
-    sections = [(title, [report_form[n] for n in names]) for title, names in report_fields(item.report_type)]
+    sections = [(key, title, [report_form[n] for n in names]) for key, title, names in report_fields(item.report_type)]
     return render(request, 'reports/edit_defaults.html', {
         'item': item, 'rtype': rtype, 'report_form': report_form, 'setup_form': setup_form,
         'probe_formset': probes, 'group_formset': groups, 'weld_grid': weld_grid_rows(),

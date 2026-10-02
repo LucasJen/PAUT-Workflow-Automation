@@ -66,6 +66,13 @@ def nav_active(context, *url_names):
 
 
 @register.filter
+def section_grid(key):
+    """The field-grid classes for an editor section (report_types.TWO_COLUMN_SECTIONS: two columns)."""
+    from ..report_types import TWO_COLUMN_SECTIONS
+    return 'field-grid' if key in TWO_COLUMN_SECTIONS else 'field-grid cols-3'
+
+
+@register.filter
 def bound(form, name):
     """form|bound:'field' -> the form's bound field called `field` (field names from a loop)."""
     return form[name]
