@@ -68,11 +68,20 @@ def library_blocks():
     return {b.pk: {'card': block_values(b), 'encoder': block_encoder(b)} for b in SensitivityBlock.objects.all()}
 
 
-def detect_block(part):
+def _nps(text):
+    """'6in Sch 40', '6" Sch 40', 'NPS 6' -> '6'; '' when it names no size."""
+    match = re.search(r'(\d+(?:\.\d+)?(?:\s*/\s*\d+)?)\s*(?:in\b|"|inch)', text or '', re.I) \
+        or re.search(r'NPS\s*(\d+(?:\.\d+)?)', text or '', re.I)
+    return match.group(1).replace(' ', '') if match else ''
+
+
+def detect_block(part, pipe_size=''):
     """
     The library block for the scanned part: the one whose test diameter is the part's outside
     diameter, and among those the one whose test (else cal.) thickness is closest to the part's
-    wall. Returns (block or None, why).
+    wall. A plate specimen records no diameter: then the report's NPS / Sch (e.g. from the
+    defaults) narrows the blocks to that pipe size, or the wall alone decides when only one block
+    has it. Returns (block or None, why).
     """
     od, thickness = _number(part.get('od')), _number(part.get('thickness'))
     if od is None and thickness is None:
@@ -82,11 +91,23 @@ def detect_block(part):
         blocks = [b for b in blocks if (d := _number(b.test_diameter)) is not None and abs(d - od) <= DIAMETER_TOLERANCE]
         if not blocks:
             return None, f'No sensitivity block in the library for a {od:.3f}" pipe.'
+    elif _nps(pipe_size):
+        size = _nps(pipe_size)
+        blocks = [b for b in blocks if _nps(b.pipe_size) == size]
+        if not blocks:
+            return None, f'No sensitivity block in the library for NPS {size}".'
+
+    def wall(block):
+        value = _number(block.test_thickness) if _number(block.test_thickness) is not None else _number(block.cal_thickness)
+        return abs(value - thickness) if value is not None else float('inf')
+
     if thickness is not None:
-        def wall(block):
-            value = _number(block.test_thickness) if _number(block.test_thickness) is not None else _number(block.cal_thickness)
-            return abs(value - thickness) if value is not None else float('inf')
         blocks.sort(key=wall)
+        if od is None and not _nps(pipe_size):
+            matching = [b for b in blocks if wall(b) <= THICKNESS_TOLERANCE]
+            if len(matching) != 1:
+                return None, (f'The scan has no pipe diameter (plate specimen) and {len(matching) or "no"} blocks '
+                              f'have a {thickness:.3f}" wall; enter the NPS / Sch on the card and Auto-detect again.')
         if wall(blocks[0]) > THICKNESS_TOLERANCE:
             closest = blocks[0]
             return closest, (f'No block matches the {thickness:.3f}" wall exactly; '

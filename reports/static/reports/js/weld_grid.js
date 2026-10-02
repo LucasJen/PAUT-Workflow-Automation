@@ -390,6 +390,7 @@
             try { part = JSON.parse(scanPart.value) || {}; } catch (e) { /* none yet */ }
             for (const item of items) Object.assign(part, item.part || {});
             scanPart.value = JSON.stringify(part);
+            if (items.some(item => item.part && Object.keys(item.part).length)) window.Materials?.autoDetectIfEmpty();
         }
         refresh();
         root.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));

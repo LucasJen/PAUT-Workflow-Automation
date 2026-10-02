@@ -55,10 +55,11 @@
     }
 
     const detect = document.getElementById('materials-detect');
-    detect?.addEventListener('click', async () => {
+    async function autoDetect() {
         const body = new FormData();
         body.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
         body.append('scan_part', form.elements.scan_part?.value || '');
+        body.append('pipe_size', form.elements.pipe_size?.value || '');   // for plate specimens
         showStatus('Looking for the block…');
         try {
             const response = await fetch(card.dataset.detectUrl, { method: 'POST', body });
@@ -73,7 +74,10 @@
         } catch (error) {
             showStatus("Couldn't reach the block library.", true);
         }
-    });
+    }
+    detect?.addEventListener('click', autoDetect);
+    // An .nde import runs it when no block is picked yet (weld_grid.js)
+    window.Materials = { autoDetectIfEmpty: () => (detect && !picker.value ? autoDetect() : null) };
 
     distances();
 })();

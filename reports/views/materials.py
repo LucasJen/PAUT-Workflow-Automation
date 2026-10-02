@@ -10,8 +10,8 @@ from ..materials import block_encoder, block_values, detect_block, part_values
 @require_POST
 def detect_sensitivity_block(request):
     """
-    POST scan_part (the JSON the .nde imports recorded) -> {ok, message, values, encoder}: the
-    library block for that part's diameter and wall, with the item inspected as scanned.
+    POST scan_part (the JSON the .nde imports recorded) and the card's pipe_size -> {ok, message,
+    values, encoder}: the library block for that part, with the item inspected as scanned.
     """
     try:
         part = json.loads(request.POST.get('scan_part') or '{}') or {}
@@ -19,7 +19,7 @@ def detect_sensitivity_block(request):
         part = {}
     if not isinstance(part, dict):
         part = {}
-    block, why = detect_block(part)
+    block, why = detect_block(part, request.POST.get('pipe_size', ''))
     if block is None:
         return JsonResponse({'ok': False, 'message': why, 'values': part_values(part)})
     message = why or f'Sensitivity block {block} ({block.serial_number}) for the scanned part.'

@@ -44,6 +44,17 @@ class DetectTests(TestCase):
         self.assertIn(found, (self.sch40, self.sch80))
         self.assertIn('closest', why)
 
+    def test_plate_specimens_use_the_pipe_size_or_a_unique_wall(self):
+        # no OD: two 6in blocks share nothing, but 0.280 is only the Sch 40 here; 2in by its wall
+        self.assertEqual(detect_block({'thickness': 0.28}, '6in Sch 40')[0], self.sch40)
+        self.assertEqual(detect_block({'thickness': 0.43}, '6" Sch 80')[0], self.sch80)
+        self.assertEqual(detect_block({'thickness': 0.154})[0], self.two_inch)
+        block(pipe_size='8in Sch 20', serial_number='19030', test_diameter='8.625"', test_thickness='0.280')
+        found, why = detect_block({'thickness': 0.28})
+        self.assertIsNone(found)
+        self.assertIn('enter the NPS / Sch', why)
+        self.assertIsNone(detect_block({'thickness': 0.28}, '12in')[0])
+
     def test_part_values_from_the_scan(self):
         values = part_values({'od': 6.625, 'thickness': 0.28, 'material': 'Carbon steel', 'shear_velocity': 0.1276,
                               'bevel_angle': 37.5}, self.sch40)
@@ -61,6 +72,9 @@ class DetectTests(TestCase):
         self.assertEqual(data['encoder']['inst_encoder_cal'], '482.97')
         self.assertIn('w5.nde', data['message'])
         self.assertFalse(self.client.post(reverse('detect-sensitivity-block'), {'scan_part': 'nonsense'}).json()['ok'])
+        data = self.client.post(reverse('detect-sensitivity-block'),
+                                {'scan_part': json.dumps({'thickness': 0.432}), 'pipe_size': '6in'}).json()
+        self.assertEqual(data['values']['sensitivity_block'], self.sch80.pk)
 
 
 class ScannedPartTests(TestCase):
