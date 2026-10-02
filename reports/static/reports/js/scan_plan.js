@@ -158,7 +158,11 @@ redraw();
 
 const fillSelect = document.getElementById('fill-from-setup');
 if (fillSelect) {
-    const fillValues = JSON.parse(document.getElementById('setup-fill-values').textContent);
+    // Setups by pk, weld report group columns by 'g<pk>'
+    const fillValues = {
+        ...JSON.parse(document.getElementById('setup-fill-values').textContent),
+        ...JSON.parse(document.getElementById('group-fill-values').textContent),
+    };
     fillSelect.addEventListener('change', async () => {
         const item = fillValues[fillSelect.value];
         if (!item) return;

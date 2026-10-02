@@ -22,19 +22,35 @@ class DefaultsPageTests(TestCase):
         self.assertEqual(self.client.get(reverse('new-defaults', args=['nope'])).status_code, 404)
 
     def test_saves_only_filled_fields_and_no_per_job_fields(self):
-        page = self.client.get(reverse('new-defaults', args=['paut_weld'])).content.decode()
-        self.assertIn('name="procedure_rev"', page)          # a weld form field
+        page = self.client.get(reverse('new-defaults', args=['paut_long'])).content.decode()
         self.assertIn('name="setup-cable_type"', page)       # a setup field
         self.assertNotIn('name="document_filename"', page)   # per job
         self.assertNotIn('name="setup-source_file"', page)   # from the .nde
+        self.assertNotIn('name="probe-kind"', page)          # the weld grid only
+
+    def test_weld_defaults_cover_the_instrument_and_new_columns(self):
+        page = self.client.get(reverse('new-defaults', args=['paut_weld'])).content.decode()
+        self.assertIn('name="procedure_rev"', page)          # a weld form field
+        self.assertIn('name="inst_name"', page)              # testing instrument
+        self.assertIn('name="probe-cable_type"', page)
+        self.assertIn('name="group-smoothing"', page)
+        self.assertNotIn('name="setup-cable_type"', page)    # the weld form has no setup blocks
         self.client.post(reverse('new-defaults', args=['paut_weld']), {
-            'defaults_name': 'Standard', 'procedure': '100-UT-20', 'procedure_rev': '9.0', 'setup-cable_type': 'Integral',
-            'setup-cable_length': "6'", 'setup-units': 'imperial',
+            'defaults_name': 'Standard', 'procedure': '100-UT-20', 'procedure_rev': '9.0', 'inst_name': 'OmniScan X3',
+            'probe-kind': 'paut', 'probe-cable_type': 'Integral', 'probe-probe_check': 'Accept',
+            'group-smoothing': 'On',
         })
-        report_values, setup_values = defaults_for('paut_weld')
-        self.assertEqual(report_values, {'procedure': '100-UT-20', 'procedure_rev': '9.0'})
-        self.assertEqual((setup_values['cable_type'], setup_values['cable_length']), ('Integral', "6'"))
-        self.assertNotIn('report_type', report_values)
+        record = ReportDefaults.objects.get()
+        self.assertEqual(record.report_values, {'procedure': '100-UT-20', 'procedure_rev': '9.0', 'inst_name': 'OmniScan X3'})
+        self.assertEqual(record.probe_values, {'kind': 'paut', 'cable_type': 'Integral', 'probe_check': 'Accept'})
+        self.assertEqual(record.group_values, {'smoothing': 'On'})
+        self.assertNotIn('report_type', record.report_values)
+
+    def test_weld_save_keeps_setup_values(self):
+        record = ReportDefaults.objects.create(report_type='paut_weld', name='Old', setup_values={'couplant': 'Water'})
+        self.client.post(reverse('edit-defaults', args=[record.pk]), {'defaults_name': 'Old', 'probe-kind': 'paut'})
+        record.refresh_from_db()
+        self.assertEqual(record.setup_values, {'couplant': 'Water'})
 
 
 class NewReportTests(TestCase):

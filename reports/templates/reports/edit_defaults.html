@@ -12,7 +12,7 @@
 <form method="post">
     {% csrf_token %}
     {% for error in errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
-    {% if report_form.errors or setup_form.errors %}
+    {% if has_errors %}
     <div class="alert alert-danger">Check the highlighted fields.</div>
     {% endif %}
     <section class="panel">
@@ -40,6 +40,22 @@
         </div>
         {% endfor %}
     </section>
+    {% if probe_form %}
+    <section class="panel">
+        <h2 class="panel-title">Every new probe column</h2>
+        <p class="form-text mt-0">Added with <em>Add probe</em> or by an import (the file's own values win).</p>
+        <div class="field-grid cols-4">
+            {% for field in probe_form %}{{ field.as_field_group }}{% endfor %}
+        </div>
+    </section>
+    <section class="panel">
+        <h2 class="panel-title">Every new group column</h2>
+        <div class="field-grid cols-4">
+            {% for field in group_form %}{{ field.as_field_group }}{% endfor %}
+        </div>
+    </section>
+    {% endif %}
+    {% if setup_form %}
     <section class="panel">
         <h2 class="panel-title">Every new setup</h2>
         {% for title, fields in setup_form.fieldsets %}
@@ -51,6 +67,7 @@
         {% endif %}
         {% endfor %}
     </section>
+    {% endif %}
     <div class="sticky-actions">
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save defaults</button>
     </div>

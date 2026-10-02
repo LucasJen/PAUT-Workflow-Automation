@@ -11,12 +11,21 @@
 {% block form_body %}
 <div class="scan-plan-layout">
     <div>
-        {% if setup_fill_values %}
+        {% if setup_fill_values or group_fill_values %}
         <section class="panel">
-            <label class="form-label" for="fill-from-setup">Fill from a setup</label>
+            <label class="form-label" for="fill-from-setup">Fill from a report group or setup</label>
             <select class="form-select" id="fill-from-setup">
-                <option value="">Choose a setup to copy its thickness, wedge angle and angles…</option>
-                {% for pk, item in setup_fill_values.items %}<option value="{{ pk }}">{{ item.label }}</option>{% endfor %}
+                <option value="">Choose one to copy its probe, wedge and angles…</option>
+                {% if group_fill_values %}
+                <optgroup label="Weld report groups">
+                    {% for key, item in group_fill_values.items %}<option value="{{ key }}">{{ item.label }}</option>{% endfor %}
+                </optgroup>
+                {% endif %}
+                {% if setup_fill_values %}
+                <optgroup label="Setups">
+                    {% for pk, item in setup_fill_values.items %}<option value="{{ pk }}">{{ item.label }}</option>{% endfor %}
+                </optgroup>
+                {% endif %}
             </select>
         </section>
         {% endif %}
@@ -48,6 +57,7 @@
 
 {% block scripts %}
 {{ setup_fill_values|json_script:"setup-fill-values" }}
+{{ group_fill_values|json_script:"group-fill-values" }}
 {{ catalogue_fill_values|json_script:"catalogue-fill-values" }}
 <script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
 {% endblock %}

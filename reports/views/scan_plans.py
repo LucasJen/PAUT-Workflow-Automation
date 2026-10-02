@@ -9,7 +9,7 @@ from equipment.compat import wedges_for_probe
 from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
 
 from ..forms import ScanPlanForm
-from ..models import ScanPlan, Setup
+from ..models import ReportGroup, ScanPlan, Setup
 from ..services.scan_plan import (
     M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, layout, render_png,
 )
@@ -89,6 +89,48 @@ def _setup_fill_values():
     return values
 
 
+def _group_fill_values():
+    """
+    {'g<pk>': {label, fields, wedge_geometry}} for filling a scan plan from a weld report's group
+    column: its angles and aperture, and its probe column's catalogue probe / wedge and .nde wedge
+    geometry. (Thickness and the weld come from the sensitivity block.)
+    """
+    values = {}
+    groups = ReportGroup.objects.select_related('probe', 'report').order_by('-report_id', 'order')
+    for group in groups:
+        probe = group.probe
+        angles = [float(n) for n in NUMBER.findall(group.angles or '')]
+        fill = {
+            'angle_start': angles[0] if angles else None,
+            'angle_stop': angles[-1] if angles else None,
+            'angle_step': _first_number(group.angle_increment),
+            'first_element': group.first_element,
+            'aperture_elements': group.aperture_elements,
+            'probe_model': probe.catalogue_probe_id if probe else None,
+            'wedge_model': probe.catalogue_wedge_id if probe else None,
+        }
+        fill = {k: v for k, v in fill.items() if v is not None}
+        geometry = {}
+        if probe is not None and probe.wedge_primary_offset is not None:
+            geometry = {
+                'wedge_primary_offset': probe.wedge_primary_offset,
+                'wedge_first_element_height': probe.wedge_first_element_height,
+                'wedge_velocity': probe.wedge_velocity,
+                'wedge_length': probe.wedge_length,
+                'wedge_height': probe.wedge_height,
+                'wedge_angle': _first_number(probe.wedge_angle),
+            }
+        if not (fill or geometry):
+            continue
+        report = group.report
+        name = report.document_filename or f'Report #{report.pk}'
+        column = f'Group {group.order + 1}' + (f' ({group.label})' if group.label else '')
+        label = ' · '.join(filter(None, [name, column, probe.model if probe else '', group.angles]))
+        values[f'g{group.pk}'] = {'label': label, 'fields': fill,
+                                  'wedge_geometry': {k: v for k, v in geometry.items() if v is not None}}
+    return values
+
+
 def _block_fill_values():
     """{pk: {field: value}} filled into a scan plan when its sensitivity block is picked."""
     values = {}
@@ -135,6 +177,7 @@ def _wedge_fill_values():
 def _edit_page(request, form, plan):
     return render(request, 'reports/edit_scan_plan.html', {
         'form': form, 'plan': plan, 'setup_fill_values': _setup_fill_values(),
+        'group_fill_values': _group_fill_values(),
         'catalogue_fill_values': {
             'sensitivity_block': _block_fill_values(),
             'wedge_model': _wedge_fill_values(),

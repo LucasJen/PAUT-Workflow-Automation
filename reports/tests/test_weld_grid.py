@@ -143,3 +143,19 @@ class NdeColumnsTests(TestCase):
         resp = self.client.post(self.url, {'nde_file': SimpleUploadedFile('scan.txt', b'x')})
         self.assertEqual(resp.status_code, 400)
         self.assertIn('error', resp.json())
+
+
+class ScanPlanFromGroupTests(TestCase):
+    def test_scan_plan_can_fill_from_a_weld_report_group(self):
+        report = Report.objects.create(report_type='paut_weld', document_filename='W5')
+        probe = ReportProbe.objects.create(report=report, order=0, model='10L32-A1', wedge_angle='36°',
+                                           wedge_primary_offset=-20.0, wedge_first_element_height=8.0)
+        group = ReportGroup.objects.create(report=report, order=0, label='90°', probe=probe, angles='40.0° - 70.0°',
+                                           angle_increment='1.0°', first_element=1, aperture_elements=16)
+        resp = self.client.get(reverse('new-scan-plan'))
+        item = resp.context['group_fill_values'][f'g{group.pk}']
+        self.assertEqual(item['fields'], {'angle_start': 40.0, 'angle_stop': 70.0, 'angle_step': 1.0,
+                                          'first_element': 1, 'aperture_elements': 16})
+        self.assertEqual((item['wedge_geometry']['wedge_primary_offset'], item['wedge_geometry']['wedge_angle']), (-20.0, 36.0))
+        self.assertIn('W5 · Group 1 (90°) · 10L32-A1', item['label'])
+        self.assertContains(resp, 'Weld report groups')

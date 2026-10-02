@@ -182,7 +182,7 @@ class ScanPlan(models.Model):
 class ReportDefaults(models.Model):
     """
     Library › Defaults: a named set of values a new report starts with, for its report fields and
-    for each new setup block. A report type can have several (e.g. per client); the one marked
+    for each new setup block (or, on the weld form, each new probe and group column). A report type can have several (e.g. per client); the one marked
     in use is what new reports of that type start from. Kept apart from reports so a defaults set
     is never listed or generated as a report. Values are {field name: value} (FKs as their pk).
     """
@@ -191,6 +191,9 @@ class ReportDefaults(models.Model):
     in_use = models.BooleanField('Used for new reports', default=False)
     report_values = models.JSONField(default=dict, blank=True)
     setup_values = models.JSONField(default=dict, blank=True)
+    # Weld form grid: values every new probe / group column starts with
+    probe_values = models.JSONField(default=dict, blank=True)
+    group_values = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:

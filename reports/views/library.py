@@ -4,7 +4,10 @@ from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
-from ..defaults import report_defaults_form, report_fields, setup_defaults_form, values_from
+from ..defaults import (
+    group_defaults_form, has_grid, has_setups, probe_defaults_form, report_defaults_form, report_fields,
+    setup_defaults_form, values_from,
+)
 from ..models import ReportDefaults
 from ..report_types import REPORT_TYPES
 
@@ -18,7 +21,8 @@ def defaults_list(request):
             messages.success(request, f'New {label} reports now start from "{item.name}".')
         elif 'duplicate' in request.POST:
             copy = ReportDefaults(name=_free_name(item.report_type, f'{item.name} (copy)'), report_type=item.report_type,
-                                  report_values=item.report_values, setup_values=item.setup_values)
+                                  report_values=item.report_values, setup_values=item.setup_values,
+                                  probe_values=item.probe_values, group_values=item.group_values)
             copy.save()
             return redirect('edit-defaults', pk=copy.pk)
         elif 'delete' in request.POST:
@@ -57,15 +61,26 @@ def _edit(request, item):
     if rtype is None:
         raise Http404
     errors = []
+    # Setup defaults for types with setup blocks; probe / group column defaults for the weld form's
+    # grid (values for a part the type doesn't show are kept as they are)
+    with_setups, with_grid = has_setups(item.report_type), has_grid(item.report_type)
+    data = request.POST if request.method == 'POST' else None
+    report_form = report_defaults_form(item.report_type, data, initial=item.report_values)
+    setup_form = setup_defaults_form(data, initial=item.setup_values) if with_setups else None
+    probe_form = probe_defaults_form(data, initial=item.probe_values) if with_grid else None
+    group_form = group_defaults_form(data, initial=item.group_values) if with_grid else None
+    extra_forms = [f for f in (setup_form, probe_form, group_form) if f is not None]
     if request.method == 'POST':
-        report_form = report_defaults_form(item.report_type, request.POST)
-        setup_form = setup_defaults_form(request.POST)
         name = (request.POST.get('defaults_name') or '').strip()
         if not name:
             errors.append('Give these defaults a name.')
-        if not errors and report_form.is_valid() and setup_form.is_valid():
+        if not errors and report_form.is_valid() and all(f.is_valid() for f in extra_forms):
             item.name = name
-            item.report_values, item.setup_values = values_from(report_form), values_from(setup_form)
+            item.report_values = values_from(report_form)
+            if setup_form is not None:
+                item.setup_values = values_from(setup_form)
+            if probe_form is not None:
+                item.probe_values, item.group_values = values_from(probe_form), values_from(group_form)
             try:
                 with transaction.atomic():
                     item.save()
@@ -76,12 +91,11 @@ def _edit(request, item):
             else:
                 messages.success(request, f'"{item.name}" saved.')
                 return redirect('edit-defaults', pk=item.pk)
-    else:
-        report_form = report_defaults_form(item.report_type, initial=item.report_values)
-        setup_form = setup_defaults_form(initial=item.setup_values)
     sections = [(title, [report_form[n] for n in names]) for title, names in report_fields(item.report_type)]
     return render(request, 'reports/edit_defaults.html', {
         'item': item, 'rtype': rtype, 'report_form': report_form, 'setup_form': setup_form,
+        'probe_form': probe_form, 'group_form': group_form,
+        'has_errors': report_form.errors or any(f.errors for f in extra_forms),
         'sections': sections, 'errors': errors,
         'name_value': request.POST.get('defaults_name', item.name) if request.method == 'POST' else item.name,
     })

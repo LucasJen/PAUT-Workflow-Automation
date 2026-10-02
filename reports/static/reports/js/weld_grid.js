@@ -9,6 +9,21 @@
     const limits = { probes: rows.max_probes, groups: rows.max_groups };
     const grids = { probes: document.getElementById('probe-grid'), groups: document.getElementById('group-grid') };
 
+    // Library › Defaults for the report's type: what a new probe / group column starts with
+    function columnDefaults(kind) {
+        let all = {};
+        try { all = JSON.parse(document.getElementById('report-defaults').textContent) || {}; } catch (e) { /* none */ }
+        const type = document.getElementById('id_report_type')?.value;
+        return (all[type] || {})[kind === 'probes' ? 'probe' : 'group'] || {};
+    }
+
+    function applyDefaults(kind, col) {
+        for (const [name, value] of Object.entries(columnDefaults(kind))) {
+            const input = field(col, name);
+            if (input && value !== null && value !== undefined) input.value = value;
+        }
+    }
+
     const totalInput = prefix => document.getElementById(`id_${prefix}-TOTAL_FORMS`);
     const field = (prefix, name) => document.getElementById(`id_${prefix}-${name}`);
 
@@ -148,7 +163,11 @@
         const markDirty = () => table.dispatchEvent(new Event('input', { bubbles: true }));
         if (add) {
             const col = addColumn(kind);
-            if (col) field(col, 'label').focus();
+            if (col) {
+                applyDefaults(kind, col);
+                refresh();
+                field(col, 'label').focus();
+            }
         } else {
             const col = event.target.closest('th[data-col]').dataset.col;
             if (remove) removeColumn(kind, col);
@@ -204,11 +223,13 @@
             if (!probeCol) {
                 probeCol = addColumn('probes');
                 if (!probeCol) { skipped += 1; continue; }
+                applyDefaults('probes', probeCol);   // the file's own values win
                 await fillColumn(probeCol, item.probe);
                 probesAdded += 1;
             }
             const groupCol = addColumn('groups');
             if (!groupCol) { skipped += 1; continue; }
+            applyDefaults('groups', groupCol);
             await fillColumn(groupCol, { label: item.label || '', ...item.group });
             field(groupCol, 'probe_column').value = probeCol.split('-')[1];
             groupsAdded += 1;
