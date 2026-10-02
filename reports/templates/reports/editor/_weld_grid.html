@@ -13,11 +13,11 @@ Library › Defaults (prefilled columns). Needs `form` (instrument fields), `pro
 {% endif %}
 <div class="weld-grids" id="weld-grids" data-max-probes="{{ weld_grid.max_probes }}" data-max-groups="{{ weld_grid.max_groups }}">
     {# The instrument's fields flow into two or three label / value pairs per row #}
-    <div class="weld-grid-wrap">
-        <div class="instrument-head">Testing instrument</div>
-        <div class="instrument-grid">
+    <div class="cell-grid-wrap">
+        <div class="cell-grid-head">Testing instrument</div>
+        <div class="cell-grid">
             {% for name, label, row in weld_grid.instrument %}
-            <div class="instrument-cell"><label for="id_{{ name }}">{{ label }}</label>{% with field=form|bound:name %}{{ field }}{% endwith %}</div>
+            <div class="field-cell"><label for="id_{{ name }}">{{ label }}</label>{% with field=form|bound:name %}{{ field }}{% endwith %}</div>
             {% endfor %}
         </div>
     </div>

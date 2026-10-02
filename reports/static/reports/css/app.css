@@ -1078,27 +1078,32 @@ textarea.result-cell-input {
 .weld-verdict th { width: 10rem; }
 .weld-verdict td:nth-of-type(1) { width: 9rem; }
 
-/* Testing instrument: label / value cells flowing into three columns (two, then one, when narrow) */
-.instrument-head {
+/* Cell grids: label / value cells flowing into three columns (two, then one, when narrow), as
+   the weld form's testing instrument and the long form's setup blocks (components/field_cell.html) */
+.cell-grid-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.cell-grid-head {
     background: var(--surface-2);
     border-bottom: 1px solid var(--border);
     padding: 2px 8px;
     font-size: 0.8125rem;
     font-weight: 600;
 }
-.instrument-grid {
+.cell-grid + .cell-grid-head { border-top: 1px solid var(--border); margin-top: -1px; }
+.cell-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin: 0 -1px -1px 0;   /* the last row's and column's borders sit under the wrap's */
+    margin-right: -1px;   /* the last column's border sits under the wrap's */
     font-size: 0.8125rem;
 }
-.instrument-cell {
+.cell-grid:last-child { margin-bottom: -1px; }   /* so does the last row's */
+.field-cell {
     display: grid;
     grid-template-columns: 10rem minmax(0, 1fr);
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
 }
-.instrument-cell label {
+.field-cell-wide { grid-column: 1 / -1; }
+.field-cell label {
     display: flex;
     align-items: center;
     margin: 0;
@@ -1109,20 +1114,28 @@ textarea.result-cell-input {
     font-weight: 500;
     line-height: 1.2;
 }
-.instrument-cell .form-control {
+.field-cell .form-control, .field-cell .form-select {
     margin: 2px 4px;
     width: auto;
     min-height: 0;
-    padding: 0.125rem 0.5rem;
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
     font-size: 0.8125rem;
     border-color: transparent;
     background-color: transparent;
     border-radius: 3px;
 }
-.instrument-cell:hover .form-control { border-color: var(--border); }
-.instrument-cell .form-control:focus { border-color: var(--accent); background-color: var(--surface); }
-@media (max-width: 1399.98px) { .instrument-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 767.98px) { .instrument-grid { grid-template-columns: minmax(0, 1fr); } }
+.field-cell .form-control { padding-left: 0.5rem; padding-right: 0.5rem; }
+.field-cell textarea.form-control { min-height: 3rem; max-width: none; }
+.field-cell:hover .form-control, .field-cell:hover .form-select { border-color: var(--border); }
+.field-cell .form-control:focus, .field-cell .form-select:focus { border-color: var(--accent); background-color: var(--surface); }
+.field-cell.has-error label { color: var(--danger); }
+.field-cell-error { grid-column: 1 / -1; padding: 0 8px 4px; color: var(--danger); font-size: 0.75rem; }
+/* A catalogue select's filter box (catalogue_select.js) sits above it in the value column */
+.field-cell:has(.select-filter) label { grid-row: span 2; }
+.field-cell .select-filter, .field-cell .select-filter ~ .form-select { grid-column: 2; }
+@media (max-width: 1399.98px) { .cell-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767.98px) { .cell-grid { grid-template-columns: minmax(0, 1fr); } }
 
 @media (max-width: 1199.98px) {
     .editor-layout { grid-template-columns: minmax(0, 1fr); }

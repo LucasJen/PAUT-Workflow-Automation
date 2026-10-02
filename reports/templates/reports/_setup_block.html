@@ -30,12 +30,15 @@
 
     {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
 
-    {% for title, fields in form.fieldsets %}
-    <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
-    <div class="field-grid cols-4">
-        {% for field in fields %}{{ field.as_field_group }}{% endfor %}
+    {# Compact label / value cells, like the weld form's testing instrument #}
+    <div class="cell-grid-wrap">
+        {% for title, fields in form.fieldsets %}{% if fields %}
+        <div class="cell-grid-head">{{ title }}</div>
+        <div class="cell-grid">
+            {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
+        </div>
+        {% endif %}{% endfor %}
     </div>
-    {% endfor %}
 
     {# data-field lets a report type hide this part (report_types.py, hidden_fields) #}
     <div data-field="cal_images">
