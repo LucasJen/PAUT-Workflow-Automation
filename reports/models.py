@@ -508,9 +508,11 @@ class SetupImage(models.Model):
 class ReportImage(models.Model):
     SCAN = 'scan'
     DRAWING = 'drawing'
+    INDICATION = 'indication'
     KIND_CHOICES = [
         (SCAN, 'Scan image (photo summary)'),
         (DRAWING, 'Equipment drawing'),
+        (INDICATION, 'Indication image (weld form)'),
     ]
 
     report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='images')
@@ -519,7 +521,8 @@ class ReportImage(models.Model):
     # Drawings: the drawing's title. Scan images: optional label when not tied to a results row.
     caption = models.CharField(max_length=200, blank=True)
     # Scan images: the results-table Scan ID this image belongs to (matched by text, because
-    # results rows are recreated on every save); its comments come from that row.
+    # results rows are recreated on every save); its comments come from that row. Indication
+    # images: the key of the weld form indication it belongs to (saved after the row's cells).
     scan_id = models.CharField(max_length=200, blank=True)
     order = models.IntegerField(default=0)
 

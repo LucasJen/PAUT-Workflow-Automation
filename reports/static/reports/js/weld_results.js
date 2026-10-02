@@ -24,6 +24,11 @@
     // What a new weld starts with from the one before it (usually the same pipe)
     const CARRIED = ['cl_offset', 'weld_width', 'probe1_location', 'probe1_thk', 'probe2_thk'];
     const maxRows = Number(root.dataset.maxRows);
+    // Indication images saved so far: {indication key: url}. A key ties an image to its
+    // indication; it's saved as one extra cell after the row's Notes / Comments.
+    const savedImages = readJson('indication-images', {});
+    const KEY_INDEX = keys.length;
+    const newKey = () => 'ind-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const pageRows = Number(root.dataset.pageRows);
 
     const markDirty = () => form.dispatchEvent(new Event('input', { bubbles: true }));
@@ -105,7 +110,13 @@
             th.textContent = heading[key];
             verdict.append(th, cell(key, values[key]));
         }
-        indicationTable.tHead.append(headRow(INDICATION));
+        const indicationHead = headRow(INDICATION);
+        const imageHead = document.createElement('th');
+        imageHead.className = 'results-image';
+        imageHead.textContent = 'Image';
+        imageHead.title = 'Optional: an indication with an image gets its own Indication page';
+        indicationHead.insertBefore(imageHead, indicationHead.lastElementChild);
+        indicationTable.tHead.append(indicationHead);
         list.append(block);
         refresh();
         return block;
@@ -119,7 +130,9 @@
             values = { accept: value(verdict, 'accept'), comments: value(verdict, 'comments'), ...values };
         }
         const tr = document.createElement('tr');
+        tr.dataset.key = values.key || newKey();
         INDICATION.forEach(key => tr.append(cell(key, values[key])));
+        tr.append(imageCell(tr.dataset.key));
         const actions = document.createElement('td');
         actions.className = 'results-actions';
         actions.innerHTML = '<button type="button" class="btn btn-icon btn-sm" data-remove-indication title="Remove this indication"><i class="bi bi-x-lg"></i></button>';
@@ -127,6 +140,63 @@
         body.append(tr);
         refresh();
         return tr;
+    }
+
+    // An indication's optional image: a file input saved with the report, shown as its thumbnail
+    // (with ✕ to remove it) once saved, or as the chosen file's name before
+    function imageCell(key) {
+        const td = document.createElement('td');
+        td.className = 'results-image';
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.name = `indication_image_${key}`;
+        input.hidden = true;
+        const pick = document.createElement('button');
+        pick.type = 'button';
+        pick.className = 'btn btn-icon btn-sm';
+        pick.title = 'Add an image (gives this indication its Indication page)';
+        pick.innerHTML = '<i class="bi bi-image"></i>';
+        const shown = document.createElement('span');
+        shown.className = 'results-image-shown';
+        const remove = document.createElement('input');
+        remove.type = 'checkbox';
+        remove.name = 'remove_indication_image';
+        remove.value = key;
+        remove.hidden = true;
+
+        function show() {
+            shown.replaceChildren();
+            if (input.files.length) {
+                shown.textContent = input.files[0].name;
+                shown.title = 'Saved with the report';
+            } else if (savedImages[key] && !remove.checked) {
+                const link = document.createElement('a');
+                link.href = savedImages[key];
+                link.target = '_blank';
+                const img = document.createElement('img');
+                img.src = savedImages[key];
+                img.alt = 'Indication image';
+                link.append(img);
+                const drop = document.createElement('button');
+                drop.type = 'button';
+                drop.className = 'btn btn-icon btn-sm';
+                drop.title = 'Remove this image (no Indication page)';
+                drop.innerHTML = '<i class="bi bi-x"></i>';
+                drop.addEventListener('click', () => { remove.checked = true; show(); markChanged(); });
+                shown.append(link, drop);
+            }
+            pick.hidden = Boolean(input.files.length) || (Boolean(savedImages[key]) && !remove.checked);
+        }
+        pick.addEventListener('click', () => input.click());
+        input.addEventListener('change', () => { remove.checked = false; show(); });
+        td.append(input, remove, pick, shown);
+        show();
+        return td;
+    }
+
+    function markChanged() {
+        form.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     function removeIndication(tr) {
@@ -155,7 +225,7 @@
                 continue;
             }
             indications.forEach((tr, i) => {
-                out.push([...(i === 0 ? weld : weld.map(() => '')), ...INDICATION.map(key => value(tr, key))]);
+                out.push([...(i === 0 ? weld : weld.map(() => '')), ...INDICATION.map(key => value(tr, key)), tr.dataset.key]);
             });
         }
         return out;
@@ -187,7 +257,7 @@
         let block = null;
         for (const row of data.rows || []) {
             const values = Object.fromEntries(keys.map(key => [key, index[key] >= 0 ? (row[index[key]] || '') : '']));
-            const indication = Object.fromEntries(INDICATION.map(key => [key, values[key]]));
+            const indication = { ...Object.fromEntries(INDICATION.map(key => [key, values[key]])), key: row[KEY_INDEX] || '' };
             const hasFlaw = INDICATION.some(key => !VERDICT.includes(key) && values[key].trim());
             if (values.weld_id.trim() || !block) {
                 block = addWeld(hasFlaw ? Object.fromEntries(WELD.map(key => [key, values[key]])) : values);

@@ -5,6 +5,16 @@ from reports.models import Report, ReportGroup, ReportProbe
 from reports.tests.test_create_report import management, post_data
 
 
+def png(name):
+    """A small PNG upload."""
+    import io
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new('RGB', (8, 8), 'red').save(buf, 'PNG')
+    return SimpleUploadedFile(name, buf.getvalue(), content_type='image/png')
+
+
 def grid_data(probes=(), groups=(), initial_probes=0, initial_groups=0):
     """The weld form grid's POST fields: lists of dicts of column fields (may include 'id', 'DELETE')."""
     data = {}
@@ -246,6 +256,17 @@ class WeldPersonnelTests(TestCase):
 class WeldResultsTests(TestCase):
     url = reverse('create-report')
 
+    def setUp(self):
+        # Uploaded indication images go to a temporary media folder
+        import shutil
+        import tempfile
+        from django.test import override_settings
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, True)
+        override = override_settings(MEDIA_ROOT=media)
+        override.enable()
+        self.addCleanup(override.disable)
+
     def test_weld_reports_have_the_results_section(self):
         from reports.report_types import get_report_type
         self.assertIn('weld_results', get_report_type('paut_weld').sections)
@@ -264,14 +285,16 @@ class WeldResultsTests(TestCase):
         rows = [
             # W5: weld + its first indication, then a second indication on a row with no Weld ID
             ['W5', 'RJA4201', '0.475', '0.8', 'TDC', 'East', '90/270', '0.280', 'N/A',
-             '7.905', '0.212', '-0.101', '0.280', '0.071', '75.1', 'LOF', 'Accept', 'Passes per B31.3'],
-            blank + ['12.0', '0.1', '0.0', '0.2', '0.05', '40', 'Slag', 'Accept', ''],
+             '7.905', '0.212', '-0.101', '0.280', '0.071', '75.1', 'LOF', 'Accept', 'Passes per B31.3', 'ind-aaaa1'],
+            blank + ['12.0', '0.1', '0.0', '0.2', '0.05', '40', 'Slag', 'Accept', '', 'ind-bbbb2'],
             # W6: no indications, its own verdict and notes
             ['W6', 'RCK6859', '0.475', '0.8', 'BDC', 'West', '90/270', '0.280', 'N/A',
              '', '', '', '', '', '', '', 'Accept', 'No rejectable indications. Passes per B31.3'],
         ]
         data = post_data(report_type='paut_weld')
-        data.update({'results_columns': json.dumps(headings), 'results_rows': json.dumps(rows)})
+        # Only W5's second indication has an image
+        data.update({'results_columns': json.dumps(headings), 'results_rows': json.dumps(rows),
+                     'indication_image_ind-bbbb2': png('slag.png')})
         self.client.post(self.url, data)
         report = Report.objects.get()
         pages = weld_pages(report)
@@ -279,7 +302,38 @@ class WeldResultsTests(TestCase):
         self.assertEqual((pages.report['A42'], pages.report['Q42']), ('', 'Slag'))
         self.assertEqual((pages.report['A43'], pages.report['S43'], pages.report['U43']),
                          ('W6', 'P', 'No rejectable indications. Passes per B31.3'))
-        self.assertEqual([(i.weld_id, i.number) for i in pages.indications], [('W5', 1), ('W5', 2)])
+        # an Indication page only for the indication with an image, keeping its number in the weld
+        self.assertEqual([(i.weld_id, i.number, bool(i.image_path)) for i in pages.indications], [('W5', 2, True)])
+        self.assertEqual(Report.objects.get().results_table.rows.get(order=1).cells[-1], 'ind-bbbb2')
+
+        # Saving again without that indication drops its image (and its page)
+        data = post_data(report=report, report_type='paut_weld')
+        data.update({'results_columns': json.dumps(headings), 'results_rows': json.dumps(rows[:1] + rows[2:])})
+        self.client.post(self.url, data)
+        self.assertFalse(report.images.filter(kind='indication').exists())
+        self.assertEqual(weld_pages(report).indications, [])
+
+    def test_indication_image_is_shown_and_can_be_removed(self):
+        import json
+        from reports.models import ReportImage
+        from reports.report_types import get_report_type
+        headings = get_report_type('paut_weld').results_headings
+        rows = [['W5'] + [''] * 8 + ['1.0', '', '', '', '', '', 'LOF', 'Accept', '', 'ind-cccc3']]
+        data = post_data(report_type='paut_weld')
+        data.update({'results_columns': json.dumps(headings), 'results_rows': json.dumps(rows),
+                     'indication_image_ind-cccc3': png('lof.png'), 'indication_image_ind-nokey': png('stray.png')})
+        self.client.post(self.url, data)
+        report = Report.objects.get()
+        self.assertEqual(list(report.images.values_list('kind', 'scan_id')), [('indication', 'ind-cccc3')])
+        page = self.client.get(f'{self.url}?loaded={report.pk}')
+        self.assertIn('ind-cccc3', page.context['indication_images'])
+        self.assertContains(page, 'id="indication-images"')
+
+        data = post_data(report=report, report_type='paut_weld')
+        data.update({'results_columns': json.dumps(headings), 'results_rows': json.dumps(rows),
+                     'remove_indication_image': 'ind-cccc3'})
+        self.client.post(self.url, data)
+        self.assertFalse(ReportImage.objects.exists())
 
 
 class NotesAndEncoderTests(TestCase):

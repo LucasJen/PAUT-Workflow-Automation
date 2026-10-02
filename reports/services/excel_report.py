@@ -432,22 +432,33 @@ def _results(rows):
 
 
 def _indications(report, rows):
-    """One Indication page per row with a flaw Type; the n-th flaw of a weld takes its n-th scan image."""
-    images = {}
+    """
+    An Indication page for each indication with an image, numbered within its weld (1, 2, ... by
+    its place among the weld's indications). The image is the one uploaded for it (by the key
+    saved after its row's cells); reports from before that use the n-th scan image of the weld.
+    """
+    keyed = {}
+    for image in report.images.filter(kind=ReportImage.INDICATION):
+        if image.image:
+            keyed[image.scan_id] = image.image.path
+    by_weld = {}
     for image in report.images.filter(kind=ReportImage.SCAN).order_by('order'):
         if image.image:
-            images.setdefault(_v(image.scan_id), []).append(image.image.path)
-    type_index = RESULT_COLUMNS.index('Q')
+            by_weld.setdefault(_v(image.scan_id), []).append(image.image.path)
+    flaw = slice(RESULT_COLUMNS.index('K'), RESULT_COLUMNS.index('Q') + 1)   # Circ start ... Type
+    notes, key = len(RESULT_COLUMNS) + 1, len(RESULT_COLUMNS) + 2
     out, weld, counts = [], '', {}
     for cells in rows:
-        cells = list(cells) + [''] * (len(RESULT_COLUMNS) + 2 - len(cells))
+        cells = list(cells) + [''] * (key + 1 - len(cells))
         weld = _v(cells[0]) or weld
-        if not _v(cells[type_index]):
-            continue
+        if not any(_v(c) for c in cells[flaw]):
+            continue   # a weld with no indication
         counts[weld] = counts.get(weld, 0) + 1
         n = counts[weld]
-        weld_images = images.get(weld, [])
-        out.append(Indication(weld, n, _v(cells[-1]), weld_images[n - 1] if n <= len(weld_images) else ''))
+        legacy = by_weld.get(weld, [])
+        image = keyed.get(_v(cells[key])) or (legacy[n - 1] if n <= len(legacy) else '')
+        if image:
+            out.append(Indication(weld, n, _v(cells[notes]), image))
     return out
 
 

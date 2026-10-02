@@ -102,6 +102,33 @@ def _save_results_table(report, columns, rows):
         )
 
 
+INDICATION_KEY = re.compile(r'^ind-[a-z0-9]{4,40}$')
+
+
+def _save_indication_images(request, report, rows):
+    """
+    The weld form's indication images: a file chosen for an indication (indication_image_<key>)
+    replaces its image, a ticked remove_indication_image deletes it, and images of indications no
+    longer in the results go too. An indication's key is the cell after its row's Notes.
+    """
+    images = ReportImage.objects.filter(report=report, kind=ReportImage.INDICATION)
+    keys = {str(row[-1]) for row in rows if row and INDICATION_KEY.match(str(row[-1]))}
+    images.exclude(scan_id__in=keys).delete()
+    images.filter(scan_id__in=request.POST.getlist('remove_indication_image')).delete()
+    validator = ImageField()
+    for name, files in request.FILES.lists():
+        key = name.removeprefix('indication_image_')
+        if not name.startswith('indication_image_') or key not in keys or not files:
+            continue
+        try:
+            upload = validator.clean(files[-1])
+        except ValidationError:
+            messages.error(request, f'{files[-1].name} isn\'t an image; that indication has no image.')
+            continue
+        images.filter(scan_id=key).delete()
+        ReportImage.objects.create(report=report, kind=ReportImage.INDICATION, scan_id=key, image=upload)
+
+
 def _setup_image_uploads(request, setup_formset):
     """
     Calibration screenshots uploaded per setup block (file input '<prefix>-cal_images').
@@ -204,6 +231,7 @@ def create_report(request):
                 _save_ordered_formset(image_formset, kind=ReportImage.SCAN)
                 if results is not None:
                     _save_results_table(report, *results)
+                    _save_indication_images(request, report, results[1])
 
             wants_output = 'generate' in request.POST or 'preview' in request.POST
             if wants_output and not has_equipment(report):
@@ -250,6 +278,8 @@ def create_report(request):
         'weld_grid': weld_grid_rows(),
         'sensitivity_blocks': library_blocks(),
         # How many results rows the weld form holds: page 1, then the Continuation page
+        'indication_images': {image.scan_id: image.image.url for image in ReportImage.objects.filter(
+            report_id=form.instance.pk, kind=ReportImage.INDICATION)} if form.instance.pk else {},
         'weld_results_rows': {'page1': len(REPORT_RESULT_ROWS), 'total': len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)},
         'has_equipment': bool(form.instance.pk) and has_equipment(form.instance),
         'drawing_formset': drawings,

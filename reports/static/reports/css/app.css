@@ -1073,6 +1073,10 @@ textarea.result-cell-input {
 .results-grid .results-actions { width: 17.5rem; text-align: right; white-space: nowrap; }
 .weld-status { margin: 0; padding: 4px 8px; font-size: 0.8125rem; border-top: 1px solid var(--border); background: var(--surface-2); }
 .results-grid.indications .results-actions { width: 2.5rem; }
+.results-grid .results-image { width: 6.5rem; text-align: center; }
+.results-image-shown { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; overflow: hidden;
+                       font-size: 0.75rem; white-space: nowrap; text-overflow: ellipsis; }
+.results-image-shown img { height: 1.75rem; max-width: 4rem; object-fit: cover; border-radius: 3px; vertical-align: middle; }
 .results-grid.indications thead th { background: var(--surface); }
 .results-grid .weld-row input[data-key="weld_id"] { font-weight: 600; }
 .weld-verdict th { width: 10rem; }
