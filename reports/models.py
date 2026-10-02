@@ -279,6 +279,32 @@ class Setup(models.Model):
     UNIT_CHOICES = [(IMPERIAL, 'Imperial (in)'), (METRIC, 'Metric (mm)')]
     units = models.CharField(max_length=10, choices=UNIT_CHOICES, default=IMPERIAL)
 
+    # Weld form equipment details (100-UTFORM-010): instrument, probe / wedge, group settings,
+    # material; usually filled from the report type's defaults
+    scope_cal_due = models.CharField('Instrument cal. due', max_length=50, blank=True)
+    module_model = models.CharField('Module model', max_length=100, blank=True)
+    module_serial = models.CharField('Module S/N', max_length=100, blank=True)
+    module_cal_due = models.CharField('Module cal. due', max_length=50, blank=True)
+    software_version = models.CharField('Software version', max_length=50, blank=True)
+    scanner_type = models.CharField('Scanner type', max_length=100, blank=True)
+    scanner_model = models.CharField('Scanner make / model', max_length=100, blank=True)
+    analysis_software = models.CharField('Analysis software', max_length=100, blank=True)
+    analysis_software_version = models.CharField('Analysis software version', max_length=50, blank=True)
+    scan_speed = models.CharField('Scan speed', max_length=50, blank=True)
+    cable_type = models.CharField('Cable type', max_length=100, blank=True)
+    cable_length = models.CharField('Cable length', max_length=50, blank=True)
+    wedge_material = models.CharField('Wedge material', max_length=100, blank=True)
+    wedge_curve = models.CharField('Wedge curve type', max_length=50, blank=True)
+    focal_plane = models.CharField('Focal plane', max_length=50, blank=True)
+    time_base = models.CharField('Time base start / stop', max_length=100, blank=True)
+    points_quantity = models.CharField('Points quantity', max_length=50, blank=True)
+    smoothing = models.CharField(max_length=50, blank=True)
+    amplitude_range = models.CharField('Amplitude range', max_length=50, blank=True)
+    transfer_db = models.CharField('Transfer dB', max_length=50, blank=True)
+    scanning_db = models.CharField('Scanning dB', max_length=50, blank=True)
+    couplant = models.CharField(max_length=100, blank=True)
+    exam_surface = models.CharField('Exam surface (ID / OD)', max_length=50, blank=True)
+
     # Wedge front to the weld centre line (from the .nde file's wedge position), for scan plans
     index_offset = models.CharField(max_length=50, blank=True)
 

@@ -216,3 +216,27 @@ class ScanPlanBoxTests(TestCase):
                         index_offset_2=0.75, skew_90_2=True, skew_270_2=False)
         boxes = [SCAN_PLAN_BOXES[(position, skew)] for position, _, skew in plan.drawings]
         self.assertEqual(boxes, ['E5:G19', 'B22:D36'])  # 270 deg top right, second offset 90 deg bottom left
+
+
+class WeldFormEquipmentFieldTests(TestCase):
+    def test_new_setup_fields_print_on_the_form(self):
+        report = weld_report()
+        setup = report.setups.get()
+        for name, value in {'scope_cal_due': '1/16/2027', 'software_version': '5.20.0', 'scanner_type': 'SAUT',
+                            'scanner_model': 'Jireh Microbe', 'cable_type': 'Integral', 'cable_length': "6'",
+                            'wedge_material': 'Rex', 'wedge_curve': 'AOD', 'focal_plane': 'Depth',
+                            'smoothing': 'Off', 'scanning_db': '+6dB', 'couplant': 'Glycerin',
+                            'exam_surface': 'O.D.'}.items():
+            setattr(setup, name, value)
+        setup.save()
+        block = SensitivityBlock.objects.get(pipe_size='6in Sch 40')
+        report.scan_plan = ScanPlan.objects.create(name='6in', thickness=0.28, index_offset=0.48, sensitivity_block=block)
+        report.save()
+        cells = weld_pages(report).report
+        self.assertEqual((cells['C19'], cells['C23'], cells['C24']), ('1/16/2027', '5.20.0', 'SAUT'))
+        self.assertEqual((cells['F19'], cells['F20'], cells['F22'], cells['F26']), ('Integral', "6'", 'Rex', 'AOD'))
+        self.assertEqual((cells['L22'], cells['L27'], cells['L32']), ('Depth', 'Off', '+6dB'))
+        # the setup's values win over the block's usual scanner and couplant
+        self.assertEqual((cells['C25'], cells['W25'], cells['Y25'], cells['W24']),
+                         ('Jireh Microbe', 'Glycerin', 'Glycerin', 'O.D.'))
+        self.assertEqual(cells['C35'], '≤2in/s')  # no setup scan speed: the block's

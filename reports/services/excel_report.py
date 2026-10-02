@@ -107,10 +107,14 @@ def _probe_column(col, setup, group_number):
         f'{col}16': _v(setup.manufacturer),
         f'{col}17': _v(setup.transducer_model),
         f'{col}18': with_unit(setup.freq, ' MHz'),
+        f'{col}19': _v(setup.cable_type),
+        f'{col}20': _v(setup.cable_length),
         f'{col}21': _v(setup.transducer_serial),
+        f'{col}22': _v(setup.wedge_material),
         f'{col}23': _v(setup.wedge_model),
         f'{col}24': with_unit(setup.wedge_angle, '°'),
         f'{col}25': with_unit(setup.specimen_od, length_unit(setup)),
+        f'{col}26': _v(setup.wedge_curve),
         f'{col}27': 'Accept',
         f'{col}28': str(group_number),
         f'{col}29': 'N/A',
@@ -127,10 +131,17 @@ def _group_column(col, setup):
         f'{col}19': _v(setup.active_elements),
         f'{col}20': with_unit(setup.angle_step, '°'),
         f'{col}21': _vpa(setup),
+        f'{col}22': _v(setup.focal_plane),
         f'{col}23': with_unit(setup.foc_depth, length_unit(setup)),
+        f'{col}24': _v(setup.time_base),
         f'{col}25': with_unit(setup.voltage, ' V'),
+        f'{col}26': _v(setup.points_quantity),
+        f'{col}27': _v(setup.smoothing),
         f'{col}28': with_unit(setup.band_pass_filter, ' MHz'),
+        f'{col}29': _v(setup.amplitude_range),
         f'{col}30': with_unit(setup.gain, ' dB'),
+        f'{col}31': _v(setup.transfer_db),
+        f'{col}32': _v(setup.scanning_db),
     }
 
 
@@ -147,7 +158,19 @@ def _equipment(setups):
             'C16': _v(first.manufacturer),
             'C17': _v(first.scope_model),
             'C18': _v(first.scope_serial),
+            'C19': _v(first.scope_cal_due),
+            'C20': _v(first.module_model),
+            'C21': _v(first.module_serial),
+            'C22': _v(first.module_cal_due),
+            'C23': _v(first.software_version),
+            'C24': _v(first.scanner_type),
+            'C25': _v(first.scanner_model),
+            'C26': _v(first.analysis_software),
+            'C27': _v(first.analysis_software_version),
             'C33': _v(first.encoder_resolution),
+            'C35': _v(first.scan_speed),
+            'W24': _v(first.exam_surface), 'Y24': _v(first.exam_surface),
+            'W25': _v(first.couplant), 'Y25': _v(first.couplant),
             'C34': with_unit(first.x_res, length_unit(first)),
         })
         velocity = with_unit(first.sound_velocity, velocity_unit(first))
@@ -176,6 +199,20 @@ def _equipment(setups):
     for i, col in enumerate(GROUP_COLUMNS):
         cells.update(_group_column(col, setups[i]) if i < len(setups) else _unused_column(col, range(15, 33)))
     return cells
+
+
+def _with_block(equipment, block):
+    """
+    The setup's cells with the sensitivity block's on top, except where the setup gives a value
+    for the scanner, scan speed or couplant (the block's are only its usual ones).
+    """
+    setup_first = {'C25', 'C35', 'W25', 'Y25'}
+    merged = dict(equipment)
+    for ref, value in block.items():
+        if ref in setup_first and equipment.get(ref):
+            continue
+        merged[ref] = value
+    return merged
 
 
 def _tcg_distances(depth):
@@ -314,7 +351,8 @@ def weld_pages(report):
     _, rows = report_results(report)
     report_cells, continuation = _results(rows)
     pages = WeldPages(
-        report={**_header(report), **_equipment(setups), **_block(report), **_calibration(report), **report_cells},
+        report={**_header(report), **_with_block(_equipment(setups), _block(report)), **_calibration(report),
+                **report_cells},
         continuation=continuation,
         indications=_indications(report, rows),
         scan_plan=report.scan_plan,
