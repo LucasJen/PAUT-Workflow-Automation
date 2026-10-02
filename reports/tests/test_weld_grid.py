@@ -166,7 +166,11 @@ class NdeColumnsTests(TestCase):
         self.assertTrue(column['probe']['model'])
         self.assertTrue(column['probe_key'])
         self.assertNotIn(' · ', column['label'])
-        self.assertEqual((column['probe']['source_file'], column['group']['source_file']), ('scan.nde', 'scan.nde'))
+        # the group column remembers the file and its group (importing again updates that column)
+        self.assertEqual(column['probe']['source_file'], 'scan.nde')
+        self.assertEqual(column['group']['source_file'], f"scan.nde › {column['label']}")
+        self.assertEqual(column['filename'], 'scan.nde')
+        self.assertTrue(column['probe_ref'].startswith('scan.nde#'))
 
     def test_not_an_nde_file(self):
         from django.core.files.uploadedfile import SimpleUploadedFile

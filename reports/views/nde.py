@@ -99,10 +99,18 @@ def nde_columns(request):
         return JsonResponse({'error': str(e)}, status=400)
     columns = []
     for group in extract_groups(setup, properties, uploaded.name):
-        fill, _ = _catalogue_match(group.get('hardware', {}))
+        hardware = group.get('hardware', {})
+        fill, _ = _catalogue_match(hardware)
         values = {**group['values'][system], **fill}
+        item = columns_from_setup(values)
         # The group's name for the column label ('GR-1 · Sectorial · 40°–70°' -> 'GR-1')
-        columns.append({**columns_from_setup(values), 'label': group['label'].split(' · ')[0], 'title': group['label']})
+        name = group['label'].split(' · ')[0]
+        # A group column remembers the file and group it came from, so importing the file again
+        # updates it; groups on the same probe of the file share its probe column
+        item['group']['source_file'] = f'{uploaded.name} › {name}'[:255]
+        probe_id = (hardware.get('probe') or {}).get('id')
+        columns.append({**item, 'label': name, 'title': group['label'], 'filename': uploaded.name,
+                        'probe_ref': f'{uploaded.name}#{probe_id}' if probe_id is not None else ''})
     if not columns:
         return JsonResponse({'error': 'This .nde file has no inspection groups to import.'}, status=400)
     return JsonResponse({'columns': columns, 'filename': uploaded.name})

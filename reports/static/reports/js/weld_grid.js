@@ -274,11 +274,8 @@
     }
 
     // ── Import: .nde groups and saved setups fill columns ──────────────────
-    // Each item is {instrument, probe, group, probe_key} (reports/weld_columns.py). A probe
-    // already on the page (same model and S/N) is reused, so several groups share its column.
-    // Otherwise the first column of the same kind that no file has filled yet (e.g. one
-    // prefilled from the defaults) is filled, keeping its values where the file has none; a new
-    // column is added only when there's none left.
+    // Each item is {instrument, probe, group, probe_key, probe_ref, filename} (reports/weld_columns.py,
+    // views/nde.py nde_columns): one per group of the file. importColumns says where each goes.
 
     const toolbar = document.getElementById('weld-grid-toolbar');
     const status = document.getElementById('weld-grid-status');
@@ -301,8 +298,18 @@
         return probeKind(field(col, 'probe_column').value);
     }
 
+    // One import fills every probe and group of the file. Where each goes:
+    // - a group: the column that came from the same file and group (importing again updates it;
+    //   older imports remembered only the file), else the first column of the same kind no file
+    //   has filled yet, else a new column;
+    // - a probe: the column the file's earlier groups put it in (same probe in the file), else
+    //   the column with the same model and S/N, else as a group. The file's values replace what's
+    //   there; values the file doesn't have (cable, probe check, labels...) stay.
     async function importColumns(items) {
-        const counts = { filled: 0, added: 0, skipped: 0 };
+        const counts = { updated: 0, filled: 0, added: 0, skipped: 0 };
+        const placed = {};          // probe_ref -> probe column, within this import
+        const claimed = new Set();  // group columns this import has used
+        const source = col => field(col, 'source_file')?.value || '';
         for (const item of items) {
             const kind = item.probe.kind || 'paut';
             // The instrument: fill only what's still blank
@@ -311,23 +318,35 @@
                 if (input && !input.value.trim()) input.value = value;
             }
 
-            let probeCol = item.probe_key ? columns('probes').find(col => pageProbeKey(col) === item.probe_key) : null;
-            if (!probeCol) {
+            let probeCol = (item.probe_ref && placed[item.probe_ref])
+                || (item.probe_key ? columns('probes').find(col => pageProbeKey(col) === item.probe_key) : null);
+            if (probeCol) {
+                if (!Object.values(placed).includes(probeCol)) counts.updated += 1;
+            } else {
                 probeCol = columns('probes').find(col => fillable(col) && field(col, 'kind').value === kind);
                 if (probeCol) counts.filled += 1;
                 else if ((probeCol = addColumn('probes'))) counts.added += 1;
                 else { counts.skipped += 1; continue; }
-                await fillColumn(probeCol, item.probe, { keepLabel: true });
             }
+            if (!Object.values(placed).includes(probeCol)) await fillColumn(probeCol, item.probe, { keepLabel: true });
+            if (item.probe_ref) placed[item.probe_ref] = probeCol;
 
-            // A group column still waiting for a file: one on this probe first, then one on an
-            // unfilled probe of the same kind
-            const waiting = columns('groups').filter(fillable);
-            let groupCol = waiting.find(col => field(col, 'probe_column').value === probeIndex(probeCol))
-                || waiting.find(col => groupProbeKind(col) === kind && fillable(`probes-${field(col, 'probe_column').value}`));
-            if (groupCol) counts.filled += 1;
-            else if ((groupCol = addColumn('groups'))) counts.added += 1;
-            else { counts.skipped += 1; continue; }
+            const open = columns('groups').filter(col => !claimed.has(col));
+            let groupCol = open.find(col => source(col) && source(col) === item.group.source_file)
+                || (item.filename && open.find(col => source(col) === item.filename));
+            if (groupCol) {
+                counts.updated += 1;
+            } else {
+                // A group column still waiting for a file: one on this probe first, then one on an
+                // unfilled probe of the same kind
+                const waiting = open.filter(fillable);
+                groupCol = waiting.find(col => field(col, 'probe_column').value === probeIndex(probeCol))
+                    || waiting.find(col => groupProbeKind(col) === kind && fillable(`probes-${field(col, 'probe_column').value}`));
+                if (groupCol) counts.filled += 1;
+                else if ((groupCol = addColumn('groups'))) counts.added += 1;
+                else { counts.skipped += 1; continue; }
+            }
+            claimed.add(groupCol);
             await fillColumn(groupCol, { label: item.label || '', ...item.group }, { keepLabel: true });
             field(groupCol, 'probe_column').value = probeIndex(probeCol);
             pristine.delete(probeCol);
@@ -335,9 +354,11 @@
         }
         refresh();
         root.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
+        const plural = n => `${n} column${n === 1 ? '' : 's'}`;
         const parts = [];
-        if (counts.filled) parts.push(`filled ${counts.filled} prefilled column${counts.filled === 1 ? '' : 's'}`);
-        if (counts.added) parts.push(`added ${counts.added} column${counts.added === 1 ? '' : 's'}`);
+        if (counts.updated) parts.push(`updated ${plural(counts.updated)} from an earlier import`);
+        if (counts.filled) parts.push(`filled ${plural(counts.filled)} prefilled`);
+        if (counts.added) parts.push(`added ${plural(counts.added)}`);
         if (counts.skipped) parts.push(`${counts.skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
         const text = parts.join('; ') || 'nothing to add';
         showStatus(text[0].toUpperCase() + text.slice(1) + '.', counts.skipped > 0);
