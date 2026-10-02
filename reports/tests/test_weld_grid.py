@@ -89,3 +89,57 @@ class WeldGridTests(TestCase):
         ReportProbe.objects.create(report=report, order=0, model='P')
         self.client.post(self.url, post_data(report=report, report_type='paut_weld'))
         self.assertEqual(report.probes.count(), 1)
+
+
+class WeldColumnsTests(TestCase):
+    def test_setup_values_map_to_columns_with_units(self):
+        from reports.weld_columns import columns_from_setup
+        columns = columns_from_setup({
+            'units': 'imperial', 'beam_formation': 'Sectorial', 'wave_propagation': 'Shear',
+            'manufacturer': 'Evident', 'transducer_model': '10L32-A1', 'transducer_serial': 'Q1', 'freq': '10',
+            'wedge_angle': '36', 'foc_depth': '1.5', 'gain': '12.4', 'catalogue_probe': 7, 'scope_model': 'X3',
+            'x_res': '0.04', 'element_aperture': '16', 'element_step': '1', 'cable_type': None,
+        })
+        self.assertEqual(columns['probe']['kind'], 'paut')
+        self.assertEqual((columns['probe']['frequency'], columns['probe']['wedge_angle'], columns['probe']['catalogue_probe']),
+                         ('10 MHz', '36°', '7'))
+        self.assertNotIn('cable_type', columns['probe'])
+        self.assertEqual((columns['group']['focal_distance'], columns['group']['reference_db'], columns['group']['vpa']),
+                         ('1.5"', '12.4 dB', 'N/A'))
+        self.assertEqual((columns['instrument']['inst_name'], columns['instrument']['inst_scan_res']), ('X3', '0.04"'))
+        self.assertEqual(columns['probe_key'], '10l32-a1|q1')
+
+    def test_conventional_kinds(self):
+        from reports.weld_columns import kind
+        self.assertEqual(kind({'beam_formation': 'Conventional', 'wave_propagation': 'Longitudinal'}), 'conv_long')
+        self.assertEqual(kind({'beam_formation': 'Conventional', 'wave_propagation': 'Shear'}), 'conv_shear')
+
+    def test_editor_offers_saved_setups_as_columns(self):
+        from reports.models import Setup
+        setup = Setup.objects.create(transducer_model='D791', beam_formation='Conventional', wave_propagation='Longitudinal')
+        resp = self.client.get(reverse('create-report'))
+        self.assertEqual(resp.context['saved_setup_columns'][setup.pk]['probe']['kind'], 'conv_long')
+        self.assertContains(resp, 'id="weld-setup-loader"')
+
+
+class NdeColumnsTests(TestCase):
+    url = reverse('nde-columns')
+
+    def test_each_inspection_group_is_a_probe_and_group(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from reports.tests.test_nde_upload import FIXTURE, make_nde, sample_setup
+        resp = self.client.post(self.url, {
+            'nde_file': SimpleUploadedFile('scan.nde', make_nde(sample_setup(), FIXTURE['properties'])), 'units': 'metric'})
+        data = resp.json()
+        self.assertEqual(len(data['columns']), 1)
+        column = data['columns'][0]
+        self.assertEqual(column['instrument']['inst_model'], 'OmniScan X3 64 - 64:128PR')
+        self.assertTrue(column['probe']['model'])
+        self.assertTrue(column['probe_key'])
+        self.assertNotIn(' · ', column['label'])
+
+    def test_not_an_nde_file(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        resp = self.client.post(self.url, {'nde_file': SimpleUploadedFile('scan.txt', b'x')})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('error', resp.json())

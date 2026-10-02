@@ -239,6 +239,9 @@ def _grid(report):
         for name, _, row in weld_form.PROBE_ROWS:
             cells[f'{col}{row}'] = 'N/A' if name in na else _v(getattr(probe, name))
         used = [str(j + 1) for j, group in enumerate(groups) if group.probe_id == probe.pk]
+        # Three rows: a 4th or 5th group on the probe joins the last one ('3, 4, 5')
+        last = len(weld_form.RELEVANT_GROUP_ROWS) - 1
+        used = used[:last] + [', '.join(used[last:])] if len(used) > last else used
         for k, row in enumerate(weld_form.RELEVANT_GROUP_ROWS):
             cells[f'{col}{row}'] = used[k] if k < len(used) else 'N/A'
 

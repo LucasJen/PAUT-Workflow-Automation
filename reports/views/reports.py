@@ -15,6 +15,7 @@ from ..forms import (
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
 from ..report_types import DEFAULT_REPORT_TYPE, get_report_type
 from ..defaults import all_defaults, defaults_for, only_defaults
+from ..weld_columns import columns_from_setup
 from ..weld_form import weld_grid_rows
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
 from django.core.exceptions import ValidationError
@@ -228,6 +229,7 @@ def create_report(request):
             columns, rows = report_results(loaded_report)
             results_data = {'columns': columns, 'rows': rows}
 
+    saved_values = _saved_setup_values()
     return render(request, 'reports/create_report.html', {
         'form': form,
         'setup_formset': setup_formset,
@@ -242,7 +244,8 @@ def create_report(request):
         'results_data': results_data,
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
         'saved_setups': _saved_setup_choices(),
-        'saved_setup_values': _saved_setup_values(),
+        'saved_setup_values': saved_values,
+        'saved_setup_columns': {pk: columns_from_setup(values) for pk, values in saved_values.items()},
         'report_defaults': all_defaults(),
         'pdf_available': pdf_available(form.instance if form.instance.pk else None),
         'excel': bool(form.instance.pk) and _is_excel(form.instance),

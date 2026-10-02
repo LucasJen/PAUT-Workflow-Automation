@@ -286,6 +286,11 @@ class EquipmentGridTests(TestCase):
                          ('Group 4 (0°)', '0deg 1: Olympus D791', 'Dual', 'N/A', 'N/A'))
         self.assertEqual((cells['S13'], cells['S17'], cells['S18']), ('Group 5 (Trans)', 'Shear', '45°'))
 
+    def test_more_than_three_relevant_groups_share_the_last_row(self):
+        self.report.groups.update(probe=self.p1)
+        cells = weld_pages(self.report).report
+        self.assertEqual((cells['F28'], cells['F29'], cells['F30'], cells['H28']), ('1', '2', '3, 4, 5', 'N/A'))
+
     def test_unused_columns_are_na(self):
         from reports.models import ReportGroup, ReportProbe
         ReportGroup.objects.filter(report=self.report, order__gte=1).delete()

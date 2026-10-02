@@ -1,9 +1,12 @@
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import render, redirect
+from django.views.decorators.http import require_POST
 from equipment.importers import probe_from_nde, wedge_from_nde
 from equipment.matching import match_probe, match_wedge
 from ..forms import SetupForm
-from ..services.nde_parser import NdeError, extract_groups, read_nde
+from ..services.nde_parser import UNIT_SYSTEMS, NdeError, extract_groups, read_nde
+from ..weld_columns import columns_from_setup
 import json
 
 
@@ -75,3 +78,31 @@ def nde_upload(request):
                 return redirect('setup-list')
             context['form'] = form
     return render(request, 'reports/nde_upload.html', context)
+
+
+@require_POST
+def nde_columns(request):
+    """
+    The weld form grid's "Import .nde": {'columns': [{instrument, probe, group, probe_key, label}]},
+    one per inspection group in the file, in the chosen units, with the probe and wedge matched
+    to the catalogue; or {'error': ...}.
+    """
+    uploaded = request.FILES.get('nde_file')
+    system = request.POST.get('units')
+    if system not in UNIT_SYSTEMS:
+        system = 'imperial'
+    if uploaded is None or not uploaded.name.lower().endswith('.nde'):
+        return JsonResponse({'error': 'Please choose an .nde file.'}, status=400)
+    try:
+        setup, properties = read_nde(uploaded)
+    except NdeError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    columns = []
+    for group in extract_groups(setup, properties, uploaded.name):
+        fill, _ = _catalogue_match(group.get('hardware', {}))
+        values = {**group['values'][system], **fill}
+        # The group's name for the column label ('GR-1 · Sectorial · 40°–70°' -> 'GR-1')
+        columns.append({**columns_from_setup(values), 'label': group['label'].split(' · ')[0], 'title': group['label']})
+    if not columns:
+        return JsonResponse({'error': 'This .nde file has no inspection groups to import.'}, status=400)
+    return JsonResponse({'columns': columns, 'filename': uploaded.name})

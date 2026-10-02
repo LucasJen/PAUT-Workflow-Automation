@@ -165,6 +165,95 @@
         if (/^probes-\d+-(label|model)$/.test(event.target.name || '')) refresh();
     });
 
+    // ── Import: .nde groups and saved setups become columns ────────────────
+    // Each item is {instrument, probe, group, probe_key} (reports/weld_columns.py). A probe
+    // already on the page (same model and S/N) is reused, so several groups share its column.
+
+    const status = document.getElementById('weld-grid-status');
+
+    function showStatus(text, isError = false) {
+        status.textContent = text;
+        status.classList.toggle('text-danger', isError);
+    }
+
+    function pageProbeKey(col) {
+        const model = field(col, 'model').value.trim().toLowerCase();
+        return model ? `${model}|${field(col, 'serial').value.trim().toLowerCase()}` : '';
+    }
+
+    async function fillColumn(col, values) {
+        for (const [name, value] of Object.entries(values)) {
+            if (name === 'catalogue_probe' || name === 'catalogue_wedge') continue;
+            const input = field(col, name);
+            if (input) input.value = value;
+        }
+        if (values.catalogue_probe && window.CatalogueSelect) {
+            await window.CatalogueSelect.setPair(field(col, 'catalogue_probe'), values.catalogue_probe, values.catalogue_wedge || null);
+        }
+    }
+
+    async function importColumns(items) {
+        let probesAdded = 0, groupsAdded = 0, skipped = 0;
+        for (const item of items) {
+            // The instrument: fill only what's still blank
+            for (const [name, value] of Object.entries(item.instrument || {})) {
+                const input = document.getElementById(`id_${name}`);
+                if (input && !input.value.trim()) input.value = value;
+            }
+            let probeCol = item.probe_key ? columns('probes').find(col => pageProbeKey(col) === item.probe_key) : null;
+            if (!probeCol) {
+                probeCol = addColumn('probes');
+                if (!probeCol) { skipped += 1; continue; }
+                await fillColumn(probeCol, item.probe);
+                probesAdded += 1;
+            }
+            const groupCol = addColumn('groups');
+            if (!groupCol) { skipped += 1; continue; }
+            await fillColumn(groupCol, { label: item.label || '', ...item.group });
+            field(groupCol, 'probe_column').value = probeCol.split('-')[1];
+            groupsAdded += 1;
+        }
+        refresh();
+        root.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
+        const parts = [`Added ${groupsAdded} group${groupsAdded === 1 ? '' : 's'} and ${probesAdded} probe${probesAdded === 1 ? '' : 's'}`];
+        if (skipped) parts.push(`${skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
+        showStatus(parts.join('; ') + '.', skipped > 0);
+    }
+
+    const toolbar = document.getElementById('weld-grid-toolbar');
+    const ndeFile = document.getElementById('weld-nde-file');
+    document.getElementById('weld-nde-import').addEventListener('click', () => ndeFile.click());
+    ndeFile.addEventListener('change', async event => {
+        event.stopPropagation();   // choosing a file isn't a change to the report itself
+        const file = ndeFile.files[0];
+        ndeFile.value = '';
+        if (!file) return;
+        const body = new FormData();
+        body.append('nde_file', file);
+        body.append('units', document.getElementById('weld-nde-units').value);
+        body.append('csrfmiddlewaretoken', root.closest('form').querySelector('[name=csrfmiddlewaretoken]').value);
+        showStatus(`Reading ${file.name}…`);
+        try {
+            const response = await fetch(toolbar.dataset.ndeUrl, { method: 'POST', body });
+            const data = await response.json();
+            if (data.error) showStatus(data.error, true);
+            else await importColumns(data.columns);
+        } catch (error) {
+            showStatus(`Couldn't read ${file.name}.`, true);
+        }
+    });
+
+    const savedColumns = JSON.parse(document.getElementById('saved-setup-columns').textContent);
+    const setupLoader = document.getElementById('weld-setup-loader');
+    setupLoader.addEventListener('change', async event => {
+        event.stopPropagation();
+        const item = savedColumns[setupLoader.value];
+        setupLoader.value = '';
+        if (item) await importColumns([item]);
+    });
+    // The toolbar's controls aren't part of the report (no unsaved-changes from them)
+    ['input', 'change'].forEach(type => toolbar.addEventListener(type, event => event.stopPropagation()));
+
     // ── Keyboard: arrows move between cells, Ctrl+Shift+→ fills right ────────
 
     function cellInput(td) {

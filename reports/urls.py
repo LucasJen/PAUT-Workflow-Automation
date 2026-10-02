@@ -15,6 +15,7 @@ urlpatterns = [
     path('report/<int:pk>/pdf/', views.report_pdf, name='report-pdf'),
     path('reports/<int:pk>/edit/', views.edit_existing_report, name='edit-report'),
     path('nde/', views.nde_upload, name='nde-upload'),
+    path('nde/columns.json', views.nde_columns, name='nde-columns'),
     path('texts/', views.snippet_list, name='snippet-list'),
     path('texts/new/', views.new_snippet, name='new-snippet'),
     path('text/<int:pk>/edit/', views.edit_snippet, name='edit-snippet'),
