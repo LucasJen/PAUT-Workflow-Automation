@@ -271,7 +271,9 @@ h1, h2, h3, h4, h5, h6 { color: var(--text); letter-spacing: -0.01em; }
     color: var(--text-3);
 }
 
-@media (max-width: 991.98px) {
+/* Phones: the sidebar becomes a drawer behind the top bar's menu button. A half-screen desktop
+   window keeps the sidebar (and its collapse button) */
+@media (max-width: 767.98px) {
     .sidebar {
         position: fixed;
         left: 0;
