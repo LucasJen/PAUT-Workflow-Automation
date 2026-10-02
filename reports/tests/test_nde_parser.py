@@ -208,3 +208,28 @@ class TimeBaseTests(SimpleTestCase):
         ut.update(digitizingFrequency=100e6, ascanCompressionFactor=2)
         ut['beams'][0]['ascanLength'] = 2.744e-05
         self.assertEqual(extract_groups(setup)[0]['values']['imperial']['points_quantity'], '1372')
+
+
+class WeldFormValueTests(SimpleTestCase):
+    """Group values the weld form shows: Focal plane, Amplitude range and Reference dB from the file."""
+
+    def setup_with(self, mode='TrueDepth', unit_max=800.0, ref_gain=10.6, gain=16.6):
+        setup = sample_setup()
+        group = setup['groups'][0]
+        process = next(p for p in group['processes'] if 'ultrasonicPhasedArray' in p or 'ultrasonicConventional' in p)
+        ut = process.get('ultrasonicPhasedArray') or process.get('ultrasonicConventional')
+        ut['focusing'] = {'mode': mode, 'distance': 0.0107}
+        ut['referenceGain'], ut['gain'] = ref_gain, gain
+        group['datasets'][0]['dataValue'] = {'min': 0, 'max': 32767, 'unitMin': 0.0, 'unitMax': unit_max, 'unit': 'Percent'}
+        return setup
+
+    def test_focal_plane_and_amplitude_range(self):
+        values = extract_groups(self.setup_with())[0]['values']['imperial']
+        self.assertEqual((values['focal_plane'], values['amplitude_range']), ('Depth', '800%'))
+        self.assertEqual(extract_groups(self.setup_with(mode='HalfPath'))[0]['values']['imperial']['focal_plane'], 'Half path')
+
+    def test_reference_db_is_the_reference_gain(self):
+        from reports.weld_columns import columns_from_setup
+        values = extract_groups(self.setup_with())[0]['values']['imperial']
+        self.assertEqual(columns_from_setup(values)['group']['reference_db'], '10.6 dB')
+        self.assertEqual(columns_from_setup({'gain': '12'})['group']['reference_db'], '12 dB')   # older setups

@@ -20,6 +20,14 @@ import h5py
 M_TO_IN = 39.37007874
 UNIT_SYSTEMS = ('imperial', 'metric')
 
+# The instrument's focusing modes as the weld form's Focal plane names them
+FOCUS_MODES = {
+    'TrueDepth': 'Depth',
+    'HalfPath': 'Half path',
+    'ProjectionDistance': 'Projection',
+    'FocalPlane': 'Plane',
+}
+
 FORMATION_NAMES = {
     'sectorialFormation': 'Sectorial',
     'linearFormation': 'Linear',
@@ -285,6 +293,8 @@ class _GroupContext:
             'ref_gain': _plain(ut.get('referenceGain'), 1),
             'voltage': _plain(_get(ut, 'pulse', 'voltage'), 1),
             'time_base': self._time_base(system),
+            'focal_plane': FOCUS_MODES.get(_get(ut, 'focusing', 'mode')),
+            'amplitude_range': self._amplitude_range(),
             'points_quantity': self._points_quantity(),
 
             # Acquisition
@@ -317,6 +327,14 @@ class _GroupContext:
             'acquisition_date': self._date(),
         }
         return {k: str(v) for k, v in values.items() if v not in (None, '')}
+
+    def _amplitude_range(self):
+        """The A-scan's full scale, as the weld form writes it: '800%'."""
+        for dataset in self.group.get('datasets') or []:
+            value = dataset.get('dataValue') or {}
+            if value.get('unit') == 'Percent' and value.get('unitMax') is not None:
+                return f"{_plain(value['unitMax'], 1)}%"
+        return None
 
     def _software_version(self):
         """The instrument software that recorded the file, as the weld form writes it: '5.20.0.1413' -> '5.20.0'."""

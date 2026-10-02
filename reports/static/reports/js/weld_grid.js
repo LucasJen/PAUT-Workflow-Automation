@@ -314,6 +314,23 @@
     // - a probe: the column the file's earlier groups put it in (same probe in the file), else
     //   the column with the same model and S/N, else as a group. The file's values replace what's
     //   there; values the file doesn't have (cable, probe check, labels...) stay.
+    // Calibration times from the scans' times: Initial 15 min before the earliest scan (down to
+    // 5 min), Cal. out 15 min after the latest (up to 5 min), as 24 h text ('0705'). Each import
+    // widens the window; the checks stay as typed.
+    function calibrationTimes(scanTimes) {
+        const minutes = scanTimes.map(t => (t.match(/(\d{2}):(\d{2})/) || []).slice(1).map(Number))
+            .filter(hm => hm.length === 2).map(([h, m]) => h * 60 + m);
+        if (!minutes.length) return;
+        const text = m => String(Math.floor(m / 60) % 24).padStart(2, '0') + String(m % 60).padStart(2, '0');
+        const read = el => { const t = (el?.value || '').match(/^(\d{1,2}):?(\d{2})$/); return t ? +t[1] * 60 + +t[2] : null; };
+        const initial = document.getElementById('id_cal_time_initial');
+        const out = document.getElementById('id_cal_time_out');
+        const start = Math.max(0, Math.floor((Math.min(...minutes) - 15) / 5) * 5);
+        const end = Math.min(24 * 60 - 1, Math.ceil((Math.max(...minutes) + 15) / 5) * 5);
+        if (initial && (read(initial) === null || start < read(initial))) initial.value = text(start);
+        if (out && (read(out) === null || end > read(out))) out.value = text(end);
+    }
+
     async function importColumns(items) {
         const counts = { updated: 0, filled: 0, added: 0, skipped: 0 };
         const scopes = new Set();   // instruments found in the scope library
@@ -364,6 +381,7 @@
             pristine.delete(probeCol);
             pristine.delete(groupCol);
         }
+        calibrationTimes(items.map(item => item.scan_time).filter(Boolean));
         // The scanned part (OD, wall, material, velocities, bevel), for the Sensitivity block
         // card's Auto-detect; a later import's values replace an earlier one's
         const scanPart = document.getElementById('id_scan_part');

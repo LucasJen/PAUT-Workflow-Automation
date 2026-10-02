@@ -112,7 +112,8 @@ def columns_from_setup(values):
         'smoothing': values.get('smoothing'),
         'filter': with_unit(values.get('band_pass_filter'), ' MHz'),
         'amplitude_range': values.get('amplitude_range'),
-        'reference_db': with_unit(values.get('gain'), ' dB'),
+        # The reference (calibration) gain; setups from before it was read fall back to the gain
+        'reference_db': with_unit(values.get('ref_gain') or values.get('gain'), ' dB'),
         'transfer_db': values.get('transfer_db'),
         'scanning_db': values.get('scanning_db'),
         'first_element': values.get('first_element'),
@@ -125,7 +126,7 @@ def columns_from_setup(values):
 
     probe = kept(probe)
     return {'instrument': kept(instrument), 'probe': probe, 'group': kept(group), 'probe_key': probe_key(probe),
-            'part': scanned_part(values)}
+            'part': scanned_part(values), 'scan_time': _s(values.get('acquisition_date'))}
 
 
 def _first(text):
