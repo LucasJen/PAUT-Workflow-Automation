@@ -109,3 +109,47 @@ class InventoryImportTests(TestCase):
         self.assertEqual((probe.catalogue.model, probe.frequency, probe.elements), ('7.5CCEV35-A15', '7.5 MHz', '16'))
         self.assertIsNone(Probe.objects.get(serial_number='U2346').catalogue)   # series not in the catalogue
         self.assertEqual(Scope.objects.get(serial_number='OMNI2-104208').module_serial, 'QC-013106')
+
+
+class LibraryScopeTests(TestCase):
+    """An .nde file or saved setup's instrument, completed from the scope library by serial number."""
+
+    def setUp(self):
+        Scope.objects.create(name='Omniscan X3', manufacturer='Olympus', model='X3', serial_number='QC-0030383',
+                             calibration_due_date=datetime.date(2027, 1, 16), module_model='32:128',
+                             instrument_software_version='5.18.1', scanner_type='SAUT', software='OmniPC',
+                             software_version='6.3.0')
+
+    def test_matching_serial_fills_the_library_items(self):
+        from equipment.inventory import with_library_scope
+        from reports.weld_columns import columns_from_setup
+        values, scope = with_library_scope({'scope_platform': 'OmniScan X3', 'scope_model': 'OmniScan X3 - 32:128PR',
+                                            'scope_serial': ' qc-0030383', 'manufacturer': 'Evident',
+                                            'software_version': '5.20.0'})
+        self.assertEqual(scope.serial_number, 'QC-0030383')
+        instrument = columns_from_setup(values)['instrument']
+        self.assertEqual((instrument['inst_name'], instrument['inst_manufacturer'], instrument['inst_model']),
+                         ('Omniscan X3', 'Olympus', 'X3'))
+        self.assertEqual((instrument['inst_cal_due'], instrument['inst_module_model'], instrument['inst_module_serial'],
+                          instrument['inst_module_cal_due']), ('1/16/2027', '32:128', 'N/A', 'N/A'))
+        self.assertEqual((instrument['inst_scanner_type'], instrument['inst_analysis_software'],
+                          instrument['inst_analysis_software_version']), ('SAUT', 'OmniPC', '6.3.0'))
+        self.assertEqual(instrument['inst_software_version'], '5.20.0')   # the file's own, not the library's
+        self.assertEqual(columns_from_setup(values)['probe']['make'], 'Evident')   # the probe's maker isn't the scope's
+
+    def test_unknown_serial_leaves_the_file_values(self):
+        from equipment.inventory import with_library_scope
+        values = {'scope_serial': 'QC-9999999', 'scope_model': 'OmniScan X3'}
+        self.assertEqual(with_library_scope(values), (values, None))
+
+    def test_nde_import_names_the_library_scope(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        from reports.tests.test_nde_upload import FIXTURE, make_nde, sample_setup
+        setup = sample_setup()
+        setup['acquisitionUnits'][0]['serialNumber'] = 'QC-0030383'
+        data = self.client.post(reverse('nde-columns'), {
+            'nde_file': SimpleUploadedFile('scan.nde', make_nde(setup, FIXTURE['properties']))}).json()
+        column = data['columns'][0]
+        self.assertEqual(column['scope'], 'Omniscan X3 QC-0030383')
+        self.assertEqual(column['instrument']['inst_cal_due'], '1/16/2027')

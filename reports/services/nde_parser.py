@@ -254,6 +254,8 @@ class _GroupContext:
             'scope_platform': self.unit.get('platform'),
             'scope_model': self.unit.get('model'),
             'scope_serial': self.unit.get('serialNumber'),
+            'software_version': self._software_version(),
+            'scanner_model': self._scanner(scan_device),
             'transducer_model': self.probe.get('model'),
             'transducer_serial': self.probe.get('serialNumber'),
             'probe_diameter': self._probe_size(system),
@@ -315,6 +317,17 @@ class _GroupContext:
             'acquisition_date': self._date(),
         }
         return {k: str(v) for k, v in values.items() if v not in (None, '')}
+
+    def _software_version(self):
+        """The instrument software that recorded the file, as the weld form writes it: '5.20.0.1413' -> '5.20.0'."""
+        version = _get(self.properties, 'file', 'createdByAppVersion')
+        return '.'.join(str(version).split('.')[:3]) if version else None
+
+    def _scanner(self, device_id):
+        """The scan axis' motion device (the scanner / encoder name set on the instrument, e.g. Cobra)."""
+        devices = self.setup.get('motionDevices') or []
+        device = _by_id(devices, device_id) if device_id is not None else (devices[0] if len(devices) == 1 else {})
+        return device.get('name') or None
 
     def _time_base(self, system):
         """

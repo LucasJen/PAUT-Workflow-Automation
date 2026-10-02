@@ -60,6 +60,9 @@
             {% if nde_groups|length > 1 %}This file has {{ nde_groups|length }} inspection groups; pick one above and save it, then pick the next.{% else %}Inspection group: {{ nde_groups.0.label }}.{% endif %}
             Highlighted fields were filled from the file. Check them, and fill in anything the file doesn't record (calibration block, surface prep, temperature).
         </p>
+        {% if nde_groups.0.scope %}
+        <p class="form-text">The instrument, {{ nde_groups.0.scope }}, is in the scope library: its cal due date, module, scanner type and analysis software come from there.</p>
+        {% endif %}
         {% endif %}
         {% if nde_groups %}
         {# Filled by nde_upload.js for the chosen group #}

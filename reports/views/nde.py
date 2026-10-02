@@ -3,11 +3,17 @@ from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
 from equipment.importers import probe_from_nde, wedge_from_nde
+from equipment.inventory import with_library_scope
 from equipment.matching import match_probe, match_wedge
 from ..forms import SetupForm
 from ..services.nde_parser import UNIT_SYSTEMS, NdeError, extract_groups, read_nde
 from ..weld_columns import columns_from_setup
 import json
+
+
+def _scope_label(scope):
+    """'Omniscan X3 QC-0030383' for a scope found in the library, else ''."""
+    return f'{scope.name or scope.model} {scope.serial_number}'.strip() if scope else ''
 
 
 def _catalogue_match(hardware):
@@ -63,8 +69,11 @@ def nde_upload(request):
                     else:
                         for group in groups:
                             fill, group['catalogue'] = _catalogue_match(group.pop('hardware', {}))
-                            for values in group['values'].values():
+                            for system, values in group['values'].items():
                                 values.update(fill)
+                                # The instrument's cal due, module... from the scope library (by S/N)
+                                group['values'][system], scope = with_library_scope(values)
+                            group['scope'] = _scope_label(scope)
                         context['nde_groups'] = groups
                         context['nde_filename'] = uploaded.name
                         context['json_output'] = json.dumps(setup, indent=2)
@@ -101,8 +110,9 @@ def nde_columns(request):
     for group in extract_groups(setup, properties, uploaded.name):
         hardware = group.get('hardware', {})
         fill, _ = _catalogue_match(hardware)
-        values = {**group['values'][system], **fill}
+        values, scope = with_library_scope({**group['values'][system], **fill})
         item = columns_from_setup(values)
+        item['scope'] = _scope_label(scope)
         # The group's name for the column label ('GR-1 · Sectorial · 40°–70°' -> 'GR-1')
         name = group['label'].split(' · ')[0]
         # A group column remembers the file and group it came from, so importing the file again

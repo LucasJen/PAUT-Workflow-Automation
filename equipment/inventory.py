@@ -159,3 +159,50 @@ def apply_inventory(scopes, probes):
             probe.fill_from_catalogue()
         probe.save()
     return counts
+
+
+# ── The library's details for an instrument a file or setup names by serial number ──
+
+def _serial_key(serial):
+    return re.sub(r'\s+', '', serial or '').upper()
+
+
+def library_scope(serial):
+    """The inventory scope with this serial number (ignoring case and spaces), or None."""
+    key = _serial_key(serial)
+    if not key:
+        return None
+    return next((scope for scope in Scope.objects.all() if _serial_key(scope.serial_number) == key), None)
+
+
+def _form_date(value):
+    return f'{value.month}/{value.day}/{value.year}' if value else ''
+
+
+def with_library_scope(values):
+    """
+    Setup values (from an .nde file or a saved setup) with what the inventory knows about their
+    instrument, matched by serial number: its names as the report writes them, cal due date,
+    module, scanner type and analysis software. The file's own software version is kept (it's
+    what recorded the data). Returns (values, scope or None).
+    """
+    scope = library_scope(values.get('scope_serial'))
+    if scope is None:
+        return values, None
+    library = {
+        'scope_platform': scope.name,
+        'scope_model': scope.model,
+        'scope_manufacturer': scope.manufacturer,
+        'scope_serial': scope.serial_number,
+        'scope_cal_due': _form_date(scope.calibration_due_date),
+        # The reference prints N/A for a module part the instrument doesn't have
+        'module_model': scope.module_model or 'N/A',
+        'module_serial': scope.module_serial or 'N/A',
+        'module_cal_due': _form_date(scope.module_cal_due) or 'N/A',
+        'scanner_type': scope.scanner_type,
+        'analysis_software': scope.software,
+        'analysis_software_version': scope.software_version,
+    }
+    if not values.get('software_version'):
+        library['software_version'] = scope.instrument_software_version
+    return {**values, **{k: v for k, v in library.items() if v}}, scope

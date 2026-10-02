@@ -17,6 +17,8 @@ from ..forms import (
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
 from ..report_types import DEFAULT_REPORT_TYPE, get_report_type
 from ..defaults import all_defaults, defaults_for, in_page_order, only_defaults
+from equipment.inventory import with_library_scope
+
 from ..weld_columns import columns_from_setup
 from ..weld_form import NOT_USED, weld_grid_rows
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
@@ -256,7 +258,8 @@ def create_report(request):
         'saved_setups': _saved_setup_choices(),
         'saved_setup_values': saved_values,
         # A setup without a file of its own is marked by its number (an import fills a column once)
-        'saved_setup_columns': {pk: columns_from_setup({**values, 'source_file': values.get('source_file') or f'Setup #{pk}'})
+        'saved_setup_columns': {pk: columns_from_setup(with_library_scope(
+                                    {**values, 'source_file': values.get('source_file') or f'Setup #{pk}'})[0])
                                 for pk, values in saved_values.items()},
         'report_defaults': all_defaults(),
         'pdf_available': pdf_available(form.instance if form.instance.pk else None),

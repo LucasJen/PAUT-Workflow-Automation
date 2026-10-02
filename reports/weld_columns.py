@@ -48,7 +48,7 @@ def columns_from_setup(values):
     length = ' mm' if values.get('units') == 'metric' else '"'
     instrument = {
         'inst_name': _s(values.get('scope_platform')) or _s(values.get('scope_model')),
-        'inst_manufacturer': values.get('manufacturer'),
+        'inst_manufacturer': values.get('scope_manufacturer') or values.get('manufacturer'),
         'inst_model': values.get('scope_model'),
         'inst_serial': values.get('scope_serial'),
         'inst_cal_due': values.get('scope_cal_due'),

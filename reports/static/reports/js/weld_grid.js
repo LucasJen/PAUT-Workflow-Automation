@@ -307,16 +307,19 @@
     //   there; values the file doesn't have (cable, probe check, labels...) stay.
     async function importColumns(items) {
         const counts = { updated: 0, filled: 0, added: 0, skipped: 0 };
+        const scopes = new Set();   // instruments found in the scope library
         const placed = {};          // probe_ref -> probe column, within this import
         const claimed = new Set();  // group columns this import has used
         const source = col => field(col, 'source_file')?.value || '';
         for (const item of items) {
             const kind = item.probe.kind || 'paut';
-            // The instrument: fill only what's still blank
+            // The instrument: the file's, with what the scope library knows by S/N (cal due,
+            // module, scanner type, analysis software); what neither has stays as typed
             for (const [name, value] of Object.entries(item.instrument || {})) {
                 const input = document.getElementById(`id_${name}`);
-                if (input && !input.value.trim()) input.value = value;
+                if (input) input.value = value;
             }
+            if (item.scope) scopes.add(item.scope);
 
             let probeCol = (item.probe_ref && placed[item.probe_ref])
                 || (item.probe_key ? columns('probes').find(col => pageProbeKey(col) === item.probe_key) : null);
@@ -361,7 +364,8 @@
         if (counts.added) parts.push(`added ${plural(counts.added)}`);
         if (counts.skipped) parts.push(`${counts.skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
         const text = parts.join('; ') || 'nothing to add';
-        showStatus(text[0].toUpperCase() + text.slice(1) + '.', counts.skipped > 0);
+        const library = scopes.size ? ` Instrument from the scope library: ${[...scopes].join(', ')}.` : '';
+        showStatus(text[0].toUpperCase() + text.slice(1) + '.' + library, counts.skipped > 0);
     }
 
     if (toolbar) {
