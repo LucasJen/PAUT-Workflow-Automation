@@ -16,7 +16,8 @@
     {% if has_errors %}
     <div class="alert alert-danger">Check the highlighted fields.</div>
     {% endif %}
-    <section class="panel">
+    {# Laid out like the report editor (create_report.html): its sections, in its order #}
+    <section class="panel editor-header">
         <div class="field-grid cols-3">
             <div class="field">
                 <label for="defaults-name">Name</label>
@@ -32,35 +33,39 @@
             </div>
         </div>
     </section>
-    <section class="panel">
-        <h2 class="panel-title">Report</h2>
-        {% for key, title, fields in sections %}
-        <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
-        <div class="{{ key|section_grid }}">
-            {% for field in fields %}{{ field.as_field_group }}{% endfor %}
+
+    <div class="editor-layout">
+        <nav class="section-nav" aria-label="Defaults sections">
+            {% for section in sections %}
+            <a href="#sec-{{ section.key }}" data-nav-section="{{ section.key }}">{{ section.title }}</a>
+            {% endfor %}
+        </nav>
+
+        <div class="editor-sections">
+            {% for section in sections %}
+            <section class="panel editor-section" id="sec-{{ section.key }}" data-section="{{ section.key }}">
+                <div class="panel-header"><h2 class="panel-title">{{ section.title }}</h2></div>
+                {% if section.part == 'equipment' %}
+                <p class="form-text mt-0">The instrument, and the probe and group columns a new report starts with. An imported .nde fills the first column of the same kind that no file has filled yet; your values stay where the file has none.</p>
+                {% include 'reports/editor/_weld_grid.html' with form=report_form %}
+                {% elif section.part == 'setups' %}
+                {% for title, fields in setup_form.fieldsets %}
+                {% if fields %}
+                <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
+                <div class="field-grid cols-4">
+                    {% for field in fields %}{{ field.as_field_group }}{% endfor %}
+                </div>
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                <div class="{{ section.key|section_grid }}">
+                    {% for field in section.fields %}{{ field.as_field_group }}{% endfor %}
+                </div>
+                {% endif %}
+            </section>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </section>
-    {% if probe_formset %}
-    <section class="panel">
-        <h2 class="panel-title">Equipment &amp; parameters</h2>
-        <p class="form-text mt-0">The instrument, and the probe and group columns a new report starts with. An imported .nde fills the first column of the same kind that no file has filled yet; your values stay where the file has none.</p>
-        {% include 'reports/editor/_weld_grid.html' with form=report_form %}
-    </section>
-    {% endif %}
-    {% if setup_form %}
-    <section class="panel">
-        <h2 class="panel-title">Every new setup</h2>
-        {% for title, fields in setup_form.fieldsets %}
-        {% if fields %}
-        <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
-        <div class="field-grid cols-4">
-            {% for field in fields %}{{ field.as_field_group }}{% endfor %}
-        </div>
-        {% endif %}
-        {% endfor %}
-    </section>
-    {% endif %}
+    </div>
     <div class="sticky-actions">
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save defaults</button>
     </div>
@@ -68,5 +73,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{% static_v 'reports/js/section_nav.js' %}"></script>
 {% if probe_formset %}<script src="{% static_v 'reports/js/weld_grid.js' %}"></script>{% endif %}
 {% endblock %}

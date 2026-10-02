@@ -37,6 +37,19 @@ class DefaultsPageTests(TestCase):
         self.assertNotIn('name="setup-cable_type"', page)    # the weld form has no setup blocks
         self.assertNotIn('id="weld-grid-toolbar"', page)     # no imports on a defaults set
 
+    def test_sections_follow_the_report_editor(self):
+        import re
+        sections = lambda html: re.findall(r'<section class="panel editor-section" id="sec-([a-z_]+)"', html)
+        for report_type in ('paut_weld', 'paut_long'):
+            editor = self.client.get(reverse('create-report')).content.decode()
+            defaults = self.client.get(reverse('new-defaults', args=[report_type])).content.decode()
+            shown = sections(defaults)
+            # same order as the editor's (which renders every type's sections)
+            self.assertEqual(shown, [key for key in sections(editor) if key in shown], report_type)
+        self.assertEqual(shown[-1], 'setups')   # the long form's "Every new setup"
+        self.assertEqual(sections(self.client.get(reverse('new-defaults', args=['paut_weld'])).content.decode()),
+                         ['project', 'equipment', 'weld_cal', 'weld_personnel'])
+
     def test_weld_defaults_save_prefilled_columns(self):
         data = {
             'defaults_name': 'Standard', 'procedure': '100-UT-20', 'inst_name': 'OmniScan X3',

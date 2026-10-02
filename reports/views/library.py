@@ -10,7 +10,7 @@ from ..defaults import (
 )
 from ..weld_form import weld_grid_rows
 from ..models import ReportDefaults
-from ..report_types import REPORT_TYPES
+from ..report_types import REPORT_SECTIONS, REPORT_TYPES
 
 
 def defaults_list(request):
@@ -94,7 +94,18 @@ def _edit(request, item):
             else:
                 messages.success(request, f'"{item.name}" saved.')
                 return redirect('edit-defaults', pk=item.pk)
-    sections = [(key, title, [report_form[n] for n in names]) for key, title, names in report_fields(item.report_type)]
+    # The report editor's sections, in its order: field sections, the weld grid, the setup block
+    field_sections = {key: names for key, _, names in report_fields(item.report_type)}
+    sections = []
+    for key, title, _ in REPORT_SECTIONS:
+        if key not in rtype.sections:
+            continue
+        if key in field_sections:
+            sections.append({'key': key, 'title': title, 'fields': [report_form[n] for n in field_sections[key]]})
+        elif key == 'equipment' and probes is not None:
+            sections.append({'key': key, 'title': title, 'part': 'equipment'})
+        elif key == 'setups' and setup_form is not None:
+            sections.append({'key': key, 'title': 'Every new setup', 'part': 'setups'})
     return render(request, 'reports/edit_defaults.html', {
         'item': item, 'rtype': rtype, 'report_form': report_form, 'setup_form': setup_form,
         'probe_formset': probes, 'group_formset': groups, 'weld_grid': weld_grid_rows(),

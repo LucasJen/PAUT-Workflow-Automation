@@ -491,24 +491,7 @@ reportTypeSelect.addEventListener('change', () => {
     defaultsType = reportTypeSelect.value;
 });
 
-// ── Section nav: highlight the section currently in view ─────────────────
-
-const navLinks = Array.from(document.querySelectorAll('[data-nav-section]'));
-
-function updateActiveSection() {
-    const sections = Array.from(document.querySelectorAll('.editor-section')).filter(s => !s.hidden);
-    const marker = window.innerHeight * 0.3;
-    let current = sections[0];
-    sections.forEach(section => {
-        if (section.getBoundingClientRect().top <= marker) current = section;
-    });
-    // At the bottom of the page the last section is current even if short
-    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 4) current = sections[sections.length - 1];
-    navLinks.forEach(link => link.classList.toggle('active', !!current && link.dataset.navSection === current.dataset.section));
-}
-
-window.addEventListener('scroll', updateActiveSection, { passive: true });
-window.addEventListener('resize', updateActiveSection);
+// Section nav: section_nav.js (shared with Library › Defaults) highlights the section in view
 
 // ── Unsaved changes guard ─────────────────────────────────────────────────
 
