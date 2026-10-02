@@ -483,6 +483,7 @@ h1, h2, h3, h4, h5, h6 { color: var(--text); letter-spacing: -0.01em; }
 textarea.form-control { min-height: 5.5rem; resize: vertical; }
 /* Prose boxes (Discussion, summary, notes...) keep a readable line length on wide pages */
 textarea.form-control:not(.result-cell-input) { max-width: 110ch; }
+.full-width-text textarea.form-control { max-width: none; }   /* e.g. the weld report's Notes box */
 
 .field.has-error .form-control,
 .field.has-error .form-select { border-color: var(--danger); }
