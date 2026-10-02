@@ -32,11 +32,14 @@
         }
     }
 
-    // TCG points at 1T, 2T and 3T of the block thickness
+    // TCG points at 1T, 2T and 3T of the block thickness, each with the reflector and amplitude
     function distances() {
         const t = parseFloat((thickness.value.match(/-?\d+(\.\d+)?/) || [''])[0]);
         card.querySelectorAll('.tcg-distance').forEach(cell => {
             cell.textContent = Number.isFinite(t) ? (t * Number(cell.dataset.multiple)).toFixed(3) : '';
+        });
+        card.querySelectorAll('.tcg-echo').forEach(cell => {
+            cell.textContent = form.elements[cell.dataset.echo]?.value || '';
         });
     }
 
@@ -47,7 +50,9 @@
         fillEncoder(block.encoder);
         showStatus('');
     });
-    thickness.addEventListener('input', distances);
+    for (const name of ['tcg_thickness', 'tcg_reflector', 'tcg_amplitude']) {
+        form.elements[name]?.addEventListener('input', distances);
+    }
 
     const detect = document.getElementById('materials-detect');
     detect?.addEventListener('click', async () => {

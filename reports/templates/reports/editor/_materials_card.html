@@ -47,19 +47,32 @@ Library › Defaults. Needs `form` (the report fields), `weld_grid`, `sensitivit
         </div>
     </div>
 
-    <div class="weld-grid-wrap">
-        <table class="weld-grid materials-grid tcg-grid">
-            <thead><tr><th scope="col">TCG parameters</th>{% for k in weld_grid.tcg_multiples %}<th scope="col">{{ k }}T</th>{% endfor %}</tr></thead>
-            <tbody>
-            {% for name, label in weld_grid.tcg %}
-            <tr><th scope="row"><label for="id_{{ name }}">{{ label }}</label></th>
-                <td colspan="3">{% with field=form|bound:name %}{{ field }}{% endwith %}</td></tr>
-            {% if name == 'tcg_thickness' %}
-            <tr><th scope="row">Distance</th>{% for k in weld_grid.tcg_multiples %}<td class="tcg-distance" data-multiple="{{ k }}"></td>{% endfor %}</tr>
-            {% endif %}
-            {% endfor %}
-            </tbody>
-        </table>
+    {# TCG: its settings beside the three points they give (as the sheet prints them) #}
+    <div class="materials-tables">
+        <div class="weld-grid-wrap">
+            <table class="weld-grid materials-grid">
+                <thead><tr><th scope="col" colspan="2">TCG parameters</th></tr></thead>
+                <tbody>
+                {% for name, label in weld_grid.tcg %}
+                <tr><th scope="row"><label for="id_{{ name }}">{{ label }}</label></th>
+                    <td>{% with field=form|bound:name %}{{ field }}{% endwith %}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="weld-grid-wrap">
+            <table class="weld-grid materials-grid tcg-points">
+                <thead><tr><th scope="col">TCG point</th><th scope="col">Distance</th><th scope="col">Reflector type</th><th scope="col">Amplitude</th></tr></thead>
+                <tbody>
+                {% for k in weld_grid.tcg_multiples %}
+                <tr><th scope="row">{{ k }}T</th>
+                    <td class="tcg-distance" data-multiple="{{ k }}"></td>
+                    <td class="tcg-echo" data-echo="tcg_reflector"></td>
+                    <td class="tcg-echo" data-echo="tcg_amplitude"></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {{ sensitivity_blocks|json_script:"sensitivity-blocks" }}
