@@ -491,6 +491,60 @@ reportTypeSelect.addEventListener('change', () => {
     defaultsType = reportTypeSelect.value;
 });
 
+// "Reload defaults": the defaults in use for the report's type, over what's there (app.js asks
+// first). Fields the defaults leave blank keep their values; the weld grid gets the default
+// columns only when it has none (overwriting columns could clobber imported probes).
+
+function setValue(input, value) {
+    if (!input || input.type === 'hidden' || input.type === 'file') return;
+    if (input.type === 'checkbox') input.checked = Boolean(value);
+    else input.value = value ?? '';
+}
+
+function hasDefaults(type) {
+    const { report, setup } = defaultsFor(type);
+    const all = readJson('report-defaults', {})[type] || {};
+    return Object.keys(report).length + Object.keys(setup).length + (all.probes || []).length + (all.groups || []).length > 0;
+}
+
+const reloadButton = document.getElementById('reload-defaults');
+const reloadStatus = document.getElementById('reload-defaults-status');
+
+function updateReloadButton() {
+    reloadButton.disabled = !hasDefaults(reportTypeSelect.value);
+    reloadButton.title = reloadButton.disabled
+        ? 'No defaults in use for this report type (Library › Defaults)'
+        : "Fill in the defaults in use for this report type again, over what's there";
+}
+
+reloadButton.addEventListener('click', async event => {
+    if (!event.currentTarget.dataset.confirmed) return;   // app.js shows the confirmation first
+    const { report, setup } = defaultsFor(reportTypeSelect.value);
+    for (const [name, value] of Object.entries(report)) {
+        if (value !== null && value !== '') setValue(reportForm.elements[name], value);
+    }
+    document.querySelectorAll('#setup-formset-container .setup-block').forEach(block => {
+        const prefix = block.querySelector('[name$="-title"]')?.name.replace(/title$/, '');
+        if (!prefix) return;
+        const { catalogue_probe: probe, catalogue_wedge: wedge, ...rest } = setup;
+        for (const [name, value] of Object.entries(rest)) {
+            if (value !== null && value !== '') setValue(block.querySelector(`[name="${prefix}${name}"]`), value);
+        }
+        const probeSelect = block.querySelector(`[name="${prefix}catalogue_probe"]`);
+        if (probe && probeSelect) window.CatalogueSelect.setPair(probeSelect, probe, wedge);
+        const units = block.querySelector(`select[name="${prefix}units"]`);
+        if (units) window.Units.sync(units);
+    });
+    const columnsAdded = await window.WeldGrid?.reloadDefaultColumns();
+    // Let the pages' own scripts catch up (TCG distances, N/A greying, …)
+    reportForm.elements.tcg_thickness?.dispatchEvent(new Event('input', { bubbles: true }));
+    markDirty();
+    reloadStatus.textContent = 'Defaults reloaded' + (columnsAdded ? ', with their probe and group columns.' : '.');
+    setTimeout(() => { reloadStatus.textContent = ''; }, 6000);
+});
+reportTypeSelect.addEventListener('change', updateReloadButton);
+updateReloadButton();
+
 // Section nav: section_nav.js (shared with Library › Defaults) highlights the section in view
 
 // ── Unsaved changes guard ─────────────────────────────────────────────────

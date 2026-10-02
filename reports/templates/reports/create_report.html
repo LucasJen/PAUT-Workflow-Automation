@@ -26,7 +26,17 @@
             {{ form.report_type.as_field_group }}
             <div class="span-2">{{ form.document_filename.as_field_group }}</div>
         </div>
-        <p class="form-text mb-0">The report type chooses the Word template and which sections are shown. Values in hidden sections are kept.</p>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <p class="form-text mb-0">The report type chooses the Word template and which sections are shown. Values in hidden sections are kept.</p>
+            <span class="d-flex align-items-center gap-2">
+                <span class="form-text mb-0" id="reload-defaults-status" role="status"></span>
+                <button type="button" class="btn btn-secondary btn-sm" id="reload-defaults"
+                        data-confirm="Replace this report's values with the defaults in use for its type (Library › Defaults)? Fields the defaults leave blank keep what they have."
+                        data-confirm-label="Reload defaults"
+                        title="Fill in the defaults in use for this report type again, over what's there">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reload defaults</button>
+            </span>
+        </div>
     </section>
 
     <div class="editor-layout">

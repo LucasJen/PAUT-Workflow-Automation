@@ -266,6 +266,14 @@
         }));
         const empty = () => !columns('probes').length && !columns('groups').length;
         if (!reportId.value && empty()) addDefaultColumns(typeSelect.value);
+        // "Reload defaults" (create_report.js): the default columns, when the grid has none
+        window.WeldGrid = {
+            async reloadDefaultColumns() {
+                if (!empty()) return false;
+                await addDefaultColumns(typeSelect.value);
+                return true;
+            },
+        };
         typeSelect.addEventListener('change', async () => {
             for (const col of pristine) removeColumn(col.split('-')[0], col);
             pristine.clear();

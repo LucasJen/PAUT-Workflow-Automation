@@ -129,6 +129,8 @@ class NewReportTests(TestCase):
         setup_form = page.context['setup_formset'].forms[0]
         self.assertEqual((setup_form['couplant'].value(), setup_form['cable_type'].value()), ('Water', 'Integral'))
         self.assertContains(page, 'id="report-defaults"')
+        # "Reload defaults" in the top card, asking before it overwrites
+        self.assertRegex(page.content.decode(), r'id="reload-defaults"\s+data-confirm="Replace this report')
 
     def test_loaded_report_keeps_its_own_values(self):
         report = Report.objects.create(procedure='OTHER')
