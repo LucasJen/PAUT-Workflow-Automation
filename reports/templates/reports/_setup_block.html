@@ -5,6 +5,10 @@
     <div class="setup-block-header">
         <span class="setup-block-title">Setup #{{ num }}</span>
         <div class="d-flex align-items-center gap-2">
+            <span class="form-text mb-0 setup-import-status" role="status"></span>
+            <button type="button" class="btn btn-secondary btn-sm setup-nde-import" data-form-prefix="setups-{{ idx }}"
+                    title="Fill this setup from an .nde file (a file with several groups adds a setup for each)">
+                <i class="bi bi-upload"></i> Import .nde</button>
             <select class="form-select form-select-sm setup-loader" data-form-prefix="setups-{{ idx }}" aria-label="Fill from a saved setup">
                 <option value="">Fill from saved setup…</option>
                 {% if saved_setups.saved %}

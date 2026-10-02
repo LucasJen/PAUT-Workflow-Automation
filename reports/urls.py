@@ -18,6 +18,7 @@ urlpatterns = [
     path('reports/<int:pk>/edit/', views.edit_existing_report, name='edit-report'),
     path('nde/', views.nde_upload, name='nde-upload'),
     path('nde/columns.json', views.nde_columns, name='nde-columns'),
+    path('nde/setup-values.json', views.nde_setup_values, name='nde-setup-values'),
     path('sensitivity-blocks/detect.json', views.detect_sensitivity_block, name='detect-sensitivity-block'),
     path('texts/', views.snippet_list, name='snippet-list'),
     path('texts/new/', views.new_snippet, name='new-snippet'),

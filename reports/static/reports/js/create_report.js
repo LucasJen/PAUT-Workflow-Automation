@@ -99,18 +99,13 @@ document.getElementById('add-setup').addEventListener('click', () => {
     markDirty();
 });
 
-// "Fill from saved setup…" copies a saved setup's values into this block
-document.addEventListener('change', e => {
-    if (!e.target.classList.contains('setup-loader')) return;
-    const select = e.target;
-    const values = savedSetupValues[select.value];
-    if (!values) return;
-    const prefix = select.dataset.formPrefix;
+// Fills a setup block (by its form prefix, e.g. 'setups-0') with a setup's values
+function fillSetupBlock(prefix, values) {
     Object.entries(values).forEach(([field, value]) => {
         const el = document.getElementById(`id_${prefix}-${field}`);
-        if (el) el.value = value ?? '';
+        if (el && el.type !== 'file') el.value = value ?? '';
     });
-    // The loaded setup's values are in its own units
+    // The values are in their own units
     const units = document.getElementById(`id_${prefix}-units`);
     if (units) window.Units.sync(units);
     // The wedge list depends on the probe: load it, then pick the setup's wedge
@@ -118,8 +113,69 @@ document.addEventListener('change', e => {
     if (probe && values.catalogue_probe) {
         window.CatalogueSelect.setPair(probe, values.catalogue_probe, values.catalogue_wedge);
     }
-    select.value = '';
     markDirty();
+    window.FillMarks?.refresh();
+}
+
+// "Fill from saved setup…" copies a saved setup's values into this block
+document.addEventListener('change', e => {
+    if (!e.target.classList.contains('setup-loader')) return;
+    const select = e.target;
+    const values = savedSetupValues[select.value];
+    if (!values) return;
+    fillSetupBlock(select.dataset.formPrefix, values);
+    select.value = '';
+});
+
+// "Import .nde" fills this block from the file's first inspection group, and a new setup block
+// for each further group (catalogue probe / wedge matched, instrument from the scope library)
+const setupNdeFile = document.getElementById('setup-nde-file');
+let setupImportPrefix = null;
+document.addEventListener('click', e => {
+    const button = e.target.closest('.setup-nde-import');
+    if (!button || !setupNdeFile) return;
+    setupImportPrefix = button.dataset.formPrefix;
+    setupNdeFile.click();
+});
+setupNdeFile?.addEventListener('change', async event => {
+    event.stopPropagation();   // choosing a file isn't a change to the report itself
+    const file = setupNdeFile.files[0];
+    setupNdeFile.value = '';
+    const prefix = setupImportPrefix;
+    if (!file || !prefix) return;
+    const block = document.getElementById(`id_${prefix}-units`)?.closest('.setup-block');
+    const status = block?.querySelector('.setup-import-status');
+    const show = (text, isError = false) => {
+        if (!status) return;
+        status.textContent = text;
+        status.classList.toggle('text-danger', isError);
+    };
+    const body = new FormData();
+    body.append('nde_file', file);
+    body.append('units', document.getElementById(`id_${prefix}-units`)?.value || 'imperial');
+    body.append('csrfmiddlewaretoken', reportForm.querySelector('[name=csrfmiddlewaretoken]').value);
+    show(`Reading ${file.name}…`);
+    try {
+        const data = await (await fetch(setupNdeFile.dataset.url, { method: 'POST', body })).json();
+        if (data.error) {
+            show(data.error, true);
+            return;
+        }
+        data.groups.forEach((group, i) => {
+            let target = prefix;
+            if (i > 0) {
+                const added = setups.add();
+                applyReportType();
+                target = added.querySelector('.setup-loader').dataset.formPrefix;
+            }
+            fillSetupBlock(target, group.values);
+        });
+        const extra = data.groups.length - 1;
+        show(`From ${data.filename}` + (extra ? ` (+${extra} more setup${extra === 1 ? '' : 's'})` : '')
+             + (data.scope ? `; instrument from the scope library: ${data.scope}` : '') + '.');
+    } catch (error) {
+        show(`Couldn't read ${file.name}.`, true);
+    }
 });
 
 // ── Equipment drawings and photo-summary images ──────────────────────────

@@ -119,3 +119,23 @@ class FromFilesPagesTests(TestCase):
     def test_confirm_without_files_goes_back(self):
         from django.urls import reverse
         self.assertRedirects(self.client.get(reverse('confirm-job')), reverse('start-from-files'))
+
+
+class SetupBlockImportTests(TestCase):
+    """The long form's Import .nde on a setup block."""
+
+    def test_values_per_group_in_the_blocks_units(self):
+        from django.urls import reverse
+        data = self.client.post(reverse('nde-setup-values'), {'nde_file': nde_file('scan.nde'), 'units': 'metric'}).json()
+        self.assertEqual(len(data['groups']), 1)
+        values = data['groups'][0]['values']
+        self.assertEqual((values['units'], values['source_file']), ('metric', 'scan.nde'))
+        self.assertTrue(values['scope_model'])
+        bad = self.client.post(reverse('nde-setup-values'), {'nde_file': SimpleUploadedFile('x.txt', b'x')})
+        self.assertEqual(bad.status_code, 400)
+
+    def test_each_setup_block_has_the_button(self):
+        from django.urls import reverse
+        page = self.client.get(reverse('create-report'))
+        self.assertContains(page, 'class="btn btn-secondary btn-sm setup-nde-import" data-form-prefix="setups-0"')
+        self.assertContains(page, 'id="setup-nde-file"')

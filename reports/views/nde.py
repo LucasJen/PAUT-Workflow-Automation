@@ -51,6 +51,31 @@ def nde_upload(request):
 
 
 @require_POST
+def nde_setup_values(request):
+    """
+    The long form's "Import .nde" on a setup block: {'groups': [{label, values}], 'scope': ...}, one
+    per inspection group, in the block's units, matched to the catalogue and completed from the
+    scope library; or {'error': ...}.
+    """
+    uploaded = request.FILES.get('nde_file')
+    system = request.POST.get('units') if request.POST.get('units') in UNIT_SYSTEMS else 'imperial'
+    if uploaded is None or not uploaded.name.lower().endswith('.nde'):
+        return JsonResponse({'error': 'Please choose an .nde file.'}, status=400)
+    try:
+        setup, properties = read_nde(uploaded)
+    except NdeError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    groups, scope = [], None
+    for group in extract_groups(setup, properties, uploaded.name):
+        fill, _ = _catalogue_match(group.get('hardware', {}))
+        values, scope = with_library_scope({**group['values'][system], **fill})
+        groups.append({'label': group['label'], 'values': values})
+    if not groups:
+        return JsonResponse({'error': 'This .nde file has no inspection groups to import.'}, status=400)
+    return JsonResponse({'groups': groups, 'scope': _scope_label(scope), 'filename': uploaded.name})
+
+
+@require_POST
 def nde_columns(request):
     """
     The weld form grid's "Import .nde": {'columns': [{instrument, probe, group, probe_key, label}]},
