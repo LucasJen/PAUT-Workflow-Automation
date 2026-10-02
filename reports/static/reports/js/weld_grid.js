@@ -412,7 +412,7 @@
         ['input', 'change'].forEach(type => toolbar.addEventListener(type, event => event.stopPropagation()));
     }
 
-    // ── Keyboard: arrows move between cells, Ctrl+Shift+→ fills right ────────
+    // ── Keyboard: Ctrl+Shift+→ fills right (arrows between cells: arrow_nav.js) ──
 
     function cellInput(td) {
         return td?.querySelector('input:not([type=hidden]):not([type=checkbox]), select, textarea');
@@ -440,30 +440,6 @@
                 }
             });
             input.dispatchEvent(new Event('input', { bubbles: true }));
-            return;
-        }
-
-        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
-        let target = null;
-        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-            if (input.tagName === 'SELECT') return;   // arrows choose an option
-            const column = Array.from(tr.children).indexOf(td);
-            let next = event.key === 'ArrowUp' ? tr.previousElementSibling : tr.nextElementSibling;
-            while (next && !(target = cellInput(next.children[column]))) {
-                next = event.key === 'ArrowUp' ? next.previousElementSibling : next.nextElementSibling;
-            }
-        } else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && input.tagName !== 'SELECT') {
-            // Only leave the cell when the caret is at its edge
-            const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
-            const atEnd = input.selectionStart === input.value.length;
-            if (event.key === 'ArrowLeft' ? !atStart : !atEnd) return;
-            const row = visibleCells(tr);
-            target = cellInput(row[row.indexOf(td) + (event.key === 'ArrowLeft' ? -1 : 1)]);
-        }
-        if (target) {
-            event.preventDefault();
-            target.focus();
-            target.select?.();
         }
     });
 

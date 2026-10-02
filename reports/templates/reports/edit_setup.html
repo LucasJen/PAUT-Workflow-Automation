@@ -1,4 +1,5 @@
 {% extends 'reports/components/edit_page.html' %}
+{% block form_attrs %} data-arrow-nav{% endblock %}
 
 {% block title %}Setup #{{ setup.pk }} · PAUT Report Automation{% endblock %}
 {% block back_url %}{% url 'setup-list' %}{% endblock %}

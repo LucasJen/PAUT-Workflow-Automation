@@ -15,7 +15,7 @@ Override form_body to lay out fields by hand; the default renders form.fieldsets
     <p class="page-subtitle">{% block page_subtitle %}{% endblock %}</p>
 </div>
 
-<form method="post">
+<form method="post"{% block form_attrs %}{% endblock %}>
     {% csrf_token %}
     {% if form.non_field_errors %}
     <div class="alert alert-danger">{{ form.non_field_errors }}</div>

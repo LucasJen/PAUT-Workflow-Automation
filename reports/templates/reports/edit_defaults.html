@@ -10,7 +10,7 @@
     <p class="page-subtitle">Fill in the values new {{ rtype.label }} reports should start with; leave anything that changes per job blank. They can all be changed on each report.</p>
 </div>
 
-<form method="post">
+<form method="post" data-arrow-nav>
     {% csrf_token %}
     {% for error in errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
     {% if has_errors %}

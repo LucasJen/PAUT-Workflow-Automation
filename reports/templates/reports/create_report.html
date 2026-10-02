@@ -15,7 +15,7 @@
     <option value="Longitudinal">
 </datalist>
 
-<form method="post" enctype="multipart/form-data" id="report-form" novalidate>
+<form method="post" enctype="multipart/form-data" id="report-form" novalidate data-arrow-nav>
     {% csrf_token %}
     <input type="hidden" name="report_id" value="{{ form.instance.pk|default_if_none:'' }}">
     {% if form.instance.pk %}<input type="hidden" name="selected" value="{{ form.instance.pk }}">{% endif %}

@@ -79,3 +79,22 @@ class FormStylingTests(TestCase):
         html = ReportForm()['client'].as_field_group()
         self.assertIn('data-field="client"', html)
         self.assertLess(html.index('<label'), html.index('<input'))
+
+
+class ArrowNavTests(TestCase):
+    """Arrow keys move between fields (arrow_nav.js) on the report, defaults, setup and scan plan forms."""
+
+    def test_forms_opt_in(self):
+        from django.urls import reverse
+        from reports.models import ScanPlan, Setup
+        setup = Setup.objects.create()
+        plan = ScanPlan.objects.create(name='p', thickness=0.28)
+        for url in (reverse('create-report'), reverse('new-defaults', args=['paut_weld']),
+                    reverse('edit-setup', args=[setup.pk]), reverse('edit-scan-plan', args=[plan.pk])):
+            html = self.client.get(url).content.decode()
+            self.assertRegex(html, r'<form [^>]*data-arrow-nav', url)
+            self.assertIn('arrow_nav.js', html)
+        # pages that share the edit page layout without opting in don't get it
+        from equipment.models import Scope
+        scope = Scope.objects.create()
+        self.assertNotIn('data-arrow-nav', self.client.get(reverse('edit-scope', args=[scope.pk])).content.decode())

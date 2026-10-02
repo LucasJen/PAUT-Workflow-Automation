@@ -1,4 +1,5 @@
 {% extends 'reports/components/edit_page.html' %}
+{% block form_attrs %} data-arrow-nav{% endblock %}
 {% load ui %}
 
 {% block title %}{% if plan %}{{ plan.name }}{% else %}New scan plan{% endif %} · Scan plans · PAUT Report Automation{% endblock %}
