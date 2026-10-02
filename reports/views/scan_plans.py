@@ -328,36 +328,24 @@ def _plan_json(plan):
     return {'pk': plan.pk, 'name': plan.name, 'url': reverse('edit-scan-plan', args=[plan.pk])}
 
 
-@require_POST
-def scan_plan_from_weld(request):
+def add_weld_to_plan(report, thickness, cap_width, offset, skews):
     """
-    Adds a weld from the weld report's Results to the report's scan plan: thickness, cap width,
-    C/L offset (wedge front to the weld centre line) and the skews of its Probe 1 Location. The
-    first weld creates the plan (probe, wedge and angles from the report's first PAUT group);
-    later welds add only what isn't in it yet: a skew not yet drawn for the same offset, or a
-    second offset. JSON {ok, message, plan: {pk, name, url}}.
+    Adds a weld to the report's scan plan: thickness, cap width, C/L offset (wedge front to the
+    weld centre line) and skews. The first weld creates the plan (probe, wedge and angles from
+    the report's first PAUT group); later welds add only what isn't in it yet: a skew not yet
+    drawn for the same offset, or a second offset. Returns (ok, message, plan or None).
     """
-    report_id = request.POST.get('report_id') or ''
-    report = Report.objects.filter(pk=report_id).first() if report_id.isdigit() else None
-    if report is None:
-        return JsonResponse({'ok': False, 'message': 'Save the report first.'})
-    thickness = _first_number(request.POST.get('probe1_thk'))
-    cap_width = _first_number(request.POST.get('weld_width'))
-    offset = _first_number(request.POST.get('cl_offset'))
-    skews = _weld_skews(request.POST.get('probe1_location'))
     skew_text = ' and '.join(f'{s}°' for s in sorted(skews))
-
     plan = report.scan_plan
     if plan is None:
         if thickness is None:
-            return JsonResponse({'ok': False, 'message': 'Enter Probe 1 Thickness first.'})
+            return False, 'Enter Probe 1 Thickness first.', None
         plan, group = _new_plan_from_weld(report, thickness, cap_width, offset, skews)
         report.scan_plan = plan
         report.save(update_fields=['scan_plan'])
         source = (f' with the probe and angles of Group {group.order + 1}' if group is not None
                   else '; pick its probe and wedge there (the report has no PAUT group)')
-        message = f'Made scan plan "{plan.name}" at offset {_inches(offset)} ({skew_text}){source}.'
-        return JsonResponse({'ok': True, 'message': message, 'plan': _plan_json(plan)})
+        return True, f'Made scan plan "{plan.name}" at offset {_inches(offset)} ({skew_text}){source}.', plan
 
     warnings = []
     if thickness is not None and abs(thickness - plan.thickness) >= OFFSET_TOLERANCE:
@@ -374,9 +362,8 @@ def scan_plan_from_weld(request):
         plan.index_offset_2 = offset
         fields = {90: 'skew_90_2', 270: 'skew_270_2'}
     else:
-        return JsonResponse({'ok': False, 'plan': _plan_json(plan), 'message': (
-            f'Scan plan "{plan.name}" already has two offsets ({_inches(plan.index_offset)} and '
-            f'{_inches(plan.index_offset_2)}); offset {_inches(offset)} wasn\'t added.')})
+        return False, (f'Scan plan "{plan.name}" already has two offsets ({_inches(plan.index_offset)} and '
+                       f'{_inches(plan.index_offset_2)}); offset {_inches(offset)} wasn\'t added.'), plan
 
     added = sorted(skew for skew in skews if not getattr(plan, fields[skew]))
     if added:
@@ -386,4 +373,17 @@ def scan_plan_from_weld(request):
         message = f'Added offset {_inches(offset)} ({", ".join(f"{s}°" for s in added)}) to scan plan "{plan.name}".'
     else:
         message = f'Offset {_inches(offset)} with {skew_text} is already in scan plan "{plan.name}"; nothing added.'
-    return JsonResponse({'ok': True, 'plan': _plan_json(plan), 'message': ' '.join([message, *warnings])})
+    return True, ' '.join([message, *warnings]), plan
+
+
+@require_POST
+def scan_plan_from_weld(request):
+    """The weld report's Scan plan button: add_weld_to_plan for one weld's row. JSON {ok, message, plan}."""
+    report_id = request.POST.get('report_id') or ''
+    report = Report.objects.filter(pk=report_id).first() if report_id.isdigit() else None
+    if report is None:
+        return JsonResponse({'ok': False, 'message': 'Save the report first.'})
+    ok, message, plan = add_weld_to_plan(
+        report, _first_number(request.POST.get('probe1_thk')), _first_number(request.POST.get('weld_width')),
+        _first_number(request.POST.get('cl_offset')), _weld_skews(request.POST.get('probe1_location')))
+    return JsonResponse({'ok': ok, 'message': message, **({'plan': _plan_json(plan)} if plan else {})})

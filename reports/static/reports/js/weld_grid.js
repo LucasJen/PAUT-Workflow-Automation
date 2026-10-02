@@ -360,6 +360,16 @@
             if (!Object.values(placed).includes(probeCol)) await fillColumn(probeCol, item.probe, { keepLabel: true });
             if (item.probe_ref) placed[item.probe_ref] = probeCol;
 
+            // A group with the same settings on the same probe (the same setup scanned on another
+            // weld or side) is the same group on the form
+            const settings = Object.entries(item.group).filter(([k, v]) => k !== 'source_file' && v !== '' && v != null);
+            const same = settings.length && columns('groups').find(col =>
+                field(col, 'probe_column').value === probeIndex(probeCol)
+                && settings.every(([k, v]) => !field(col, k) || field(col, k).value === String(v)));
+            if (same) {
+                claimed.add(same);
+                continue;
+            }
             const open = columns('groups').filter(col => !claimed.has(col));
             let groupCol = open.find(col => source(col) && source(col) === item.group.source_file)
                 || (item.filename && open.find(col => source(col) === item.filename));
