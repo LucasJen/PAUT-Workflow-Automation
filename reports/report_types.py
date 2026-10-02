@@ -39,7 +39,7 @@ REPORT_SECTIONS = (
     ('equipment', 'Equipment & parameters', None),
     ('results', 'Results table', None),
     ('weld_cal', 'Calibration, scan plan & notes', (
-        'cal_accept', 'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'scan_plan', 'notes',
+        'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'scan_plan', 'notes',
     )),
     ('images', 'Photo summary', None),
 )

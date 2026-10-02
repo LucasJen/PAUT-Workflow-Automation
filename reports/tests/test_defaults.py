@@ -51,7 +51,7 @@ class DefaultsPageTests(TestCase):
         }
         self.client.post(reverse('new-defaults', args=['paut_weld']), data)
         record = ReportDefaults.objects.get()
-        self.assertEqual(record.report_values, {'procedure': '100-UT-20', 'cal_accept': False, 'inst_name': 'OmniScan X3'})
+        self.assertEqual(record.report_values, {'procedure': '100-UT-20', 'inst_name': 'OmniScan X3'})
         self.assertEqual(record.probe_columns, [
             {'kind': 'paut', 'label': '90°', 'cable_type': 'Integral'},
             {'kind': 'conv_long', 'label': '0°', 'probe_check': 'Accept'},
@@ -84,11 +84,6 @@ class DefaultsPageTests(TestCase):
         self.assertEqual([p['label'] for p in record.probe_columns], ['second', 'first'])
         self.assertEqual(record.group_columns, [{'label': 'on second', 'probe_column': '0'},
                                                 {'label': 'on first', 'probe_column': '1'}])
-
-    def test_weld_defaults_can_accept_calibration(self):
-        self.assertContains(self.client.get(reverse('new-defaults', args=['paut_weld'])), 'name="cal_accept"')
-        self.client.post(reverse('new-defaults', args=['paut_weld']), {'defaults_name': 'Standard', 'cal_accept': 'on'})
-        self.assertIs(ReportDefaults.objects.get().report_values['cal_accept'], True)
 
     def test_weld_defaults_keep_na_groups(self):
         self.client.post(reverse('new-defaults', args=['paut_weld']), {
@@ -157,16 +152,16 @@ class DefaultSetsTests(TestCase):
                          {'defaults_name': 'PPI Pine Bend', 'procedure': '100-UT-31'})
         ppi = ReportDefaults.objects.get(name='PPI Pine Bend')
         self.assertFalse(ppi.in_use)
-        self.assertEqual(defaults_for('paut_weld')[0]['procedure'], '100-UT-20')
+        self.assertEqual(defaults_for('paut_weld')[0], {'procedure': '100-UT-20'})
 
         self.client.post(reverse('defaults-list'), {'pk': ppi.pk, 'use': ''})
-        self.assertEqual(defaults_for('paut_weld')[0]['procedure'], '100-UT-31')
+        self.assertEqual(defaults_for('paut_weld')[0], {'procedure': '100-UT-31'})
         self.assertEqual(ReportDefaults.objects.filter(report_type='paut_weld', in_use=True).count(), 1)
 
         # ticking 'Used for new reports' on the edit page switches too
         self.client.post(reverse('edit-defaults', args=[standard.pk]),
                          {'defaults_name': 'Standard', 'procedure': '100-UT-20', 'in_use': '1'})
-        self.assertEqual(defaults_for('paut_weld')[0]['procedure'], '100-UT-20')
+        self.assertEqual(defaults_for('paut_weld')[0], {'procedure': '100-UT-20'})
         self.assertEqual(defaults_for('paut_long'), ({}, {}))  # other types unaffected
 
     def test_names_are_unique_per_type(self):
