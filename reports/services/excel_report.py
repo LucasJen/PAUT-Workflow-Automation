@@ -42,6 +42,15 @@ ACCEPT_COLUMN, REJECT_COLUMN, COMMENTS_COLUMN = 'S', 'T', 'U'
 CAL_ROWS = (34, 35, 36, 37)          # Initial, Cal. Check, Cal. Check, Cal. Out
 INDICATION_PICTURE = 'A12:Z56'
 
+# The reference form's 'Encoded Scan Plan Images' sheet (password protected: pictures can be
+# added; only the Notes and page cells are unlocked). Its four picture boxes, by probe position
+# (rows: first / second index offset) and skew (columns: 90 / 270 deg).
+SCAN_PLAN_SHEET = 'Encoded Scan Plan Images'
+SCAN_PLAN_BOXES = {(1, 90): 'B5:D19', (1, 270): 'E5:G19', (2, 90): 'B22:D36', (2, 270): 'E22:G36'}
+SCAN_PLAN_NOTES = {1: 'C20', 2: 'C37'}
+SCAN_PLAN_PAGE = 'G4'
+XL_SHAPE_RECTANGLE = 1
+
 
 class ExcelReportError(Exception):
     """Excel could not produce the report."""
@@ -337,32 +346,11 @@ def _page_numbers(ws, page, total):
     ws.Range('Z4').Value = total
 
 
-def _add_picture(ws, path, part=0, parts=1):
-    """
-    The picture, as large as fits the picture area, centred. With parts > 1 the area is split
-    into equal cells: side by side for 2, a 2 x 2 grid for 3 or 4; the picture goes in cell `part`.
-    """
-    area = ws.Range(INDICATION_PICTURE)
-    gap = 6  # points between pictures
-    columns = min(parts, 2)
-    rows = 1 if parts <= 2 else 2
-    width = (area.Width - gap * (columns - 1)) / columns
-    height = (area.Height - gap * (rows - 1)) / rows
-    left = area.Left + (part % columns) * (width + gap)
-    top = area.Top + (part // columns) * (height + gap)
-    pic = ws.Shapes.AddPicture(path, False, True, left, top, -1, -1)
-    pic.LockAspectRatio = True
-    scale = min(width / pic.Width, height / pic.Height)
-    pic.Width = pic.Width * scale
-    pic.Left = left + (width - pic.Width) / 2
-    pic.Top = top + (height - pic.Height) / 2
-
-
 def _fill(wb, pages, scan_plan_pictures):
     report = wb.Worksheets('Report')
     master = wb.Worksheets('Indication')
     continuation = wb.Worksheets('Continuation')
-    plan_sheet = wb.Worksheets('Scan Plan')
+    plan_sheet = wb.Worksheets(SCAN_PLAN_SHEET)
     total = pages.page_count
 
     _write(report, pages.report)
@@ -387,30 +375,58 @@ def _fill(wb, pages, scan_plan_pictures):
         page += 1
         _page_numbers(ws, page, total)
         if ind.image_path and os.path.exists(ind.image_path):
-            _add_picture(ws, ind.image_path)
+            _add_picture_in(ws, ind.image_path, INDICATION_PICTURE)
     master.Delete()
 
     plan = pages.scan_plan
     if plan is not None:
         plan_sheet.Move(None, wb.Worksheets(wb.Worksheets.Count))  # last page, as on the paper form
-        _write(plan_sheet, {'C57': plan.name, 'L57': plan.pipe_size, 'C60': plan.notes})
-        _page_numbers(plan_sheet, total, total)
-        for part, path in enumerate(scan_plan_pictures):
-            _add_picture(plan_sheet, path, part, len(scan_plan_pictures))
+        plan_sheet.Range(SCAN_PLAN_PAGE).Value = f"'{total} of {total}"
+        if plan.notes:
+            _write(plan_sheet, {SCAN_PLAN_NOTES[1]: plan.notes})
+        for key, box in SCAN_PLAN_BOXES.items():
+            if key in scan_plan_pictures:
+                _add_picture_in(plan_sheet, scan_plan_pictures[key], box)
+            else:
+                _blank_box(plan_sheet, box)  # its 'Insert Scan Plan Image Here' text is locked
     else:
         plan_sheet.Delete()
     report.Activate()
 
 
+def _add_picture_in(ws, path, box):
+    """The picture, as large as fits the cell range `box`, centred in it."""
+    area = ws.Range(box)
+    pad = 3  # points inside the box's borders
+    left, top, width, height = area.Left + pad, area.Top + pad, area.Width - 2 * pad, area.Height - 2 * pad
+    pic = ws.Shapes.AddPicture(path, False, True, left, top, -1, -1)
+    pic.LockAspectRatio = True
+    scale = min(width / pic.Width, height / pic.Height)
+    pic.Width = pic.Width * scale
+    pic.Left = left + (width - pic.Width) / 2
+    pic.Top = top + (height - pic.Height) / 2
+
+
+def _blank_box(ws, box):
+    """A plain white cover over an unused picture box, inside its borders."""
+    area = ws.Range(box)
+    cover = ws.Shapes.AddShape(XL_SHAPE_RECTANGLE, area.Left + 1.5, area.Top + 1.5, area.Width - 3, area.Height - 3)
+    cover.Fill.ForeColor.RGB = 0xFFFFFF
+    cover.Line.Visible = False
+
+
 def _scan_plan_pictures(plan, workdir):
-    """The scan plan drawings written to PNG files for Excel: one per ticked skew per index offset."""
-    paths = []
+    """
+    The scan plan drawings written to PNG files for Excel, one per ticked skew per index offset:
+    {(position, skew): path}.
+    """
+    paths = {}
     for position, _, skew in plan.drawings if plan else ():
         side = 1 if skew == 90 else 2
         path = os.path.join(workdir, f'scan_plan_{position}_{skew}.png')
         with open(path, 'wb') as f:
             f.write(render_png(plan, side, position))
-        paths.append(path)
+        paths[(position, skew)] = path
     return paths
 
 

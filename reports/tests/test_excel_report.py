@@ -207,3 +207,12 @@ class RealExcelTests(TestCase):
         xlsx, pdf = excel_report.build_workbook(report, pdf=True)
         self.assertTrue(xlsx.startswith(b'PK'))
         self.assertTrue(pdf.startswith(b'%PDF'))
+
+
+class ScanPlanBoxTests(TestCase):
+    def test_drawings_go_in_the_reference_sheets_boxes(self):
+        from reports.services.excel_report import SCAN_PLAN_BOXES
+        plan = ScanPlan(name='p', thickness=0.28, index_offset=0.48, skew_90=False, skew_270=True,
+                        index_offset_2=0.75, skew_90_2=True, skew_270_2=False)
+        boxes = [SCAN_PLAN_BOXES[(position, skew)] for position, _, skew in plan.drawings]
+        self.assertEqual(boxes, ['E5:G19', 'B22:D36'])  # 270 deg top right, second offset 90 deg bottom left
