@@ -180,6 +180,15 @@ personContainer.addEventListener('change', e => {
     if (known && cert && !cert.value.trim()) cert.value = known.dataset.certification || '';
 });
 
+// The weld form's technician / reviewer: the same for its two name fields
+reportForm.addEventListener('change', e => {
+    const certName = e.target.dataset?.certField;
+    if (!certName) return;
+    const known = Array.from(document.querySelectorAll('#known-people option')).find(o => o.value === e.target.value.trim());
+    const cert = reportForm.elements[certName];
+    if (known && cert && !cert.value.trim()) cert.value = known.dataset.certification || '';
+});
+
 document.getElementById('add-drawing').addEventListener('click', () => {
     drawings.add();
     markDirty();

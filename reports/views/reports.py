@@ -133,6 +133,12 @@ def _known_people():
     latest = {}
     for name, certification in ReportPerson.objects.order_by('pk').values_list('name', 'certification'):
         latest[name.strip()] = certification
+    # ...and the weld form's technician and reviewer lines
+    for row in Report.objects.order_by('pk').values_list('weld_technician', 'weld_technician_cert',
+                                                          'weld_reviewer', 'weld_reviewer_cert'):
+        for name, certification in (row[:2], row[2:]):
+            if name.strip():
+                latest[name.strip()] = certification
     return sorted(latest.items(), key=lambda item: item[0].lower())
 
 

@@ -189,3 +189,26 @@ class ScanPlanFromGroupTests(TestCase):
         self.assertEqual((item['wedge_geometry']['wedge_primary_offset'], item['wedge_geometry']['wedge_angle']), (-20.0, 36.0))
         self.assertIn('W5 · Group 1 (90°) · 10L32-A1', item['label'])
         self.assertContains(resp, 'Weld report groups')
+
+
+class WeldPersonnelTests(TestCase):
+    def test_weld_report_has_two_signature_lines_not_a_people_list(self):
+        from reports.report_types import get_report_type
+        self.assertIn('weld_personnel', get_report_type('paut_weld').sections)
+        self.assertNotIn('personnel', get_report_type('paut_weld').sections)
+        self.assertIn('personnel', get_report_type('paut_long').sections)
+        self.assertNotIn('weld_personnel', get_report_type('paut_long').sections)
+
+    def test_lines_save_and_known_names_are_offered(self):
+        data = post_data(report_type='paut_weld', weld_technician='Lucas Jennings', weld_technician_cert='UT II',
+                         weld_reviewer='Sky Tervo')
+        self.client.post(reverse('create-report'), data)
+        report = Report.objects.get()
+        self.assertEqual((report.weld_technician, report.weld_technician_cert, report.weld_reviewer),
+                         ('Lucas Jennings', 'UT II', 'Sky Tervo'))
+        page = self.client.get(reverse('create-report'))
+        self.assertIn(('Lucas Jennings', 'UT II'), page.context['known_people'])
+        self.assertContains(page, 'data-cert-field="weld_technician_cert"')
+
+    def test_weld_defaults_include_the_lines(self):
+        self.assertContains(self.client.get(reverse('new-defaults', args=['paut_weld'])), 'name="weld_reviewer"')

@@ -79,6 +79,14 @@ class WeldCellMapTests(TestCase):
         self.assertEqual((cells['C55'], cells['R55'], cells['C57'], cells['R57']),
                          ('Tech One', 'UT II', 'Rev Two', 'PAUT II'))
 
+    def test_technician_and_reviewer_lines(self):
+        report = weld_report(weld_technician='Lucas Jennings | PAUT II', weld_technician_cert='SNT-TC-1A UT II',
+                             weld_reviewer='Sky Tervo | PAUT II')
+        ReportPerson.objects.create(report=report, name='Old list', examined=True)   # not used once the lines are set
+        cells = weld_pages(report).report
+        self.assertEqual((cells['C55'], cells['R55'], cells['C57'], cells['R57']),
+                         ('Lucas Jennings | PAUT II', 'SNT-TC-1A UT II', 'Sky Tervo | PAUT II', ''))
+
     def test_setups_fill_probe_and_group_columns_in_order(self):
         report = weld_report()
         Setup.objects.create(report=report, title='SW 1', transducer_model='C543', order=1)

@@ -7,6 +7,7 @@ Indication page per flaw with its scan image and the Scan Plan page with the rep
 plan drawings, saves the .xlsx and optionally exports the PDF.
 The template's cell positions are described in excel_templates/TEMPLATE_CELLS.md.
 """
+from types import SimpleNamespace
 import logging
 import os
 import shutil
@@ -341,9 +342,13 @@ def _person(people, role):
 
 
 def _header(report):
+    # The weld form's own two lines; reports from before they existed fall back to their people
     people = list(report.people.all())
     technician = _person(people, 'examined') or _person(people, 'prepared')
     reviewer = _person(people, 'reviewed')
+    if _v(report.weld_technician) or _v(report.weld_reviewer):
+        technician = SimpleNamespace(name=_v(report.weld_technician), certification=_v(report.weld_technician_cert))
+        reviewer = SimpleNamespace(name=_v(report.weld_reviewer), certification=_v(report.weld_reviewer_cert))
     return {
         'X2': _v(report.document_filename),
         'X3': report.report_date,

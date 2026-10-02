@@ -28,6 +28,8 @@ REPORT_SECTIONS = (
         'address', 'contractor', 'item_description', 'exam_code', 'acceptance_standard',
     )),
     ('personnel', 'Personnel', None),
+    # The weld form has two signature lines: a technician and a reviewer, no list of people
+    ('weld_personnel', 'Personnel', ('weld_technician', 'weld_technician_cert', 'weld_reviewer', 'weld_reviewer_cert')),
     ('summary', 'Executive summary', ('examination_scope', 'executive_summary')),
     ('scope', 'Scope, references & method', (
         'asset_description', 'equipment_id', 'ut_method', 'x_axis_reference', 'y_axis_reference',
@@ -117,7 +119,7 @@ class ReportType:
 _TYPES = [
     ReportType(
         'paut_long', 'PAUT long form (HIC)',
-        sections=tuple(s for s in SECTIONS if s not in ('weld_cal', 'equipment')),
+        sections=tuple(s for s in SECTIONS if s not in ('weld_cal', 'equipment', 'weld_personnel')),
         hidden_fields=WELD_ONLY_FIELDS,
         results_columns=HIC_RESULTS_COLUMNS,
     ),
@@ -125,7 +127,7 @@ _TYPES = [
         'paut_weld', 'PAUT weld (Excel)',
         template='paut_weld.xlsx', output_format='xlsx',
         # Results, the photo summary and calibration screenshots are filled in the workbook
-        sections=('project', 'personnel', 'equipment', 'weld_cal'),
+        sections=('project', 'weld_personnel', 'equipment', 'weld_cal'),
         hidden_fields=frozenset({'document_title', 'project_number', 'project_type', 'test_date', 'test_end_date',
                                  'cal_images'}),
         results_columns=WELD_RESULTS_COLUMNS,

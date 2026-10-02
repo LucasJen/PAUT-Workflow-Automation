@@ -91,6 +91,10 @@ class ReportForm(StyledFormMixin, ModelForm):
         fields = '__all__'
         labels = {
             'document_filename': 'File name',
+            'weld_technician': 'Technician',
+            'weld_technician_cert': 'Certification',
+            'weld_reviewer': 'Reviewed by',
+            'weld_reviewer_cert': 'Certification',
             'equipment_id': 'Equipment ID',
             'x_axis_reference': 'X-axis reference',
             'y_axis_reference': 'Y-axis reference',
@@ -110,6 +114,9 @@ class ReportForm(StyledFormMixin, ModelForm):
             'scan_plan': 'Scan plan',
         }
         widgets = {
+            # Names from earlier reports (the editor's known-people list) fill in the certification
+            'weld_technician': TextInput(attrs={'list': 'known-people', 'autocomplete': 'off', 'data-cert-field': 'weld_technician_cert'}),
+            'weld_reviewer': TextInput(attrs={'list': 'known-people', 'autocomplete': 'off', 'data-cert-field': 'weld_reviewer_cert'}),
             'document_title': Textarea(attrs={'rows': 1, 'style': 'min-height: 0; resize: vertical;'}),
             'report_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'test_date': DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),

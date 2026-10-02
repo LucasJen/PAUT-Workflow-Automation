@@ -38,6 +38,11 @@ class Report(models.Model):
     cal_time_check1 = models.CharField(max_length=20, blank=True)
     cal_time_check2 = models.CharField(max_length=20, blank=True)
     cal_time_out = models.CharField(max_length=20, blank=True)
+    # Weld form: its two signature lines (the long form lists people with roles instead)
+    weld_technician = models.CharField('Technician', max_length=200, blank=True)
+    weld_technician_cert = models.CharField('Technician certification', max_length=200, blank=True)
+    weld_reviewer = models.CharField('Reviewed by', max_length=200, blank=True)
+    weld_reviewer_cert = models.CharField('Reviewer certification', max_length=200, blank=True)
     notes = models.TextField(blank=True)
     scan_plan = models.ForeignKey('ScanPlan', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
 
