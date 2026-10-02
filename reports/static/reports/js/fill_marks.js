@@ -21,7 +21,45 @@
         for (const kind of ['user', 'auto']) {
             if (counts[kind] && counts[kind].textContent !== String(missing[kind])) counts[kind].textContent = missing[kind];
         }
+        sectionBadges();
     }
+
+    // What's left per section, beside its name in the section menu
+    function sectionBadges() {
+        const on = form.classList.contains('fill-marks');
+        document.querySelectorAll('[data-nav-section]').forEach(link => {
+            const section = form.querySelector(`.editor-section[data-section="${link.dataset.navSection}"]`);
+            const left = on && section ? section.querySelectorAll('.fill-missing').length : 0;
+            let badge = link.querySelector('.nav-missing');
+            if (!left) {
+                badge?.remove();
+                return;
+            }
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'nav-missing';
+                badge.title = 'Fields still to fill in this section';
+                link.append(badge);
+            }
+            if (badge.textContent !== String(left)) badge.textContent = left;
+        });
+    }
+
+    // "Next missing": the next outlined field after the last one you were in (clicking the button
+    // takes the focus, so remember the field), from the top at the end
+    let lastField = null;
+    form.addEventListener('focusin', event => {
+        if (event.target.matches('input, select, textarea')) lastField = event.target;
+    });
+    document.getElementById('fill-next')?.addEventListener('click', () => {
+        const missing = Array.from(form.querySelectorAll('.fill-missing'));
+        if (!missing.length) return;
+        const here = lastField;
+        const next = missing.find(el => here && here !== el
+            && (here.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) || missing[0];
+        next.focus();
+        next.scrollIntoView({ block: 'center' });
+    });
 
     // Values also change without events (imports, Auto-detect, added columns and welds), so check
     // again after anything happens in the form, once per frame
