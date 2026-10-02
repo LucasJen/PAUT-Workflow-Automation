@@ -1,5 +1,5 @@
-// The weld form's equipment grid (reports/editor/equipment.html): probe and group columns are
-// Django formset forms laid out column-wise. Adds, removes and duplicates columns, numbers them,
+// The weld form's equipment grid (reports/editor/_weld_grid.html, in the report editor and in
+// Library › Defaults): probe and group columns are Django formset forms laid out column-wise. Adds, removes and duplicates columns, numbers them,
 // lists the probe columns in each group's Probe select and greys the rows a probe kind leaves N/A.
 
 (function () {
@@ -8,21 +8,6 @@
     const rows = JSON.parse(document.getElementById('weld-grid-rows').textContent);
     const limits = { probes: rows.max_probes, groups: rows.max_groups };
     const grids = { probes: document.getElementById('probe-grid'), groups: document.getElementById('group-grid') };
-
-    // Library › Defaults for the report's type: what a new probe / group column starts with
-    function columnDefaults(kind) {
-        let all = {};
-        try { all = JSON.parse(document.getElementById('report-defaults').textContent) || {}; } catch (e) { /* none */ }
-        const type = document.getElementById('id_report_type')?.value;
-        return (all[type] || {})[kind === 'probes' ? 'probe' : 'group'] || {};
-    }
-
-    function applyDefaults(kind, col) {
-        for (const [name, value] of Object.entries(columnDefaults(kind))) {
-            const input = field(col, name);
-            if (input && value !== null && value !== undefined) input.value = value;
-        }
-    }
 
     const totalInput = prefix => document.getElementById(`id_${prefix}-TOTAL_FORMS`);
     const field = (prefix, name) => document.getElementById(`id_${prefix}-${name}`);
@@ -163,11 +148,7 @@
         const markDirty = () => table.dispatchEvent(new Event('input', { bubbles: true }));
         if (add) {
             const col = addColumn(kind);
-            if (col) {
-                applyDefaults(kind, col);
-                refresh();
-                field(col, 'label').focus();
-            }
+            if (col) field(col, 'label').focus();
         } else {
             const col = event.target.closest('th[data-col]').dataset.col;
             if (remove) removeColumn(kind, col);
@@ -184,13 +165,84 @@
         if (/^probes-\d+-(label|model)$/.test(event.target.name || '')) refresh();
     });
 
-    // ── Import: .nde groups and saved setups become columns ────────────────
+    // ── Filling columns ──────────────────────────────────────────────────
+
+    async function fillColumn(col, values, { keepLabel = false } = {}) {
+        for (const [name, value] of Object.entries(values)) {
+            if (name === 'catalogue_probe' || name === 'catalogue_wedge' || name === 'probe_column') continue;
+            const input = field(col, name);
+            if (!input || value === null || value === undefined) continue;
+            if (name === 'label' && keepLabel && input.value.trim()) continue;
+            input.value = value;
+        }
+        if (values.catalogue_probe && window.CatalogueSelect) {
+            await window.CatalogueSelect.setPair(field(col, 'catalogue_probe'), values.catalogue_probe, values.catalogue_wedge || null);
+        }
+    }
+
+    // ── A new report starts with its type's prefilled columns (Library › Defaults) ─────
+    // Columns made from defaults and not yet edited are swapped when the report type changes.
+
+    const typeSelect = document.getElementById('id_report_type');
+    const reportId = document.querySelector('input[name="report_id"]');
+    const pristine = new Set();
+
+    function typeDefaults(type) {
+        try {
+            return JSON.parse(document.getElementById('report-defaults').textContent)[type] || {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    async function addDefaultColumns(type) {
+        const { probes = [], groups = [] } = typeDefaults(type);
+        const placed = {};
+        for (const [i, values] of probes.entries()) {
+            const col = addColumn('probes');
+            if (!col) break;
+            await fillColumn(col, values);
+            placed[String(i)] = col;
+            pristine.add(col);
+        }
+        for (const values of groups) {
+            const col = addColumn('groups');
+            if (!col) break;
+            await fillColumn(col, values);
+            const probe = placed[values.probe_column];
+            field(col, 'probe_column').value = probe ? probe.split('-')[1] : '';
+            pristine.add(col);
+        }
+        refresh();
+    }
+
+    if (typeSelect && reportId) {
+        // Editing a cell makes its column the user's own
+        ['input', 'change'].forEach(type => root.addEventListener(type, event => {
+            const col = event.target.closest('[data-col]')?.dataset.col;
+            if (col) pristine.delete(col);
+        }));
+        const empty = () => !columns('probes').length && !columns('groups').length;
+        if (!reportId.value && empty()) addDefaultColumns(typeSelect.value);
+        typeSelect.addEventListener('change', async () => {
+            for (const col of pristine) removeColumn(col.split('-')[0], col);
+            pristine.clear();
+            if (empty()) await addDefaultColumns(typeSelect.value);
+        });
+    }
+
+    // ── Import: .nde groups and saved setups fill columns ──────────────────
     // Each item is {instrument, probe, group, probe_key} (reports/weld_columns.py). A probe
     // already on the page (same model and S/N) is reused, so several groups share its column.
+    // Otherwise the first column of the same kind that no file has filled yet (e.g. one
+    // prefilled from the defaults) is filled, keeping its values where the file has none; a new
+    // column is added only when there's none left.
 
+    const toolbar = document.getElementById('weld-grid-toolbar');
     const status = document.getElementById('weld-grid-status');
 
     function showStatus(text, isError = false) {
+        if (!status) return;
         status.textContent = text;
         status.classList.toggle('text-danger', isError);
     }
@@ -200,80 +252,90 @@
         return model ? `${model}|${field(col, 'serial').value.trim().toLowerCase()}` : '';
     }
 
-    async function fillColumn(col, values) {
-        for (const [name, value] of Object.entries(values)) {
-            if (name === 'catalogue_probe' || name === 'catalogue_wedge') continue;
-            const input = field(col, name);
-            if (input) input.value = value;
-        }
-        if (values.catalogue_probe && window.CatalogueSelect) {
-            await window.CatalogueSelect.setPair(field(col, 'catalogue_probe'), values.catalogue_probe, values.catalogue_wedge || null);
-        }
+    const fillable = col => Boolean(field(col, 'source_file')) && !field(col, 'source_file').value;
+    const probeIndex = col => col.split('-')[1];
+
+    function groupProbeKind(col) {
+        const probe = field(col, 'probe_column').value;
+        return probe === '' ? null : field(`probes-${probe}`, 'kind')?.value;
     }
 
     async function importColumns(items) {
-        let probesAdded = 0, groupsAdded = 0, skipped = 0;
+        const counts = { filled: 0, added: 0, skipped: 0 };
         for (const item of items) {
+            const kind = item.probe.kind || 'paut';
             // The instrument: fill only what's still blank
             for (const [name, value] of Object.entries(item.instrument || {})) {
                 const input = document.getElementById(`id_${name}`);
                 if (input && !input.value.trim()) input.value = value;
             }
+
             let probeCol = item.probe_key ? columns('probes').find(col => pageProbeKey(col) === item.probe_key) : null;
             if (!probeCol) {
-                probeCol = addColumn('probes');
-                if (!probeCol) { skipped += 1; continue; }
-                applyDefaults('probes', probeCol);   // the file's own values win
-                await fillColumn(probeCol, item.probe);
-                probesAdded += 1;
+                probeCol = columns('probes').find(col => fillable(col) && field(col, 'kind').value === kind);
+                if (probeCol) counts.filled += 1;
+                else if ((probeCol = addColumn('probes'))) counts.added += 1;
+                else { counts.skipped += 1; continue; }
+                await fillColumn(probeCol, item.probe, { keepLabel: true });
             }
-            const groupCol = addColumn('groups');
-            if (!groupCol) { skipped += 1; continue; }
-            applyDefaults('groups', groupCol);
-            await fillColumn(groupCol, { label: item.label || '', ...item.group });
-            field(groupCol, 'probe_column').value = probeCol.split('-')[1];
-            groupsAdded += 1;
+
+            // A group column still waiting for a file: one on this probe first, then one on an
+            // unfilled probe of the same kind
+            const waiting = columns('groups').filter(fillable);
+            let groupCol = waiting.find(col => field(col, 'probe_column').value === probeIndex(probeCol))
+                || waiting.find(col => groupProbeKind(col) === kind && fillable(`probes-${field(col, 'probe_column').value}`));
+            if (groupCol) counts.filled += 1;
+            else if ((groupCol = addColumn('groups'))) counts.added += 1;
+            else { counts.skipped += 1; continue; }
+            await fillColumn(groupCol, { label: item.label || '', ...item.group }, { keepLabel: true });
+            field(groupCol, 'probe_column').value = probeIndex(probeCol);
+            pristine.delete(probeCol);
+            pristine.delete(groupCol);
         }
         refresh();
         root.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
-        const parts = [`Added ${groupsAdded} group${groupsAdded === 1 ? '' : 's'} and ${probesAdded} probe${probesAdded === 1 ? '' : 's'}`];
-        if (skipped) parts.push(`${skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
-        showStatus(parts.join('; ') + '.', skipped > 0);
+        const parts = [];
+        if (counts.filled) parts.push(`filled ${counts.filled} prefilled column${counts.filled === 1 ? '' : 's'}`);
+        if (counts.added) parts.push(`added ${counts.added} column${counts.added === 1 ? '' : 's'}`);
+        if (counts.skipped) parts.push(`${counts.skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
+        const text = parts.join('; ') || 'nothing to add';
+        showStatus(text[0].toUpperCase() + text.slice(1) + '.', counts.skipped > 0);
     }
 
-    const toolbar = document.getElementById('weld-grid-toolbar');
-    const ndeFile = document.getElementById('weld-nde-file');
-    document.getElementById('weld-nde-import').addEventListener('click', () => ndeFile.click());
-    ndeFile.addEventListener('change', async event => {
-        event.stopPropagation();   // choosing a file isn't a change to the report itself
-        const file = ndeFile.files[0];
-        ndeFile.value = '';
-        if (!file) return;
-        const body = new FormData();
-        body.append('nde_file', file);
-        body.append('units', document.getElementById('weld-nde-units').value);
-        body.append('csrfmiddlewaretoken', root.closest('form').querySelector('[name=csrfmiddlewaretoken]').value);
-        showStatus(`Reading ${file.name}…`);
-        try {
-            const response = await fetch(toolbar.dataset.ndeUrl, { method: 'POST', body });
-            const data = await response.json();
-            if (data.error) showStatus(data.error, true);
-            else await importColumns(data.columns);
-        } catch (error) {
-            showStatus(`Couldn't read ${file.name}.`, true);
-        }
-    });
+    if (toolbar) {
+        const ndeFile = document.getElementById('weld-nde-file');
+        document.getElementById('weld-nde-import').addEventListener('click', () => ndeFile.click());
+        ndeFile.addEventListener('change', async event => {
+            event.stopPropagation();   // choosing a file isn't a change to the report itself
+            const file = ndeFile.files[0];
+            ndeFile.value = '';
+            if (!file) return;
+            const body = new FormData();
+            body.append('nde_file', file);
+            body.append('units', document.getElementById('weld-nde-units').value);
+            body.append('csrfmiddlewaretoken', root.closest('form').querySelector('[name=csrfmiddlewaretoken]').value);
+            showStatus(`Reading ${file.name}…`);
+            try {
+                const response = await fetch(toolbar.dataset.ndeUrl, { method: 'POST', body });
+                const data = await response.json();
+                if (data.error) showStatus(data.error, true);
+                else await importColumns(data.columns);
+            } catch (error) {
+                showStatus(`Couldn't read ${file.name}.`, true);
+            }
+        });
 
-    const savedColumns = JSON.parse(document.getElementById('saved-setup-columns').textContent);
-    const setupLoader = document.getElementById('weld-setup-loader');
-    setupLoader.addEventListener('change', async event => {
-        event.stopPropagation();
-        const item = savedColumns[setupLoader.value];
-        setupLoader.value = '';
-        if (item) await importColumns([item]);
-    });
-    // The toolbar's controls aren't part of the report (no unsaved-changes from them)
-    ['input', 'change'].forEach(type => toolbar.addEventListener(type, event => event.stopPropagation()));
+        const savedColumns = JSON.parse(document.getElementById('saved-setup-columns').textContent);
+        const setupLoader = document.getElementById('weld-setup-loader');
+        setupLoader.addEventListener('change', async event => {
+            event.stopPropagation();
+            const item = savedColumns[setupLoader.value];
+            setupLoader.value = '';
+            if (item) await importColumns([item]);
+        });
+        // The toolbar's controls aren't part of the report (no unsaved-changes from them)
+        ['input', 'change'].forEach(type => toolbar.addEventListener(type, event => event.stopPropagation()));
+    }
 
     // ── Keyboard: arrows move between cells, Ctrl+Shift+→ fills right ────────
 

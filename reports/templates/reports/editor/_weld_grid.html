@@ -1,0 +1,83 @@
+{% load ui %}
+{% comment %}
+The weld form's equipment grid, laid out like the Report sheet (rows: reports/weld_form.py):
+the testing instrument, then probe columns and group columns. Used by the report editor and by
+Library › Defaults (prefilled columns). Needs `form` (instrument fields), `probe_formset`,
+`group_formset` and `weld_grid`. weld_grid.js adds, removes and duplicates columns (from the
+<template> cells), numbers them and greys the rows a probe kind leaves N/A.
+{% endcomment %}
+{{ probe_formset.management_form }}
+{{ group_formset.management_form }}
+{% if probe_formset.non_form_errors or group_formset.non_form_errors %}
+<div class="alert alert-danger py-2">{{ probe_formset.non_form_errors }}{{ group_formset.non_form_errors }}</div>
+{% endif %}
+<div class="weld-grids" id="weld-grids" data-max-probes="{{ weld_grid.max_probes }}" data-max-groups="{{ weld_grid.max_groups }}">
+    <div class="weld-grid-wrap">
+        <table class="weld-grid instrument-grid">
+            <thead><tr><th scope="col">Testing instrument</th><th scope="col"></th></tr></thead>
+            <tbody>
+            {% for name, label, row in weld_grid.instrument %}
+            <tr><th scope="row"><label for="id_{{ name }}">{{ label }}</label></th><td>{% with field=form|bound:name %}{{ field }}{% endwith %}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="weld-grid-wrap">
+        <table class="weld-grid" id="probe-grid" data-prefix="probes">
+            <thead>
+            <tr data-row="__header__">
+                <th scope="col">Probe and wedge</th>
+                {% for f in probe_formset %}{% include 'reports/editor/_probe_header.html' with f=f %}{% endfor %}
+                <th class="add-col" scope="col"><button type="button" class="btn btn-sm btn-secondary" data-add-column="probes"><i class="bi bi-plus-lg"></i> Add probe</button></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for name, label in weld_grid.probe_head %}
+            <tr data-row="{{ name }}"><th scope="row">{{ label }}</th>
+                {% for f in probe_formset %}<td data-col="{{ f.prefix }}">{% with field=f|bound:name %}{{ field }}{% endwith %}</td>{% endfor %}<td></td></tr>
+            {% endfor %}
+            {% for name, label, row in weld_grid.probe %}
+            <tr data-row="{{ name }}"><th scope="row">{{ label }}</th>
+                {% for f in probe_formset %}<td data-col="{{ f.prefix }}">{% with field=f|bound:name %}{{ field }}{% endwith %}</td>{% endfor %}<td></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <template id="probes-column-template">
+            {% with f=probe_formset.empty_form %}
+            {% include 'reports/editor/_probe_header.html' with f=f %}
+            {% for name, label in weld_grid.probe_head %}<td data-row="{{ name }}" data-col="{{ f.prefix }}">{% with field=f|bound:name %}{{ field }}{% endwith %}</td>{% endfor %}
+            {% for name, label, row in weld_grid.probe %}<td data-row="{{ name }}" data-col="{{ f.prefix }}">{% with field=f|bound:name %}{{ field }}{% endwith %}</td>{% endfor %}
+            {% endwith %}
+        </template>
+    </div>
+
+    <div class="weld-grid-wrap">
+        <table class="weld-grid" id="group-grid" data-prefix="groups">
+            <thead>
+            <tr data-row="__header__">
+                <th scope="col">Group settings</th>
+                {% for f in group_formset %}{% include 'reports/editor/_group_header.html' with f=f %}{% endfor %}
+                <th class="add-col" scope="col"><button type="button" class="btn btn-sm btn-secondary" data-add-column="groups"><i class="bi bi-plus-lg"></i> Add group</button></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr data-row="probe_column"><th scope="row">Probe</th>
+                {% for f in group_formset %}<td data-col="{{ f.prefix }}">{{ f.probe_column }}</td>{% endfor %}<td></td></tr>
+            {% for name, label, row in weld_grid.group %}
+            <tr data-row="{{ name }}"><th scope="row">{{ label }}</th>
+                {% for f in group_formset %}<td data-col="{{ f.prefix }}">{% with field=f|bound:name %}{{ field }}{% endwith %}</td>{% endfor %}<td></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <template id="groups-column-template">
+            {% with f=group_formset.empty_form %}
+            {% include 'reports/editor/_group_header.html' with f=f %}
+            <td data-row="probe_column" data-col="{{ f.prefix }}">{{ f.probe_column }}</td>
+            {% for name, label, row in weld_grid.group %}<td data-row="{{ name }}" data-col="{{ f.prefix }}">{% with field=f|bound:name %}{{ field }}{% endwith %}</td>{% endfor %}
+            {% endwith %}
+        </template>
+    </div>
+</div>
+<p class="form-text mb-0">The form holds {{ weld_grid.max_probes }} probes and {{ weld_grid.max_groups }} groups. Rows a probe kind doesn't use are greyed and print N/A. Ctrl+Shift+→ copies a cell to the columns on its right.</p>
+{{ weld_grid|json_script:"weld-grid-rows" }}

@@ -137,6 +137,7 @@ class NdeColumnsTests(TestCase):
         self.assertTrue(column['probe']['model'])
         self.assertTrue(column['probe_key'])
         self.assertNotIn(' · ', column['label'])
+        self.assertEqual((column['probe']['source_file'], column['group']['source_file']), ('scan.nde', 'scan.nde'))
 
     def test_not_an_nde_file(self):
         from django.core.files.uploadedfile import SimpleUploadedFile

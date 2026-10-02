@@ -172,7 +172,8 @@ def catalogue_choices(form, probe_name, wedge_name):
                                      'data-wedges-url': reverse_lazy('scan-plan-wedges')})
 
     def chosen(name):
-        value = form.data.get(form.add_prefix(name)) if form.is_bound else getattr(form.instance, f'{name}_id', None)
+        # Unbound: the form's initial (a model form's instance, or e.g. a defaults column's values)
+        value = form.data.get(form.add_prefix(name)) if form.is_bound else form.initial.get(name)
         return value if value not in (None, '') else None
 
     probe_pk, wedge_pk = chosen(probe_name), chosen(wedge_name)
@@ -506,7 +507,8 @@ class ReportProbeForm(GridCellsMixin, StyledFormMixin, ModelForm):
         model = ReportProbe
         exclude = ['report', 'order']
         widgets = {name: HiddenInput() for name in (
-            'wedge_primary_offset', 'wedge_first_element_height', 'wedge_velocity', 'wedge_length', 'wedge_height')}
+            'wedge_primary_offset', 'wedge_first_element_height', 'wedge_velocity', 'wedge_length', 'wedge_height',
+            'source_file')}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -521,6 +523,7 @@ class ReportGroupForm(GridCellsMixin, StyledFormMixin, ModelForm):
     class Meta:
         model = ReportGroup
         exclude = ['report', 'order', 'probe']
+        widgets = {'source_file': HiddenInput()}
 
     def __init__(self, *args, probe_choices=(), **kwargs):
         super().__init__(*args, **kwargs)

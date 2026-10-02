@@ -1,4 +1,5 @@
 {% extends 'reports/base.html' %}
+{% load ui %}
 
 {% block title %}{{ item.name }} · {{ rtype.label }} defaults · Library · PAUT Report Automation{% endblock %}
 
@@ -40,19 +41,11 @@
         </div>
         {% endfor %}
     </section>
-    {% if probe_form %}
+    {% if probe_formset %}
     <section class="panel">
-        <h2 class="panel-title">Every new probe column</h2>
-        <p class="form-text mt-0">Added with <em>Add probe</em> or by an import (the file's own values win).</p>
-        <div class="field-grid cols-4">
-            {% for field in probe_form %}{{ field.as_field_group }}{% endfor %}
-        </div>
-    </section>
-    <section class="panel">
-        <h2 class="panel-title">Every new group column</h2>
-        <div class="field-grid cols-4">
-            {% for field in group_form %}{{ field.as_field_group }}{% endfor %}
-        </div>
+        <h2 class="panel-title">Equipment &amp; parameters</h2>
+        <p class="form-text mt-0">The instrument, and the probe and group columns a new report starts with. An imported .nde fills the first column of the same kind that no file has filled yet; your values stay where the file has none.</p>
+        {% include 'reports/editor/_weld_grid.html' with form=report_form %}
     </section>
     {% endif %}
     {% if setup_form %}
@@ -72,4 +65,8 @@
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save defaults</button>
     </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+{% if probe_formset %}<script src="{% static_v 'reports/js/weld_grid.js' %}"></script>{% endif %}
 {% endblock %}

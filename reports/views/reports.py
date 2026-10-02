@@ -245,7 +245,9 @@ def create_report(request):
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
         'saved_setups': _saved_setup_choices(),
         'saved_setup_values': saved_values,
-        'saved_setup_columns': {pk: columns_from_setup(values) for pk, values in saved_values.items()},
+        # A setup without a file of its own is marked by its number (an import fills a column once)
+        'saved_setup_columns': {pk: columns_from_setup({**values, 'source_file': values.get('source_file') or f'Setup #{pk}'})
+                                for pk, values in saved_values.items()},
         'report_defaults': all_defaults(),
         'pdf_available': pdf_available(form.instance if form.instance.pk else None),
         'excel': bool(form.instance.pk) and _is_excel(form.instance),

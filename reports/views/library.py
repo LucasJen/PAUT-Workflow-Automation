@@ -5,9 +5,10 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from ..defaults import (
-    group_defaults_form, has_grid, has_setups, probe_defaults_form, report_defaults_form, report_fields,
-    setup_defaults_form, values_from,
+    column_formsets, columns_from, has_grid, has_setups, report_defaults_form, report_fields, setup_defaults_form,
+    values_from,
 )
+from ..weld_form import weld_grid_rows
 from ..models import ReportDefaults
 from ..report_types import REPORT_TYPES
 
@@ -22,7 +23,7 @@ def defaults_list(request):
         elif 'duplicate' in request.POST:
             copy = ReportDefaults(name=_free_name(item.report_type, f'{item.name} (copy)'), report_type=item.report_type,
                                   report_values=item.report_values, setup_values=item.setup_values,
-                                  probe_values=item.probe_values, group_values=item.group_values)
+                                  probe_columns=item.probe_columns, group_columns=item.group_columns)
             copy.save()
             return redirect('edit-defaults', pk=copy.pk)
         elif 'delete' in request.POST:
@@ -61,26 +62,28 @@ def _edit(request, item):
     if rtype is None:
         raise Http404
     errors = []
-    # Setup defaults for types with setup blocks; probe / group column defaults for the weld form's
-    # grid (values for a part the type doesn't show are kept as they are)
+    # Setup defaults for types with setup blocks; prefilled probe / group columns for the weld
+    # form's grid (values for a part the type doesn't show, or that wasn't posted, are kept)
     with_setups, with_grid = has_setups(item.report_type), has_grid(item.report_type)
     data = request.POST if request.method == 'POST' else None
     report_form = report_defaults_form(item.report_type, data, initial=item.report_values)
     setup_form = setup_defaults_form(data, initial=item.setup_values) if with_setups else None
-    probe_form = probe_defaults_form(data, initial=item.probe_values) if with_grid else None
-    group_form = group_defaults_form(data, initial=item.group_values) if with_grid else None
-    extra_forms = [f for f in (setup_form, probe_form, group_form) if f is not None]
+    probes = groups = None
+    if with_grid:
+        grid_data = data if data is None or 'probes-TOTAL_FORMS' in data else None
+        probes, groups = column_formsets(grid_data, item.probe_columns, item.group_columns)
+    extra_forms = [f for f in (setup_form, probes, groups) if f is not None]
     if request.method == 'POST':
         name = (request.POST.get('defaults_name') or '').strip()
         if not name:
             errors.append('Give these defaults a name.')
-        if not errors and report_form.is_valid() and all(f.is_valid() for f in extra_forms):
+        if not errors and report_form.is_valid() and all(f.is_valid() for f in extra_forms if f.is_bound):
             item.name = name
             item.report_values = values_from(report_form)
             if setup_form is not None:
                 item.setup_values = values_from(setup_form)
-            if probe_form is not None:
-                item.probe_values, item.group_values = values_from(probe_form), values_from(group_form)
+            if probes is not None and probes.is_bound:
+                item.probe_columns, item.group_columns = columns_from(probes, groups)
             try:
                 with transaction.atomic():
                     item.save()
@@ -94,8 +97,8 @@ def _edit(request, item):
     sections = [(title, [report_form[n] for n in names]) for title, names in report_fields(item.report_type)]
     return render(request, 'reports/edit_defaults.html', {
         'item': item, 'rtype': rtype, 'report_form': report_form, 'setup_form': setup_form,
-        'probe_form': probe_form, 'group_form': group_form,
-        'has_errors': report_form.errors or any(f.errors for f in extra_forms),
+        'probe_formset': probes, 'group_formset': groups, 'weld_grid': weld_grid_rows(),
+        'has_errors': report_form.errors or any(f.is_bound and not f.is_valid() for f in extra_forms),
         'sections': sections, 'errors': errors,
         'name_value': request.POST.get('defaults_name', item.name) if request.method == 'POST' else item.name,
     })

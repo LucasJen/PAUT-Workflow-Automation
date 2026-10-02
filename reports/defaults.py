@@ -1,16 +1,16 @@
 """
 Report defaults (Library › Defaults): per report type, values for its report fields and for new
-setup blocks, or on the weld form for its testing instrument and new probe / group columns. A new report opens with them; anything the user types, or that a client, a loaded
+setup blocks, or on the weld form for its testing instrument and prefilled probe / group columns. A new report opens with them; anything the user types, or that a client, a loaded
 setup, an NDE import or a scan plan fills in, replaces them.
 """
 from datetime import date
 
 from django.db import models
-from django.forms import ModelForm, modelform_factory
+from django.forms import formset_factory, modelform_factory
 
 from . import weld_form
-from .forms import ReportForm, SetupForm, StyledFormMixin
-from .models import Report, ReportDefaults, ReportGroup, ReportProbe, Setup
+from .forms import ReportForm, ReportGroupForm, ReportProbeForm, SetupForm
+from .models import Report, ReportDefaults, Setup
 from .report_types import REPORT_SECTIONS, get_report_type
 
 # Report fields that are per job, never defaults
@@ -21,9 +21,9 @@ SETUP_EXCLUDED = {'source_file', 'acquisition_date', 'index_offset', 'wedge_prim
                   'wedge_first_element_height', 'wedge_velocity', 'wedge_length', 'wedge_height'}
 
 
-# Weld grid columns: the sheet's rows (the per-job model and S/N can still be given)
-PROBE_FIELDS = ['kind'] + [name for name, _, _ in weld_form.PROBE_ROWS]
-GROUP_FIELDS = [name for name, _, _ in weld_form.GROUP_ROWS]
+# Grid column fields that come from the job's own data, never defaults
+COLUMN_EXCLUDED = {'DELETE', 'source_file', 'probe_column'}
+INSTRUMENT_FIELDS = [name for name, _, _ in weld_form.INSTRUMENT_ROWS]
 
 
 def has_setups(report_type):
@@ -39,8 +39,6 @@ def report_fields(report_type):
     rtype = get_report_type(report_type)
     sections = []
     for key, title, names in REPORT_SECTIONS:
-        if key == 'equipment' and key in rtype.sections:
-            sections.append(('Testing instrument', [name for name, _, _ in weld_form.INSTRUMENT_ROWS]))
         if key not in rtype.sections or not names:
             continue
         names = [n for n in names if n not in REPORT_EXCLUDED and n not in rtype.hidden_fields]
@@ -55,6 +53,8 @@ def setup_fields():
 
 def report_defaults_form(report_type, *args, **kwargs):
     names = [n for _, ns in report_fields(report_type) for n in ns]
+    if has_grid(report_type):
+        names += INSTRUMENT_FIELDS  # shown in the grid's Testing instrument table
     form = modelform_factory(Report, form=ReportForm, fields=names)(*args, **kwargs)
     form.fields.pop('report_type', None)  # declared on ReportForm; the defaults record is per type
     return form
@@ -64,23 +64,46 @@ def setup_defaults_form(*args, **kwargs):
     return modelform_factory(Setup, form=SetupForm, fields=setup_fields())(*args, prefix='setup', **kwargs)
 
 
-class _ColumnDefaultsForm(StyledFormMixin, ModelForm):
-    """Grid column defaults: every value optional (a blank kind leaves new columns PAUT)."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            field.required = False
-        if 'kind' in self.fields:
-            self.fields['kind'].choices = [('', '—')] + list(weld_form.KIND_CHOICES)
+ProbeColumnsFormSet = formset_factory(ReportProbeForm, extra=0, can_delete=True)
+GroupColumnsFormSet = formset_factory(ReportGroupForm, extra=0, can_delete=True)
 
 
-def probe_defaults_form(*args, **kwargs):
-    return modelform_factory(ReportProbe, form=_ColumnDefaultsForm, fields=PROBE_FIELDS)(*args, prefix='probe', **kwargs)
+def column_formsets(data=None, probes=(), groups=()):
+    """
+    (probes, groups) formsets for a defaults set's prefilled columns, laid out by the same grid
+    as the report editor (same prefixes); groups choose their probe column by its index.
+    """
+    probe_formset = ProbeColumnsFormSet(data, initial=list(probes) or None, prefix='probes')
+    count = int(data.get('probes-TOTAL_FORMS', 0) or 0) if data is not None else len(probes)
+    choices = [(str(i), f'P{i + 1}') for i in range(max(count, weld_form.MAX_PROBES))]
+    group_formset = GroupColumnsFormSet(data, initial=list(groups) or None, prefix='groups',
+                                        form_kwargs={'probe_choices': choices})
+    return probe_formset, group_formset
 
 
-def group_defaults_form(*args, **kwargs):
-    return modelform_factory(ReportGroup, form=_ColumnDefaultsForm, fields=GROUP_FIELDS)(*args, prefix='group', **kwargs)
+def columns_from(probe_formset, group_formset):
+    """
+    (probe columns, group columns) to store from valid column formsets: removed and empty columns
+    left out, groups' probe_column renumbered to the probe's place among the kept ones.
+    """
+    def values(form):
+        return {k: v for k, v in values_from(form).items() if k not in COLUMN_EXCLUDED}
+
+    probes, place = [], {}
+    for form in probe_formset.forms:
+        kept = values(form)
+        if form in probe_formset.deleted_forms or not set(kept) - {'kind'}:
+            continue
+        place[form.prefix.rsplit('-', 1)[1]] = str(len(probes))
+        probes.append(kept)
+    groups = []
+    for form in group_formset.forms:
+        kept = values(form)
+        if form in group_formset.deleted_forms or not kept:
+            continue
+        probe = place.get(form.cleaned_data.get('probe_column') or '')
+        groups.append({**kept, 'probe_column': probe} if probe is not None else kept)
+    return probes, groups
 
 
 def _stored(value):
@@ -127,9 +150,9 @@ def defaults_for(report_type):
 
 def all_defaults():
     """
-    {report type: {'report': {...}, 'setup': {...}, 'probe': {...}, 'group': {...}}} for the report
-    editor's type switching and new grid columns.
+    {report type: {'report': {...}, 'setup': {...}, 'probes': [...], 'groups': [...]}} for the report
+    editor's type switching and a new report's prefilled grid columns.
     """
     return {d.report_type: {'report': d.report_values, 'setup': d.setup_values,
-                            'probe': d.probe_values, 'group': d.group_values}
+                            'probes': d.probe_columns, 'groups': d.group_columns}
             for d in ReportDefaults.objects.filter(in_use=True)}

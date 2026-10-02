@@ -182,7 +182,7 @@ class ScanPlan(models.Model):
 class ReportDefaults(models.Model):
     """
     Library › Defaults: a named set of values a new report starts with, for its report fields and
-    for each new setup block (or, on the weld form, each new probe and group column). A report type can have several (e.g. per client); the one marked
+    for each new setup block (or, on the weld form, its prefilled probe and group columns). A report type can have several (e.g. per client); the one marked
     in use is what new reports of that type start from. Kept apart from reports so a defaults set
     is never listed or generated as a report. Values are {field name: value} (FKs as their pk).
     """
@@ -191,9 +191,10 @@ class ReportDefaults(models.Model):
     in_use = models.BooleanField('Used for new reports', default=False)
     report_values = models.JSONField(default=dict, blank=True)
     setup_values = models.JSONField(default=dict, blank=True)
-    # Weld form grid: values every new probe / group column starts with
-    probe_values = models.JSONField(default=dict, blank=True)
-    group_values = models.JSONField(default=dict, blank=True)
+    # Weld form grid: the probe and group columns a new report starts with, as lists of
+    # {field: value}; a group's 'probe_column' is the index of its probe in probe_columns
+    probe_columns = models.JSONField(default=list, blank=True)
+    group_columns = models.JSONField(default=list, blank=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
 
     class Meta:
@@ -289,6 +290,9 @@ class ReportProbe(models.Model):
     wedge_velocity = models.FloatField(null=True, blank=True)
     wedge_length = models.FloatField(null=True, blank=True)
     wedge_height = models.FloatField(null=True, blank=True)
+    # The .nde (or saved setup) that filled the column; blank = typed in or a default, so an import
+    # may fill it
+    source_file = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ['order', 'pk']
@@ -322,6 +326,9 @@ class ReportGroup(models.Model):
     scanning_db = models.CharField('Scanning dB', max_length=50, blank=True)
     first_element = models.PositiveIntegerField(null=True, blank=True)
     aperture_elements = models.PositiveIntegerField('Aperture (elements)', null=True, blank=True)
+    # The .nde (or saved setup) that filled the column; blank = typed in or a default, so an import
+    # may fill it
+    source_file = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ['order', 'pk']

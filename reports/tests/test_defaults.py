@@ -28,29 +28,55 @@ class DefaultsPageTests(TestCase):
         self.assertNotIn('name="setup-source_file"', page)   # from the .nde
         self.assertNotIn('name="probe-kind"', page)          # the weld grid only
 
-    def test_weld_defaults_cover_the_instrument_and_new_columns(self):
+    def test_weld_defaults_page_is_the_report_grid(self):
         page = self.client.get(reverse('new-defaults', args=['paut_weld'])).content.decode()
         self.assertIn('name="procedure_rev"', page)          # a weld form field
-        self.assertIn('name="inst_name"', page)              # testing instrument
-        self.assertIn('name="probe-cable_type"', page)
-        self.assertIn('name="group-smoothing"', page)
+        self.assertIn('id="probe-grid"', page)
+        self.assertIn('id="probes-column-template"', page)
+        self.assertIn('name="inst_name"', page)              # testing instrument, in the grid
         self.assertNotIn('name="setup-cable_type"', page)    # the weld form has no setup blocks
-        self.client.post(reverse('new-defaults', args=['paut_weld']), {
-            'defaults_name': 'Standard', 'procedure': '100-UT-20', 'procedure_rev': '9.0', 'inst_name': 'OmniScan X3',
-            'probe-kind': 'paut', 'probe-cable_type': 'Integral', 'probe-probe_check': 'Accept',
-            'group-smoothing': 'On',
-        })
-        record = ReportDefaults.objects.get()
-        self.assertEqual(record.report_values, {'procedure': '100-UT-20', 'procedure_rev': '9.0', 'inst_name': 'OmniScan X3'})
-        self.assertEqual(record.probe_values, {'kind': 'paut', 'cable_type': 'Integral', 'probe_check': 'Accept'})
-        self.assertEqual(record.group_values, {'smoothing': 'On'})
-        self.assertNotIn('report_type', record.report_values)
+        self.assertNotIn('id="weld-grid-toolbar"', page)     # no imports on a defaults set
 
-    def test_weld_save_keeps_setup_values(self):
-        record = ReportDefaults.objects.create(report_type='paut_weld', name='Old', setup_values={'couplant': 'Water'})
-        self.client.post(reverse('edit-defaults', args=[record.pk]), {'defaults_name': 'Old', 'probe-kind': 'paut'})
+    def test_weld_defaults_save_prefilled_columns(self):
+        data = {
+            'defaults_name': 'Standard', 'procedure': '100-UT-20', 'inst_name': 'OmniScan X3',
+            'probes-TOTAL_FORMS': '3', 'probes-INITIAL_FORMS': '0',
+            'probes-0-kind': 'paut', 'probes-0-label': '90°', 'probes-0-cable_type': 'Integral',
+            'probes-1-kind': 'paut', 'probes-1-model': 'gone', 'probes-1-DELETE': 'on',
+            'probes-2-kind': 'conv_long', 'probes-2-label': '0°', 'probes-2-probe_check': 'Accept',
+            'groups-TOTAL_FORMS': '3', 'groups-INITIAL_FORMS': '0',
+            'groups-0-probe_column': '0', 'groups-0-scan': 'Sectorial', 'groups-0-smoothing': 'On',
+            'groups-1-probe_column': '2', 'groups-1-label': '0°', 'groups-1-scan': 'Conventional',
+            'groups-2-probe_column': '', 'groups-2-kind': '',
+        }
+        self.client.post(reverse('new-defaults', args=['paut_weld']), data)
+        record = ReportDefaults.objects.get()
+        self.assertEqual(record.report_values, {'procedure': '100-UT-20', 'inst_name': 'OmniScan X3'})
+        self.assertEqual(record.probe_columns, [
+            {'kind': 'paut', 'label': '90°', 'cable_type': 'Integral'},
+            {'kind': 'conv_long', 'label': '0°', 'probe_check': 'Accept'},
+        ])
+        self.assertEqual(record.group_columns, [
+            {'scan': 'Sectorial', 'smoothing': 'On', 'probe_column': '0'},
+            {'label': '0°', 'scan': 'Conventional', 'probe_column': '1'},
+        ])
+
+        # Shown again as columns, with the groups on their probes
+        resp = self.client.get(reverse('edit-defaults', args=[record.pk]))
+        self.assertContains(resp, 'value="Integral"')
+        self.assertEqual([f['probe_column'].value() for f in resp.context['group_formset'].forms], ['0', '1'])
+
+        # ...and offered to new reports of the type
+        defaults = self.client.get(reverse('create-report')).context['report_defaults']['paut_weld']
+        self.assertEqual((len(defaults['probes']), len(defaults['groups'])), (2, 2))
+
+    def test_weld_save_keeps_setup_values_and_unposted_columns(self):
+        record = ReportDefaults.objects.create(report_type='paut_weld', name='Old', setup_values={'couplant': 'Water'},
+                                               probe_columns=[{'kind': 'paut', 'label': 'P'}])
+        self.client.post(reverse('edit-defaults', args=[record.pk]), {'defaults_name': 'Old'})
         record.refresh_from_db()
         self.assertEqual(record.setup_values, {'couplant': 'Water'})
+        self.assertEqual(record.probe_columns, [{'kind': 'paut', 'label': 'P'}])
 
 
 class NewReportTests(TestCase):

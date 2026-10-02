@@ -84,6 +84,7 @@ def columns_from_setup(values):
         'wedge_velocity': values.get('wedge_velocity'),
         'wedge_length': values.get('wedge_length'),
         'wedge_height': values.get('wedge_height'),
+        'source_file': values.get('source_file'),
     }
     group = {
         'scan': values.get('beam_formation'),
@@ -105,6 +106,7 @@ def columns_from_setup(values):
         'scanning_db': values.get('scanning_db'),
         'first_element': values.get('first_element'),
         'aperture_elements': values.get('aperture_elements'),
+        'source_file': values.get('source_file'),
     }
 
     def kept(fields):
