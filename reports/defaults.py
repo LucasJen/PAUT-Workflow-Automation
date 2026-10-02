@@ -56,6 +56,8 @@ def report_defaults_form(report_type, *args, **kwargs):
     names = [n for _, _, ns in report_fields(report_type) for n in ns]
     if has_grid(report_type):
         names += INSTRUMENT_FIELDS  # shown in the grid's Testing instrument table
+    if 'materials' in get_report_type(report_type).sections:
+        names += ['sensitivity_block'] + [name for name, _ in weld_form.material_fields()]   # the materials card
     form = modelform_factory(Report, form=ReportForm, fields=names)(*args, **kwargs)
     form.fields.pop('report_type', None)  # declared on ReportForm; the defaults record is per type
     return form

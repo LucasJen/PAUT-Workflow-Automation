@@ -1,0 +1,8 @@
+{% comment %}The report editor's Sensitivity block & test material section (_materials_card.html).{% endcomment %}
+<section class="panel editor-section" id="sec-materials" data-section="materials">
+    <div class="panel-header">
+        <h2 class="panel-title">Sensitivity block &amp; test material</h2>
+    </div>
+    {% include 'reports/editor/_materials_card.html' with auto_detect=True %}
+    <p class="form-text mb-0">Picking a block fills its row of the Cal Block Table: the card, the TCG block and the instrument's encoder, scan resolution and speed. Auto-detect picks the block for the part your .nde imports scanned (diameter, then wall) and fills the item inspected from the scan. The TCG distances are 1T, 2T and 3T of the block thickness.</p>
+</section>

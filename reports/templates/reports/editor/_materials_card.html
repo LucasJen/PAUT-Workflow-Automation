@@ -1,0 +1,65 @@
+{% load ui %}
+{% comment %}
+The weld form's Material Information, Additional Block(s) and TCG Parameters (rows: reports/
+weld_form.py), laid out like the sheet. Used by the report editor (with Auto-detect) and by
+Library › Defaults. Needs `form` (the report fields), `weld_grid`, `sensitivity_blocks` and
+`auto_detect`. materials.js fills the card from the picked block and works out the TCG distances.
+{% endcomment %}
+<div class="materials-card" id="materials-card"{% if auto_detect %} data-detect-url="{% url 'detect-sensitivity-block' %}"{% endif %}>
+    <div class="weld-grid-toolbar">
+        <label class="form-label mb-0" for="{{ form.sensitivity_block.id_for_label }}">Sensitivity block</label>
+        <div class="materials-picker">{{ form.sensitivity_block }}</div>
+        {% if auto_detect %}
+        <button type="button" class="btn btn-secondary btn-sm" id="materials-detect"
+                title="Pick the block for the part the .nde imports scanned, and fill the item inspected from the scan">
+            <i class="bi bi-magic"></i> Auto-detect</button>
+        {{ form.scan_part }}
+        {% endif %}
+        <span class="weld-grid-status" id="materials-status" role="status"></span>
+    </div>
+
+    <div class="materials-tables">
+        <div class="weld-grid-wrap">
+            <table class="weld-grid materials-grid">
+                <thead><tr><th scope="col">Material information</th><th scope="col">Cal. Std.</th><th scope="col">Item inspected</th></tr></thead>
+                <tbody>
+                <tr><th scope="row"><label for="id_pipe_size">NPS / Sch</label></th><td colspan="2">{{ form.pipe_size }}</td></tr>
+                {% for label, cal, item, row in weld_grid.material %}
+                <tr><th scope="row">{{ label }}</th>
+                    <td>{% with field=form|bound:cal %}{{ field }}{% endwith %}</td>
+                    <td{% if not item %} class="na"{% endif %}>{% if item %}{% with field=form|bound:item %}{{ field }}{% endwith %}{% endif %}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="weld-grid-wrap">
+            <table class="weld-grid materials-grid">
+                <thead><tr><th scope="col">Additional block(s)</th><th scope="col">Block 1</th><th scope="col">Block 2</th></tr></thead>
+                <tbody>
+                {% for label, name, row in weld_grid.additional %}
+                <tr><th scope="row">{{ label }}</th>
+                    {% for prefix in weld_grid.additional_blocks %}
+                    <td>{% with field_name=prefix|add:"_"|add:name %}{% with field=form|bound:field_name %}{{ field }}{% endwith %}{% endwith %}</td>
+                    {% endfor %}</tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="weld-grid-wrap">
+        <table class="weld-grid materials-grid tcg-grid">
+            <thead><tr><th scope="col">TCG parameters</th>{% for k in weld_grid.tcg_multiples %}<th scope="col">{{ k }}T</th>{% endfor %}</tr></thead>
+            <tbody>
+            {% for name, label in weld_grid.tcg %}
+            <tr><th scope="row"><label for="id_{{ name }}">{{ label }}</label></th>
+                <td colspan="3">{% with field=form|bound:name %}{{ field }}{% endwith %}</td></tr>
+            {% if name == 'tcg_thickness' %}
+            <tr><th scope="row">Distance</th>{% for k in weld_grid.tcg_multiples %}<td class="tcg-distance" data-multiple="{{ k }}"></td>{% endfor %}</tr>
+            {% endif %}
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{ sensitivity_blocks|json_script:"sensitivity-blocks" }}

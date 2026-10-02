@@ -1010,6 +1010,26 @@ textarea.result-cell-input {
 .weld-grid .grid-col-head .form-control-sm { font-weight: 500; }
 .weld-grid .add-col { width: 7rem; text-align: center; }
 .weld-grid .add-col .btn { white-space: normal; }
+/* Sensitivity block & test material (reports/editor/_materials_card.html): the sheet's tables */
+.materials-card .weld-grid-wrap + .weld-grid-wrap,
+.materials-tables + .weld-grid-wrap { margin-top: 1rem; }
+.materials-tables { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+@media (max-width: 1199.98px) { .materials-tables { grid-template-columns: minmax(0, 1fr); } }
+.materials-picker { min-width: 14rem; }
+.materials-picker .form-select { padding-top: 0.25rem; padding-bottom: 0.25rem; font-size: 0.875rem; }
+.materials-grid .form-control, .materials-grid .form-select {
+    border-color: transparent;
+    background-color: transparent;
+    border-radius: 3px;
+    padding: 0.125rem 0.5rem;
+    min-height: 0;
+    font-size: 0.8125rem;
+}
+.materials-grid td:hover .form-control { border-color: var(--border); }
+.materials-grid .form-control:focus { border-color: var(--accent); background-color: var(--surface); }
+.materials-grid td.na { background: var(--surface-hover); }
+.tcg-grid .tcg-distance { padding-left: 0.75rem; font-variant-numeric: tabular-nums; color: var(--text-2); }
+
 /* Weld results (reports/editor/weld_results.html): a block per weld, its indications under it */
 .weld-block { margin-bottom: 0.75rem; }
 .weld-block .results-grid + .results-grid,

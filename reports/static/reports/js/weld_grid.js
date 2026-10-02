@@ -355,6 +355,15 @@
             pristine.delete(probeCol);
             pristine.delete(groupCol);
         }
+        // The scanned part (OD, wall, material, velocities, bevel), for the Sensitivity block
+        // card's Auto-detect; a later import's values replace an earlier one's
+        const scanPart = document.getElementById('id_scan_part');
+        if (scanPart) {
+            let part = {};
+            try { part = JSON.parse(scanPart.value) || {}; } catch (e) { /* none yet */ }
+            for (const item of items) Object.assign(part, item.part || {});
+            scanPart.value = JSON.stringify(part);
+        }
         refresh();
         root.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
         const plural = n => `${n} column${n === 1 ? '' : 's'}`;

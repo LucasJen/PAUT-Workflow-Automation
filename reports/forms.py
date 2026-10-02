@@ -114,6 +114,8 @@ class ReportForm(StyledFormMixin, ModelForm):
             'scan_plan': 'Scan plan',
         }
         widgets = {
+            # The part the .nde imports recorded, for the Sensitivity block card's Auto-detect
+            'scan_part': HiddenInput(),
             # Names from earlier reports (the editor's known-people list) fill in the certification
             'weld_technician': TextInput(attrs={'list': 'known-people', 'autocomplete': 'off', 'data-cert-field': 'weld_technician_cert'}),
             'weld_reviewer': TextInput(attrs={'list': 'known-people', 'autocomplete': 'off', 'data-cert-field': 'weld_reviewer_cert'}),

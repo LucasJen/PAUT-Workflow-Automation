@@ -9,6 +9,7 @@ import re
 from .weld_form import CONV_LONG, CONV_SHEAR, PAUT
 
 NUMBER = re.compile(r'^-?\d+(\.\d+)?$')
+NUMBER_IN = re.compile(r'-?\d+(?:\.\d+)?')
 
 
 def _s(value):
@@ -123,4 +124,31 @@ def columns_from_setup(values):
         return {k: _s(v) for k, v in fields.items() if _s(v)}
 
     probe = kept(probe)
-    return {'instrument': kept(instrument), 'probe': probe, 'group': kept(group), 'probe_key': probe_key(probe)}
+    return {'instrument': kept(instrument), 'probe': probe, 'group': kept(group), 'probe_key': probe_key(probe),
+            'part': scanned_part(values)}
+
+
+def _first(text):
+    match = NUMBER_IN.search(_s(text))
+    return float(match.group()) if match else None
+
+
+def scanned_part(values):
+    """
+    The part a setup / .nde group was scanned on, in inches and in/µs whatever its units, for the
+    Sensitivity block card's Auto-detect (Report.scan_part).
+    """
+    metric = values.get('units') == 'metric'
+    length = (lambda v: round(v / 25.4, 4)) if metric else (lambda v: v)
+    speed = (lambda v: round(v / 25400, 4)) if metric else (lambda v: v)   # m/s -> in/µs
+    od, thickness, velocity = (_first(values.get(k)) for k in ('specimen_od', 'specimen_thickness', 'sound_velocity'))
+    wave = 'long_velocity' if _s(values.get('wave_propagation')) == 'Longitudinal' else 'shear_velocity'
+    part = {
+        'od': length(od) if od is not None else None,
+        'thickness': length(thickness) if thickness is not None else None,
+        'material': _s(values.get('cal_material')) or None,
+        wave: speed(velocity) if velocity is not None else None,
+        'bevel_angle': _first(values.get('weld_bevel_angle')),
+        'source': _s(values.get('source_file')) or None,
+    }
+    return {k: v for k, v in part.items() if v is not None}

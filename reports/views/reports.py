@@ -19,6 +19,7 @@ from ..report_types import DEFAULT_REPORT_TYPE, get_report_type
 from ..defaults import all_defaults, defaults_for, in_page_order, only_defaults
 from equipment.inventory import with_library_scope
 
+from ..materials import library_blocks
 from ..weld_columns import columns_from_setup
 from ..weld_form import NOT_USED, weld_grid_rows
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
@@ -247,6 +248,7 @@ def create_report(request):
         'probe_formset': probes if probes is not None else equipment_formsets(instance=form.instance)[0],
         'group_formset': groups if groups is not None else equipment_formsets(instance=form.instance)[1],
         'weld_grid': weld_grid_rows(),
+        'sensitivity_blocks': library_blocks(),
         # How many results rows the weld form holds: page 1, then the Continuation page
         'weld_results_rows': {'page1': len(REPORT_RESULT_ROWS), 'total': len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)},
         'has_equipment': bool(form.instance.pk) and has_equipment(form.instance),

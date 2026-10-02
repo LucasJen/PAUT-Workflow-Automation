@@ -48,6 +48,8 @@
                 {% if section.part == 'equipment' %}
                 <p class="form-text mt-0">The instrument, and the probe and group columns a new report starts with. An imported .nde fills the first column of the same kind that no file has filled yet; your values stay where the file has none.</p>
                 {% include 'reports/editor/_weld_grid.html' with form=report_form %}
+                {% elif section.part == 'materials' %}
+                {% include 'reports/editor/_materials_card.html' with form=report_form auto_detect=False %}
                 {% elif section.part == 'setups' %}
                 {% for title, fields in setup_form.fieldsets %}
                 {% if fields %}
@@ -75,4 +77,5 @@
 {% block scripts %}
 <script src="{% static_v 'reports/js/section_nav.js' %}"></script>
 {% if probe_formset %}<script src="{% static_v 'reports/js/weld_grid.js' %}"></script>{% endif %}
+{% if sensitivity_blocks is not None and 'materials' in rtype.sections %}<script src="{% static_v 'reports/js/materials.js' %}"></script>{% endif %}
 {% endblock %}

@@ -1,9 +1,11 @@
 """
 The weld form's (100-UTFORM-010) equipment grid: which field goes in which row of the Report
 sheet, for the testing instrument (column C), the probe columns (F-I) and the group columns
-(L, N, P, Q, S), and which rows don't apply to a probe kind. The editor's grid and the Excel
-output both read these, so the two always line up.
+(L, N, P, Q, S), and which rows don't apply to a probe kind; and the Material Information,
+Additional Block(s) and TCG Parameters cells. The editor and the Excel output both read these,
+so the two always line up.
 """
+import re
 
 PAUT, CONV_LONG, CONV_SHEAR, NOT_USED = 'paut', 'conv_long', 'conv_shear', 'na'
 # N/A keeps a column in its place with every cell N/A (e.g. no 270° probe on this job)
@@ -104,4 +106,77 @@ def weld_grid_rows():
         'max_groups': MAX_GROUPS,
         'probe_na': {kind: sorted(rows) for kind, rows in PROBE_NA.items()},
         'group_na': {kind: sorted(rows) for kind, rows in GROUP_NA.items()},
+        'material': MATERIAL_ROWS,
+        'additional': ADDITIONAL_ROWS,
+        'additional_blocks': [prefix for prefix, _ in ADDITIONAL_BLOCKS],
+        'tcg': TCG_FIELDS,
+        'tcg_multiples': TCG_MULTIPLES,
     }
+
+
+# ── Material Information, Additional Block(s) and TCG Parameters ─────────────
+
+# (label, Cal. Std. field (column W), Item Inspected field (column Y), Report sheet row)
+MATERIAL_ROWS = [
+    ('S/N', 'cal_std_serial', None, 14),
+    ('Block type', 'cal_std_block_type', 'item_block_type', 16),
+    ('Material', 'cal_std_material', 'item_material', 17),
+    ('Velocity shear', 'cal_std_vel_shear', 'item_vel_shear', 18),
+    ('Velocity L-wave', 'cal_std_vel_long', 'item_vel_long', 19),
+    ('Diameter', 'cal_std_diameter', 'item_diameter', 20),
+    ('Sch / nom. thk', 'cal_std_sch_nom', 'item_sch_nom', 21),
+    ('Temp (°F)', 'cal_std_temp', 'item_temp', 22),
+    ('Surface condition', 'cal_std_surface', 'item_surface', 23),
+    ('Exam surface (I.D. / O.D.)', 'cal_std_exam_surface', 'item_exam_surface', 24),
+    ('Couplant', 'cal_std_couplant', 'item_couplant', 25),
+    ('Bevel geometry', 'cal_std_bevel', 'item_bevel', 26),
+]
+PIPE_SIZE_CELL = 'U15'
+
+# Additional Block(s) (if used): two blocks, columns W and Y; field = <prefix>_<name>
+ADDITIONAL_BLOCKS = (('add1', 'W'), ('add2', 'Y'))
+ADDITIONAL_ROWS = [
+    ('Block type', 'block_type', 28),
+    ('Block S/N', 'serial', 29),
+    ('Material', 'material', 30),
+    ('Velocity shear', 'vel_shear', 31),
+    ('Velocity L-wave', 'vel_long', 32),
+    ('Diameter', 'diameter', 33),
+    ('Sch / nom. thk', 'sch_nom', 34),
+    ('Temp (°F)', 'temp', 35),
+    ('Surface condition', 'surface', 36),
+    ('Exam surface (I.D. / O.D.)', 'exam_surface', 37),
+]
+
+# TCG Parameters: three points at 1T, 2T and 3T of the sensitivity block's thickness T
+TCG_POINT_COLUMNS = 'LNP'
+TCG_MULTIPLES = (1, 2, 3)
+TCG_FIELDS = [
+    ('tcg_block', 'TCG block used'),       # L34
+    ('tcg_ref_block', 'Ref block used'),   # Q34
+    ('tcg_reflector', 'Reflector type'),   # L35, N35, P35
+    ('tcg_thickness', 'Block thickness (T)'),   # distances L36, N36, P36 = 1T, 2T, 3T
+    ('tcg_amplitude', 'Amplitude'),        # L37, N37, P37
+]
+
+
+def material_fields():
+    """(Report field, label) of the Sensitivity block & test material card, in card order."""
+    fields = [('pipe_size', 'NPS / Sch')]
+    for label, cal, item, _ in MATERIAL_ROWS:
+        fields.append((cal, f'Cal. Std. {label.lower()}'))
+        if item:
+            fields.append((item, f'Item inspected {label.lower()}'))
+    for prefix, _ in ADDITIONAL_BLOCKS:
+        number = prefix[-1]
+        fields += [(f'{prefix}_{name}', f'Additional block {number} {label.lower()}') for label, name, _ in ADDITIONAL_ROWS]
+    return fields + TCG_FIELDS
+
+
+def tcg_distances(thickness):
+    """'0.280' -> ['0.280', '0.560', '0.840'] (1T, 2T, 3T); [] when T isn't a number."""
+    match = re.search(r'-?\d+(?:\.\d+)?', thickness or '')
+    if not match:
+        return []
+    t = float(match.group())
+    return [f'{t * k:.3f}' for k in TCG_MULTIPLES]

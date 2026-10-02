@@ -10,3 +10,4 @@ from .scan_plans import (
     edit_scan_plan, new_scan_plan, scan_plan_from_weld, scan_plan_list, scan_plan_png, scan_plan_preview,
     scan_plan_wedge_data, scan_plan_wedges,
 )
+from .materials import detect_sensitivity_block

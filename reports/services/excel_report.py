@@ -327,6 +327,40 @@ def _block(report):
     return {ref: value for ref, value in cells.items() if value}
 
 
+def _materials(report):
+    """
+    Material Information (U15, W14-Y26), Additional Block(s) (W28-Y37) and TCG Parameters
+    (L34-P37) from the report's Sensitivity block & test material card; {} when the card is empty.
+    """
+    names = [name for name, _ in weld_form.material_fields()]
+    if not any(_v(getattr(report, name)) for name in names):
+        return {}
+    cells = {weld_form.PIPE_SIZE_CELL: _v(report.pipe_size)}
+    for _, cal, item, row in weld_form.MATERIAL_ROWS:
+        cells[f'W{row}'] = _v(getattr(report, cal))
+        if item:
+            cells[f'Y{row}'] = _v(getattr(report, item))
+    for prefix, col in weld_form.ADDITIONAL_BLOCKS:
+        for _, name, row in weld_form.ADDITIONAL_ROWS:
+            cells[f'{col}{row}'] = _v(getattr(report, f'{prefix}_{name}'))
+    cells['L34'], cells['Q34'] = _v(report.tcg_block), _v(report.tcg_ref_block)
+    distances = weld_form.tcg_distances(report.tcg_thickness) or [''] * len(weld_form.TCG_MULTIPLES)
+    for col, distance in zip(weld_form.TCG_POINT_COLUMNS, distances):
+        cells[f'{col}35'] = _v(report.tcg_reflector)
+        cells[f'{col}36'] = distance
+        cells[f'{col}37'] = _v(report.tcg_amplitude)
+    return cells
+
+
+def _material_cells(report, equipment):
+    """The equipment cells with the material / TCG ones: the report's card, else (reports from
+    before it) the scan plan's sensitivity block as they printed it."""
+    materials = _materials(report)
+    if materials:
+        return {**equipment, **materials}
+    return _with_block(equipment, _block(report))
+
+
 def _calibration(report):
     cells = {}
     times = (report.cal_time_initial, report.cal_time_check1, report.cal_time_check2, report.cal_time_out)
@@ -434,7 +468,7 @@ def weld_pages(report):
     _, rows = report_results(report)
     report_cells, continuation = _results(rows)
     pages = WeldPages(
-        report={**_header(report), **_with_block(_equipment_cells(report, setups), _block(report)),
+        report={**_header(report), **_material_cells(report, _equipment_cells(report, setups)),
                 **_calibration(report), **report_cells},
         continuation=continuation,
         indications=_indications(report, rows),

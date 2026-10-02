@@ -8,6 +8,7 @@ from ..defaults import (
     column_formsets, columns_from, has_grid, has_setups, report_defaults_form, report_fields, setup_defaults_form,
     values_from,
 )
+from ..materials import library_blocks
 from ..weld_form import weld_grid_rows
 from ..models import ReportDefaults
 from ..report_types import REPORT_SECTIONS, REPORT_TYPES
@@ -104,11 +105,14 @@ def _edit(request, item):
             sections.append({'key': key, 'title': title, 'fields': [report_form[n] for n in field_sections[key]]})
         elif key == 'equipment' and probes is not None:
             sections.append({'key': key, 'title': title, 'part': 'equipment'})
+        elif key == 'materials':
+            sections.append({'key': key, 'title': title, 'part': 'materials'})
         elif key == 'setups' and setup_form is not None:
             sections.append({'key': key, 'title': 'Every new setup', 'part': 'setups'})
     return render(request, 'reports/edit_defaults.html', {
         'item': item, 'rtype': rtype, 'report_form': report_form, 'setup_form': setup_form,
         'probe_formset': probes, 'group_formset': groups, 'weld_grid': weld_grid_rows(),
+        'sensitivity_blocks': library_blocks() if 'materials' in rtype.sections else {},
         'has_errors': report_form.errors or any(f.is_bound and not f.is_valid() for f in extra_forms),
         'sections': sections, 'errors': errors,
         'name_value': request.POST.get('defaults_name', item.name) if request.method == 'POST' else item.name,

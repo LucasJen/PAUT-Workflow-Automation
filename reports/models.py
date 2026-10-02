@@ -1,6 +1,6 @@
 from django.db import models
 
-from .weld_form import KIND_CHOICES as WELD_KIND_CHOICES, PAUT as WELD_PAUT
+from .weld_form import KIND_CHOICES as WELD_KIND_CHOICES, PAUT as WELD_PAUT, material_fields
 
 class Report(models.Model):
     """
@@ -81,12 +81,26 @@ class Report(models.Model):
     # Discussion; blank uses the text library's standard Discussion
     discussion = models.TextField(blank=True)
 
+    # Weld form: Sensitivity block & test material. The block picked from the library fills the
+    # card's fields (weld_form.material_fields, added below), which can then be edited
+    sensitivity_block = models.ForeignKey('equipment.SensitivityBlock', on_delete=models.SET_NULL, null=True,
+                                          blank=True, related_name='reports')
+    # The part as the .nde imports recorded it, for Auto-detect: {od, thickness (in), material,
+    # shear_velocity, long_velocity (in/µs), bevel_angle (°), source}
+    scan_part = models.JSONField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.pk} | {self.document_filename}"
 
     @property
     def prepared_by_names(self):
         return ', '.join(p.name for p in self.people.all() if p.prepared)
+
+
+# The Sensitivity block & test material card's fields (one per cell of the weld form's Material
+# Information, Additional Block(s) and TCG Parameters; reports/weld_form.py)
+for _name, _label in material_fields():
+    Report.add_to_class(_name, models.CharField(_label, max_length=100, blank=True))
 
 
 class ScanPlan(models.Model):
