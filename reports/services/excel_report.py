@@ -16,6 +16,7 @@ from datetime import date, datetime
 
 from django.conf import settings
 
+from .. import weld_form
 from ..models import ReportImage
 from ..report_types import get_report_type
 from ..results import report_results
@@ -201,6 +202,60 @@ def _equipment(setups):
     return cells
 
 
+KIND_KEY = {'paut': 'PAUT', 'conv_long': '0deg', 'conv_shear': 'SW'}
+
+
+def _probe_keys(probes):
+    """'PAUT 1: Olympus 10L32-A1', '0deg 1: Olympus D791', ... as the reference's Probe Table names them."""
+    keys, counts = {}, {}
+    for probe in probes:
+        prefix = KIND_KEY.get(probe.kind, 'PAUT')
+        counts[prefix] = counts.get(prefix, 0) + 1
+        name = ' '.join(v for v in (_v(probe.make), _v(probe.model)) if v)
+        keys[probe.pk] = f'{prefix} {counts[prefix]}: {name}' if name else f'{prefix} {counts[prefix]}'
+    return keys
+
+
+def _grid(report):
+    """
+    The testing instrument, probe columns (F-I) and group columns (L, N, P, Q, S) from the report's
+    equipment grid (reports/weld_form.py has the rows and the N/A rows per probe kind).
+    """
+    probes = list(report.probes.all())
+    groups = list(report.groups.select_related('probe'))
+    keys = _probe_keys(probes)
+    cells = {}
+    for name, _, row in weld_form.INSTRUMENT_ROWS:
+        cells[f'{"A" if row == 15 else "C"}{row}'] = _v(getattr(report, name))
+
+    for i, col in enumerate(weld_form.PROBE_COLUMNS):
+        if i >= len(probes):
+            cells.update(_unused_column(col, range(15, 31)))
+            continue
+        probe = probes[i]
+        na = weld_form.PROBE_NA.get(probe.kind, set())
+        cells[f'{col}13'] = f'Probe {i + 1}\n({probe.label})' if _v(probe.label) else f'Probe {i + 1}'
+        cells[f'{col}15'] = keys[probe.pk]
+        for name, _, row in weld_form.PROBE_ROWS:
+            cells[f'{col}{row}'] = 'N/A' if name in na else _v(getattr(probe, name))
+        used = [str(j + 1) for j, group in enumerate(groups) if group.probe_id == probe.pk]
+        for k, row in enumerate(weld_form.RELEVANT_GROUP_ROWS):
+            cells[f'{col}{row}'] = used[k] if k < len(used) else 'N/A'
+
+    for i, col in enumerate(weld_form.GROUP_COLUMNS):
+        if i >= len(groups):
+            cells.update(_unused_column(col, range(15, 33)))
+            continue
+        group = groups[i]
+        kind = group.probe.kind if group.probe else weld_form.PAUT
+        na = weld_form.GROUP_NA.get(kind, set())
+        cells[f'{col}13'] = f'Group {i + 1} ({group.label})' if _v(group.label) else f'Group {i + 1}'
+        cells[f'{col}15'] = keys.get(group.probe_id, 'N/A')
+        for name, _, row in weld_form.GROUP_ROWS:
+            cells[f'{col}{row}'] = 'N/A' if name in na else _v(getattr(group, name))
+    return cells
+
+
 def _with_block(equipment, block):
     """
     The setup's cells with the sensitivity block's on top, except where the setup gives a value
@@ -345,14 +400,25 @@ def _indications(report, rows):
     return out
 
 
+def _equipment_cells(report, setups):
+    """
+    Equipment from the report's probe / group grid when it has one (material information still
+    from the first setup), else from its setups (reports from before the grid).
+    """
+    cells = _equipment(setups)
+    if report.pk and (report.probes.exists() or report.groups.exists()):
+        cells.update(_grid(report))
+    return cells
+
+
 def weld_pages(report):
     """Every value of the weld report and where it goes."""
     setups = list(report.setups.order_by('order', 'pk'))
     _, rows = report_results(report)
     report_cells, continuation = _results(rows)
     pages = WeldPages(
-        report={**_header(report), **_with_block(_equipment(setups), _block(report)), **_calibration(report),
-                **report_cells},
+        report={**_header(report), **_with_block(_equipment_cells(report, setups), _block(report)),
+                **_calibration(report), **report_cells},
         continuation=continuation,
         indications=_indications(report, rows),
         scan_plan=report.scan_plan,

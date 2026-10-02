@@ -1,5 +1,7 @@
 from django.db import models
 
+from .weld_form import KIND_CHOICES as WELD_KIND_CHOICES, PAUT as WELD_PAUT
+
 class Report(models.Model):
     """
     The reports model is used to store user input data with specific job information.
@@ -38,6 +40,24 @@ class Report(models.Model):
     cal_time_out = models.CharField(max_length=20, blank=True)
     notes = models.TextField(blank=True)
     scan_plan = models.ForeignKey('ScanPlan', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
+
+    # Weld form: the testing instrument (one per report; reports/weld_form.py INSTRUMENT_ROWS)
+    inst_name = models.CharField('Testing instrument', max_length=100, blank=True)
+    inst_manufacturer = models.CharField('Manufacturer', max_length=100, blank=True)
+    inst_model = models.CharField('Model', max_length=100, blank=True)
+    inst_serial = models.CharField('S/N', max_length=100, blank=True)
+    inst_cal_due = models.CharField('Cal. due date', max_length=50, blank=True)
+    inst_module_model = models.CharField('Module model', max_length=100, blank=True)
+    inst_module_serial = models.CharField('Module S/N', max_length=100, blank=True)
+    inst_module_cal_due = models.CharField('Module cal. due date', max_length=50, blank=True)
+    inst_software_version = models.CharField('Software version', max_length=50, blank=True)
+    inst_scanner_type = models.CharField('Scanner type', max_length=100, blank=True)
+    inst_scanner_model = models.CharField('Scanner make / model', max_length=100, blank=True)
+    inst_analysis_software = models.CharField('Analysis software', max_length=100, blank=True)
+    inst_analysis_software_version = models.CharField('Analysis software version', max_length=50, blank=True)
+    inst_encoder_cal = models.CharField('Encoder cal. (steps/in)', max_length=100, blank=True)
+    inst_scan_res = models.CharField('Scan res. (in)', max_length=50, blank=True)
+    inst_scan_speed = models.CharField('Speed (in/sec)', max_length=50, blank=True)
 
     # Executive Summary
     examination_scope = models.TextField(blank=True)
@@ -233,6 +253,78 @@ class ReportPerson(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ReportProbe(models.Model):
+    """
+    A probe column of the weld form's equipment grid: the probe and wedge hardware. Groups point
+    to the probe they use (one probe can drive several groups).
+    """
+    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='probes')
+    order = models.IntegerField(default=0)
+    label = models.CharField(max_length=50, blank=True, help_text='Column heading, e.g. 90°, 270°, 0°, Trans.')
+    kind = models.CharField(max_length=20, choices=WELD_KIND_CHOICES, default=WELD_PAUT)
+    make = models.CharField(max_length=100, blank=True)
+    model = models.CharField(max_length=100, blank=True)
+    frequency = models.CharField(max_length=50, blank=True)
+    cable_type = models.CharField(max_length=100, blank=True)
+    cable_length = models.CharField(max_length=50, blank=True)
+    serial = models.CharField('Probe S/N', max_length=100, blank=True)
+    wedge_material = models.CharField("Wedge mat'l", max_length=100, blank=True)
+    wedge_model = models.CharField(max_length=100, blank=True)
+    wedge_angle = models.CharField('Wedge ref. angle', max_length=50, blank=True)
+    wedge_diameter = models.CharField('Wedge dia.', max_length=50, blank=True)
+    wedge_curve = models.CharField('Wedge curve type', max_length=50, blank=True)
+    probe_check = models.CharField(max_length=50, blank=True)
+    # Catalogue links and the .nde wedge geometry (mm, m/s), for scan plans
+    catalogue_probe = models.ForeignKey('equipment.ProbeModel', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='report_probes', verbose_name='Catalogue probe')
+    catalogue_wedge = models.ForeignKey('equipment.WedgeModel', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='report_probes', verbose_name='Catalogue wedge')
+    wedge_primary_offset = models.FloatField(null=True, blank=True)
+    wedge_first_element_height = models.FloatField(null=True, blank=True)
+    wedge_velocity = models.FloatField(null=True, blank=True)
+    wedge_length = models.FloatField(null=True, blank=True)
+    wedge_height = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['order', 'pk']
+
+    def __str__(self):
+        return f'Probe {self.order + 1}: {self.model or self.get_kind_display()}'
+
+
+class ReportGroup(models.Model):
+    """A group column of the weld form's equipment grid: the settings of one inspection group."""
+    report = models.ForeignKey(Report, on_delete=models.CASCADE, related_name='groups')
+    order = models.IntegerField(default=0)
+    label = models.CharField(max_length=50, blank=True, help_text='Column heading, e.g. 0°, Trans.')
+    probe = models.ForeignKey(ReportProbe, on_delete=models.SET_NULL, null=True, blank=True, related_name='groups')
+    scan = models.CharField(max_length=50, blank=True)
+    wave_mode = models.CharField(max_length=50, blank=True)
+    angles = models.CharField('Angle(s)', max_length=50, blank=True)
+    elements = models.CharField('Ele start / stop', max_length=50, blank=True)
+    angle_increment = models.CharField(max_length=50, blank=True)
+    vpa = models.CharField('Ele per VPA / VPA index', max_length=50, blank=True)
+    focal_plane = models.CharField(max_length=50, blank=True)
+    focal_distance = models.CharField(max_length=50, blank=True)
+    time_base = models.CharField('Time base, start / stop', max_length=100, blank=True)
+    voltage = models.CharField('Pulser voltage', max_length=50, blank=True)
+    points_quantity = models.CharField(max_length=50, blank=True)
+    smoothing = models.CharField(max_length=50, blank=True)
+    filter = models.CharField('Filter settings', max_length=50, blank=True)
+    amplitude_range = models.CharField(max_length=50, blank=True)
+    reference_db = models.CharField('Reference dB', max_length=50, blank=True)
+    transfer_db = models.CharField('Transfer dB', max_length=50, blank=True)
+    scanning_db = models.CharField('Scanning dB', max_length=50, blank=True)
+    first_element = models.PositiveIntegerField(null=True, blank=True)
+    aperture_elements = models.PositiveIntegerField('Aperture (elements)', null=True, blank=True)
+
+    class Meta:
+        ordering = ['order', 'pk']
+
+    def __str__(self):
+        return f'Group {self.order + 1}'
 
 
 class Setup(models.Model):

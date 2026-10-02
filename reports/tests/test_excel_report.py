@@ -240,3 +240,55 @@ class WeldFormEquipmentFieldTests(TestCase):
         self.assertEqual((cells['C25'], cells['W25'], cells['Y25'], cells['W24']),
                          ('Jireh Microbe', 'Glycerin', 'Glycerin', 'O.D.'))
         self.assertEqual(cells['C35'], '≤2in/s')  # no setup scan speed: the block's
+
+
+class EquipmentGridTests(TestCase):
+    """The reference job in the equipment grid: probe and group columns as on its Report sheet."""
+
+    def setUp(self):
+        from reports.models import ReportGroup, ReportProbe
+        self.report = Report.objects.create(report_type='paut_weld', inst_name='Omniscan X3', inst_manufacturer='Olympus',
+                                            inst_model='X3', inst_serial='QC-0030383', inst_software_version='5.20.0',
+                                            inst_scan_speed='≤2in/s')
+        new = lambda **kw: ReportProbe.objects.create(report=self.report, **kw)
+        self.p1 = new(order=0, label='90°', kind='paut', make='Olympus', model='10L32-A1', frequency='10MHz',
+                      cable_type='Integral', cable_length="6'", serial='Y2037', wedge_material='Rex',
+                      wedge_model='SA1-N60S 10L32', wedge_angle='38.90 deg', probe_check='Accept')
+        new(order=1, label='270°', kind='paut')
+        self.p3 = new(order=2, label='0°', kind='conv_long', make='Olympus', model='D791', frequency='5MHz',
+                      wedge_model='should not print')
+        self.p4 = new(order=3, label='Trans', kind='conv_shear', make='Olympus', model='C543', wedge_model='ABS-4T',
+                      wedge_angle='45deg')
+        group = lambda **kw: ReportGroup.objects.create(report=self.report, **kw)
+        group(order=0, probe=self.p1, scan='Sectorial', wave_mode='Shear', angles='42.0° - 73.0°', elements='1 - 27',
+              angle_increment='1.0°', vpa='N/A', focal_plane='Depth', reference_db='10.6 dB', scanning_db='+6dB')
+        group(order=1, probe=self.p1)
+        group(order=2, probe=self.p1)
+        group(order=3, label='0°', probe=self.p3, scan='Conventional', wave_mode='Longitudinal', elements='Dual',
+              focal_plane='should not print')
+        group(order=4, label='Trans', probe=self.p4, scan='Conventional', wave_mode='Shear', angles='45°')
+
+    def test_instrument_probes_and_groups(self):
+        cells = weld_pages(self.report).report
+        self.assertEqual((cells['A15'], cells['C16'], cells['C18'], cells['C23'], cells['C35']),
+                         ('Omniscan X3', 'Olympus', 'QC-0030383', '5.20.0', '≤2in/s'))
+        self.assertEqual((cells['F13'], cells['F15'], cells['F17'], cells['F19'], cells['F23']),
+                         ('Probe 1\n(90°)', 'PAUT 1: Olympus 10L32-A1', '10L32-A1', 'Integral', 'SA1-N60S 10L32'))
+        self.assertEqual((cells['G13'], cells['G15']), ('Probe 2\n(270°)', 'PAUT 2'))
+        self.assertEqual((cells['H15'], cells['H17'], cells['H23']), ('0deg 1: Olympus D791', 'D791', 'N/A'))
+        self.assertEqual((cells['I15'], cells['I23'], cells['I24']), ('SW 1: Olympus C543', 'ABS-4T', '45deg'))
+        # relevant groups: groups 1-3 use probe 1, group 4 probe 3, group 5 probe 4
+        self.assertEqual((cells['F28'], cells['F29'], cells['F30']), ('1', '2', '3'))
+        self.assertEqual((cells['H28'], cells['H29'], cells['I28']), ('4', 'N/A', '5'))
+        self.assertEqual((cells['L13'], cells['L15'], cells['L16'], cells['L22'], cells['L32']),
+                         ('Group 1', 'PAUT 1: Olympus 10L32-A1', 'Sectorial', 'Depth', '+6dB'))
+        self.assertEqual((cells['Q13'], cells['Q15'], cells['Q19'], cells['Q22'], cells['Q20']),
+                         ('Group 4 (0°)', '0deg 1: Olympus D791', 'Dual', 'N/A', 'N/A'))
+        self.assertEqual((cells['S13'], cells['S17'], cells['S18']), ('Group 5 (Trans)', 'Shear', '45°'))
+
+    def test_unused_columns_are_na(self):
+        from reports.models import ReportGroup, ReportProbe
+        ReportGroup.objects.filter(report=self.report, order__gte=1).delete()
+        ReportProbe.objects.filter(report=self.report, order__gte=1).delete()
+        cells = weld_pages(self.report).report
+        self.assertEqual((cells['G15'], cells['I30'], cells['N15'], cells['S32']), ('N/A', 'N/A', 'N/A', 'N/A'))
