@@ -229,3 +229,42 @@ class WeldPersonnelTests(TestCase):
         for name in ('groups-0-elements', 'groups-0-voltage', 'probes-0-frequency', 'probes-0-wedge_angle'):
             classes = re.search(rf'name="{name}"[^>]*class="([^"]*)"', html).group(1)
             self.assertNotIn('mono', classes.split(), name)
+
+
+class WeldResultsTests(TestCase):
+    url = reverse('create-report')
+
+    def test_weld_reports_have_the_results_section(self):
+        from reports.report_types import get_report_type
+        self.assertIn('weld_results', get_report_type('paut_weld').sections)
+        self.assertNotIn('weld_results', get_report_type('paut_long').sections)
+        page = self.client.get(self.url)
+        self.assertContains(page, 'id="sec-weld_results"')
+        self.assertContains(page, 'data-max-rows="45" data-page-rows="12"')
+        self.assertContains(page, 'weld_results.js')
+
+    def test_rows_as_the_page_writes_them_are_saved_and_printed(self):
+        import json
+        from reports.report_types import get_report_type
+        from reports.services.excel_report import weld_pages
+        headings = get_report_type('paut_weld').results_headings
+        blank = [''] * 9
+        rows = [
+            # W5: weld + its first indication, then a second indication on a row with no Weld ID
+            ['W5', 'RJA4201', '0.475', '0.8', 'TDC', 'East', '90/270', '0.280', 'N/A',
+             '7.905', '0.212', '-0.101', '0.280', '0.071', '75.1', 'LOF', 'Accept', 'Passes per B31.3'],
+            blank + ['12.0', '0.1', '0.0', '0.2', '0.05', '40', 'Slag', 'Accept', ''],
+            # W6: no indications, its own verdict and notes
+            ['W6', 'RCK6859', '0.475', '0.8', 'BDC', 'West', '90/270', '0.280', 'N/A',
+             '', '', '', '', '', '', '', 'Accept', 'No rejectable indications. Passes per B31.3'],
+        ]
+        data = post_data(report_type='paut_weld')
+        data.update({'results_columns': json.dumps(headings), 'results_rows': json.dumps(rows)})
+        self.client.post(self.url, data)
+        report = Report.objects.get()
+        pages = weld_pages(report)
+        self.assertEqual((pages.report['A41'], pages.report['Q41'], pages.report['S41']), ('W5', 'LOF', 'P'))
+        self.assertEqual((pages.report['A42'], pages.report['Q42']), ('', 'Slag'))
+        self.assertEqual((pages.report['A43'], pages.report['S43'], pages.report['U43']),
+                         ('W6', 'P', 'No rejectable indications. Passes per B31.3'))
+        self.assertEqual([(i.weld_id, i.number) for i in pages.indications], [('W5', 1), ('W5', 2)])

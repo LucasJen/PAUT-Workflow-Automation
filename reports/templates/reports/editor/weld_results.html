@@ -1,0 +1,17 @@
+{% comment %}
+The weld form's results: a block per weld (Weld ID … Probe 2 Thickness) with its indications
+(Circ Start … Notes / Comments) under it. weld_results.js builds the blocks from the report's
+results rows and writes them back into the results inputs as the weld form's rows: the weld's
+first indication on its own row, each further indication on a row with a blank Weld ID.
+{% endcomment %}
+<section class="panel editor-section" id="sec-weld_results" data-section="weld_results">
+    <div class="panel-header">
+        <h2 class="panel-title">Results</h2>
+        <button type="button" id="add-weld" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add weld</button>
+    </div>
+    <div id="weld-results" data-max-rows="{{ weld_results_rows.total }}" data-page-rows="{{ weld_results_rows.page1 }}">
+        <p class="form-text" id="weld-results-empty">No welds yet. Add one for each weld on the report.</p>
+        <div id="weld-results-list"></div>
+        <p class="form-text mb-0" id="weld-results-count"></p>
+    </div>
+</section>

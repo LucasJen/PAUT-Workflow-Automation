@@ -6,7 +6,9 @@ from django.contrib import messages
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
-from ..services.excel_report import ExcelReportError, build_workbook, excel_available
+from ..services.excel_report import (
+    CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available,
+)
 from ..services.report_render import render_report
 from ..services.word_pdf import WordPdfError, docx_to_pdf, word_available
 from ..forms import (
@@ -243,6 +245,8 @@ def create_report(request):
         'probe_formset': probes if probes is not None else equipment_formsets(instance=form.instance)[0],
         'group_formset': groups if groups is not None else equipment_formsets(instance=form.instance)[1],
         'weld_grid': weld_grid_rows(),
+        # How many results rows the weld form holds: page 1, then the Continuation page
+        'weld_results_rows': {'page1': len(REPORT_RESULT_ROWS), 'total': len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)},
         'has_equipment': bool(form.instance.pk) and has_equipment(form.instance),
         'drawing_formset': drawings,
         'image_formset': image_formset,
