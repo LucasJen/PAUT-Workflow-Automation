@@ -48,7 +48,7 @@ class DefaultsPageTests(TestCase):
             self.assertEqual(shown, [key for key in sections(editor) if key in shown], report_type)
         self.assertEqual(shown[-1], 'setups')   # the long form's "Every new setup"
         self.assertEqual(sections(self.client.get(reverse('new-defaults', args=['paut_weld'])).content.decode()),
-                         ['project', 'equipment', 'weld_cal', 'weld_personnel'])
+                         ['project', 'equipment', 'weld_cal', 'weld_results', 'weld_personnel'])
 
     def test_weld_defaults_save_prefilled_columns(self):
         data = {

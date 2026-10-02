@@ -34,6 +34,16 @@ def _vpa(values):
     return f'{aperture} ele / {step} ele'
 
 
+def scan_encoder(resolution):
+    """
+    The weld form's Encoder Cal.: the scan axis' steps only, as the form writes them:
+    'Scan 480.58 steps/in; Index 100 steps/in' -> '480.58 steps/in'. Text without a step count is
+    kept as it is.
+    """
+    match = re.search(r'(-?\d+(?:\.\d+)?)\s*steps?\s*/\s*(in|mm)', _s(resolution))
+    return f'{match.group(1)} steps/{match.group(2)}' if match else _s(resolution)
+
+
 def probe_key(probe):
     """Model and S/N: the same probe in two groups (or already a column) shares one column."""
     model, serial = _s(probe.get('model')).lower(), _s(probe.get('serial')).lower()
@@ -60,7 +70,7 @@ def columns_from_setup(values):
         'inst_scanner_model': values.get('scanner_model'),
         'inst_analysis_software': values.get('analysis_software'),
         'inst_analysis_software_version': values.get('analysis_software_version'),
-        'inst_encoder_cal': values.get('encoder_resolution'),
+        'inst_encoder_cal': scan_encoder(values.get('encoder_resolution')),
         'inst_scan_res': with_unit(values.get('x_res'), length),
         'inst_scan_speed': values.get('scan_speed'),
     }

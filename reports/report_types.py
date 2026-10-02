@@ -39,7 +39,7 @@ REPORT_SECTIONS = (
     ('equipment', 'Equipment & parameters', None),
     ('results', 'Results table', None),
     ('weld_cal', 'Calibration, scan plan & notes', (
-        'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'scan_plan', 'notes',
+        'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'scan_plan',
     )),
     # The weld form's results: welds with their indications (weld_results.js), saved as results rows
     ('weld_results', 'Results', None),
@@ -50,6 +50,12 @@ REPORT_SECTIONS = (
 )
 
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)
+
+# Report fields a special section shows below its own content (editor/<key>.html renders them);
+# Library › Defaults lists them under that section's title
+SECTION_FIELDS = {
+    'weld_results': ('notes',),   # the weld form's Notes box sits under its results
+}
 
 # Field sections laid out in two columns (pairs: a name and its certification) instead of three
 TWO_COLUMN_SECTIONS = frozenset({'weld_personnel'})

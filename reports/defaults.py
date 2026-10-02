@@ -11,7 +11,7 @@ from django.forms import formset_factory, modelform_factory
 from . import weld_form
 from .forms import ReportForm, ReportGroupForm, ReportProbeForm, SetupForm
 from .models import Report, ReportDefaults, Setup
-from .report_types import REPORT_SECTIONS, get_report_type
+from .report_types import REPORT_SECTIONS, SECTION_FIELDS, get_report_type
 
 # Report fields that are per job, never defaults
 REPORT_EXCLUDED = {'document_filename', 'document_title', 'report_date', 'test_date', 'test_end_date'}
@@ -39,6 +39,7 @@ def report_fields(report_type):
     rtype = get_report_type(report_type)
     sections = []
     for key, title, names in REPORT_SECTIONS:
+        names = names or SECTION_FIELDS.get(key)
         if key not in rtype.sections or not names:
             continue
         names = [n for n in names if n not in REPORT_EXCLUDED and n not in rtype.hidden_fields]

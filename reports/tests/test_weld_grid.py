@@ -272,3 +272,22 @@ class WeldResultsTests(TestCase):
         self.assertEqual((pages.report['A43'], pages.report['S43'], pages.report['U43']),
                          ('W6', 'P', 'No rejectable indications. Passes per B31.3'))
         self.assertEqual([(i.weld_id, i.number) for i in pages.indications], [('W5', 1), ('W5', 2)])
+
+
+class NotesAndEncoderTests(TestCase):
+    def test_notes_box_is_under_the_results(self):
+        import re
+        html = self.client.get(reverse('create-report')).content.decode()
+        results = re.search(r'id="sec-weld_results".*?</section>', html, re.S).group(0)
+        calibration = re.search(r'id="sec-weld_cal".*?</section>', html, re.S).group(0)
+        self.assertIn('name="notes"', results)
+        self.assertNotIn('name="notes"', calibration)
+        self.assertEqual(html.count('name="notes"'), 1)
+        # ...and in the weld defaults, under Results
+        defaults = self.client.get(reverse('new-defaults', args=['paut_weld'])).content.decode()
+        self.assertIn('name="notes"', re.search(r'id="sec-weld_results".*?</section>', defaults, re.S).group(0))
+
+    def test_encoder_cal_is_the_scan_steps_only(self):
+        from reports.weld_columns import columns_from_setup
+        instrument = columns_from_setup({'encoder_resolution': 'Scan 480.58 steps/in; Index 100 steps/in'})['instrument']
+        self.assertEqual(instrument['inst_encoder_cal'], '480.58 steps/in')
