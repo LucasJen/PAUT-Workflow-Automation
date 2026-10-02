@@ -88,3 +88,34 @@ class BuildReportTests(TestCase):
         rows = list(report.results_table.rows.values_list('cells', flat=True))
         self.assertEqual([(r[0], r[6]) for r in rows], [('W5', '90/270')])
         self.assertIsNotNone(report.scan_plan)
+
+
+class FromFilesPagesTests(TestCase):
+    def test_upload_confirm_and_create(self):
+        from django.urls import reverse
+        defaults = ReportDefaults.objects.create(report_type='paut_weld', name='Std', in_use=True,
+                                                 report_values={'client': 'PPI'})
+        page = self.client.get(reverse('start-from-files'))
+        self.assertContains(page, f'<option value="{defaults.pk}" selected>Std (in use)</option>')
+
+        resp = self.client.post(reverse('start-from-files'), {
+            'defaults': defaults.pk, 'units': 'imperial',
+            'nde_files': [nde_file('PPI 31-37575 w5 n off1.nde'), nde_file('PPI 31-37575 w6 n off1.nde', offset_m=-0.012)]})
+        self.assertRedirects(resp, reverse('confirm-job'))
+        page = self.client.get(reverse('confirm-job'))
+        self.assertContains(page, 'value="PPI-31-37575-W5&amp;W6"')
+        self.assertContains(page, 'name="weld_1" value="W6"')
+
+        resp = self.client.post(reverse('confirm-job'), {
+            'document_filename': 'PPI-31-37575-W5&W6', 'pipe_size': '', 'include_0': '1', 'include_1': '1',
+            'weld_0': 'w5', 'weld_1': 'W6'})
+        from reports.models import Report
+        report = Report.objects.get()
+        self.assertRedirects(resp, f"{reverse('create-report')}?loaded={report.pk}")
+        self.assertEqual((report.client, report.document_filename), ('PPI', 'PPI-31-37575-W5&W6'))
+        self.assertEqual([r[0] for r in report.results_table.rows.values_list('cells', flat=True)], ['W5', 'W6'])
+        self.assertIsNone(self.client.session.get('job_import'))
+
+    def test_confirm_without_files_goes_back(self):
+        from django.urls import reverse
+        self.assertRedirects(self.client.get(reverse('confirm-job')), reverse('start-from-files'))

@@ -1,0 +1,64 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}Confirm the welds · New weld report from files · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<a href="{% url 'start-from-files' %}" class="back-link"><i class="bi bi-arrow-left"></i> Choose other files</a>
+<div class="page-header">
+    <h1>Confirm the welds</h1>
+    <p class="page-subtitle">Check which weld each file is of (guessed from its name). Files of the same weld become one weld row; a weld scanned from both sides is 90/270.</p>
+</div>
+
+<form method="post" data-arrow-nav>
+    {% csrf_token %}
+    <section class="panel">
+        <div class="field-grid cols-3">
+            <div class="field span-2">
+                <label for="job-name">Report file name</label>
+                <input type="text" class="form-control" id="job-name" name="document_filename" value="{{ document_filename }}">
+            </div>
+            <div class="field">
+                <label for="job-pipe">NPS / Sch</label>
+                <input type="text" class="form-control" id="job-pipe" name="pipe_size" value="{{ pipe_size }}" placeholder="e.g. 6in Sch 40">
+            </div>
+        </div>
+        <p class="form-text mb-0">
+            Starting from {% if defaults %}the “{{ defaults.name }}” defaults{% else %}no defaults{% endif %}.
+            {% if scopes %}Instrument from the scope library: {{ scopes|join:", " }}.{% endif %}
+        </p>
+    </section>
+
+    <section class="panel">
+        <div class="weld-grid-wrap">
+            <table class="weld-grid job-files">
+                <thead><tr>
+                    <th scope="col">Use</th><th scope="col">File</th><th scope="col">Weld</th><th scope="col">Scanned</th>
+                    <th scope="col">C/L offset</th><th scope="col">Wall</th><th scope="col">Groups</th>
+                </tr></thead>
+                <tbody>
+                {% for file in files %}
+                <tr>
+                    {% if file.error %}
+                    <td></td><td class="mono">{{ file.filename }}</td>
+                    <td colspan="5" class="text-danger">Not read: {{ file.error }}</td>
+                    {% else %}
+                    <td><input type="checkbox" class="form-check-input" name="include_{{ forloop.counter0 }}" value="1" checked aria-label="Use {{ file.filename }}"></td>
+                    <td class="mono">{{ file.filename }}</td>
+                    <td><input type="text" class="form-control form-control-sm" name="weld_{{ forloop.counter0 }}" value="{{ file.weld }}"
+                               placeholder="e.g. W5"{% if not file.weld %} data-fill="user"{% endif %} aria-label="Weld of {{ file.filename }}"></td>
+                    <td>{{ file.scan_time }}</td>
+                    <td class="mono">{% if file.offset is not None %}{{ file.offset|floatformat:3 }}"{% endif %}</td>
+                    <td class="mono">{% if file.thickness is not None %}{{ file.thickness|floatformat:3 }}"{% endif %}</td>
+                    <td>{{ file.groups|join:"; " }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    <div class="sticky-actions">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-file-earmark-plus"></i> Create report</button>
+    </div>
+</form>
+{% endblock %}

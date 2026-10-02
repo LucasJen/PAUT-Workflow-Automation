@@ -1,0 +1,59 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}New weld report from files · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<a href="{% url 'report-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Reports</a>
+<div class="page-header">
+    <h1>New weld report from files</h1>
+    <p class="page-subtitle">Drop all of the job's .nde files. The app reads the instrument, probes and groups, the part and its sensitivity block, the welds and their offsets, the calibration times and the scan plan; you confirm the welds, then finish the report in the editor.</p>
+</div>
+
+<form method="post" enctype="multipart/form-data" id="start-form">
+    {% csrf_token %}
+    <section class="panel">
+        <div class="field-grid cols-3">
+            <div class="field">
+                <label for="start-defaults">Start from defaults</label>
+                <select class="form-select" id="start-defaults" name="defaults">
+                    <option value="">None</option>
+                    {% for item in defaults_sets %}
+                    <option value="{{ item.pk }}"{% if item.in_use %} selected{% endif %}>{{ item.name }}{% if item.in_use %} (in use){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Library › Defaults: client, procedure, prefilled probe and group columns…</div>
+            </div>
+            <div class="field">
+                <label for="start-pipe">NPS / Sch</label>
+                <input type="text" class="form-control" id="start-pipe" name="pipe_size" placeholder="e.g. 6in Sch 40">
+                <div class="form-text">Only needed when the files are plate specimens and the defaults don't give it.</div>
+            </div>
+            <div class="field">
+                <label for="start-units">Units</label>
+                <select class="form-select" id="start-units" name="units">
+                    <option value="imperial">Imperial (in)</option>
+                    <option value="metric">Metric (mm)</option>
+                </select>
+            </div>
+            <div class="field span-full">
+                <label for="start-files">The job's .nde files</label>
+                <input type="file" class="form-control" id="start-files" name="nde_files" accept=".nde" multiple required>
+                <div class="form-text">Select them all at once (Ctrl+A in the folder). Large files take a moment to read.</div>
+            </div>
+        </div>
+    </section>
+    <div class="sticky-actions">
+        <button type="submit" class="btn btn-primary" id="start-submit"><i class="bi bi-arrow-right"></i> Read the files</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('start-form').addEventListener('submit', () => {
+    const button = document.getElementById('start-submit');
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Reading the files…';
+});
+</script>
+{% endblock %}

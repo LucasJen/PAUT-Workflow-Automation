@@ -1046,6 +1046,13 @@ textarea.result-cell-input {
 .tcg-points .tcg-distance { font-variant-numeric: tabular-nums; color: var(--text); }
 .tcg-points tbody th { width: 6rem; }
 
+/* New weld report from files: the confirm page's file list */
+.weld-grid.job-files thead th:nth-child(1) { width: 3.5rem; }
+.weld-grid.job-files thead th:nth-child(3) { width: 7rem; }
+.weld-grid.job-files thead th:nth-child(4) { width: 9.5rem; }
+.weld-grid.job-files thead th:nth-child(5), .weld-grid.job-files thead th:nth-child(6) { width: 6rem; }
+.job-files td { padding: 4px 8px; }
+
 /* Weld results (reports/editor/weld_results.html): a block per weld, its indications under it */
 .weld-block { margin-bottom: 0.75rem; }
 .weld-block .results-grid + .results-grid,
