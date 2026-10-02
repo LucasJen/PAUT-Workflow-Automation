@@ -391,7 +391,7 @@
     root.addEventListener('keydown', event => {
         const input = event.target;
         const td = input.closest('td');
-        if (!td || !td.dataset.col && !td.closest('.instrument-grid')) return;
+        if (!td || !td.dataset.col) return;
         const tr = td.parentElement;
 
         if (event.key === 'ArrowRight' && event.ctrlKey && event.shiftKey) {

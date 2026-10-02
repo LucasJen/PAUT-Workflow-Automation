@@ -1012,8 +1012,51 @@ textarea.result-cell-input {
 .weld-grid .grid-col-head .form-control-sm { font-weight: 500; }
 .weld-grid .add-col { width: 8rem; min-width: 8rem; text-align: center; }
 .weld-grid .add-col .btn { white-space: nowrap; }
-.weld-grid.instrument-grid { min-width: 0; width: auto; }
-.weld-grid.instrument-grid td { width: 18rem; min-width: 14rem; }
+/* Testing instrument: label / value cells flowing into three columns (two, then one, when narrow) */
+.instrument-head {
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    padding: 2px 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+.instrument-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0 -1px -1px 0;   /* the last row's and column's borders sit under the wrap's */
+    font-size: 0.8125rem;
+}
+.instrument-cell {
+    display: grid;
+    grid-template-columns: 10rem minmax(0, 1fr);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.instrument-cell label {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 2px 8px;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    color: var(--text-2);
+    font-weight: 500;
+    line-height: 1.2;
+}
+.instrument-cell .form-control {
+    margin: 2px 4px;
+    width: auto;
+    min-height: 0;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.8125rem;
+    border-color: transparent;
+    background-color: transparent;
+    border-radius: 3px;
+}
+.instrument-cell:hover .form-control { border-color: var(--border); }
+.instrument-cell .form-control:focus { border-color: var(--accent); background-color: var(--surface); }
+@media (max-width: 1399.98px) { .instrument-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767.98px) { .instrument-grid { grid-template-columns: minmax(0, 1fr); } }
 
 @media (max-width: 1199.98px) {
     .editor-layout { grid-template-columns: minmax(0, 1fr); }
