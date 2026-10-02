@@ -94,6 +94,7 @@ const setups = makeFormset({
 document.getElementById('add-setup').addEventListener('click', () => {
     const block = setups.add();
     applyReportType();
+    applySetupDefaults(block, {}, defaultsFor(reportTypeSelect.value).setup);
     block.scrollIntoView({ behavior: 'smooth', block: 'start' });
     markDirty();
 });
@@ -432,6 +433,54 @@ function applyReportType() {
 }
 
 reportTypeSelect.addEventListener('change', applyReportType);
+
+// ── Report defaults (Library › Defaults) ─────────────────────────────────
+// A new report opens with its type's defaults (filled by the server). Switching the type swaps
+// in the new type's defaults, but only where a field is still empty or still holds the old
+// type's default; anything typed or filled from elsewhere stays.
+
+function defaultsFor(type) {
+    const all = readJson('report-defaults', {});
+    return { report: (all[type] || {}).report || {}, setup: (all[type] || {}).setup || {} };
+}
+
+function swapDefault(input, before, after) {
+    if (!input || input.type === 'hidden' || input.type === 'file') return;
+    const current = input.type === 'checkbox' ? input.checked : input.value;
+    const untouched = input.type === 'checkbox'
+        ? current === Boolean(before)
+        : current === '' || current === String(before ?? '');
+    if (!untouched || after === undefined) return;
+    if (input.type === 'checkbox') input.checked = Boolean(after);
+    else input.value = after ?? '';
+}
+
+function applySetupDefaults(block, before, after) {
+    const prefix = block.querySelector('[name$="-title"]')?.name.replace(/title$/, '');
+    if (!prefix) return;
+    const { catalogue_probe: probe, catalogue_wedge: wedge, ...rest } = after;
+    for (const name of new Set([...Object.keys(before), ...Object.keys(rest)])) {
+        if (name === 'catalogue_probe' || name === 'catalogue_wedge') continue;
+        swapDefault(block.querySelector(`[name="${prefix}${name}"]`), before[name], rest[name]);
+    }
+    const probeSelect = block.querySelector(`[name="${prefix}catalogue_probe"]`);
+    if (probe && probeSelect && !probeSelect.value) window.CatalogueSelect.setPair(probeSelect, probe, wedge);
+    const units = block.querySelector(`select[name="${prefix}units"]`);
+    if (units) window.Units.sync(units);
+}
+
+let defaultsType = reportTypeSelect.value;
+reportTypeSelect.addEventListener('change', () => {
+    const before = defaultsFor(defaultsType);
+    const after = defaultsFor(reportTypeSelect.value);
+    for (const name of new Set([...Object.keys(before.report), ...Object.keys(after.report)])) {
+        swapDefault(reportForm.elements[name], before.report[name], after.report[name]);
+    }
+    document.querySelectorAll('#setup-formset-container .setup-block').forEach(block => {
+        applySetupDefaults(block, before.setup, after.setup);
+    });
+    defaultsType = reportTypeSelect.value;
+});
 
 // ── Section nav: highlight the section currently in view ─────────────────
 

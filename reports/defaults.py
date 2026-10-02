@@ -69,6 +69,19 @@ def values_from(form):
     return out
 
 
+def only_defaults(form, setup_values):
+    """
+    True when a new setup block holds nothing but the setup defaults (or nothing at all): it
+    wasn't really filled in, so it isn't saved as a setup.
+    """
+    for name in form.changed_data:
+        value = _stored(form.cleaned_data.get(name))
+        default = setup_values.get(name)
+        if value != default and not (value is None and default in (None, '')):
+            return False
+    return True
+
+
 def defaults_for(report_type):
     """(report values, setup values) for a report type; empty when none are saved."""
     record = ReportDefaults.objects.filter(report_type=report_type).first()

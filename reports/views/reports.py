@@ -13,7 +13,8 @@ from ..forms import (
     PersonFormSet, ReportForm, SetupFormSet, drawing_formset, scan_image_formset,
 )
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
-from ..report_types import get_report_type
+from ..report_types import DEFAULT_REPORT_TYPE, get_report_type
+from ..defaults import all_defaults, defaults_for, only_defaults
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
 from django.core.exceptions import ValidationError
 from django.forms import ImageField
@@ -63,7 +64,7 @@ def _parse_results(post):
     return columns, rows
 
 
-def _save_ordered_formset(formset, **fields):
+def _save_ordered_formset(formset, skip_new=None, **fields):
     """
     Saves an inline formset, deleting removed objects and numbering the rest
     by their position on the page. `fields` are set on every saved object (e.g. kind=...).
@@ -75,6 +76,8 @@ def _save_ordered_formset(formset, **fields):
     order = 0
     for f in formset.forms:
         if f in deleted_forms or (f.instance.pk is None and not f.has_changed()):
+            continue
+        if f.instance.pk is None and skip_new is not None and skip_new(f):
             continue
         f.instance.order = order
         for name, value in fields.items():
@@ -174,7 +177,9 @@ def create_report(request):
         if valid:
             with transaction.atomic():
                 report = form.save()
-                _save_ordered_formset(setup_formset)
+                # A new setup block holding only the report type's setup defaults isn't a setup
+                _, setup_defaults = defaults_for(report.report_type)
+                _save_ordered_formset(setup_formset, skip_new=lambda f: only_defaults(f, setup_defaults))
                 _save_setup_images(request, report, setup_formset, setup_uploads)
                 _save_ordered_formset(people)
                 _save_ordered_formset(drawings, kind=ReportImage.DRAWING)
@@ -200,8 +205,14 @@ def create_report(request):
         messages.error(request, 'The report was not saved. Check the highlighted fields.')
     else:
         loaded_report = _get_report(request.GET.get('loaded'))
-        form = ReportForm(instance=loaded_report)
-        setup_formset = SetupFormSet(instance=loaded_report)
+        if loaded_report is None:
+            # A new report starts from its type's defaults (Library › Defaults)
+            report_values, setup_values = defaults_for(DEFAULT_REPORT_TYPE)
+            form = ReportForm(initial=report_values)
+            setup_formset = SetupFormSet(initial=[setup_values])
+        else:
+            form = ReportForm(instance=loaded_report)
+            setup_formset = SetupFormSet(instance=loaded_report)
         people = PersonFormSet(instance=loaded_report, prefix='people')
         drawings = drawing_formset(instance=loaded_report)
         scan_ids = [scan_id for scan_id, _ in report_scan_rows(loaded_report)]
@@ -221,6 +232,7 @@ def create_report(request):
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
         'saved_setups': _saved_setup_choices(),
         'saved_setup_values': _saved_setup_values(),
+        'report_defaults': all_defaults(),
         'pdf_available': pdf_available(form.instance if form.instance.pk else None),
         'excel': bool(form.instance.pk) and _is_excel(form.instance),
     })
