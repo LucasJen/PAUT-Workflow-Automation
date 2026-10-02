@@ -532,8 +532,8 @@ class ReportGroupForm(GridCellsMixin, StyledFormMixin, ModelForm):
             self.initial['probe_column'] = self.instance.probe_id and str(self.instance.probe.order)
 
 
-ProbeFormSet = inlineformset_factory(Report, ReportProbe, form=ReportProbeForm, extra=0, can_delete=True)
-GroupFormSet = inlineformset_factory(Report, ReportGroup, form=ReportGroupForm, extra=0, can_delete=True)
+ProbeFormSet = inlineformset_factory(Report, ReportProbe, form=ReportProbeForm, extra=0, can_delete=True, can_order=True)
+GroupFormSet = inlineformset_factory(Report, ReportGroup, form=ReportGroupForm, extra=0, can_delete=True, can_order=True)
 
 
 def equipment_formsets(data=None, instance=None):

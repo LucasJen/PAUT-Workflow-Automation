@@ -3,6 +3,8 @@
     <div class="grid-col-title">
         <span class="grid-col-number">Group</span>
         <span class="grid-col-actions">
+            <button type="button" class="btn btn-icon btn-sm" data-move-column="-1" title="Move this group left"><i class="bi bi-chevron-left"></i></button>
+            <button type="button" class="btn btn-icon btn-sm" data-move-column="1" title="Move this group right"><i class="bi bi-chevron-right"></i></button>
             <button type="button" class="btn btn-icon btn-sm" data-duplicate-column title="Duplicate this group"><i class="bi bi-copy"></i></button>
             <button type="button" class="btn btn-icon btn-sm" data-remove-column title="Remove this group"><i class="bi bi-x-lg"></i></button>
         </span>
@@ -10,5 +12,6 @@
     {{ f.label }}
     {% for hidden in f.hidden_fields %}{{ hidden }}{% endfor %}
     <span hidden>{{ f.DELETE }}</span>
+    {{ f.ORDER.as_hidden }}
     {% if f.errors %}<div class="text-danger small">{{ f.errors }}</div>{% endif %}
 </th>

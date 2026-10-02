@@ -70,6 +70,21 @@ class DefaultsPageTests(TestCase):
         defaults = self.client.get(reverse('create-report')).context['report_defaults']['paut_weld']
         self.assertEqual((len(defaults['probes']), len(defaults['groups'])), (2, 2))
 
+    def test_weld_defaults_keep_the_page_order(self):
+        self.client.post(reverse('new-defaults', args=['paut_weld']), {
+            'defaults_name': 'Standard',
+            'probes-TOTAL_FORMS': '2', 'probes-INITIAL_FORMS': '0',
+            'probes-0-kind': 'paut', 'probes-0-label': 'first', 'probes-0-ORDER': '2',
+            'probes-1-kind': 'conv_long', 'probes-1-label': 'second', 'probes-1-ORDER': '1',
+            'groups-TOTAL_FORMS': '2', 'groups-INITIAL_FORMS': '0',
+            'groups-0-probe_column': '0', 'groups-0-label': 'on first', 'groups-0-ORDER': '2',
+            'groups-1-probe_column': '1', 'groups-1-label': 'on second', 'groups-1-ORDER': '1',
+        })
+        record = ReportDefaults.objects.get()
+        self.assertEqual([p['label'] for p in record.probe_columns], ['second', 'first'])
+        self.assertEqual(record.group_columns, [{'label': 'on second', 'probe_column': '0'},
+                                                {'label': 'on first', 'probe_column': '1'}])
+
     def test_weld_save_keeps_setup_values_and_unposted_columns(self):
         record = ReportDefaults.objects.create(report_type='paut_weld', name='Old', setup_values={'couplant': 'Water'},
                                                probe_columns=[{'kind': 'paut', 'label': 'P'}])

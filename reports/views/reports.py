@@ -14,7 +14,7 @@ from ..forms import (
 )
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
 from ..report_types import DEFAULT_REPORT_TYPE, get_report_type
-from ..defaults import all_defaults, defaults_for, only_defaults
+from ..defaults import all_defaults, defaults_for, in_page_order, only_defaults
 from ..weld_columns import columns_from_setup
 from ..weld_form import weld_grid_rows
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
@@ -280,15 +280,17 @@ def has_equipment(report):
 
 def _save_equipment(report, probes, groups):
     """
-    Saves the weld form's probe and group columns in their order on the page; a group's probe is
+    Saves the weld form's probe and group columns in their order on the page (ORDER, which
+    weld_grid.js keeps up to date as columns are moved); a group's probe is
     the probe column it chose (by its index in the probes formset, so it can be a new one).
     """
     def kept(formset):
         formset.save(commit=False)
         for obj in formset.deleted_objects:
             obj.delete()
-        for f in formset.forms:
-            if f in formset.deleted_forms or (f.instance.pk is None and not f.has_changed()):
+        for f in in_page_order(formset):
+            # A new column nobody filled in (its place on the page alone isn't a change) is skipped
+            if f in formset.deleted_forms or (f.instance.pk is None and not set(f.changed_data) - {'ORDER'}):
                 continue
             yield f
 

@@ -28,8 +28,14 @@
     function refresh() {
         for (const kind of ['probes', 'groups']) {
             const word = kind === 'probes' ? 'Probe' : 'Group';
-            columns(kind).forEach((col, i) => {
-                grids[kind].querySelector(`th[data-col="${CSS.escape(col)}"] .grid-col-number`).textContent = `${word} ${i + 1}`;
+            const cols = columns(kind);
+            cols.forEach((col, i) => {
+                const head = grids[kind].querySelector(`th[data-col="${CSS.escape(col)}"]`);
+                head.querySelector('.grid-col-number').textContent = `${word} ${i + 1}`;
+                head.querySelector('[data-move-column="-1"]').disabled = i === 0;
+                head.querySelector('[data-move-column="1"]').disabled = i === cols.length - 1;
+                // The column's place on the page is what the save orders by
+                field(col, 'ORDER').value = String(i + 1);
             });
             grids[kind].querySelector('[data-add-column]').disabled = columns(kind).length >= limits[kind];
         }
@@ -112,6 +118,28 @@
         return col;
     }
 
+    // Moves a column's cells, row by row, in front of another column's (or to the end, before
+    // the Add column, when `before` is null)
+    function placeBefore(kind, col, before) {
+        for (const tr of grids[kind].querySelectorAll('tr')) {
+            const cell = tr.querySelector(`:scope > [data-col="${CSS.escape(col)}"]`);
+            if (!cell) continue;
+            const target = before ? tr.querySelector(`:scope > [data-col="${CSS.escape(before)}"]`) : tr.lastElementChild;
+            tr.insertBefore(cell, target);
+        }
+    }
+
+    function moveColumn(kind, col, step) {
+        const cols = columns(kind);
+        const i = cols.indexOf(col);
+        const j = i + step;
+        if (i < 0 || j < 0 || j >= cols.length) return;
+        if (step < 0) placeBefore(kind, col, cols[j]);
+        else placeBefore(kind, cols[j], col);
+        refresh();
+        grids[kind].querySelector(`th[data-col="${CSS.escape(col)}"] [data-move-column="${step}"]:not(:disabled)`)?.focus();
+    }
+
     function removeColumn(kind, col) {
         // Tick DELETE and hide it: the save removes a saved column and skips a new one
         field(col, 'DELETE').checked = true;
@@ -122,6 +150,10 @@
     async function duplicateColumn(kind, col) {
         const copy = addColumn(kind);
         if (!copy) return;
+        // The copy goes right after its original
+        const cols = columns(kind);
+        const next = cols[cols.indexOf(col) + 1];
+        if (next && next !== copy) placeBefore(kind, copy, next);
         cells(kind, col).forEach(cell => {
             cell.querySelectorAll('input:not([type=hidden]):not([type=checkbox]), select, textarea, input[type=hidden][name*="-wedge_"]').forEach(input => {
                 const name = input.name.slice(col.length + 1);
@@ -142,7 +174,8 @@
         const add = event.target.closest('[data-add-column]');
         const remove = event.target.closest('[data-remove-column]');
         const duplicate = event.target.closest('[data-duplicate-column]');
-        if (!add && !remove && !duplicate) return;
+        const move = event.target.closest('[data-move-column]');
+        if (!add && !remove && !duplicate && !move) return;
         const table = event.target.closest('table');
         const kind = table.dataset.prefix;
         const markDirty = () => table.dispatchEvent(new Event('input', { bubbles: true }));
@@ -152,6 +185,7 @@
         } else {
             const col = event.target.closest('th[data-col]').dataset.col;
             if (remove) removeColumn(kind, col);
+            else if (move) moveColumn(kind, col, Number(move.dataset.moveColumn));
             else duplicateColumn(kind, col);
         }
         markDirty();

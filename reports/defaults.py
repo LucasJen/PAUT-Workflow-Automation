@@ -22,7 +22,7 @@ SETUP_EXCLUDED = {'source_file', 'acquisition_date', 'index_offset', 'wedge_prim
 
 
 # Grid column fields that come from the job's own data, never defaults
-COLUMN_EXCLUDED = {'DELETE', 'source_file', 'probe_column'}
+COLUMN_EXCLUDED = {'DELETE', 'ORDER', 'source_file', 'probe_column'}
 INSTRUMENT_FIELDS = [name for name, _, _ in weld_form.INSTRUMENT_ROWS]
 
 
@@ -64,8 +64,8 @@ def setup_defaults_form(*args, **kwargs):
     return modelform_factory(Setup, form=SetupForm, fields=setup_fields())(*args, prefix='setup', **kwargs)
 
 
-ProbeColumnsFormSet = formset_factory(ReportProbeForm, extra=0, can_delete=True)
-GroupColumnsFormSet = formset_factory(ReportGroupForm, extra=0, can_delete=True)
+ProbeColumnsFormSet = formset_factory(ReportProbeForm, extra=0, can_delete=True, can_order=True)
+GroupColumnsFormSet = formset_factory(ReportGroupForm, extra=0, can_delete=True, can_order=True)
 
 
 def column_formsets(data=None, probes=(), groups=()):
@@ -81,23 +81,33 @@ def column_formsets(data=None, probes=(), groups=()):
     return probe_formset, group_formset
 
 
+def in_page_order(formset):
+    """A valid column formset's forms in the order weld_grid.js put them on the page (ORDER)."""
+    def position(item):
+        index, form = item
+        order = (form.cleaned_data or {}).get('ORDER')
+        return (order is None, order or 0, index)
+    return [form for _, form in sorted(enumerate(formset.forms), key=position)]
+
+
 def columns_from(probe_formset, group_formset):
     """
     (probe columns, group columns) to store from valid column formsets: removed and empty columns
-    left out, groups' probe_column renumbered to the probe's place among the kept ones.
+    left out, columns in their order on the page, groups' probe_column renumbered to the probe's
+    place among the kept ones.
     """
     def values(form):
         return {k: v for k, v in values_from(form).items() if k not in COLUMN_EXCLUDED}
 
     probes, place = [], {}
-    for form in probe_formset.forms:
+    for form in in_page_order(probe_formset):
         kept = values(form)
         if form in probe_formset.deleted_forms or not set(kept) - {'kind'}:
             continue
         place[form.prefix.rsplit('-', 1)[1]] = str(len(probes))
         probes.append(kept)
     groups = []
-    for form in group_formset.forms:
+    for form in in_page_order(group_formset):
         kept = values(form)
         if form in group_formset.deleted_forms or not kept:
             continue

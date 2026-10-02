@@ -41,6 +41,26 @@ class WeldGridTests(TestCase):
             [(g.label, g.order, g.probe.model if g.probe else None) for g in report.groups.all()],
             [('G1', 0, '10L32-A1'), ('0°', 1, 'D791'), ('Loose', 2, None)])
 
+    def test_columns_save_in_their_page_order(self):
+        report = Report.objects.create(report_type='paut_weld')
+        a = ReportProbe.objects.create(report=report, order=0, model='A')
+        b = ReportProbe.objects.create(report=report, order=1, model='B')
+        g = ReportGroup.objects.create(report=report, order=0, label='G', probe=a)
+        # B moved in front of A, a new probe C in between; the group still points at A (form 0)
+        self.post(
+            report,
+            probes=[{'id': a.pk, 'kind': 'paut', 'model': 'A', 'ORDER': '3'},
+                    {'id': b.pk, 'kind': 'paut', 'model': 'B', 'ORDER': '1'},
+                    {'kind': 'paut', 'model': 'C', 'ORDER': '2'}],
+            groups=[{'id': g.pk, 'label': 'G', 'probe_column': '0', 'ORDER': '1'},
+                    {'kind': '', 'ORDER': '2'}],
+            initial_probes=2, initial_groups=1,
+        )
+        self.assertEqual(list(report.probes.values_list('model', 'order')), [('B', 0), ('C', 1), ('A', 2)])
+        g.refresh_from_db()
+        self.assertEqual(g.probe, a)
+        self.assertEqual(report.groups.count(), 1)   # an untouched new column with only its place is skipped
+
     def test_untouched_new_column_is_skipped(self):
         self.post(probes=[{'kind': 'paut', 'model': 'A'}, {'kind': 'paut'}])
         self.assertEqual(list(ReportProbe.objects.values_list('model', flat=True)), ['A'])
