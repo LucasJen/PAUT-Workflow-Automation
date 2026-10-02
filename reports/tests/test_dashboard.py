@@ -61,3 +61,18 @@ class NdePageTests(TestCase):
         resp = self.client.post(reverse('nde-upload'), {'save_setup': '', 'scope_model': 'X3'}, follow=True)
         setup = Setup.objects.get()
         self.assertContains(resp, f'Setup #{setup.pk} saved.')
+
+
+class EquipmentCardTests(TestCase):
+    def test_lists_each_library_with_its_count_and_link(self):
+        from django.urls import reverse
+        from equipment.models import Scope
+        Scope.objects.create(model='X3', serial_number='QC-1')
+        page = self.client.get(reverse('home'))
+        labels = [label for label, _, _, _ in page.context['libraries']]
+        self.assertEqual(labels, ['Scopes', 'Probes', 'Probe catalogue', 'Wedge catalogue', 'Calibration blocks',
+                                  'Sensitivity blocks', 'Encoders'])
+        self.assertEqual(page.context['libraries'][0][3], 1)
+        for url in ('scope-list', 'probe-list', 'probe-model-list', 'wedge-model-list', 'cal-block-list',
+                    'sensitivity-block-list', 'encoder-list'):
+            self.assertContains(page, f'href="{reverse(url)}"')

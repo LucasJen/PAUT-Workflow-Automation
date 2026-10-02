@@ -83,5 +83,23 @@
         <p class="text-body-secondary mb-0"><i class="bi bi-check-circle"></i> No scopes due for calibration in the next 30 days.</p>
         {% endif %}
     </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Equipment</h2>
+        </div>
+        <ul class="item-list">
+            {% for label, icon, url_name, count in libraries %}
+            <li>
+                <a href="{% url url_name %}">
+                    <span class="item-main">
+                        <span class="item-title"><i class="bi bi-{{ icon }} me-2 text-body-secondary"></i>{{ label }}</span>
+                    </span>
+                    <span class="item-aside mono">{{ count }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
 </div>
 {% endblock %}
