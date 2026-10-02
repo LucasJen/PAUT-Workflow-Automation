@@ -219,3 +219,13 @@ class WeldPersonnelTests(TestCase):
             html = self.client.get(url).content.decode()
             grid = re.search(r'<div class="([^"]*)">\s*<div class="field[^"]*" data-field="weld_technician"', html)
             self.assertEqual(grid.group(1), 'field-grid', url)
+
+    def test_grid_cells_all_share_one_face(self):
+        report = Report.objects.create(report_type='paut_weld')
+        ReportProbe.objects.create(report=report, order=0, model='P')
+        ReportGroup.objects.create(report=report, order=0)
+        html = self.client.get(f"{reverse('create-report')}?loaded={report.pk}").content.decode()
+        import re
+        for name in ('groups-0-elements', 'groups-0-voltage', 'probes-0-frequency', 'probes-0-wedge_angle'):
+            classes = re.search(rf'name="{name}"[^>]*class="([^"]*)"', html).group(1)
+            self.assertNotIn('mono', classes.split(), name)

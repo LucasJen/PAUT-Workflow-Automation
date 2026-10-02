@@ -505,7 +505,9 @@ class GridCellsMixin:
             widget = field.widget
             if isinstance(widget, HiddenInput):
                 continue
-            widget.attrs['class'] = widget.attrs.get('class', '').replace('form-control', 'form-control form-control-sm') \
+            # Every cell in the same face and size: no `mono` for names in MONO_FIELDS (elements, voltage...)
+            classes = ' '.join(c for c in widget.attrs.get('class', '').split() if c != 'mono')
+            widget.attrs['class'] = classes.replace('form-control', 'form-control form-control-sm') \
                 .replace('form-select', 'form-select form-select-sm')
 
 
