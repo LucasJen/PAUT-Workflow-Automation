@@ -82,6 +82,21 @@
         return probeIndex === '' ? null : field(`probes-${probeIndex}`, 'kind')?.value || null;
     }
 
+    // Wedge dia. follows the pipe: the item inspected's diameter on the Sensitivity block & test
+    // material card (read-only here; the save sets it the same way)
+    const pipeDiameter = root.closest('form')?.elements.item_diameter;
+    function mirrorPipeDiameter(col, na) {
+        const input = field(col, 'wedge_diameter');
+        if (!input || !pipeDiameter || na.has('wedge_diameter')) return;
+        input.readOnly = true;
+        input.title = 'The pipe diameter (Item inspected on the Sensitivity block & test material card)';
+        if (input.value !== pipeDiameter.value) input.value = pipeDiameter.value;
+    }
+    if (pipeDiameter) {
+        // Changes to the card (typed, a block picked, Auto-detect) show here at once
+        ['input', 'change'].forEach(type => root.closest('form').addEventListener(type, () => applyKinds()));
+    }
+
     function applyKinds() {
         for (const col of columns('probes')) {
             const na = new Set(rows.probe_na[field(col, 'kind').value] || []);
@@ -94,6 +109,7 @@
             const probe = field(col, 'catalogue_probe');
             probe.disabled = na.has('model');
             probe.closest('td').classList.toggle('na', probe.disabled);
+            mirrorPipeDiameter(col, na);
         }
         for (const col of columns('groups')) {
             const na = new Set(rows.group_na[probeKind(field(col, 'probe_column').value)] || []);

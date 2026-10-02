@@ -21,7 +21,7 @@ from equipment.inventory import with_library_scope
 
 from ..materials import library_blocks
 from ..weld_columns import columns_from_setup
-from ..weld_form import NOT_USED, weld_grid_rows
+from ..weld_form import NOT_USED, wedge_diameter_for, weld_grid_rows
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
 from django.core.exceptions import ValidationError
 from django.forms import ImageField
@@ -312,6 +312,10 @@ def _save_equipment(report, probes, groups):
     by_index = {}
     for order, f in enumerate(kept(probes)):
         f.instance.report, f.instance.order = report, order
+        # Wedge dia. is the pipe's: the item inspected's diameter (Sensitivity block & test material)
+        diameter = wedge_diameter_for(f.instance.kind, report.item_diameter)
+        if diameter is not None:
+            f.instance.wedge_diameter = diameter
         f.instance.save()
         by_index[f.prefix.rsplit('-', 1)[1]] = f.instance
     for order, f in enumerate(kept(groups)):

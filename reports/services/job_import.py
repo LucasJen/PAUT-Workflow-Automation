@@ -294,6 +294,9 @@ def build_report(files, defaults=None, document_filename='', pipe_size=''):
                 setattr(probe, f'{name}_id', int(value) if str(value).isdigit() else None)
             elif name in probe_fields:
                 setattr(probe, name, value)
+        diameter = weld_form.wedge_diameter_for(probe.kind, report.item_diameter)   # the pipe's
+        if diameter is not None:
+            probe.wedge_diameter = diameter
         probe.save()
         saved.append(probe)
     group_fields = {f.attname for f in ReportGroup._meta.concrete_fields}

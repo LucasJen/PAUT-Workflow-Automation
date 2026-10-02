@@ -70,6 +70,14 @@ class WeldGridTests(TestCase):
         resp = self.client.get(f'{self.url}?loaded={report.pk}')
         self.assertEqual(resp.context['group_formset'].forms[0]['probe_column'].value(), 'na')
 
+    def test_wedge_diameter_is_the_pipes(self):
+        data = post_data(report_type='paut_weld', item_diameter='6.625"')
+        data.update(grid_data(probes=[{'kind': 'paut', 'model': 'A', 'wedge_diameter': 'typed'},
+                                      {'kind': 'conv_long', 'model': 'D791', 'wedge_diameter': 'N/A'}]))
+        self.client.post(self.url, data)
+        report = Report.objects.get()
+        self.assertEqual(list(report.probes.values_list('wedge_diameter', flat=True)), ['6.625"', 'N/A'])
+
     def test_untouched_new_column_is_skipped(self):
         self.post(probes=[{'kind': 'paut', 'model': 'A'}, {'kind': 'paut'}])
         self.assertEqual(list(ReportProbe.objects.values_list('model', flat=True)), ['A'])
@@ -311,7 +319,8 @@ class FillMarkTests(TestCase):
         self.assertEqual([fill(n) for n in ('client', 'cal_time_initial', 'notes', 'weld_reviewer')], ['user'] * 4)
         self.assertEqual([fill(n) for n in ('inst_serial', 'item_diameter', 'tcg_thickness', 'sensitivity_block')],
                          ['auto'] * 4)
-        self.assertEqual((fill('probes-0-model'), fill('probes-0-cable_type')), ('auto', 'user'))
+        self.assertEqual((fill('probes-0-model'), fill('probes-0-cable_type'), fill('probes-0-serial')),
+                         ('auto', 'user', 'user'))
         self.assertEqual((fill('groups-0-time_base'), fill('groups-0-scanning_db')), ('auto', 'user'))
         self.assertIsNone(fill('document_filename'))
         self.assertIn('id="fill-count-user"', html)

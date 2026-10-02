@@ -186,8 +186,8 @@ def tcg_distances(thickness):
 # 'auto': an .nde import, the scope library or the sensitivity block usually fills it (yellow);
 # 'user': only the technician can (red). Fields in neither list aren't marked.
 
-PROBE_AUTO_FIELDS = {'make', 'model', 'frequency', 'serial', 'wedge_model', 'wedge_angle', 'wedge_diameter'}
-PROBE_USER_FIELDS = {'label', 'cable_type', 'cable_length', 'wedge_material', 'wedge_curve', 'probe_check'}
+PROBE_AUTO_FIELDS = {'make', 'model', 'frequency', 'wedge_model', 'wedge_angle', 'wedge_diameter'}
+PROBE_USER_FIELDS = {'label', 'serial', 'cable_type', 'cable_length', 'wedge_material', 'wedge_curve', 'probe_check'}
 GROUP_AUTO_FIELDS = {'scan', 'wave_mode', 'angles', 'elements', 'angle_increment', 'vpa', 'focal_distance',
                      'time_base', 'voltage', 'points_quantity', 'filter', 'reference_db'}
 GROUP_USER_FIELDS = {'focal_plane', 'smoothing', 'amplitude_range', 'transfer_db', 'scanning_db'}
@@ -199,6 +199,11 @@ REPORT_USER_FIELDS = {
     'cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'notes',
     'weld_technician', 'weld_technician_cert', 'weld_reviewer', 'weld_reviewer_cert',
 }
+
+
+def wedge_diameter_for(probe_kind, pipe_diameter):
+    """A probe's Wedge dia.: the pipe it's on (the item inspected's diameter); None when it has no wedge."""
+    return None if 'wedge_diameter' in PROBE_NA.get(probe_kind, set()) else pipe_diameter
 
 
 def mark_fill(form, auto, user):
