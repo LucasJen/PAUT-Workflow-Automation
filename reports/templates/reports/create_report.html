@@ -28,6 +28,11 @@
         </div>
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
             <p class="form-text mb-0">The report type chooses the Word template and which sections are shown. Values in hidden sections are kept.</p>
+            {# The weld form's fill marks (fill_marks.js): what's still empty, by where it comes from #}
+            <p class="fill-legend form-text mb-0">
+                <span class="fill-key fill-key-user"></span> To fill in: <strong id="fill-count-user">0</strong>
+                <span class="fill-key fill-key-auto ms-3"></span> Usually filled by an .nde import, the scope library or the block: <strong id="fill-count-auto">0</strong>
+            </p>
             <span class="d-flex align-items-center gap-2">
                 <span class="form-text mb-0" id="reload-defaults-status" role="status"></span>
                 <button type="button" class="btn btn-secondary btn-sm" id="reload-defaults"
@@ -111,4 +116,5 @@
 <script src="{% static_v 'reports/js/weld_grid.js' %}"></script>
 <script src="{% static_v 'reports/js/weld_results.js' %}"></script>
 <script src="{% static_v 'reports/js/materials.js' %}"></script>
+<script src="{% static_v 'reports/js/fill_marks.js' %}"></script>
 {% endblock %}

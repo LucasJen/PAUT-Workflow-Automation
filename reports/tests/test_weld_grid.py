@@ -291,3 +291,33 @@ class NotesAndEncoderTests(TestCase):
         from reports.weld_columns import columns_from_setup
         instrument = columns_from_setup({'encoder_resolution': 'Scan 480.58 steps/in; Index 100 steps/in'})['instrument']
         self.assertEqual(instrument['inst_encoder_cal'], '480.58 steps/in')
+
+
+class FillMarkTests(TestCase):
+    """Empty weld-form fields outlined red (typed in) or yellow (usually imported) by fill_marks.js."""
+
+    def test_fields_carry_where_their_value_comes_from(self):
+        import re
+        report = Report.objects.create(report_type='paut_weld')
+        ReportProbe.objects.create(report=report, order=0)
+        ReportGroup.objects.create(report=report, order=0)
+        html = self.client.get(f"{reverse('create-report')}?loaded={report.pk}").content.decode()
+
+        def fill(name):
+            tag = re.search(rf'<(?:input|select|textarea)[^>]*name="{name}"[^>]*>', html).group(0)
+            found = re.search(r'data-fill="(\w+)"', tag)
+            return found.group(1) if found else None
+
+        self.assertEqual([fill(n) for n in ('client', 'cal_time_initial', 'notes', 'weld_reviewer')], ['user'] * 4)
+        self.assertEqual([fill(n) for n in ('inst_serial', 'item_diameter', 'tcg_thickness', 'sensitivity_block')],
+                         ['auto'] * 4)
+        self.assertEqual((fill('probes-0-model'), fill('probes-0-cable_type')), ('auto', 'user'))
+        self.assertEqual((fill('groups-0-time_base'), fill('groups-0-scanning_db')), ('auto', 'user'))
+        self.assertIsNone(fill('document_filename'))
+        self.assertIn('id="fill-count-user"', html)
+        self.assertIn('fill_marks.js', html)
+
+    def test_only_the_weld_type_turns_them_on(self):
+        from reports.report_types import get_report_type
+        self.assertTrue(get_report_type('paut_weld').as_json()['fill_marks'])
+        self.assertFalse(get_report_type('paut_long').as_json()['fill_marks'])

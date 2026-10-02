@@ -55,6 +55,7 @@
             input.value = value;
         }
         input.dataset.key = key;
+        input.dataset.fill = 'user';   // typed in (fill_marks.js outlines it while empty)
         input.setAttribute('aria-label', heading[key]);
         td.append(input);
         return td;

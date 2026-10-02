@@ -115,6 +115,8 @@ class ReportType:
     hidden_fields: frozenset = frozenset()
     results_columns: tuple = ()
     output_format: str = 'docx'
+    # The editor outlines empty fields by where their value comes from (weld_form fill marks)
+    fill_marks: bool = False
 
     @property
     def results_headings(self):
@@ -126,6 +128,7 @@ class ReportType:
             'sections': list(self.sections),
             'hidden_fields': sorted(self.hidden_fields),
             'results_columns': [{'key': key, 'heading': heading} for key, heading in self.results_columns],
+            'fill_marks': self.fill_marks,
         }
 
 
@@ -140,11 +143,12 @@ _TYPES = [
     ReportType(
         'paut_weld', 'PAUT weld (Excel)',
         template='paut_weld.xlsx', output_format='xlsx',
-        # Results, the photo summary and calibration screenshots are filled in the workbook
+        # The photo summary and calibration screenshots are left to the workbook
         sections=('project', 'equipment', 'materials', 'weld_cal', 'weld_results', 'weld_personnel'),
         hidden_fields=frozenset({'document_title', 'project_number', 'project_type', 'test_date', 'test_end_date',
                                  'cal_images'}),
         results_columns=WELD_RESULTS_COLUMNS,
+        fill_marks=True,
     ),
 ]
 

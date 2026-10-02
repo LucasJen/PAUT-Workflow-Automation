@@ -960,6 +960,16 @@ textarea.result-cell-input {
 
 .editor-section { scroll-margin-top: 1rem; }
 
+/* ── Fill marks (fill_marks.js): empty weld-form fields, red to type in, yellow usually imported ── */
+:root { --fill-user: #e5484d; --fill-auto: #f0b400; }
+.fill-marks .fill-missing[data-fill="user"] { box-shadow: inset 0 0 0 2px var(--fill-user) !important; }
+.fill-marks .fill-missing[data-fill="auto"] { box-shadow: inset 0 0 0 2px var(--fill-auto) !important; }
+.fill-legend { display: none; align-items: center; gap: 0.35rem; }
+.fill-marks .fill-legend { display: flex; flex-wrap: wrap; }
+.fill-key { display: inline-block; width: 0.9rem; height: 0.9rem; border-radius: 3px; }
+.fill-key-user { box-shadow: inset 0 0 0 2px var(--fill-user); }
+.fill-key-auto { box-shadow: inset 0 0 0 2px var(--fill-auto); }
+
 /* ── Weld form equipment grid (reports/editor/equipment.html) ───────────── */
 
 .weld-grid-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }

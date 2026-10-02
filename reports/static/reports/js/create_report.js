@@ -438,6 +438,9 @@ function applyReportType() {
     reportForm.querySelectorAll('.editor-sections [data-field]').forEach(field => {
         field.hidden = hiddenFields.has(field.dataset.field);
     });
+    // Empty fields outlined by where their value comes from (fill_marks.js), on the weld form
+    reportForm.classList.toggle('fill-marks', Boolean(type.fill_marks));
+    window.FillMarks?.refresh();
     updateActiveSection();
 }
 
@@ -539,6 +542,7 @@ reloadButton.addEventListener('click', async event => {
     // Let the pages' own scripts catch up (TCG distances, N/A greying, …)
     reportForm.elements.tcg_thickness?.dispatchEvent(new Event('input', { bubbles: true }));
     markDirty();
+    window.FillMarks?.refresh();
     reloadStatus.textContent = 'Defaults reloaded' + (columnsAdded ? ', with their probe and group columns.' : '.');
     setTimeout(() => { reloadStatus.textContent = ''; }, 6000);
 });
