@@ -161,17 +161,35 @@ class ScanPlan(models.Model):
 
 class ReportDefaults(models.Model):
     """
-    Library › Defaults: the values a new report of a type starts with, for its report fields and
-    for each new setup block. Kept apart from reports so a defaults record is never listed or
-    generated as a report. Values are {field name: value} (foreign keys as their pk).
+    Library › Defaults: a named set of values a new report starts with, for its report fields and
+    for each new setup block. A report type can have several (e.g. per client); the one marked
+    in use is what new reports of that type start from. Kept apart from reports so a defaults set
+    is never listed or generated as a report. Values are {field name: value} (FKs as their pk).
     """
-    report_type = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100, default='Standard')
+    report_type = models.CharField(max_length=50)
+    in_use = models.BooleanField('Used for new reports', default=False)
     report_values = models.JSONField(default=dict, blank=True)
     setup_values = models.JSONField(default=dict, blank=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)
 
+    class Meta:
+        ordering = ['report_type', 'name']
+        constraints = [
+            models.UniqueConstraint(fields=['report_type', 'name'], name='unique_defaults_name_per_type'),
+            models.UniqueConstraint(fields=['report_type'], condition=models.Q(in_use=True),
+                                    name='one_defaults_in_use_per_type'),
+        ]
+
     def __str__(self):
-        return f'Defaults for {self.report_type}'
+        return self.name
+
+    def use(self):
+        """Make this the set new reports of its type start from."""
+        ReportDefaults.objects.filter(report_type=self.report_type, in_use=True).exclude(pk=self.pk).update(in_use=False)
+        if not self.in_use:
+            self.in_use = True
+            self.save(update_fields=['in_use', 'updated_at'])
 
 
 class TextSnippet(models.Model):

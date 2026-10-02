@@ -83,8 +83,8 @@ def only_defaults(form, setup_values):
 
 
 def defaults_for(report_type):
-    """(report values, setup values) for a report type; empty when none are saved."""
-    record = ReportDefaults.objects.filter(report_type=report_type).first()
+    """(report values, setup values) of the type's defaults set in use; empty when there is none."""
+    record = ReportDefaults.objects.filter(report_type=report_type, in_use=True).first()
     if record is None:
         return {}, {}
     return dict(record.report_values), dict(record.setup_values)
@@ -93,4 +93,4 @@ def defaults_for(report_type):
 def all_defaults():
     """{report type: {'report': {...}, 'setup': {...}}} for the report editor's type switching."""
     return {d.report_type: {'report': d.report_values, 'setup': d.setup_values}
-            for d in ReportDefaults.objects.all()}
+            for d in ReportDefaults.objects.filter(in_use=True)}

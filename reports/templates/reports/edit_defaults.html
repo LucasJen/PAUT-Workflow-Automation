@@ -1,19 +1,36 @@
 {% extends 'reports/base.html' %}
 
-{% block title %}{{ rtype.label }} defaults · Library · PAUT Report Automation{% endblock %}
+{% block title %}{{ item.name }} · {{ rtype.label }} defaults · Library · PAUT Report Automation{% endblock %}
 
 {% block content %}
 <a href="{% url 'defaults-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Defaults</a>
 <div class="page-header">
-    <h1>{{ rtype.label }}: defaults</h1>
+    <h1>{{ rtype.label }} defaults: {{ item.name }}</h1>
     <p class="page-subtitle">Fill in the values new {{ rtype.label }} reports should start with; leave anything that changes per job blank. They can all be changed on each report.</p>
 </div>
 
 <form method="post">
     {% csrf_token %}
+    {% for error in errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
     {% if report_form.errors or setup_form.errors %}
     <div class="alert alert-danger">Check the highlighted fields.</div>
     {% endif %}
+    <section class="panel">
+        <div class="field-grid cols-3">
+            <div class="field">
+                <label for="defaults-name">Name</label>
+                <input type="text" class="form-control" id="defaults-name" name="defaults_name" value="{{ name_value }}"
+                       required maxlength="100" placeholder="e.g. Standard, PPI Pine Bend">
+            </div>
+            <div class="field">
+                <label for="defaults-in-use">Used for new reports</label>
+                <div class="form-check mt-2">
+                    <input type="checkbox" class="form-check-input" id="defaults-in-use" name="in_use" value="1"{% if item.in_use %} checked{% endif %}>
+                    <label class="form-check-label" for="defaults-in-use">New {{ rtype.label }} reports start from these values</label>
+                </div>
+            </div>
+        </div>
+    </section>
     <section class="panel">
         <h2 class="panel-title">Report</h2>
         {% for title, fields in sections %}

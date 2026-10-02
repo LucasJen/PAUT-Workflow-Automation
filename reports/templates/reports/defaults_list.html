@@ -7,20 +7,48 @@
     <h1>Library</h1>
 </div>
 {% include 'reports/components/library_tabs.html' with tab='defaults' %}
-<p class="page-subtitle">The values a new report starts with, per report type: its report fields and every new setup block. Anything typed on the report, or filled by a client, a loaded setup, an NDE import or a scan plan, replaces them.</p>
-<div class="table-wrap">
-    <table class="table list-table">
-        <thead><tr><th>Report type</th><th>Report values</th><th>Setup values</th><th>Saved</th></tr></thead>
-        <tbody>
-        {% for item in items %}
-        <tr data-href="{% url 'edit-defaults' item.type.key %}">
-            <td class="fw-medium"><a href="{% url 'edit-defaults' item.type.key %}">{{ item.type.label }}</a></td>
-            <td>{{ item.record.report_values|length|default:"None" }}</td>
-            <td>{{ item.record.setup_values|length|default:"None" }}</td>
-            <td class="text-muted-cell">{% if item.record %}{{ item.record.updated_at|timesince }} ago{% else %}Not set{% endif %}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-</div>
+<p class="page-subtitle">Named sets of values new reports start with: report fields and every new setup block. Each report type can have several; the one marked <strong>In use</strong> is what new reports of that type start from. Anything typed on the report, or filled from a loaded setup, an NDE import or a scan plan, replaces them.</p>
+
+{% for group in groups %}
+<section class="panel">
+    <div class="panel-header">
+        <h2 class="panel-title">{{ group.type.label }}</h2>
+        <a href="{% url 'new-defaults' group.type.key %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i> New defaults</a>
+    </div>
+    {% if group.sets %}
+    <div class="table-wrap">
+        <table class="table list-table mb-0">
+            <thead><tr><th>Name</th><th>Report values</th><th>Setup values</th><th>Saved</th><th></th></tr></thead>
+            <tbody>
+            {% for item in group.sets %}
+            <tr>
+                <td class="fw-medium">
+                    <a href="{% url 'edit-defaults' item.pk %}">{{ item.name }}</a>
+                    {% if item.in_use %}<span class="badge text-bg-success ms-1">In use</span>{% endif %}
+                </td>
+                <td>{{ item.report_values|length }}</td>
+                <td>{{ item.setup_values|length }}</td>
+                <td class="text-muted-cell">{{ item.updated_at|timesince }} ago</td>
+                <td class="text-end text-nowrap">
+                    <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="pk" value="{{ item.pk }}">
+                        {% if not item.in_use %}
+                        <button type="submit" name="use" class="btn btn-sm btn-secondary" title="New {{ group.type.label }} reports start from this set">Use for new reports</button>
+                        {% endif %}
+                        <button type="submit" name="duplicate" class="btn btn-sm btn-icon" title="Copy this set"><i class="bi bi-copy"></i></button>
+                        <button type="submit" name="delete" class="btn btn-sm btn-ghost-danger" title="Delete this set"
+                                data-confirm="Delete &quot;{{ item.name }}&quot;? This can't be undone."><i class="bi bi-trash"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted-cell mb-0">No defaults yet: new {{ group.type.label }} reports start blank.</p>
+    {% endif %}
+</section>
+{% endfor %}
 {% endblock %}
