@@ -18,7 +18,6 @@ def home(request):
         calibration_due_date__lte=date.today() + timedelta(days=CAL_DUE_SOON_DAYS),
     ).order_by('calibration_due_date')
 
-    equipment_count = sum(m.objects.count() for m in (Scope, Probe, CalibrationBlock, SensitivityBlock, Encoder))
     # The equipment libraries, in the sidebar's order: (label, icon, url name, count)
     libraries = [
         ('Scopes', 'display', 'scope-list', Scope.objects.count()),
@@ -36,7 +35,5 @@ def home(request):
         'stats': {
             'reports': Report.objects.count(),
             'saved_setups': Setup.objects.filter(report__isnull=True).count(),
-            'equipment': equipment_count,
-            'cal_due': cal_due.count(),
         },
     })

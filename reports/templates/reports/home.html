@@ -21,14 +21,6 @@
         <span class="stat-label">Saved setups</span>
         <span class="stat-value">{{ stats.saved_setups }}</span>
     </a>
-    <a class="stat-tile" href="{% url 'scope-list' %}">
-        <span class="stat-label">Equipment items</span>
-        <span class="stat-value">{{ stats.equipment }}</span>
-    </a>
-    <a class="stat-tile{% if stats.cal_due %} stat-warning{% endif %}" href="{% url 'scope-list' %}">
-        <span class="stat-label">Scopes due for calibration</span>
-        <span class="stat-value">{{ stats.cal_due }}</span>
-    </a>
 </div>
 
 <div class="dashboard-grid">

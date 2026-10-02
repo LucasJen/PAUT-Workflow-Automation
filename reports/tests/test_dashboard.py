@@ -20,7 +20,6 @@ class DashboardTests(TestCase):
 
         resp = self.client.get(reverse('home'))
         self.assertEqual([s.model for s in resp.context['cal_due']], ['Overdue', 'Soon'])
-        self.assertEqual(resp.context['stats']['cal_due'], 2)
         self.assertContains(resp, 'Overdue by 3 days')
 
     def test_recent_reports_most_recently_edited_first(self):
