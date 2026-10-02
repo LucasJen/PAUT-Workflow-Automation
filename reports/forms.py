@@ -522,14 +522,17 @@ class ReportGroupForm(GridCellsMixin, StyledFormMixin, ModelForm):
 
     class Meta:
         model = ReportGroup
-        exclude = ['report', 'order', 'probe']
+        exclude = ['report', 'order', 'probe', 'not_applicable']
         widgets = {'source_file': HiddenInput()}
 
     def __init__(self, *args, probe_choices=(), **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['probe_column'].choices = [('', '—')] + list(probe_choices)
-        if not self.is_bound and self.instance.probe_id is not None:
-            self.initial['probe_column'] = self.instance.probe_id and str(self.instance.probe.order)
+        # 'na': the group's column is N/A (see ReportGroup.not_applicable)
+        self.fields['probe_column'].choices = [('', '—'), (weld_form.NOT_USED, 'N/A')] + list(probe_choices)
+        if not self.is_bound and self.instance.not_applicable:
+            self.initial['probe_column'] = weld_form.NOT_USED
+        elif not self.is_bound and self.instance.probe_id is not None:
+            self.initial['probe_column'] = str(self.instance.probe.order)
 
 
 ProbeFormSet = inlineformset_factory(Report, ReportProbe, form=ReportProbeForm, extra=0, can_delete=True, can_order=True)

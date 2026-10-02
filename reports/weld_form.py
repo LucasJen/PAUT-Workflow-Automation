@@ -5,8 +5,10 @@ sheet, for the testing instrument (column C), the probe columns (F-I) and the gr
 output both read these, so the two always line up.
 """
 
-PAUT, CONV_LONG, CONV_SHEAR = 'paut', 'conv_long', 'conv_shear'
-KIND_CHOICES = [(PAUT, 'PAUT'), (CONV_LONG, '0° L-wave (conventional)'), (CONV_SHEAR, 'SW conventional')]
+PAUT, CONV_LONG, CONV_SHEAR, NOT_USED = 'paut', 'conv_long', 'conv_shear', 'na'
+# N/A keeps a column in its place with every cell N/A (e.g. no 270° probe on this job)
+KIND_CHOICES = [(PAUT, 'PAUT'), (CONV_LONG, '0° L-wave (conventional)'), (CONV_SHEAR, 'SW conventional'),
+                (NOT_USED, 'N/A')]
 
 MAX_PROBES = 4
 MAX_GROUPS = 5
@@ -81,11 +83,13 @@ PROBE_NA = {
     PAUT: set(),
     CONV_SHEAR: set(),
     CONV_LONG: {'wedge_material', 'wedge_model', 'wedge_angle', 'wedge_diameter', 'wedge_curve'},
+    NOT_USED: {name for name, _, _ in PROBE_ROWS},
 }
 GROUP_NA = {
     PAUT: set(),
     CONV_SHEAR: {'angle_increment', 'vpa', 'focal_plane', 'focal_distance'},
     CONV_LONG: {'angle_increment', 'vpa', 'focal_plane', 'focal_distance'},
+    NOT_USED: {name for name, _, _ in GROUP_ROWS},   # an N/A group, or one on an N/A probe
 }
 
 

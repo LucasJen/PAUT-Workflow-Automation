@@ -111,7 +111,8 @@ def columns_from(probe_formset, group_formset):
         kept = values(form)
         if form in group_formset.deleted_forms or not kept:
             continue
-        probe = place.get(form.cleaned_data.get('probe_column') or '')
+        column = form.cleaned_data.get('probe_column') or ''
+        probe = column if column == weld_form.NOT_USED else place.get(column)
         groups.append({**kept, 'probe_column': probe} if probe is not None else kept)
     return probes, groups
 

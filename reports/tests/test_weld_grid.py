@@ -61,6 +61,15 @@ class WeldGridTests(TestCase):
         self.assertEqual(g.probe, a)
         self.assertEqual(report.groups.count(), 1)   # an untouched new column with only its place is skipped
 
+    def test_na_group_is_saved_and_shown_again(self):
+        self.post(probes=[{'kind': 'na', 'label': '270°'}],
+                  groups=[{'label': 'spare', 'probe_column': 'na'}])
+        report = Report.objects.get()
+        group = report.groups.get()
+        self.assertEqual((group.not_applicable, group.probe, report.probes.get().kind), (True, None, 'na'))
+        resp = self.client.get(f'{self.url}?loaded={report.pk}')
+        self.assertEqual(resp.context['group_formset'].forms[0]['probe_column'].value(), 'na')
+
     def test_untouched_new_column_is_skipped(self):
         self.post(probes=[{'kind': 'paut', 'model': 'A'}, {'kind': 'paut'}])
         self.assertEqual(list(ReportProbe.objects.values_list('model', flat=True)), ['A'])

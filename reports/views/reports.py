@@ -16,7 +16,7 @@ from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, Resul
 from ..report_types import DEFAULT_REPORT_TYPE, get_report_type
 from ..defaults import all_defaults, defaults_for, in_page_order, only_defaults
 from ..weld_columns import columns_from_setup
-from ..weld_form import weld_grid_rows
+from ..weld_form import NOT_USED, weld_grid_rows
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
 from django.core.exceptions import ValidationError
 from django.forms import ImageField
@@ -301,7 +301,9 @@ def _save_equipment(report, probes, groups):
         by_index[f.prefix.rsplit('-', 1)[1]] = f.instance
     for order, f in enumerate(kept(groups)):
         f.instance.report, f.instance.order = report, order
-        f.instance.probe = by_index.get(f.cleaned_data.get('probe_column') or '')
+        column = f.cleaned_data.get('probe_column') or ''
+        f.instance.not_applicable = column == NOT_USED
+        f.instance.probe = by_index.get(column)
         f.instance.save()
 
 

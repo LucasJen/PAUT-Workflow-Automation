@@ -209,6 +209,9 @@ def _probe_keys(probes):
     """'PAUT 1: Olympus 10L32-A1', '0deg 1: Olympus D791', ... as the reference's Probe Table names them."""
     keys, counts = {}, {}
     for probe in probes:
+        if probe.kind == weld_form.NOT_USED:
+            keys[probe.pk] = 'N/A'
+            continue
         prefix = KIND_KEY.get(probe.kind, 'PAUT')
         counts[prefix] = counts.get(prefix, 0) + 1
         name = ' '.join(v for v in (_v(probe.make), _v(probe.model)) if v)
@@ -235,6 +238,9 @@ def _grid(report):
         probe = probes[i]
         na = weld_form.PROBE_NA.get(probe.kind, set())
         cells[f'{col}13'] = f'Probe {i + 1}\n({probe.label})' if _v(probe.label) else f'Probe {i + 1}'
+        if probe.kind == weld_form.NOT_USED:
+            cells.update(_unused_column(col, range(15, 31)))
+            continue
         cells[f'{col}15'] = keys[probe.pk]
         for name, _, row in weld_form.PROBE_ROWS:
             cells[f'{col}{row}'] = 'N/A' if name in na else _v(getattr(probe, name))
@@ -253,6 +259,9 @@ def _grid(report):
         kind = group.probe.kind if group.probe else weld_form.PAUT
         na = weld_form.GROUP_NA.get(kind, set())
         cells[f'{col}13'] = f'Group {i + 1} ({group.label})' if _v(group.label) else f'Group {i + 1}'
+        if group.not_applicable or kind == weld_form.NOT_USED:
+            cells.update(_unused_column(col, range(15, 33)))
+            continue
         cells[f'{col}15'] = keys.get(group.probe_id, 'N/A')
         for name, _, row in weld_form.GROUP_ROWS:
             cells[f'{col}{row}'] = 'N/A' if name in na else _v(getattr(group, name))

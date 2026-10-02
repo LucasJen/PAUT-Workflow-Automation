@@ -286,6 +286,19 @@ class EquipmentGridTests(TestCase):
                          ('Group 4 (0°)', '0deg 1: Olympus D791', 'Dual', 'N/A', 'N/A'))
         self.assertEqual((cells['S13'], cells['S17'], cells['S18']), ('Group 5 (Trans)', 'Shear', '45°'))
 
+    def test_na_probe_and_group_columns(self):
+        self.report.probes.filter(order=1).update(kind='na')
+        g2 = self.report.groups.get(order=1)
+        g2.not_applicable, g2.probe = True, None
+        g2.save()
+        cells = weld_pages(self.report).report
+        self.assertEqual(cells['G13'], 'Probe 2' + chr(10) + '(270°)')
+        self.assertTrue(all(cells[f'G{row}'] == 'N/A' for row in range(15, 31)))
+        self.assertEqual(cells['H15'], '0deg 1: Olympus D791')   # numbering skips the N/A probe
+        self.assertEqual(cells['N13'], 'Group 2')
+        self.assertTrue(all(cells[f'N{row}'] == 'N/A' for row in range(15, 33)))
+        self.assertEqual((cells['F28'], cells['F29']), ('1', '3'))
+
     def test_more_than_three_relevant_groups_share_the_last_row(self):
         self.report.groups.update(probe=self.p1)
         cells = weld_pages(self.report).report

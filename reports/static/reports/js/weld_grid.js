@@ -9,6 +9,8 @@
     const limits = { probes: rows.max_probes, groups: rows.max_groups };
     const grids = { probes: document.getElementById('probe-grid'), groups: document.getElementById('group-grid') };
 
+    const NOT_USED = 'na';   // weld_form.NOT_USED: the N/A kind / Probe choice
+
     const totalInput = prefix => document.getElementById(`id_${prefix}-TOTAL_FORMS`);
     const field = (prefix, name) => document.getElementById(`id_${prefix}-${name}`);
 
@@ -45,7 +47,7 @@
         root.querySelectorAll('select[name$="-probe_column"]').forEach(select => {
             const current = select.value;
             select.querySelectorAll('option').forEach(option => {
-                if (option.value === '') return;
+                if (option.value === '' || option.value === NOT_USED) return;
                 const position = probes.indexOf(`probes-${option.value}`);
                 option.hidden = position < 0;
                 if (position >= 0) {
@@ -74,7 +76,9 @@
         }
     }
 
+    // A group's kind: its probe's, or N/A when the group itself is set to N/A
     function probeKind(probeIndex) {
+        if (probeIndex === NOT_USED) return NOT_USED;
         return probeIndex === '' ? null : field(`probes-${probeIndex}`, 'kind')?.value || null;
     }
 
@@ -86,6 +90,10 @@
             const wedge = field(col, 'catalogue_wedge');
             wedge.disabled = na.has('wedge_model');
             wedge.closest('td').classList.toggle('na', wedge.disabled);
+            // An N/A probe has no catalogue probe either
+            const probe = field(col, 'catalogue_probe');
+            probe.disabled = na.has('model');
+            probe.closest('td').classList.toggle('na', probe.disabled);
         }
         for (const col of columns('groups')) {
             const na = new Set(rows.group_na[probeKind(field(col, 'probe_column').value)] || []);
@@ -244,7 +252,7 @@
             if (!col) break;
             await fillColumn(col, values);
             const probe = placed[values.probe_column];
-            field(col, 'probe_column').value = probe ? probe.split('-')[1] : '';
+            field(col, 'probe_column').value = values.probe_column === NOT_USED ? NOT_USED : probe ? probe.split('-')[1] : '';
             pristine.add(col);
         }
         refresh();
@@ -290,8 +298,7 @@
     const probeIndex = col => col.split('-')[1];
 
     function groupProbeKind(col) {
-        const probe = field(col, 'probe_column').value;
-        return probe === '' ? null : field(`probes-${probe}`, 'kind')?.value;
+        return probeKind(field(col, 'probe_column').value);
     }
 
     async function importColumns(items) {

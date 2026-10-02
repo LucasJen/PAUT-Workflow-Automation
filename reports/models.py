@@ -326,6 +326,8 @@ class ReportGroup(models.Model):
     scanning_db = models.CharField('Scanning dB', max_length=50, blank=True)
     first_element = models.PositiveIntegerField(null=True, blank=True)
     aperture_elements = models.PositiveIntegerField('Aperture (elements)', null=True, blank=True)
+    # N/A on the Probe select: the column stays in its place with every cell N/A
+    not_applicable = models.BooleanField(default=False)
     # The .nde (or saved setup) that filled the column; blank = typed in or a default, so an import
     # may fill it
     source_file = models.CharField(max_length=255, blank=True)

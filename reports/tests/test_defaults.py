@@ -85,6 +85,14 @@ class DefaultsPageTests(TestCase):
         self.assertEqual(record.group_columns, [{'label': 'on second', 'probe_column': '0'},
                                                 {'label': 'on first', 'probe_column': '1'}])
 
+    def test_weld_defaults_keep_na_groups(self):
+        self.client.post(reverse('new-defaults', args=['paut_weld']), {
+            'defaults_name': 'Standard',
+            'probes-TOTAL_FORMS': '0', 'probes-INITIAL_FORMS': '0',
+            'groups-TOTAL_FORMS': '1', 'groups-INITIAL_FORMS': '0', 'groups-0-probe_column': 'na', 'groups-0-label': 'x',
+        })
+        self.assertEqual(ReportDefaults.objects.get().group_columns, [{'label': 'x', 'probe_column': 'na'}])
+
     def test_weld_save_keeps_setup_values_and_unposted_columns(self):
         record = ReportDefaults.objects.create(report_type='paut_weld', name='Old', setup_values={'couplant': 'Water'},
                                                probe_columns=[{'kind': 'paut', 'label': 'P'}])
