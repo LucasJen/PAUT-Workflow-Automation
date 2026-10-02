@@ -282,6 +282,8 @@ class _GroupContext:
             'beam_gain': self._beam_gain(),
             'ref_gain': _plain(ut.get('referenceGain'), 1),
             'voltage': _plain(_get(ut, 'pulse', 'voltage'), 1),
+            'time_base': self._time_base(system),
+            'points_quantity': self._points_quantity(),
 
             # Acquisition
             'beam_formation': self.technique(),
@@ -313,6 +315,33 @@ class _GroupContext:
             'acquisition_date': self._date(),
         }
         return {k: str(v) for k, v in values.items() if v not in (None, '')}
+
+    def _time_base(self, system):
+        """
+        The A-scan's start and range as half-path distance in the part, as the weld form writes
+        them ('0.269 in - 1.75 in', OmniScan's Start / Range): the first beam's ascanStart and
+        ascanLength (round-trip seconds) at the part velocity.
+        """
+        beam = (self.ut.get('beams') or [{}])[0]
+        start, length, velocity = beam.get('ascanStart'), beam.get('ascanLength'), self.ut.get('velocity')
+        if start is None or length is None or not velocity:
+            return None
+        to_path = lambda seconds: seconds * velocity / 2   # metres
+        if system == 'imperial':
+            return f'{_plain(to_path(start) * M_TO_IN, 3)} in - {_plain(to_path(length) * M_TO_IN, 3)} in'
+        return f'{_plain(to_path(start) * 1000, 2)} mm - {_plain(to_path(length) * 1000, 2)} mm'
+
+    def _points_quantity(self):
+        """Samples per A-scan: the A-scan dataset's Ultrasound axis (else length × digitizing rate ÷ compression)."""
+        for dataset in self.group.get('datasets') or []:
+            for dim in dataset.get('dimensions') or []:
+                if dim.get('axis') == 'Ultrasound' and dim.get('quantity'):
+                    return str(dim['quantity'])
+        length = ((self.ut.get('beams') or [{}])[0]).get('ascanLength')
+        rate = self.ut.get('digitizingFrequency')
+        if length and rate:
+            return str(round(length * rate / (self.ut.get('ascanCompressionFactor') or 1)))
+        return None
 
     def _probe_size(self, system):
         if 'diameter' in self.probe_tech:

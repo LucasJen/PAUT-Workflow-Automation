@@ -181,3 +181,30 @@ class OtherLayoutTests(SimpleTestCase):
         for group in extract_groups(sample_setup(), FIXTURE['properties'], 'x.nde'):
             for values in group['values'].values():
                 self.assertLessEqual(set(values), SETUP_FIELDS)
+
+
+class TimeBaseTests(SimpleTestCase):
+    """The weld form's Time base (A-scan start - range, half path in the part) and Points quantity."""
+
+    def ut(self, setup):
+        group = setup['groups'][0]
+        process = next(p for p in group['processes'] if 'ultrasonicPhasedArray' in p or 'ultrasonicConventional' in p)
+        return group, process.get('ultrasonicPhasedArray') or process.get('ultrasonicConventional')
+
+    def test_start_and_range_as_the_reference_writes_them(self):
+        setup = sample_setup()
+        _, ut = self.ut(setup)
+        ut['velocity'] = 3240.0                      # PPI 31-37575 W5: the reference shows 0.269 in - 1.75 in
+        ut['beams'][0].update(ascanStart=4.22e-06, ascanLength=2.744e-05)
+        values = extract_groups(setup)[0]['values']
+        self.assertEqual(values['imperial']['time_base'], '0.269 in - 1.75 in')
+        self.assertEqual(values['metric']['time_base'], '6.84 mm - 44.45 mm')
+
+    def test_points_from_the_ascan_dataset_else_worked_out(self):
+        setup = sample_setup()
+        self.assertEqual(extract_groups(setup)[0]['values']['imperial']['points_quantity'], '1036')
+        group, ut = self.ut(setup)
+        group['datasets'] = []
+        ut.update(digitizingFrequency=100e6, ascanCompressionFactor=2)
+        ut['beams'][0]['ascanLength'] = 2.744e-05
+        self.assertEqual(extract_groups(setup)[0]['values']['imperial']['points_quantity'], '1372')
