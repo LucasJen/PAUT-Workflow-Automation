@@ -227,12 +227,11 @@
 
     // ── Filling columns ──────────────────────────────────────────────────
 
-    async function fillColumn(col, values, { keepLabel = false } = {}) {
+    async function fillColumn(col, values) {
         for (const [name, value] of Object.entries(values)) {
             if (name === 'catalogue_probe' || name === 'catalogue_wedge' || name === 'probe_column') continue;
             const input = field(col, name);
             if (!input || value === null || value === undefined) continue;
-            if (name === 'label' && keepLabel && input.value.trim()) continue;
             input.value = value;
         }
         if (values.catalogue_probe && window.CatalogueSelect) {
@@ -341,7 +340,7 @@
         });
     }
 
-    // ── Import: .nde groups and saved setups fill columns ──────────────────
+    // ── Import: .nde groups and saved setups replace the columns ──────────────────
     // Each item is {instrument, probe, group, probe_key, probe_ref, filename} (reports/weld_columns.py,
     // views/nde.py nde_columns): one per group of the file. importColumns says where each goes.
 
@@ -359,20 +358,37 @@
         return model ? `${model}|${field(col, 'serial').value.trim().toLowerCase()}` : '';
     }
 
-    const fillable = col => Boolean(field(col, 'source_file')) && !field(col, 'source_file').value;
     const probeIndex = col => col.split('-')[1];
 
-    function groupProbeKind(col) {
-        return probeKind(field(col, 'probe_column').value);
+    // A new column's blanks from the report type's default column of the same kind (the one in
+    // its place, else the next unused one): cable, probe check, labels... that a file doesn't have
+    function fillBlanksFromDefaults(kind, cols, kindOf) {
+        const defaults = (typeSelect ? typeDefaults(typeSelect.value)[kind] : null) || [];
+        const used = new Set();
+        const defaultKind = values => kind === 'probes' ? (values.kind || PAUT)
+            : values.probe_column === NOT_USED ? NOT_USED
+            : (typeDefaults(typeSelect.value).probes?.[Number(values.probe_column)]?.kind || PAUT);
+        cols.forEach((col, i) => {
+            const want = kindOf(col);
+            let at = defaults[i] && !used.has(i) && defaultKind(defaults[i]) === want ? i : -1;
+            if (at < 0) at = defaults.findIndex((values, j) => !used.has(j) && defaultKind(values) === want);
+            if (at < 0) return;
+            used.add(at);
+            for (const [name, value] of Object.entries(defaults[at])) {
+                if (['kind', 'probe_column', 'catalogue_probe', 'catalogue_wedge', 'source_file'].includes(name)) continue;
+                const input = field(col, name);
+                if (input && !input.value.trim() && value !== null && value !== '') input.value = value;
+            }
+        });
     }
 
-    // One import fills every probe and group of the file. Where each goes:
-    // - a group: the column that came from the same file and group (importing again updates it;
-    //   older imports remembered only the file), else the first column of the same kind no file
-    //   has filled yet, else a new column;
-    // - a probe: the column the file's earlier groups put it in (same probe in the file), else
-    //   the column with the same model and S/N, else as a group. The file's values replace what's
-    //   there; values the file doesn't have (cable, probe check, labels...) stay.
+    // Each import replaces the grid: every probe and group column there is removed, and the
+    // file's (or saved setup's) probes and groups go in new columns. Within one import:
+    // - a probe used by several groups (same probe in the file, or the same model and S/N) gets
+    //   one column;
+    // - a group with the same settings on the same probe (the same setup scanned on another weld
+    //   or side) is one column.
+    // Blanks the file leaves (cable, probe check, labels...) come from the report type's defaults.
     // Calibration times from the scans' times: Initial 15 min before the earliest scan (down to
     // 5 min), Cal. out 15 min after the latest (up to 5 min), as 24 h text ('0705'). Each import
     // widens the window; the checks stay as typed.
@@ -391,13 +407,20 @@
     }
 
     async function importColumns(items) {
-        const counts = { updated: 0, filled: 0, added: 0, skipped: 0 };
+        let replaced = 0;
+        for (const kind of ['probes', 'groups']) {
+            for (const col of columns(kind)) {
+                removeColumn(kind, col);
+                if (kind === 'probes') replaced += 1;
+            }
+        }
+        pristine.clear();
+        let skipped = 0;
         const scopes = new Set();   // instruments found in the scope library
-        const placed = {};          // probe_ref -> probe column, within this import
-        const claimed = new Set();  // group columns this import has used
-        const source = col => field(col, 'source_file')?.value || '';
+        const placed = {};          // probe_ref -> probe column
+        const newProbes = [];
+        const newGroups = [];
         for (const item of items) {
-            const kind = item.probe.kind || 'paut';
             // The instrument: the file's, with what the scope library knows by S/N (cal due,
             // module, scanner type, analysis software); what neither has stays as typed
             for (const [name, value] of Object.entries(item.instrument || {})) {
@@ -407,49 +430,28 @@
             if (item.scope) scopes.add(item.scope);
 
             let probeCol = (item.probe_ref && placed[item.probe_ref])
-                || (item.probe_key ? columns('probes').find(col => pageProbeKey(col) === item.probe_key) : null);
-            if (probeCol) {
-                if (!Object.values(placed).includes(probeCol)) counts.updated += 1;
-            } else {
-                probeCol = columns('probes').find(col => fillable(col) && field(col, 'kind').value === kind);
-                if (probeCol) counts.filled += 1;
-                else if ((probeCol = addColumn('probes'))) counts.added += 1;
-                else { counts.skipped += 1; continue; }
+                || (item.probe_key ? newProbes.find(col => pageProbeKey(col) === item.probe_key) : null);
+            if (!probeCol) {
+                probeCol = addColumn('probes');
+                if (!probeCol) { skipped += 1; continue; }
+                await fillColumn(probeCol, item.probe);
+                newProbes.push(probeCol);
             }
-            if (!Object.values(placed).includes(probeCol)) await fillColumn(probeCol, item.probe, { keepLabel: true });
             if (item.probe_ref) placed[item.probe_ref] = probeCol;
 
-            // A group with the same settings on the same probe (the same setup scanned on another
-            // weld or side) is the same group on the form
             const settings = Object.entries(item.group).filter(([k, v]) => k !== 'source_file' && v !== '' && v != null);
-            const same = settings.length && columns('groups').find(col =>
+            const same = settings.length && newGroups.find(col =>
                 field(col, 'probe_column').value === probeIndex(probeCol)
                 && settings.every(([k, v]) => !field(col, k) || field(col, k).value === String(v)));
-            if (same) {
-                claimed.add(same);
-                continue;
-            }
-            const open = columns('groups').filter(col => !claimed.has(col));
-            let groupCol = open.find(col => source(col) && source(col) === item.group.source_file)
-                || (item.filename && open.find(col => source(col) === item.filename));
-            if (groupCol) {
-                counts.updated += 1;
-            } else {
-                // A group column still waiting for a file: one on this probe first, then one on an
-                // unfilled probe of the same kind
-                const waiting = open.filter(fillable);
-                groupCol = waiting.find(col => field(col, 'probe_column').value === probeIndex(probeCol))
-                    || waiting.find(col => groupProbeKind(col) === kind && fillable(`probes-${field(col, 'probe_column').value}`));
-                if (groupCol) counts.filled += 1;
-                else if ((groupCol = addColumn('groups'))) counts.added += 1;
-                else { counts.skipped += 1; continue; }
-            }
-            claimed.add(groupCol);
-            await fillColumn(groupCol, { label: item.label || '', ...item.group }, { keepLabel: true });
+            if (same) continue;
+            const groupCol = addColumn('groups');
+            if (!groupCol) { skipped += 1; continue; }
+            await fillColumn(groupCol, { label: item.label || '', ...item.group });
             field(groupCol, 'probe_column').value = probeIndex(probeCol);
-            pristine.delete(probeCol);
-            pristine.delete(groupCol);
+            newGroups.push(groupCol);
         }
+        fillBlanksFromDefaults('probes', newProbes, col => field(col, 'kind').value || PAUT);
+        fillBlanksFromDefaults('groups', newGroups, col => probeKind(field(col, 'probe_column').value) || PAUT);
         calibrationTimes(items.map(item => item.scan_time).filter(Boolean));
         // The scanned part (OD, wall, material, velocities, bevel), for the Sensitivity block
         // card's Auto-detect; a later import's values replace an earlier one's
@@ -463,15 +465,12 @@
         }
         refresh();
         root.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
-        const plural = n => `${n} column${n === 1 ? '' : 's'}`;
-        const parts = [];
-        if (counts.updated) parts.push(`updated ${plural(counts.updated)} from an earlier import`);
-        if (counts.filled) parts.push(`filled ${plural(counts.filled)} prefilled`);
-        if (counts.added) parts.push(`added ${plural(counts.added)}`);
-        if (counts.skipped) parts.push(`${counts.skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
-        const text = parts.join('; ') || 'nothing to add';
-        const library = scopes.size ? ` Instrument from the scope library: ${[...scopes].join(', ')}.` : '';
-        showStatus(text[0].toUpperCase() + text.slice(1) + '.' + library, counts.skipped > 0);
+        const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+        const parts = [`${plural(newProbes.length, 'probe')} and ${plural(newGroups.length, 'group')} imported`];
+        if (replaced) parts.push(`replaced the ${plural(replaced, 'probe')} there`);
+        if (skipped) parts.push(`${skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
+        const text = parts.join('; ');
+        showStatus(text + '.' + library, skipped > 0);
     }
 
     if (toolbar) {
