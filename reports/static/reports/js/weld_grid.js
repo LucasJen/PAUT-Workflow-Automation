@@ -359,20 +359,20 @@
         return model ? `${model}|${field(col, 'serial').value.trim().toLowerCase()}` : '';
     }
 
-    const fillable = col => Boolean(field(col, 'source_file')) && !field(col, 'source_file').value;
     const probeIndex = col => col.split('-')[1];
 
     function groupProbeKind(col) {
         return probeKind(field(col, 'probe_column').value);
     }
 
-    // One import fills every probe and group of the file. Where each goes:
-    // - a group: the column that came from the same file and group (importing again updates it;
-    //   older imports remembered only the file), else the first column of the same kind no file
-    //   has filled yet, else a new column;
-    // - a probe: the column the file's earlier groups put it in (same probe in the file), else
-    //   the column with the same model and S/N, else as a group. The file's values replace what's
-    //   there; values the file doesn't have (cable, probe check, labels...) stay.
+    // One import fills every probe and group of the file, over the columns already there from
+    // Probe 1 / Group 1 on (an earlier import's or the defaults'); new columns only past them:
+    // - a probe: the column this import already put it in (the same probe in the file, or the
+    //   same model and S/N), else the next column of the same kind this import hasn't used;
+    // - a group: the next group column this import hasn't used, on this probe first, then of
+    //   the same kind.
+    // The file's values replace what's there; values the file doesn't have (cable, probe check,
+    // labels...) stay.
     // Calibration times from the scans' times: Initial 15 min before the earliest scan (down to
     // 5 min), Cal. out 15 min after the latest (up to 5 min), as 24 h text ('0705'). Each import
     // widens the window; the checks stay as typed.
@@ -391,11 +391,10 @@
     }
 
     async function importColumns(items) {
-        const counts = { updated: 0, filled: 0, added: 0, skipped: 0 };
+        const counts = { filled: 0, added: 0, skipped: 0 };
         const scopes = new Set();   // instruments found in the scope library
         const placed = {};          // probe_ref -> probe column, within this import
         const claimed = new Set();  // group columns this import has used
-        const source = col => field(col, 'source_file')?.value || '';
         for (const item of items) {
             const kind = item.probe.kind || 'paut';
             // The instrument: the file's, with what the scope library knows by S/N (cal due,
@@ -406,44 +405,31 @@
             }
             if (item.scope) scopes.add(item.scope);
 
+            const used = Object.values(placed);
             let probeCol = (item.probe_ref && placed[item.probe_ref])
-                || (item.probe_key ? columns('probes').find(col => pageProbeKey(col) === item.probe_key) : null);
-            if (probeCol) {
-                if (!Object.values(placed).includes(probeCol)) counts.updated += 1;
-            } else {
-                probeCol = columns('probes').find(col => fillable(col) && field(col, 'kind').value === kind);
+                || (item.probe_key ? used.find(col => pageProbeKey(col) === item.probe_key) : null);
+            if (!probeCol) {
+                probeCol = columns('probes').find(col => !used.includes(col) && field(col, 'kind').value === kind);
                 if (probeCol) counts.filled += 1;
                 else if ((probeCol = addColumn('probes'))) counts.added += 1;
                 else { counts.skipped += 1; continue; }
             }
-            if (!Object.values(placed).includes(probeCol)) await fillColumn(probeCol, item.probe, { keepLabel: true });
+            if (!used.includes(probeCol)) await fillColumn(probeCol, item.probe, { keepLabel: true });
             if (item.probe_ref) placed[item.probe_ref] = probeCol;
 
             // A group with the same settings on the same probe (the same setup scanned on another
             // weld or side) is the same group on the form
             const settings = Object.entries(item.group).filter(([k, v]) => k !== 'source_file' && v !== '' && v != null);
-            const same = settings.length && columns('groups').find(col =>
+            const same = settings.length && [...claimed].find(col =>
                 field(col, 'probe_column').value === probeIndex(probeCol)
                 && settings.every(([k, v]) => !field(col, k) || field(col, k).value === String(v)));
-            if (same) {
-                claimed.add(same);
-                continue;
-            }
+            if (same) continue;
             const open = columns('groups').filter(col => !claimed.has(col));
-            let groupCol = open.find(col => source(col) && source(col) === item.group.source_file)
-                || (item.filename && open.find(col => source(col) === item.filename));
-            if (groupCol) {
-                counts.updated += 1;
-            } else {
-                // A group column still waiting for a file: one on this probe first, then one on an
-                // unfilled probe of the same kind
-                const waiting = open.filter(fillable);
-                groupCol = waiting.find(col => field(col, 'probe_column').value === probeIndex(probeCol))
-                    || waiting.find(col => groupProbeKind(col) === kind && fillable(`probes-${field(col, 'probe_column').value}`));
-                if (groupCol) counts.filled += 1;
-                else if ((groupCol = addColumn('groups'))) counts.added += 1;
-                else { counts.skipped += 1; continue; }
-            }
+            let groupCol = open.find(col => field(col, 'probe_column').value === probeIndex(probeCol))
+                || open.find(col => groupProbeKind(col) === kind);
+            if (groupCol) counts.filled += 1;
+            else if ((groupCol = addColumn('groups'))) counts.added += 1;
+            else { counts.skipped += 1; continue; }
             claimed.add(groupCol);
             await fillColumn(groupCol, { label: item.label || '', ...item.group }, { keepLabel: true });
             field(groupCol, 'probe_column').value = probeIndex(probeCol);
@@ -465,8 +451,7 @@
         root.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
         const plural = n => `${n} column${n === 1 ? '' : 's'}`;
         const parts = [];
-        if (counts.updated) parts.push(`updated ${plural(counts.updated)} from an earlier import`);
-        if (counts.filled) parts.push(`filled ${plural(counts.filled)} prefilled`);
+        if (counts.filled) parts.push(`filled ${plural(counts.filled)} over what was there`);
         if (counts.added) parts.push(`added ${plural(counts.added)}`);
         if (counts.skipped) parts.push(`${counts.skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
         const text = parts.join('; ') || 'nothing to add';
