@@ -6,6 +6,7 @@ All geometry is in inches with the weld centre line at x = 0, the scanning surfa
 and depth increasing downwards. The probe sits on the -x side; side 2 is the mirror image.
 render_png(plan, side) returns PNG bytes for the scan plan page and the Excel report.
 """
+from .coverage import Coverage, Suggestion, coverage, inspection_region, suggest_offset  # noqa: F401
 from .geometry import (  # noqa: F401
     GENERIC_PROBE, GENERIC_WEDGE, M_PER_S_TO_IN_PER_US, MM_PER_IN, REXOLITE_VELOCITY, STEEL_LONGITUDINAL,
     STEEL_SHEAR, angles, cap_width, exit_x, first_number, fmt_in, fmt_length, index_offset, part, part_velocity,

@@ -1,6 +1,6 @@
 from django.forms import (
-    CheckboxInput, ChoiceField, ClearableFileInput, DateInput, HiddenInput, ModelForm, NumberInput, Select, Textarea,
-    TextInput, inlineformset_factory,
+    CheckboxInput, ChoiceField, ClearableFileInput, DateInput, HiddenInput, ModelForm, NumberInput, RadioSelect, Select,
+    Textarea, TextInput, inlineformset_factory,
 )
 from django.forms.renderers import TemplatesSetting
 from django.urls import reverse_lazy
@@ -387,14 +387,14 @@ class TextSnippetForm(StyledFormMixin, ModelForm):
 
 
 SCAN_PLAN_NUMBERS = (
-    'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'index_offset_2', 'exit_point',
-    'wedge_angle', 'angle_start', 'angle_stop', 'angle_step', 'shear_velocity',
+    'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2',
+    'exit_point', 'wedge_angle', 'angle_start', 'angle_stop', 'angle_step', 'shear_velocity',
 )
 
 
 # Scan plan fields with a unit: stored in inches (in/µs), shown in mm (m/s) for metric plans
 SCAN_PLAN_UNIT_FIELDS = {
-    'length': ['thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'index_offset_2'],
+    'length': ['thickness', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2'],
     'velocity': ['shear_velocity'],
 }
 UNIT_FACTORS = {'length': 25.4, 'velocity': 25400.0}   # imperial -> metric
@@ -403,16 +403,20 @@ UNIT_FACTORS = {'length': 25.4, 'velocity': 25400.0}   # imperial -> metric
 class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     fieldsets_spec = [
         ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'units']),
-        ('Weld', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'shear_velocity']),
+        ('Weld', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'shear_velocity']),
         # Three columns: each index offset with its 90 / 270 deg skew boxes (1 to 4 drawings)
         ('Probe positions', ['index_offset', 'skew_90', 'skew_270', 'index_offset_2', 'skew_90_2', 'skew_270_2']),
         ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
         # Two columns: start / stop angle, then beam legs / angle step under them
         ('Beams', ['angle_start', 'angle_stop', 'legs', 'angle_step']),
         (None, ['notes']),
-        # wedge_angle and exit_point are hidden: they come from the selected wedge
+        # wedge_angle and exit_point are hidden: they come from the selected wedge; mode is the
+        # Simple / Advanced switch above the fields
     ]
-    LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'index_offset', 'index_offset_2', 'exit_point')
+    # Shown in advanced mode only: simple mode keeps their values (defaults, or what a setup filled)
+    ADVANCED_FIELDS = ('root_gap', 'root_face', 'cap_width', 'haz_width', 'shear_velocity', 'first_element',
+                       'aperture_elements', 'legs', 'angle_step')
+    LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2', 'exit_point')
     ANGLES = ('bevel_angle', 'wedge_angle', 'angle_start', 'angle_stop')
 
     class Meta:
@@ -442,14 +446,17 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'thickness': 'Thickness',
             'units': 'Units',
             'aperture_elements': 'Aperture (elements)',
+            'haz_width': 'HAZ width',
         }
         help_texts = {
             'index_offset': 'Wedge front to the weld centre line. Leave blank to put the wedge at the weld toe '
                             '(half the cap width).',
             'index_offset_2': 'An optional second probe position, drawn for its ticked skews.',
+            'haz_width': 'Parent metal each side of the weld that the beams must also cover.',
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),
+            'mode': RadioSelect(attrs={'class': 'mode-switch-input'}),
             **{name: NumberInput(attrs={'step': 'any'}) for name in SCAN_PLAN_NUMBERS},
             # Set only by the wedge selector (scan_plan.js fills them from the chosen wedge)
             'wedge_angle': HiddenInput(),
@@ -465,6 +472,9 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         super().__init__(*args, **kwargs)
         catalogue_choices(self, 'probe_model', 'wedge_model')
         unit_toggle(self, 'units', SCAN_PLAN_UNIT_FIELDS)
+        # Not required: a form posted without them keeps simple mode and the default HAZ
+        self.fields['mode'].required = self.fields['haz_width'].required = False
+        self.fields['mode'].widget.attrs['class'] = 'mode-switch-input'
         # A metric plan shows its stored inches as mm (and in/µs as m/s)
         if not self.is_bound and self.instance.units == 'metric':
             for kind, names in SCAN_PLAN_UNIT_FIELDS.items():
@@ -473,6 +483,9 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                     if value is not None:
                         self.initial[name] = round(value * UNIT_FACTORS[kind], 0 if kind == 'velocity' else 2)
 
+    def clean_mode(self):
+        return self.cleaned_data.get('mode') or ScanPlan.SIMPLE
+
     def clean(self):
         data = super().clean()
         if data.get('units') == 'metric':  # stored in inches (in/µs)
@@ -480,6 +493,8 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                 for name in names:
                     if data.get(name) is not None:
                         data[name] = data[name] / UNIT_FACTORS[kind]
+        if data.get('haz_width') is None and 'haz_width' not in self.errors:
+            data['haz_width'] = ScanPlan._meta.get_field('haz_width').default
         skews = ('skew_90', 'skew_270', 'skew_90_2', 'skew_270_2')
         if not any(data.get(name) for name in skews):
             self.add_error('skew_90', 'Tick at least one skew to draw.')

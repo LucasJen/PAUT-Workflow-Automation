@@ -112,8 +112,11 @@ class ScanPlan(models.Model):
     ONE_LEG, TWO_LEGS = 1, 2
     LEG_CHOICES = [(ONE_LEG, 'First leg only'), (TWO_LEGS, 'First and second leg')]
     SKEW_90, SKEW_270 = 90, 270
+    SIMPLE, ADVANCED = 'simple', 'advanced'
 
     name = models.CharField(max_length=100)
+    # Simple shows the few inputs a plain butt weld needs; advanced shows them all
+    mode = models.CharField(max_length=10, choices=[(SIMPLE, 'Simple'), (ADVANCED, 'Advanced')], default=SIMPLE)
     pipe_size = models.CharField(max_length=100, blank=True, help_text='For your reference, e.g. 6in Sch 40.')
     sensitivity_block = models.ForeignKey(
         'equipment.SensitivityBlock', on_delete=models.SET_NULL, null=True, blank=True, related_name='scan_plans',
@@ -132,6 +135,8 @@ class ScanPlan(models.Model):
     root_gap = models.FloatField(default=0.0625)
     root_face = models.FloatField(default=0.0625)
     cap_width = models.FloatField(null=True, blank=True, help_text='Blank = bevel opening plus 1/16" each side.')
+    # Inspection volume for coverage: the weld plus this band of parent metal beyond each fusion face
+    haz_width = models.FloatField(default=0.25)
 
     # Probe position and beams
     index_offset = models.FloatField(null=True, blank=True,

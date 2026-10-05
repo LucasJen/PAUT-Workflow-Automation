@@ -102,6 +102,90 @@ class SceneTests(TestCase):
         self.assertEqual(scan_plan.render_scene(scan_plan.build_scene(plan)), scan_plan.render_png(plan))
 
 
+class CoverageTests(TestCase):
+    def plan(self, **fields):
+        values = dict(thickness=0.5, bevel_angle=30, root_gap=0.0625, root_face=0.0625, cap_width=None,
+                      exit_point=0.45, wedge_angle=36, angle_start=40, angle_stop=70, angle_step=1, legs=2,
+                      skew_90=True, skew_270=True, index_offset_2=None, skew_90_2=False, skew_270_2=False)
+        values.update(fields)
+        return ScanPlan(**values)
+
+    def test_inspection_volume_is_the_weld_plus_haz(self):
+        plan = self.plan(haz_width=0.25)
+        region = scan_plan.inspection_region(plan)
+        self.assertAlmostEqual(region[0][0], scan_plan.weld_outline(plan)[0][0] - 0.25)
+        self.assertAlmostEqual(region[-1][0], -region[0][0])
+
+    def test_coverage_falls_off_with_the_probe_too_far_back(self):
+        near = scan_plan.coverage(self.plan(index_offset=0.6))
+        far = scan_plan.coverage(self.plan(index_offset=4.0))
+        self.assertTrue(near.full)
+        self.assertEqual(far.fraction, 0.0)
+        self.assertEqual(set(near.by_drawing), {(1, 1), (1, 2)})
+
+    def test_one_skew_alone_covers_less_than_both(self):
+        both = scan_plan.coverage(self.plan(index_offset=0.6))
+        one = scan_plan.coverage(self.plan(index_offset=0.6, skew_270=False))
+        self.assertLess(one.fraction, both.fraction)
+
+    def test_suggested_offset_covers_the_volume(self):
+        plan = self.plan()
+        suggestion = scan_plan.suggest_offset(plan)
+        self.assertEqual(suggestion.fraction, 1.0)
+        self.assertIsNone(suggestion.second_offset)
+        self.assertLessEqual(suggestion.low, suggestion.offset)
+        self.assertLessEqual(suggestion.offset, suggestion.high)
+        self.assertGreaterEqual(suggestion.low, scan_plan.cap_width(plan) / 2)   # wedge not on the cap
+        plan.index_offset = suggestion.offset
+        self.assertTrue(scan_plan.coverage(plan).full)
+
+    def test_suggests_a_second_offset_when_one_cannot_cover(self):
+        plan = self.plan(thickness=1.5, angle_start=60, angle_stop=70, legs=1, skew_270=False)
+        suggestion = scan_plan.suggest_offset(plan)
+        self.assertLess(suggestion.fraction, 1.0)
+        self.assertIsNotNone(suggestion.second_offset)
+        self.assertGreater(suggestion.pair_fraction, suggestion.fraction)
+
+
+class SimpleModeTests(TestCase):
+    def test_a_form_without_mode_or_haz_saves_as_simple_with_the_default_haz(self):
+        self.client.post(reverse('new-scan-plan'), PLAN_FIELDS)
+        plan = ScanPlan.objects.get()
+        self.assertEqual((plan.mode, plan.haz_width), ('simple', 0.25))
+
+    def test_metric_haz_is_stored_in_inches(self):
+        self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'units': 'metric', 'thickness': '7.11',
+                                                     'index_offset': '12.2', 'haz_width': '12.7', 'mode': 'advanced'})
+        plan = ScanPlan.objects.get()
+        self.assertEqual(plan.mode, 'advanced')
+        self.assertAlmostEqual(plan.haz_width, 0.5)
+
+    def test_editor_marks_the_advanced_fields(self):
+        page = self.client.get(reverse('new-scan-plan')).content.decode()
+        self.assertIn('id="advanced-fields"', page)
+        self.assertIn('name="mode"', page)
+
+    def test_wedge_data_reports_coverage(self):
+        data = self.client.get(reverse('scan-plan-wedge-data'), PLAN_FIELDS).json()['coverage']
+        self.assertEqual([(d['position'], d['side']) for d in data['drawings']], [(1, 1), (1, 2)])
+        self.assertGreater(data['fraction'], 0)
+
+    def test_suggest_endpoint(self):
+        data = self.client.get(reverse('scan-plan-suggest'), PLAN_FIELDS).json()
+        self.assertEqual(data['fraction'], 1.0)
+        self.assertLessEqual(data['low'], data['offset'])
+        self.assertGreaterEqual(data['low'], data['toe'])
+        self.assertEqual(self.client.get(reverse('scan-plan-suggest'), {'thickness': ''}).status_code, 400)
+
+    def test_preview_shades_gaps_but_the_printed_drawing_does_not(self):
+        plan = make_plan(index_offset=3.0)   # too far back to cover the weld
+        printed = scan_plan.build_scene(plan)
+        live = scan_plan.build_scene(plan, analysis=True)
+        self.assertFalse([s for s in printed.shapes if s.get('fill') == 'gap'])
+        self.assertTrue([s for s in live.shapes if s.get('fill') == 'gap'])
+        self.assertEqual(self.client.get(reverse('scan-plan-preview'), PLAN_FIELDS)['Content-Type'], 'image/png')
+
+
 class ScanPlanPageTests(TestCase):
     def test_list_and_new_pages(self):
         make_plan(name='Listed plan')
@@ -549,7 +633,7 @@ class FileWedgeSizeTests(TestCase):
         data = resp.json()['wedge']
         self.assertEqual(data['source'], 'catalogue')
         self.assertAlmostEqual(data['length'], 30.38)
-        self.assertEqual(self.client.get(reverse('scan-plan-wedge-data'), PLAN_FIELDS).json(), {'wedge': None})
+        self.assertIsNone(self.client.get(reverse('scan-plan-wedge-data'), PLAN_FIELDS).json()['wedge'])
         self.assertEqual(self.client.get(reverse('scan-plan-wedge-data'), {**PLAN_FIELDS, 'thickness': ''}).status_code, 400)
 
 

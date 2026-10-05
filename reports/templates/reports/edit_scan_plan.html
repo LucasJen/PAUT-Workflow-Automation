@@ -6,7 +6,7 @@
 {% block back_url %}{% url 'scan-plan-list' %}{% endblock %}
 {% block back_label %}Scan plans{% endblock %}
 {% block page_title %}{% if plan %}{{ plan.name }}{% else %}New scan plan{% endif %}{% endblock %}
-{% block page_subtitle %}A single-V butt weld with the probe at the index offset and the sectorial beam fan. Pick it in a weld report's editor to print it on the report's Scan Plan page.{% endblock %}
+{% block page_subtitle %}A single-V butt weld with the probe at the index offset and the sectorial beam fan, and how much of the weld it covers. Pick it in a weld report's editor to print it on the report's Scan Plan page.{% endblock %}
 {% block item_noun %}scan plan{% endblock %}
 
 {% block form_body %}
@@ -30,7 +30,13 @@
             </select>
         </section>
         {% endif %}
-        <section class="panel">
+        <section class="panel scan-plan-fields" id="scan-plan-fields" data-mode="{{ form.mode.value|default:'simple' }}">
+            {# Simple: the few inputs a plain butt weld needs; Advanced: every input (scan_plan.js) #}
+            <div class="mode-switch" role="radiogroup" aria-label="Inputs">
+                {% for radio in form.mode %}<label class="mode-switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+            </div>
+            <p class="mode-switch-hint" data-for-mode="simple">The fewest inputs for a plain butt weld. Root gap, land, cap width, HAZ, legs and the rest keep their values; switch to Advanced to change them.</p>
+            <p class="mode-switch-hint" data-for-mode="advanced">Every input.</p>
             {% for field in form.hidden_fields %}{{ field }}{% endfor %}
             {% for title, fields in form.fieldsets %}
             {% if title %}<h2 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h2>{% endif %}
@@ -38,9 +44,15 @@
                 {% for field in fields %}{{ field.as_field_group }}{% endfor %}
             </div>
             {% if title == 'Probe positions' %}
-            <button type="button" class="btn btn-sm btn-secondary mt-2" id="toggle-second-offset">
-                <i class="bi bi-plus-lg"></i> Add a second index offset
-            </button>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-primary" id="suggest-offset" data-url="{% url 'scan-plan-suggest' %}">
+                    <i class="bi bi-magic"></i> Suggest index offset
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary" id="toggle-second-offset">
+                    <i class="bi bi-plus-lg"></i> Add a second index offset
+                </button>
+            </div>
+            <p class="scan-plan-status mt-2" id="suggest-status" role="status" hidden></p>
             {% endif %}
             {% endfor %}
         </section>
@@ -50,6 +62,8 @@
         {# One figure per ticked skew per index offset (1 to 4), built by scan_plan.js #}
         <div id="scan-plan-figures"></div>
         <p class="scan-plan-status" id="scan-plan-status" role="status" hidden></p>
+        {# How much of the weld + HAZ the ticked skews cover (filled by scan_plan.js) #}
+        <div class="coverage-summary" id="coverage-summary" hidden></div>
         {# The wedge numbers the drawing uses (filled by scan_plan.js) #}
         <div class="wedge-data" id="wedge-data" data-url="{% url 'scan-plan-wedge-data' %}"></div>
     </section>
@@ -60,5 +74,6 @@
 {{ setup_fill_values|json_script:"setup-fill-values" }}
 {{ group_fill_values|json_script:"group-fill-values" }}
 {{ catalogue_fill_values|json_script:"catalogue-fill-values" }}
+{{ advanced_fields|json_script:"advanced-fields" }}
 <script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
 {% endblock %}

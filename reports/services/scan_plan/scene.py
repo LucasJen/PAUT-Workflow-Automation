@@ -10,6 +10,7 @@ stroke, width), arrow (tip, towards, stroke) and text (at, text, size, stroke, a
 import math
 from dataclasses import asdict, dataclass, field
 
+from .coverage import cell_size, coverage, inspection_region
 from .geometry import cap_width, fmt_length, index_offset, part, weld_outline
 from .probe import at_position, layout
 from .tracer import trace
@@ -31,11 +32,14 @@ class Scene:
         return asdict(self)
 
 
-def build_scene(plan, side=1, position=1):
+def build_scene(plan, side=1, position=1, analysis=False):
     """
     The scan plan drawing: side 1 is the 90 deg skew, side 2 the 270 deg skew (the probe on the
-    other side of the weld); position 2 uses the second index offset.
+    other side of the weld); position 2 uses the second index offset. With `analysis` (the editor's
+    live drawing, not the printed one) it also outlines the inspection volume (weld + HAZ) and
+    shades what no ticked skew covers.
     """
+    whole_plan = plan
     plan = at_position(plan, position)
     t = plan.thickness
     lay = layout(plan)
@@ -51,6 +55,8 @@ def build_scene(plan, side=1, position=1):
     x_max = max(half_cap + 0.35, min(reach, half_cap + 2.5) + 0.1)
     y_min = min(p[1] for p in wedge + probe) - 0.3  # room for the offset dimension
     y_max = t + root_height + 0.25
+    if analysis:
+        x_max = max(x_max, max(x for x, _ in inspection_region(plan)) + 0.1)
     scene = Scene(x_min, x_max, y_min, y_max, mirror=(side == 2))
 
     # Plate
@@ -67,6 +73,8 @@ def build_scene(plan, side=1, position=1):
     root = [(root_half * math.cos(math.pi - i * math.pi / 40), t + root_height * math.sin(i * math.pi / 40))
             for i in range(41)]
     scene.add('polygon', points=root, fill='weld')
+    if analysis:  # gaps over the weld fill, under its outlines and the beams
+        _add_coverage(scene, whole_plan, -1 if side == 2 else 1)
     scene.add('line', points=faces, stroke='weld_line', width=1.5)
     scene.add('line', points=mirrored, stroke='weld_line', width=1.5)
     scene.add('line', points=cap, stroke='weld_line', width=1)
@@ -113,3 +121,22 @@ def build_scene(plan, side=1, position=1):
     scene.add('text', at=(front / 2, dim_y - 0.03), text=fmt_length(plan, index_offset(plan)), size=19,
               stroke='dimension', anchor='mb', halo=True, data={'dimension': 'index offset'})
     return scene
+
+
+def _add_coverage(scene, plan, sign):
+    """
+    The inspection volume's outline and its uncovered cells. Coverage is worked out on the weld
+    as it is (the 270 deg skew's probe on the +x side); `sign` -1 flips it back for a mirrored
+    drawing so it lands in place.
+    """
+    result = coverage(plan)
+    width, height = cell_size(plan)
+    for x, y in zip(result.x[~result.hit], result.y[~result.hit]):
+        x = float(x) * sign
+        scene.add('polygon', points=[(x - width / 2, float(y) - height / 2), (x + width / 2, float(y) - height / 2),
+                                     (x + width / 2, float(y) + height / 2), (x - width / 2, float(y) + height / 2)],
+                  fill='gap')
+    region = inspection_region(plan)
+    for a, b in zip(region, region[1:]):
+        if a[1] != b[1]:   # the sides; the top and bottom are the plate's surfaces
+            scene.add('dashed', a=(a[0] * sign, a[1]), b=(b[0] * sign, b[1]), stroke='haz', width=1)

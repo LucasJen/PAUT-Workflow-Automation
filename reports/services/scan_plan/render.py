@@ -25,6 +25,8 @@ COLOURS = {
     'dimension': (0, 120, 0),
     'text': (40, 40, 40),
     'centre_line': (120, 120, 120),
+    'gap': (248, 180, 180),
+    'haz': (200, 110, 0),
 }
 
 
@@ -115,9 +117,10 @@ def render_scene(scene):
     return c.png()
 
 
-def render_png(plan, side=1, position=1):
+def render_png(plan, side=1, position=1, analysis=False):
     """
     The scan plan drawing as PNG bytes: side 1 is the 90 deg skew, side 2 the 270 deg skew (the
-    probe on the other side of the weld); position 2 uses the second index offset.
+    probe on the other side of the weld); position 2 uses the second index offset. `analysis` adds
+    the coverage marks for the editor.
     """
-    return render_scene(build_scene(plan, side, position))
+    return render_scene(build_scene(plan, side, position, analysis))

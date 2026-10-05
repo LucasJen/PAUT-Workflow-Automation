@@ -14,7 +14,8 @@ from ..forms import ScanPlanForm
 from ..models import Report, ReportGroup, ScanPlan, Setup
 from ..weld_form import PAUT
 from ..services.scan_plan import (
-    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, layout, render_png,
+    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, cap_width, coverage, layout, render_png,
+    suggest_offset,
 )
 
 NUMBER = re.compile(r'-?\d+(?:\.\d+)?')
@@ -193,6 +194,7 @@ def _edit_page(request, form, plan):
     return render(request, 'reports/edit_scan_plan.html', {
         'form': form, 'plan': plan, 'setup_fill_values': _setup_fill_values(),
         'group_fill_values': _group_fill_values(),
+        'advanced_fields': list(ScanPlanForm.ADVANCED_FIELDS),
         'catalogue_fill_values': {
             'sensitivity_block': _block_fill_values(),
             'wedge_model': _wedge_fill_values(),
@@ -261,15 +263,43 @@ def scan_plan_preview(request):
     plan = _unsaved_plan(request)
     if plan is None:
         return HttpResponse('Check the highlighted values.', status=400, content_type='text/plain')
-    return _png(render_png(plan, _side(request), _position(request)))
+    return _png(render_png(plan, _side(request), _position(request), analysis=True))
+
+
+def _coverage_json(plan):
+    result = coverage(plan)
+    return {
+        'fraction': result.fraction, 'full': result.full, 'haz_width': plan.haz_width,
+        'drawings': [{'position': position, 'side': side, 'fraction': fraction}
+                     for (position, side), fraction in result.by_drawing.items()],
+    }
 
 
 def scan_plan_wedge_data(request):
-    """The wedge numbers the drawing uses for the form's current values (mm, degrees, m/s)"""
+    """
+    The wedge numbers the drawing uses for the form's current values (mm, degrees, m/s), and how
+    much of the weld + HAZ the ticked skews cover
+    """
     plan = _unsaved_plan(request)
     if plan is None:
         return JsonResponse({'error': 'Check the highlighted values.'}, status=400)
-    return JsonResponse({'wedge': layout(plan).wedge_data})
+    return JsonResponse({'wedge': layout(plan).wedge_data, 'coverage': _coverage_json(plan)})
+
+
+def scan_plan_suggest(request):
+    """
+    The index offset (inches) that covers the most of the weld + HAZ for the form's current values,
+    and a second offset when one can't cover it all
+    """
+    plan = _unsaved_plan(request)
+    if plan is None:
+        return JsonResponse({'error': 'Check the highlighted values.'}, status=400)
+    suggestion = suggest_offset(plan)
+    return JsonResponse({
+        'offset': suggestion.offset, 'low': suggestion.low, 'high': suggestion.high,
+        'fraction': suggestion.fraction, 'second_offset': suggestion.second_offset,
+        'pair_fraction': suggestion.pair_fraction, 'toe': cap_width(plan) / 2,
+    })
 
 
 def scan_plan_png(request, pk):

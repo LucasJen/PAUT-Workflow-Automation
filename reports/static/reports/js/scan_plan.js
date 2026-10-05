@@ -1,5 +1,6 @@
-// Scan plan page: redraws the preview from the form's current values (debounced) and fills
-// fields from a saved setup, or from the sensitivity block / wedge when one is picked.
+// Scan plan page: redraws the preview from the form's current values (debounced), shows how much
+// of the weld + HAZ it covers, suggests an index offset, switches between simple and advanced
+// inputs, and fills fields from a saved setup, or from the sensitivity block / wedge when one is picked.
 // The probe / wedge lists and their filter boxes are catalogue_select.js.
 
 const preview = document.getElementById('scan-plan-preview');
@@ -17,6 +18,27 @@ const form = preview.closest('form');
 const status = document.getElementById('scan-plan-status');
 const figures = document.getElementById('scan-plan-figures');
 let timer = null;
+
+// ── Simple / advanced inputs: simple hides the advanced fields (they keep their values) ──
+
+const fieldsPanel = document.getElementById('scan-plan-fields');
+for (const name of JSON.parse(document.getElementById('advanced-fields').textContent)) {
+    form.querySelector(`[data-field="${name}"]`)?.classList.add('advanced-only');
+}
+
+function applyMode() {
+    const mode = form.querySelector('input[name="mode"]:checked')?.value || 'simple';
+    fieldsPanel.dataset.mode = mode;
+    // A section heading with nothing left to show in simple mode goes too
+    fieldsPanel.querySelectorAll('.field-grid').forEach(grid => {
+        const empty = mode === 'simple' && !grid.querySelector('[data-field]:not(.advanced-only)');
+        grid.hidden = empty;
+        const title = grid.previousElementSibling;
+        if (title?.classList.contains('panel-subtitle')) title.hidden = empty;
+    });
+}
+form.querySelectorAll('input[name="mode"]').forEach(radio => radio.addEventListener('change', applyMode));
+applyMode();
 
 // ── Probe positions: the index offset and an optional second one, each with 90 / 270 deg skews ──
 
@@ -116,7 +138,8 @@ async function showWedgeData(params) {
     params.delete('side');
     const response = await fetch(`${wedgeData.dataset.url}?${params}`, { cache: 'no-store' });
     if (!response.ok) return;
-    const { wedge } = await response.json();
+    const { wedge, coverage } = await response.json();
+    showCoverage(coverage);
     if (!wedge) {
         wedgeData.replaceChildren(Object.assign(document.createElement('p'), {
             className: 'scan-plan-status', textContent: 'No probe or wedge picked: the wedge is a sketch.',
@@ -146,6 +169,80 @@ async function showWedgeData(params) {
     }
     wedgeData.replaceChildren(table);
 }
+
+// ── Coverage: how much of the weld + HAZ the ticked skews reach together ──
+
+const coverageBox = document.getElementById('coverage-summary');
+
+function lengthText(inches) {
+    return form.elements.units?.value === 'metric' ? `${(inches * 25.4).toFixed(2)} mm` : `${inches.toFixed(3)}"`;
+}
+
+function percent(fraction) {
+    // Never round a gap up to 100%
+    const value = Math.floor(fraction * 1000) / 10;
+    return `${value.toFixed(value === 100 ? 0 : 1)}%`;
+}
+
+function showCoverage(coverage) {
+    if (!coverage) { coverageBox.hidden = true; return; }
+    const parts = coverage.drawings.map(d => `${d.side === 1 ? 90 : 270}° skew${d.position === 2 ? ' (2nd offset)' : ''} `
+                                             + `${percent(d.fraction)}`);
+    coverageBox.className = `coverage-summary ${coverage.full ? 'is-full' : 'is-short'}`;
+    coverageBox.replaceChildren(
+        Object.assign(document.createElement('strong'), {
+            textContent: coverage.full ? 'Weld + HAZ fully covered' : `Weld + HAZ ${percent(coverage.fraction)} covered`,
+        }),
+        Object.assign(document.createElement('span'), {
+            textContent: ` (HAZ ${lengthText(coverage.haz_width)} each side; ${parts.join(', ') || 'no skew ticked'}).`
+                         + (coverage.full ? '' : ' Gaps are shaded red in the drawing.'),
+        }),
+    );
+    coverageBox.hidden = false;
+}
+
+// ── Suggest index offset: the offset (or pair) that covers the most of the weld + HAZ ──
+
+const suggestButton = document.getElementById('suggest-offset');
+const suggestStatus = document.getElementById('suggest-status');
+
+function inputLength(inches) {
+    // An inch value as the form shows it (mm for metric plans)
+    return form.elements.units?.value === 'metric' ? (inches * 25.4).toFixed(2) : inches.toFixed(3);
+}
+
+suggestButton.addEventListener('click', async () => {
+    suggestButton.disabled = true;
+    suggestStatus.hidden = false;
+    suggestStatus.textContent = 'Working out the offset…';
+    try {
+        const response = await fetch(`${suggestButton.dataset.url}?${formParams()}`, { cache: 'no-store' });
+        if (!response.ok) {
+            suggestStatus.textContent = 'Fill in the required values first.';
+            return;
+        }
+        const s = await response.json();
+        form.elements.index_offset.value = inputLength(s.offset);
+        let text;
+        if (s.second_offset !== null) {
+            showSecond(true);
+            form.elements.index_offset_2.value = inputLength(s.second_offset);
+            form.elements.skew_90_2.checked = form.elements.skew_90.checked;
+            form.elements.skew_270_2.checked = form.elements.skew_270.checked;
+            text = `One offset reaches at most ${percent(s.fraction)}; two offsets, ${lengthText(s.offset)} and `
+                 + `${lengthText(s.second_offset)}, reach ${percent(s.pair_fraction)}.`;
+        } else if (s.low < s.high) {
+            text = `Any offset from ${lengthText(s.low)} to ${lengthText(s.high)} covers ${percent(s.fraction)}; `
+                 + `the middle, ${lengthText(s.offset)}, leaves the most room either way.`;
+        } else {
+            text = `${lengthText(s.offset)} covers the most: ${percent(s.fraction)}.`;
+        }
+        suggestStatus.textContent = `${text} Searched from the weld toe (${lengthText(s.toe)}) outwards.`;
+        form.dispatchEvent(new Event('input'));
+    } finally {
+        suggestButton.disabled = false;
+    }
+});
 
 function scheduleRedraw() {
     clearTimeout(timer);
