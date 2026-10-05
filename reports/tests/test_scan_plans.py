@@ -166,7 +166,7 @@ class SimpleModeTests(TestCase):
         self.assertIn('name="mode"', page)
 
     def test_wedge_data_reports_coverage(self):
-        data = self.client.get(reverse('scan-plan-wedge-data'), PLAN_FIELDS).json()['coverage']
+        data = self.client.get(reverse('scan-plan-scenes'), PLAN_FIELDS).json()['coverage']
         self.assertEqual([(d['position'], d['side']) for d in data['drawings']], [(1, 1), (1, 2)])
         self.assertGreater(data['fraction'], 0)
 
@@ -183,7 +183,9 @@ class SimpleModeTests(TestCase):
         live = scan_plan.build_scene(plan, analysis=True)
         self.assertFalse([s for s in printed.shapes if s.get('fill') == 'gap'])
         self.assertTrue([s for s in live.shapes if s.get('fill') == 'gap'])
-        self.assertEqual(self.client.get(reverse('scan-plan-preview'), PLAN_FIELDS)['Content-Type'], 'image/png')
+        scenes = self.client.get(reverse('scan-plan-scenes'), PLAN_FIELDS).json()['drawings']
+        self.assertTrue(all(any(s['kind'] == 'cells' or s.get('group') == 'coverage' for s in scene['shapes'])
+                            for scene in scenes))   # the HAZ outline at least
 
 
 class ScanPlanPageTests(TestCase):
@@ -207,11 +209,22 @@ class ScanPlanPageTests(TestCase):
         self.assertContains(resp, 'Enter an angle from 0 to 89°.')
         self.assertFalse(ScanPlan.objects.exists())
 
-    def test_live_preview_draws_unsaved_values(self):
-        resp = self.client.get(reverse('scan-plan-preview'), {**PLAN_FIELDS, 'side': '2'})
-        self.assertEqual(resp['Content-Type'], 'image/png')
+    def test_live_drawing_draws_unsaved_values(self):
+        data = self.client.get(reverse('scan-plan-scenes'), PLAN_FIELDS).json()
+        self.assertEqual([(d['meta']['position'], d['meta']['side'], d['mirror']) for d in data['drawings']],
+                         [(1, 1, False), (1, 2, True)])
+        self.assertEqual(data['width_px'], scan_plan.WIDTH_PX)
+        self.assertTrue(data['colours']['beam'].startswith('#'))
         self.assertFalse(ScanPlan.objects.exists())
-        self.assertEqual(self.client.get(reverse('scan-plan-preview'), {**PLAN_FIELDS, 'thickness': ''}).status_code, 400)
+        self.assertEqual(self.client.get(reverse('scan-plan-scenes'), {**PLAN_FIELDS, 'thickness': ''}).status_code, 400)
+
+    def test_scene_groups_for_the_interactive_drawing(self):
+        scene = self.client.get(reverse('scan-plan-scenes'), PLAN_FIELDS).json()['drawings'][0]
+        groups = {s.get('group') for s in scene['shapes']}
+        self.assertTrue({'probe', 'beam', 'dimension'} <= groups)
+        self.assertAlmostEqual(scene['meta']['index_offset'], 0.48)
+        self.assertAlmostEqual(scene['meta']['thickness'], 0.28)
+        self.assertIn('toe', scene['meta'])
 
     def test_saved_plan_png(self):
         plan = make_plan()
@@ -468,8 +481,8 @@ class ScanPlanFormLayoutTests(TestCase):
 
 class OffsetAndPreviewTests(TestCase):
     def test_preview_draws_before_a_name_or_offset_is_entered(self):
-        resp = self.client.get(reverse('scan-plan-preview'), {**PLAN_FIELDS, 'name': '', 'index_offset': ''})
-        self.assertEqual(resp['Content-Type'], 'image/png')
+        resp = self.client.get(reverse('scan-plan-scenes'), {**PLAN_FIELDS, 'name': '', 'index_offset': ''})
+        self.assertEqual(resp.status_code, 200)
 
     def test_name_still_needed_to_save(self):
         resp = self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'name': ''})
@@ -653,13 +666,12 @@ class FileWedgeSizeTests(TestCase):
                                   length=30.38, height=16.41)
         probe = ProbeModel.objects.get(model='10L32-A1')
         wedge = WedgeModel.objects.get(model='SA1-N60S 10L32')
-        resp = self.client.get(reverse('scan-plan-wedge-data'),
+        resp = self.client.get(reverse('scan-plan-scenes'),
                                {**PLAN_FIELDS, 'probe_model': probe.pk, 'wedge_model': wedge.pk})
         data = resp.json()['wedge']
         self.assertEqual(data['source'], 'catalogue')
         self.assertAlmostEqual(data['length'], 30.38)
-        self.assertIsNone(self.client.get(reverse('scan-plan-wedge-data'), PLAN_FIELDS).json()['wedge'])
-        self.assertEqual(self.client.get(reverse('scan-plan-wedge-data'), {**PLAN_FIELDS, 'thickness': ''}).status_code, 400)
+        self.assertIsNone(self.client.get(reverse('scan-plan-scenes'), PLAN_FIELDS).json()['wedge'])
 
 
 class SkewTests(TestCase):
@@ -688,9 +700,10 @@ class SkewTests(TestCase):
         second = scan_plan.at_position(plan, 2)
         self.assertEqual(scan_plan.index_offset(second), 0.75)
         self.assertEqual(plan.index_offset, 0.48)  # the plan itself is unchanged
-        resp = self.client.get(reverse('scan-plan-preview'),
-                               {**PLAN_FIELDS, 'index_offset_2': '0.75', 'skew_90_2': 'on', 'side': '2', 'position': '2'})
-        self.assertEqual(resp['Content-Type'], 'image/png')
+        data = self.client.get(reverse('scan-plan-scenes'),
+                               {**PLAN_FIELDS, 'index_offset_2': '0.75', 'skew_90_2': 'on'}).json()
+        second = [d['meta'] for d in data['drawings'] if d['meta']['position'] == 2]
+        self.assertEqual([(m['side'], m['index_offset']) for m in second], [(1, 0.75)])
 
     def test_metric_second_offset_is_stored_in_inches(self):
         self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'units': 'metric', 'thickness': '7.112',

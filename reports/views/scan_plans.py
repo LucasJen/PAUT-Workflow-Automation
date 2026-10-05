@@ -14,9 +14,11 @@ from ..forms import ScanPlanForm
 from ..models import Report, ReportGroup, ScanPlan, Setup
 from ..weld_form import PAUT
 from ..services.scan_plan import (
-    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, cap_width, coverage, layout, render_png,
-    suggest_offset,
+    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, build_scene, cap_width, coverage, layout,
+    render_png, suggest_offset,
 )
+from ..services.scan_plan.coverage import drawings as plan_drawings
+from ..services.scan_plan.render import COLOURS, WIDTH_PX
 
 NUMBER = re.compile(r'-?\d+(?:\.\d+)?')
 # In a range such as '40-70', a dash straight after a number separates; it isn't a minus sign
@@ -284,16 +286,6 @@ def _unsaved_plan(request):
     return form.save(commit=False) if form.is_valid() else None
 
 
-def scan_plan_preview(request):
-    """
-    The drawing for the values currently in the form (not saved), for the live preview
-    """
-    plan = _unsaved_plan(request)
-    if plan is None:
-        return HttpResponse('Check the highlighted values.', status=400, content_type='text/plain')
-    return _png(render_png(plan, _side(request), _position(request), analysis=True))
-
-
 def _coverage_json(plan):
     result = coverage(plan)
     return {
@@ -303,15 +295,31 @@ def _coverage_json(plan):
     }
 
 
-def scan_plan_wedge_data(request):
+def _rounded(value):
+    """`value` with its floats to 5 places (a hundred-thousandth of an inch is plenty to draw)."""
+    if isinstance(value, float):
+        return round(value, 5)
+    if isinstance(value, dict):
+        return {k: _rounded(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_rounded(v) for v in value]
+    return value
+
+
+def scan_plan_scenes(request):
     """
-    The wedge numbers the drawing uses for the form's current values (mm, degrees, m/s), and how
-    much of the weld + HAZ the ticked skews cover
+    Everything the editor's interactive drawing needs for the form's current values: one scene
+    per ticked skew per index offset (with the coverage marks), the coverage and the wedge numbers
     """
     plan = _unsaved_plan(request)
     if plan is None:
         return JsonResponse({'error': 'Check the highlighted values.'}, status=400)
-    return JsonResponse({'wedge': layout(plan).wedge_data, 'coverage': _coverage_json(plan)})
+    return JsonResponse({
+        'drawings': [_rounded(build_scene(plan, side, position, analysis=True).as_dict())
+                     for position, side in plan_drawings(plan)],
+        'coverage': _coverage_json(plan), 'wedge': layout(plan).wedge_data,
+        'colours': {name: '#%02x%02x%02x' % rgb for name, rgb in COLOURS.items()}, 'width_px': WIDTH_PX,
+    })
 
 
 def scan_plan_suggest(request):

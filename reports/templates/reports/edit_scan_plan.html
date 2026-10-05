@@ -84,15 +84,26 @@
             {% endfor %}
         </div>
     </section>
-    <section class="panel scan-plan-preview" id="scan-plan-preview" data-url="{% url 'scan-plan-preview' %}">
-        <h2 class="panel-subtitle mt-0">Drawing</h2>
-        {# One figure per ticked skew per index offset (1 to 4), built by scan_plan.js #}
+    <section class="panel scan-plan-preview" id="scan-plan-preview" data-scenes-url="{% url 'scan-plan-scenes' %}">
+        <div class="scan-plan-toolbar">
+            <h2 class="panel-subtitle my-0">Drawing</h2>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Beam legs">
+                <button type="button" class="btn btn-secondary" data-legs="1" title="Draw the first leg only">1st leg</button>
+                <button type="button" class="btn btn-secondary" data-legs="2" title="Draw the first leg and the second, after the skip off the back wall">1st + 2nd</button>
+            </div>
+            <button type="button" class="btn btn-sm btn-secondary" id="reset-views" title="Fit every drawing back in its box (or double-click a drawing)">
+                <i class="bi bi-arrows-angle-contract"></i> Fit
+            </button>
+            <i class="bi bi-question-circle scan-plan-help" tabindex="0"
+               title="Scroll over a drawing to zoom at the cursor, drag it to pan, double-click to fit. Hover a beam for its angle, leg, sound path, depth and distances. Drag the wedge left or right to set the index offset."></i>
+        </div>
+        {# One interactive figure per ticked skew per index offset (1 to 4): scan_plan.js / scan_plan_view.js #}
         <div id="scan-plan-figures"></div>
         <p class="scan-plan-status" id="scan-plan-status" role="status" hidden></p>
         {# How much of the weld + HAZ the ticked skews cover (filled by scan_plan.js) #}
         <div class="coverage-summary" id="coverage-summary" hidden></div>
         {# The wedge numbers the drawing uses (filled by scan_plan.js) #}
-        <div class="wedge-data" id="wedge-data" data-url="{% url 'scan-plan-wedge-data' %}"></div>
+        <div class="wedge-data" id="wedge-data"></div>
     </section>
 </div>
 {% endblock %}
@@ -102,5 +113,6 @@
 {{ group_fill_values|json_script:"group-fill-values" }}
 {{ catalogue_fill_values|json_script:"catalogue-fill-values" }}
 {{ advanced_fields|json_script:"advanced-fields" }}
+<script src="{% static_v 'reports/js/scan_plan_view.js' %}"></script>
 <script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
 {% endblock %}

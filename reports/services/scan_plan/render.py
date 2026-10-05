@@ -109,6 +109,12 @@ def render_scene(scene):
             c.line(shape['points'], stroke, shape.get('width', 1.0))
         elif kind == 'dashed':
             c.dashed(shape['a'], shape['b'], stroke, width=shape.get('width', 1.0))
+        elif kind == 'cells':
+            width, height = shape['size']
+            for x, y in shape['centres']:
+                c.polygon([(x - width / 2, y - height / 2), (x + width / 2, y - height / 2),
+                           (x + width / 2, y + height / 2), (x - width / 2, y + height / 2)],
+                          fill=_colour(shape['fill']))
         elif kind == 'arrow':
             c.arrow_head(shape['tip'], shape['towards'], stroke)
         elif kind == 'text':

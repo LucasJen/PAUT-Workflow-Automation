@@ -69,77 +69,96 @@ secondButton.addEventListener('click', () => {
 showSecond(Boolean(form.elements.index_offset_2.value) || form.elements.skew_90_2.checked
            || form.elements.skew_270_2.checked);
 
-function drawings() {
-    // [{position, side}] for each ticked skew: side 1 = 90 deg, side 2 = 270 deg
-    const out = [];
-    const boxes = [[1, 'skew_90', 'skew_270']];
-    if (secondShown()) boxes.push([2, 'skew_90_2', 'skew_270_2']);
-    for (const [position, ninety, twoSeventy] of boxes) {
-        if (form.elements[ninety].checked) out.push({ position, side: 1 });
-        if (form.elements[twoSeventy].checked) out.push({ position, side: 2 });
-    }
-    return out;
-}
-
-function figureFor(key, caption) {
-    let figure = figures.querySelector(`[data-key="${key}"]`);
-    if (!figure) {
-        figure = document.createElement('figure');
-        figure.className = 'scan-plan-figure';
-        figure.dataset.key = key;
-        figure.append(document.createElement('img'), document.createElement('figcaption'));
-        figures.append(figure);
-    }
-    figure.querySelector('img').alt = `Scan plan, ${caption}`;
-    figure.querySelector('figcaption').textContent = caption;
-    return figure;
-}
-
 function formParams() {
     const params = new URLSearchParams(new FormData(form));
     params.delete('csrfmiddlewaretoken');
     return params;
 }
 
-async function redraw() {
-    const params = formParams();
-    const wanted = drawings();
-    const keys = wanted.map(d => `${d.position}-${d.side}`);
-    figures.querySelectorAll('figure').forEach(f => { if (!keys.includes(f.dataset.key)) f.remove(); });
-    for (const { position, side } of wanted) {
-        const offsetName = position === 1 ? 'index_offset' : 'index_offset_2';
-        const offset = form.elements[offsetName].value;
-        const where = position === 1 ? (offset ? `index offset ${offset}` : 'index offset at the weld toe')
-                                     : `second index offset ${offset}`;
-        const img = figureFor(`${position}-${side}`, `${side === 1 ? 90 : 270}° skew, ${where}`).querySelector('img');
-        params.set('side', side);
-        params.set('position', position);
-        const response = await fetch(`${preview.dataset.url}?${params}`, { cache: 'no-store' });
-        if (!response.ok) {
-            // Keep the last good drawing while a value is incomplete
-            status.textContent = 'Fill in the required values to update the drawing.';
-            status.hidden = false;
-            return;
-        }
-        const url = URL.createObjectURL(await response.blob());
-        img.onload = () => URL.revokeObjectURL(url);
-        img.src = url;
-    }
-    status.hidden = true;
-    params.delete('position');
-    showWedgeData(params);
+// ── Drawings: one interactive view (scan_plan_view.js) per ticked skew per index offset ──
+
+const views = {};          // 'position-side' -> ScanPlanView
+let latestRequest = 0;     // only the newest redraw's answer is drawn
+
+function caption(meta) {
+    const name = meta.position === 1 ? 'index_offset' : 'index_offset_2';
+    const entered = form.elements[name].value;
+    const where = meta.position === 1
+        ? (entered ? `index offset ${lengthText(meta.index_offset)}` : `index offset at the weld toe (${lengthText(meta.index_offset)})`)
+        : `second index offset ${lengthText(meta.index_offset)}`;
+    return `${meta.side === 1 ? 90 : 270}° skew, ${where}`;
 }
+
+function viewFor(key) {
+    if (!views[key]) {
+        const figure = document.createElement('figure');
+        figure.className = 'scan-plan-figure';
+        figure.dataset.key = key;
+        figure.append(document.createElement('figcaption'));
+        views[key] = new window.ScanPlanView(figure, {
+            format: lengthText,
+            // The offset snaps to 0.01" (0.25 mm for metric plans)
+            step: () => (form.elements.units?.value === 'metric' ? 0.25 / 25.4 : 0.01),
+            onOffset: (position, inches) => {
+                form.elements[position === 1 ? 'index_offset' : 'index_offset_2'].value = inputLength(inches);
+                form.dispatchEvent(new Event('input'));
+            },
+        });
+    }
+    return views[key];
+}
+
+async function redraw() {
+    const request = ++latestRequest;
+    const response = await fetch(`${preview.dataset.scenesUrl}?${formParams()}`, { cache: 'no-store' });
+    if (request !== latestRequest) return;
+    if (!response.ok) {
+        // Keep the last good drawing while a value is incomplete
+        status.textContent = 'Fill in the required values to update the drawing.';
+        status.hidden = false;
+        return;
+    }
+    const data = await response.json();
+    if (request !== latestRequest) return;
+    const keys = data.drawings.map(scene => `${scene.meta.position}-${scene.meta.side}`);
+    for (const key of Object.keys(views)) {
+        if (!keys.includes(key)) {
+            views[key].figure.remove();
+            delete views[key];
+        }
+    }
+    data.drawings.forEach((scene, i) => {
+        const view = viewFor(keys[i]);
+        const text = caption(scene.meta);
+        view.figure.querySelector('figcaption').textContent = text;
+        view.update(scene, data.colours, data.width_px, `Scan plan, ${text}`);
+        figures.append(view.figure);   // in the server's order
+    });
+    status.hidden = true;
+    showCoverage(data.coverage);
+    showWedgeData(data.wedge);
+}
+
+document.getElementById('reset-views').addEventListener('click', () => Object.values(views).forEach(v => v.resetView()));
+
+// Beam legs from the drawing's toolbar (the same value as the Beam legs field)
+const legButtons = document.querySelectorAll('[data-legs]');
+function showLegs() {
+    legButtons.forEach(b => b.classList.toggle('active', b.dataset.legs === form.elements.legs.value));
+}
+legButtons.forEach(button => button.addEventListener('click', () => {
+    form.elements.legs.value = button.dataset.legs;
+    showLegs();
+    form.dispatchEvent(new Event('change'));
+}));
+form.elements.legs.addEventListener('change', showLegs);
+showLegs();
 
 // ── Wedge as drawn: the numbers the drawing uses, to check against the instrument ──
 
 const wedgeData = document.getElementById('wedge-data');
 
-async function showWedgeData(params) {
-    params.delete('side');
-    const response = await fetch(`${wedgeData.dataset.url}?${params}`, { cache: 'no-store' });
-    if (!response.ok) return;
-    const { wedge, coverage } = await response.json();
-    showCoverage(coverage);
+function showWedgeData(wedge) {
     if (!wedge) {
         wedgeData.replaceChildren(Object.assign(document.createElement('p'), {
             className: 'scan-plan-status', textContent: 'No probe or wedge picked: the wedge is a sketch.',

@@ -1318,14 +1318,38 @@ textarea.result-cell-input {
 
 .scan-plan-figure { margin: 0 0 1rem; }
 
-.scan-plan-figure img {
+/* Interactive drawing (scan_plan_view.js): always on white, as printed */
+.scan-plan-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.scan-plan-toolbar .panel-subtitle { margin-right: auto; }
+.scan-plan-toolbar .btn-group .btn.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+.scan-plan-help { color: var(--text-3); cursor: help; }
+.scan-plan-stage { position: relative; }
+.scan-plan-svg {
     display: block;
     width: 100%;
     min-height: 3rem;
-    background: #fff;  /* the drawing is always on white, as printed */
+    background: #fff;
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    cursor: crosshair;
+    touch-action: none;   /* the pointer pans / drags, not the page */
+    user-select: none;
 }
+.scan-plan-svg .scene-probe { cursor: grab; }
+.scan-plan-svg.is-moving-probe, .scan-plan-svg.is-moving-probe .scene-probe { cursor: grabbing; }
+.scan-plan-svg.is-panning { cursor: move; }
+.scan-plan-highlight { stroke: #f97316; stroke-width: 2.5; pointer-events: none; }
+.scan-plan-dot { fill: #f97316; stroke: #fff; stroke-width: 1; pointer-events: none; }
+.scan-plan-tip {
+    position: absolute; z-index: 5; pointer-events: none;
+    min-width: 12rem; padding: 0.4rem 0.6rem; font-size: 0.75rem;
+    background: rgba(17, 24, 39, 0.94); color: #f9fafb; border-radius: var(--radius);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.scan-plan-tip div { display: flex; justify-content: space-between; gap: 1rem; }
+.scan-plan-tip span { color: #cbd5e1; }
+.scan-plan-tip strong { font-variant-numeric: tabular-nums; font-weight: 600; }
+.scan-plan-readout { min-height: 1.1rem; margin-top: 0.25rem; font-size: 0.75rem; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
 .scan-plan-figure figcaption {
     margin-top: 0.35rem;

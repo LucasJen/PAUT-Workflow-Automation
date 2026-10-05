@@ -4,8 +4,11 @@ The scan plan drawing as a scene: the view's bounds and a list of shapes in part
 the Pillow renderer and a browser drawing can each colour them their own way.
 
 Shape kinds: polygon (points, fill, stroke, width), line (points, stroke, width), dashed (a, b,
-stroke, width), arrow (tip, towards, stroke) and text (at, text, size, stroke, anchor, halo).
-`data` carries what a shape is (e.g. a beam's angle and sound path) for hover readouts.
+stroke, width), arrow (tip, towards, stroke), text (at, text, size, stroke, anchor, halo) and
+cells (centres, size, fill: equal rectangles, e.g. the coverage gaps).
+`group` says what a shape belongs to (probe: the wedge, probe and rays in the wedge, which move
+together; beam; dimension; coverage) and `data` carries what it is (e.g. a beam's angle and sound
+path) for the editor's interactive drawing. `meta` holds the numbers that drawing needs.
 """
 import math
 from dataclasses import asdict, dataclass, field
@@ -24,6 +27,7 @@ class Scene:
     y_max: float
     mirror: bool                  # side 2 (270 deg skew): drawn left-right flipped
     shapes: list = field(default_factory=list)
+    meta: dict = field(default_factory=dict)
 
     def add(self, kind, **values):
         self.shapes.append({'kind': kind, **values})
@@ -57,7 +61,10 @@ def build_scene(plan, side=1, position=1, analysis=False):
     y_max = t + root_height + 0.25
     if analysis:
         x_max = max(x_max, max(x for x, _ in inspection_region(plan)) + 0.1)
-    scene = Scene(x_min, x_max, y_min, y_max, mirror=(side == 2))
+    scene = Scene(x_min, x_max, y_min, y_max, mirror=(side == 2), meta={
+        'side': side, 'position': position, 'thickness': t, 'index_offset': index_offset(plan), 'toe': half_cap,
+        'units': getattr(plan, 'units', 'imperial'), 'legs': plan.legs,
+    })
 
     # Plate
     scene.add('polygon', points=[(x_min, 0), (x_max, 0), (x_max, t), (x_min, t)], fill='plate_fill')
@@ -98,28 +105,30 @@ def build_scene(plan, side=1, position=1, analysis=False):
                       for i in range(9)]
 
     for beam in traces:
-        scene.add('line', points=beam.points, stroke='beam', width=0.8,
+        scene.add('line', points=beam.points, stroke='beam', width=0.8, group='beam',
                   data={'angle': beam.angle, 'sound_path': beam.sound_path, 'surfaces': beam.surfaces})
 
     # Wedge and probe
-    scene.add('polygon', points=wedge, fill='wedge_fill', stroke='wedge_line', width=1.2)
+    scene.add('polygon', points=wedge, fill='wedge_fill', stroke='wedge_line', width=1.2, group='probe')
     for ray in wedge_rays:
-        scene.add('line', points=list(ray), stroke='wedge_beam', width=0.8)
-    scene.add('polygon', points=probe, fill='probe_fill', stroke='wedge_line', width=1.2)
+        scene.add('line', points=list(ray), stroke='wedge_beam', width=0.8, group='probe')
+    scene.add('polygon', points=probe, fill='probe_fill', stroke='wedge_line', width=1.2, group='probe')
     if lay.aperture:
-        scene.add('line', points=list(lay.aperture), stroke='beam', width=3)
+        scene.add('line', points=list(lay.aperture), stroke='beam', width=3, group='probe')
 
     # Index offset: wedge front to weld centre line
     front = -index_offset(plan)
     top = min(p[1] for p in wedge)
     dim_y = top - 0.12
-    scene.add('line', points=[(front, top - 0.02), (front, dim_y - 0.08)], stroke='dimension', width=1)
-    scene.add('line', points=[(0, -cap_height - 0.05), (0, dim_y - 0.08)], stroke='dimension', width=1)
-    scene.add('line', points=[(front, dim_y), (0, dim_y)], stroke='dimension', width=1.2)
-    scene.add('arrow', tip=(front, dim_y), towards=(0, dim_y), stroke='dimension')
-    scene.add('arrow', tip=(0, dim_y), towards=(front, dim_y), stroke='dimension')
+    dimension = {'stroke': 'dimension', 'group': 'dimension'}
+    scene.add('line', points=[(front, top - 0.02), (front, dim_y - 0.08)], width=1, **dimension)
+    scene.add('line', points=[(0, -cap_height - 0.05), (0, dim_y - 0.08)], width=1, **dimension)
+    scene.add('line', points=[(front, dim_y), (0, dim_y)], width=1.2, **dimension)
+    scene.add('arrow', tip=(front, dim_y), towards=(0, dim_y), **dimension)
+    scene.add('arrow', tip=(0, dim_y), towards=(front, dim_y), **dimension)
     scene.add('text', at=(front / 2, dim_y - 0.03), text=fmt_length(plan, index_offset(plan)), size=19,
-              stroke='dimension', anchor='mb', halo=True, data={'dimension': 'index offset'})
+              anchor='mb', halo=True, data={'dimension': 'index offset'}, **dimension)
+    scene.meta['dimension_y'] = dim_y
     return scene
 
 
@@ -130,13 +139,10 @@ def _add_coverage(scene, plan, sign):
     drawing so it lands in place.
     """
     result = coverage(plan)
-    width, height = cell_size(plan)
-    for x, y in zip(result.x[~result.hit], result.y[~result.hit]):
-        x = float(x) * sign
-        scene.add('polygon', points=[(x - width / 2, float(y) - height / 2), (x + width / 2, float(y) - height / 2),
-                                     (x + width / 2, float(y) + height / 2), (x - width / 2, float(y) + height / 2)],
-                  fill='gap')
+    gaps = [(float(x) * sign, float(y)) for x, y in zip(result.x[~result.hit], result.y[~result.hit])]
+    if gaps:
+        scene.add('cells', centres=gaps, size=cell_size(plan), fill='gap', group='coverage')
     region = inspection_region(plan)
     for a, b in zip(region, region[1:]):
         if a[1] != b[1]:   # the sides; the top and bottom are the plate's surfaces
-            scene.add('dashed', a=(a[0] * sign, a[1]), b=(b[0] * sign, b[1]), stroke='haz', width=1)
+            scene.add('dashed', a=(a[0] * sign, a[1]), b=(b[0] * sign, b[1]), stroke='haz', width=1, group='coverage')
