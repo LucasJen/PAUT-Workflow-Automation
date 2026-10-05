@@ -360,7 +360,7 @@
     let showingMissing = false;
     function showMissing() {
         const section = root.closest('.editor-section') || root;
-        const left = window.FillMarks?.missingIn(section);
+        const left = window.FillMarks?.missingIn?.(section);
         if (left === undefined) return showStatus('');
         showStatus(left ? `Missing ${left} input${left === 1 ? '' : 's'}` : 'All inputs filled');
         showingMissing = true;
