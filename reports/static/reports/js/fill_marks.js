@@ -75,6 +75,11 @@
     }
     ['input', 'change', 'click'].forEach(type => form.addEventListener(type, () => setTimeout(schedule)));
     new MutationObserver(schedule).observe(form, { childList: true, subtree: true });
-    window.FillMarks = { refresh: schedule };
+    // How many fields are still to fill in part of the form (now, not on the next frame)
+    function missingIn(el) {
+        refresh();
+        return el.querySelectorAll('.fill-missing').length;
+    }
+    window.FillMarks = { refresh: schedule, missingIn };
     refresh();
 })();

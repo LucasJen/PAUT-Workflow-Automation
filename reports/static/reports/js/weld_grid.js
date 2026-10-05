@@ -349,10 +349,25 @@
     const status = document.getElementById('weld-grid-status');
 
     function showStatus(text, isError = false) {
+        showingMissing = false;
         if (!status) return;
         status.textContent = text;
         status.classList.toggle('text-danger', isError);
     }
+
+    // After an import: how many of the section's fields are still to fill (fill_marks.js), kept
+    // up to date as they're filled
+    let showingMissing = false;
+    function showMissing() {
+        const section = root.closest('.editor-section') || root;
+        const left = window.FillMarks?.missingIn(section);
+        if (left === undefined) return showStatus('');
+        showStatus(left ? `Missing ${left} input${left === 1 ? '' : 's'}` : 'All inputs filled');
+        showingMissing = true;
+    }
+    ['input', 'change'].forEach(type => root.closest('form')?.addEventListener(type, () => {
+        if (showingMissing) setTimeout(showMissing);
+    }));
 
     function pageProbeKey(col) {
         const model = field(col, 'model').value.trim().toLowerCase();
@@ -391,8 +406,6 @@
     }
 
     async function importColumns(items) {
-        const counts = { filled: 0, added: 0, skipped: 0 };
-        const scopes = new Set();   // instruments found in the scope library
         const placed = {};          // probe_ref -> probe column, within this import
         const claimed = new Set();  // group columns this import has used
         for (const item of items) {
@@ -403,16 +416,14 @@
                 const input = document.getElementById(`id_${name}`);
                 if (input) input.value = value;
             }
-            if (item.scope) scopes.add(item.scope);
 
             const used = Object.values(placed);
             let probeCol = (item.probe_ref && placed[item.probe_ref])
                 || (item.probe_key ? used.find(col => pageProbeKey(col) === item.probe_key) : null);
             if (!probeCol) {
                 probeCol = columns('probes').find(col => !used.includes(col) && field(col, 'kind').value === kind);
-                if (probeCol) counts.filled += 1;
-                else if ((probeCol = addColumn('probes'))) counts.added += 1;
-                else { counts.skipped += 1; continue; }
+                if (!probeCol) probeCol = addColumn('probes');
+                if (!probeCol) continue;   // the form's probe columns are full
             }
             if (!used.includes(probeCol)) await fillColumn(probeCol, item.probe, { keepLabel: true });
             if (item.probe_ref) placed[item.probe_ref] = probeCol;
@@ -427,9 +438,8 @@
             const open = columns('groups').filter(col => !claimed.has(col));
             let groupCol = open.find(col => field(col, 'probe_column').value === probeIndex(probeCol))
                 || open.find(col => groupProbeKind(col) === kind);
-            if (groupCol) counts.filled += 1;
-            else if ((groupCol = addColumn('groups'))) counts.added += 1;
-            else { counts.skipped += 1; continue; }
+            if (!groupCol) groupCol = addColumn('groups');
+            if (!groupCol) continue;   // the form's group columns are full
             claimed.add(groupCol);
             await fillColumn(groupCol, { label: item.label || '', ...item.group }, { keepLabel: true });
             field(groupCol, 'probe_column').value = probeIndex(probeCol);
@@ -449,14 +459,7 @@
         }
         refresh();
         root.closest('form')?.dispatchEvent(new Event('input', { bubbles: true }));
-        const plural = n => `${n} column${n === 1 ? '' : 's'}`;
-        const parts = [];
-        if (counts.filled) parts.push(`filled ${plural(counts.filled)} over what was there`);
-        if (counts.added) parts.push(`added ${plural(counts.added)}`);
-        if (counts.skipped) parts.push(`${counts.skipped} left out: the form holds ${limits.probes} probes and ${limits.groups} groups`);
-        const text = parts.join('; ') || 'nothing to add';
-        const library = scopes.size ? ` Instrument from the scope library: ${[...scopes].join(', ')}.` : '';
-        showStatus(text[0].toUpperCase() + text.slice(1) + '.' + library, counts.skipped > 0);
+        showMissing();
     }
 
     if (toolbar) {
