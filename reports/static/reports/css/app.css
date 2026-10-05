@@ -1321,7 +1321,7 @@ textarea.result-cell-input {
 /* Interactive drawing (scan_plan_view.js): always on white, as printed */
 .scan-plan-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
 .scan-plan-toolbar .panel-subtitle { margin-right: auto; }
-.scan-plan-toolbar .btn-group .btn.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+.scan-plan-toolbar .btn.btn-secondary.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }   /* legs, Gaps */
 .scan-plan-help { color: var(--text-3); cursor: help; }
 .scan-plan-stage { position: relative; }
 .scan-plan-svg {
@@ -1336,6 +1336,7 @@ textarea.result-cell-input {
     user-select: none;
 }
 .scan-plan-svg .scene-probe { cursor: grab; }
+#scan-plan-figures:not(.show-gaps) .scene-gaps { display: none; }   /* the Gaps toggle (off by default) */
 .scan-plan-svg.is-moving-probe, .scan-plan-svg.is-moving-probe .scene-probe { cursor: grabbing; }
 .scan-plan-svg.is-panning { cursor: move; }
 .scan-plan-highlight { stroke: #f97316; stroke-width: 2.5; pointer-events: none; }

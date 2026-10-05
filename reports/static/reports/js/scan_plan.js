@@ -238,6 +238,29 @@ function showDrawErrors(fields) {
     status.hidden = false;
 }
 
+// Gaps: the red shading where no beam reaches, off unless turned on (remembered in this browser)
+const gapsButton = document.getElementById('toggle-gaps');
+const GAPS_KEY = 'scanPlan.showGaps';
+
+function gapsShown() {
+    return figures.classList.contains('show-gaps');
+}
+
+function showGaps(on) {
+    figures.classList.toggle('show-gaps', on);
+    gapsButton.classList.toggle('active', on);
+    gapsButton.setAttribute('aria-pressed', String(on));
+    try { localStorage.setItem(GAPS_KEY, on ? '1' : '0'); } catch { /* storage unavailable: just not remembered */ }
+}
+
+gapsButton.addEventListener('click', () => {
+    showGaps(!gapsShown());
+    if (lastCoverage) showCoverage(lastCoverage);   // its wording mentions the shading
+});
+let rememberedGaps = false;
+try { rememberedGaps = localStorage.getItem(GAPS_KEY) === '1'; } catch { /* off */ }
+showGaps(rememberedGaps);
+
 document.getElementById('reset-views').addEventListener('click', () => Object.values(views).forEach(v => v.resetView()));
 
 // Beam legs from the drawing's toolbar (the same value as the Beam legs field)
@@ -302,7 +325,10 @@ function percent(fraction) {
     return `${value.toFixed(value === 100 ? 0 : 1)}%`;
 }
 
+let lastCoverage = null;
+
 function showCoverage(coverage) {
+    lastCoverage = coverage;
     if (!coverage) { coverageBox.hidden = true; return; }
     const parts = coverage.drawings.map(d => `${d.side === 1 ? 90 : 270}° skew${d.position === 2 ? ' (2nd offset)' : ''} `
                                              + `${percent(d.fraction)}`);
@@ -313,7 +339,8 @@ function showCoverage(coverage) {
         }),
         Object.assign(document.createElement('span'), {
             textContent: ` (HAZ ${lengthText(coverage.haz_width)} each side; ${parts.join(', ') || 'no skew ticked'}).`
-                         + (coverage.full ? '' : ' Gaps are shaded red in the drawing.'),
+                         + (coverage.full ? '' : gapsShown() ? ' Gaps are shaded red in the drawing.'
+                                                              : ' Turn on Gaps to shade them in the drawing.'),
         }),
     );
     coverageBox.hidden = false;

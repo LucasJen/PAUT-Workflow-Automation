@@ -214,7 +214,7 @@ def _add_coverage(scene, plan, sign):
     result = coverage(plan)
     gaps = [(float(x) * sign, float(y)) for x, y in zip(result.x[~result.hit], result.y[~result.hit])]
     if gaps:
-        scene.add('cells', centres=gaps, size=cell_size(plan), fill='gap', group='coverage')
+        scene.add('cells', centres=gaps, size=cell_size(plan), fill='gap', group='gaps')   # shown with the Gaps toggle
     region = flat_inspection_region(plan)
     for a, b in zip(region, region[1:]):
         if a[1] != b[1]:   # the sides; the top and bottom are the plate's surfaces
