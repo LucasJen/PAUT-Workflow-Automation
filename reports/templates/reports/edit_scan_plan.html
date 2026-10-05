@@ -22,12 +22,12 @@
         {# Compact label / value cells (help texts show on hover), like the report editor's setup blocks #}
         <div class="cell-grid-wrap">
             {% if setup_fill_values or group_fill_values %}
-            <div class="cell-grid-head">Start from</div>
+            <div class="cell-grid-head">Fill from setup</div>
             <div class="cell-grid cell-grid-2">
-                <div class="field-cell field-cell-wide" title="Copies a weld report group's or saved setup's probe, wedge, angles and the wedge geometry its .nde recorded.">
-                    <label for="fill-from-setup">Report group or setup</label>
+                <div class="field-cell field-cell-wide" data-field="fill_from_setup" title="Fills every field the setup has: its report's sensitivity block (thickness, pipe size, bevel, velocity), the probe and wedge with the wedge geometry its .nde recorded, the angles and aperture, and the weld details and index offset a saved setup holds. The name too, when it's empty.">
+                    <label for="fill-from-setup">Setup</label>
                     <select class="form-select" id="fill-from-setup">
-                        <option value="">Choose one to copy its probe, wedge and angles…</option>
+                        <option value="">Pick a weld report group or saved setup to fill the fields…</option>
                         {% if group_fill_values %}
                         <optgroup label="Weld report groups">
                             {% for key, item in group_fill_values.items %}<option value="{{ key }}">{{ item.label }}</option>{% endfor %}
@@ -39,6 +39,7 @@
                         </optgroup>
                         {% endif %}
                     </select>
+                    <div class="field-cell-note" id="fill-status" role="status" hidden></div>
                 </div>
             </div>
             {% endif %}

@@ -8,7 +8,7 @@ from PIL import Image
 
 from equipment.compat import BEAMTOOL_SOURCE
 from equipment.models import ProbeModel, SensitivityBlock, WedgeModel
-from reports.models import Report, ScanPlan, Setup
+from reports.models import Report, ReportGroup, ReportProbe, ScanPlan, Setup
 from reports.services import scan_plan
 from reports.services.excel_report import weld_pages
 
@@ -222,10 +222,34 @@ class ScanPlanPageTests(TestCase):
                              angle_range='42.0° – 73.0°', angle_step='1.0')
         resp = self.client.get(reverse('new-scan-plan'))
         values = resp.context['setup_fill_values']
+        # No thickness: that comes from the report's sensitivity block (a saved setup has none)
         self.assertEqual(list(values.values())[0]['fields'],
-                         {'thickness': 0.28, 'cap_width': '', 'angle_start': 42.0, 'angle_stop': 73.0,
-                          'angle_step': 1.0})
+                         {'cap_width': '', 'angle_start': 42.0, 'angle_stop': 73.0, 'angle_step': 1.0})
+        self.assertIsNone(list(values.values())[0]['block'])
         # the wedge angle comes only from the wedge selector
+
+    def test_fill_from_a_report_setup_takes_the_reports_sensitivity_block(self):
+        block = SensitivityBlock.objects.get(pipe_size='6in Sch 40')
+        report = Report.objects.create(sensitivity_block=block)
+        setup = Setup.objects.create(report=report, title='PAUT 1', specimen_thickness='9.9', weld_bevel_angle='30')
+        item = self.client.get(reverse('new-scan-plan')).context['setup_fill_values'][setup.pk]
+        fields = item['fields']
+        self.assertEqual(fields['sensitivity_block'], block.pk)
+        self.assertEqual(fields['thickness'], scan_plan.first_number(block.test_thickness)
+                         or scan_plan.first_number(block.cal_thickness))   # never the setup's 9.9
+        self.assertEqual(fields['bevel_angle'], 30.0)    # the setup's own weld (from its .nde) wins
+        self.assertEqual((item['name'], item['block']), ('PAUT 1', str(block)))
+
+    def test_fill_from_a_weld_group_takes_the_reports_sensitivity_block(self):
+        block = SensitivityBlock.objects.get(pipe_size='6in Sch 40')
+        report = Report.objects.create(report_type='paut_weld', sensitivity_block=block, document_filename='W5')
+        probe = ReportProbe.objects.create(report=report, order=0, kind='paut', model='10L32-A1')
+        group = ReportGroup.objects.create(report=report, order=0, probe=probe, angles='40°-70°')  # dash = range
+        item = self.client.get(reverse('new-scan-plan')).context['group_fill_values'][f'g{group.pk}']
+        self.assertEqual(item['fields']['sensitivity_block'], block.pk)
+        self.assertIn('thickness', item['fields'])
+        self.assertEqual((item['fields']['angle_start'], item['fields']['angle_stop']), (40.0, 70.0))
+        self.assertEqual(item['name'], 'W5')
 
     def test_duplicate_and_delete_from_list(self):
         plan = make_plan(name='Original')
@@ -507,7 +531,8 @@ class UnitsTests(TestCase):
                                      weld_bevel_angle='37.5', weld_root_face='1.59', weld_root_gap='3.18',
                                      weld_cap_width='12.7')
         fill = self.client.get(reverse('new-scan-plan')).context['setup_fill_values'][setup.pk]['fields']
-        self.assertEqual((fill['thickness'], fill['index_offset'], fill['bevel_angle']), (0.3, 0.35, 37.5))
+        self.assertNotIn('thickness', fill)   # from a sensitivity block only
+        self.assertEqual((fill['index_offset'], fill['bevel_angle']), (0.35, 37.5))
         self.assertEqual((fill['root_face'], fill['root_gap'], fill['cap_width']), (0.0626, 0.1252, 0.5))
 
     def test_metric_scan_plan_is_entered_in_mm_and_stored_in_inches(self):

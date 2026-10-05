@@ -1136,6 +1136,8 @@ textarea.result-cell-input {
 .field-cell .form-control:focus, .field-cell .form-select:focus { border-color: var(--accent); background-color: var(--surface); }
 .field-cell.has-error label { color: var(--danger); }
 .field-cell-error { grid-column: 1 / -1; padding: 0 8px 4px; color: var(--danger); font-size: 0.75rem; }
+.field-cell-note { grid-column: 1 / -1; padding: 2px 8px 4px; color: var(--text-3); font-size: 0.75rem; }
+.field-cell-note.is-warning { color: var(--warning); }
 /* A catalogue select's filter box (catalogue_select.js) sits above it in the value column */
 .field-cell:has(.select-filter) label { grid-row: span 2; }
 .field-cell .select-filter, .field-cell .select-filter ~ .form-select { grid-column: 2; }

@@ -19,6 +19,8 @@ from ..services.scan_plan import (
 )
 
 NUMBER = re.compile(r'-?\d+(?:\.\d+)?')
+# In a range such as '40-70', a dash straight after a number separates; it isn't a minus sign
+RANGE_NUMBER = re.compile(r'(?<![\d.°])-?\d+(?:\.\d+)?')
 
 
 def scan_plan_list(request):
@@ -47,20 +49,21 @@ def _first_number(text):
 
 def _setup_fill_values():
     """
-    {pk: {label, field: value}} for filling a scan plan from a saved setup in the browser. Lengths
-    are in inches whatever the setup's units; the page converts them for a metric plan.
+    {pk: {label, fields, wedge_geometry, name, block}} for filling a scan plan from a saved setup in
+    the browser, with its report's sensitivity block (which gives the thickness). Lengths are in
+    inches whatever the setup's units; the page converts them for a metric plan.
     """
     values = {}
-    for setup in Setup.objects.order_by('report_id', '-pk'):
-        angles = [float(n) for n in NUMBER.findall(setup.angle_range or '')]
+    for setup in Setup.objects.select_related('report__sensitivity_block').order_by('report_id', '-pk'):
+        angles = [float(n) for n in RANGE_NUMBER.findall(setup.angle_range or '')]
         per_inch = MM_PER_IN if setup.units == 'metric' else 1.0
 
         def length(text):
             value = _first_number(text)
             return round(value / per_inch, 4) if value is not None else None
 
+        # Thickness comes from the report's sensitivity block, not the setup
         fill = {
-            'thickness': length(setup.specimen_thickness),
             'index_offset': length(setup.index_offset),
             'bevel_angle': _first_number(setup.weld_bevel_angle),
             'root_face': length(setup.weld_root_face),
@@ -74,7 +77,7 @@ def _setup_fill_values():
             'first_element': setup.first_element,
             'aperture_elements': setup.aperture_elements,
         }
-        fill = {k: v for k, v in fill.items() if v is not None}
+        fill, block = _with_report_block({k: v for k, v in fill.items() if v is not None}, setup.report)
         # The wedge geometry the .nde recorded: applied after the wedge is picked (scan_plan.js)
         geometry = {
             'wedge_primary_offset': setup.wedge_primary_offset,
@@ -89,7 +92,10 @@ def _setup_fill_values():
             label = ' · '.join(filter(None, [setup.title, setup.transducer_model, setup.angle_range]))
             where = f'report #{setup.report_id}' if setup.report_id else 'saved'
             values[setup.pk] = {'label': f'{label or "Setup"} ({where} #{setup.pk})', 'fields': fill,
-                                'wedge_geometry': {k: v for k, v in geometry.items() if v is not None}}
+                                'wedge_geometry': {k: v for k, v in geometry.items() if v is not None},
+                                'name': (setup.title or label or f'Setup {setup.pk}')[:100],
+                                'block': str(block) if block else None,
+                                'has_report': setup.report_id is not None}
     return values
 
 
@@ -99,7 +105,7 @@ def group_fill(group):
     aperture, and its probe column's catalogue probe / wedge and .nde wedge geometry.
     """
     probe = group.probe
-    angles = [float(n) for n in NUMBER.findall(group.angles or '')]
+    angles = [float(n) for n in RANGE_NUMBER.findall(group.angles or '')]
     fill = {
         'angle_start': angles[0] if angles else None,
         'angle_stop': angles[-1] if angles else None,
@@ -125,35 +131,57 @@ def group_fill(group):
 
 def _group_fill_values():
     """
-    {'g<pk>': {label, fields, wedge_geometry}} for filling a scan plan from a weld report's group
-    column (group_fill). (Thickness and the weld come from the sensitivity block.)
+    {'g<pk>': {label, fields, wedge_geometry, name, block}} for filling a scan plan from a weld
+    report's group column (group_fill), with the report's sensitivity block (thickness, bevel).
     """
     values = {}
-    groups = ReportGroup.objects.select_related('probe', 'report').order_by('-report_id', 'order')
+    groups = ReportGroup.objects.select_related('probe', 'report__sensitivity_block').order_by('-report_id', 'order')
     for group in groups:
+        if group.not_applicable or (group.probe is not None and group.probe.kind != PAUT):
+            continue   # a scan plan is a phased-array sectorial scan
         fill, geometry = group_fill(group)
         if not (fill or geometry):
             continue
+        fill, block = _with_report_block(fill, group.report)
         probe, report = group.probe, group.report
         name = report.document_filename or f'Report #{report.pk}'
         column = f'Group {group.order + 1}' + (f' ({group.label})' if group.label else '')
         label = ' · '.join(filter(None, [name, column, probe.model if probe else '', group.angles]))
-        values[f'g{group.pk}'] = {'label': label, 'fields': fill, 'wedge_geometry': geometry}
+        values[f'g{group.pk}'] = {'label': label, 'fields': fill, 'wedge_geometry': geometry, 'name': name[:100],
+                                  'block': str(block) if block else None, 'has_report': True}
     return values
+
+
+def _block_fill(block):
+    """{field: value} a scan plan takes from a sensitivity block: the plan's thickness comes from here."""
+    fill = {
+        'pipe_size': block.pipe_size,
+        'thickness': _first_number(block.test_thickness) or _first_number(block.cal_thickness),
+        'bevel_angle': _first_number(block.bevel_geometry),
+        'shear_velocity': _first_number(block.velocity_shear),
+    }
+    return {k: v for k, v in fill.items() if v not in (None, '')}
 
 
 def _block_fill_values():
     """{pk: {field: value}} filled into a scan plan when its sensitivity block is picked."""
-    values = {}
-    for block in SensitivityBlock.objects.all():
-        fill = {
-            'pipe_size': block.pipe_size,
-            'thickness': _first_number(block.test_thickness) or _first_number(block.cal_thickness),
-            'bevel_angle': _first_number(block.bevel_geometry),
-            'shear_velocity': _first_number(block.velocity_shear),
-        }
-        values[block.pk] = {k: v for k, v in fill.items() if v not in (None, '')}
-    return values
+    return {block.pk: _block_fill(block) for block in SensitivityBlock.objects.all()}
+
+
+def _with_report_block(fill, report):
+    """
+    `fill` with the report's sensitivity block picked and its values under the source's own
+    (so a setup's bevel from its .nde wins over the block's); the block's thickness always wins.
+    Returns (fill, block or None).
+    """
+    block = report.sensitivity_block if report is not None else None
+    if block is None:
+        return fill, None
+    from_block = _block_fill(block)
+    fill = {'sensitivity_block': block.pk, **from_block, **fill}
+    if 'thickness' in from_block:
+        fill['thickness'] = from_block['thickness']
+    return fill, block
 
 
 def _wedge_exit_point(wedge):

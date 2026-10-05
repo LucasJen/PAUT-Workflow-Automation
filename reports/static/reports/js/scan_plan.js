@@ -263,12 +263,15 @@ if (fillSelect) {
     fillSelect.addEventListener('change', async () => {
         const item = fillValues[fillSelect.value];
         if (!item) return;
+        const label = fillSelect.selectedOptions[0].textContent;
         fillSelect.value = '';
         const { probe_model: probe, wedge_model: wedge, ...fields } = item.fields;
         for (const [name, value] of Object.entries(fields)) {
             const input = form.elements[name];
             if (input) input.value = planValue(name, value);
         }
+        if (!form.elements.name.value.trim() && item.name) form.elements.name.value = item.name;
+        showFillStatus(label, item);
         // Pick the probe and wedge first: picking a wedge resets the wedge geometry fields...
         if (probe) await window.CatalogueSelect.setPair(form.elements.probe_model, probe, wedge);
         // ...then put back the geometry the setup's .nde recorded (hidden fields, mm / m/s)
@@ -278,6 +281,18 @@ if (fillSelect) {
         }
         form.dispatchEvent(new Event('input'));
     });
+}
+
+// What a fill from a setup / group changed, and what it couldn't (thickness needs a sensitivity block)
+function showFillStatus(label, item) {
+    const status = document.getElementById('fill-status');
+    let thickness;
+    if (item.block) thickness = `sensitivity block ${item.block} (thickness, pipe size, bevel, velocity)`;
+    else if (item.has_report) thickness = 'its report has no sensitivity block, so the thickness is unchanged';
+    else thickness = 'a saved setup has no sensitivity block, so the thickness is unchanged';
+    status.textContent = `Filled from ${label}: ${thickness}; probe, wedge and angles where it has them.`;
+    status.classList.toggle('is-warning', !item.block);
+    status.hidden = false;
 }
 
 // Picking a sensitivity block or wedge fills the values it carries
