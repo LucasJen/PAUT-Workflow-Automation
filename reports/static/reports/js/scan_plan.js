@@ -38,6 +38,19 @@ function applyMode() {
     });
 }
 form.querySelectorAll('input[name="mode"]').forEach(radio => radio.addEventListener('change', applyMode));
+
+// ── Weld type: fields that only some weld types use show for those (they keep their values) ──
+
+const weldType = form.elements.weld_type;
+const weldTypeFields = JSON.parse(weldType.dataset.weldTypeFields || '{}');
+
+function applyWeldType() {
+    for (const [name, types] of Object.entries(weldTypeFields)) {
+        form.querySelector(`[data-field="${name}"]`)?.classList.toggle('weld-type-hidden', !types.includes(weldType.value));
+    }
+}
+weldType.addEventListener('change', applyWeldType);
+applyWeldType();
 applyMode();
 
 // ── Probe positions: the index offset and an optional second one, each with 90 / 270 deg skews ──

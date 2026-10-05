@@ -66,25 +66,133 @@ def angles(plan):
     return [start + i * step for i in range(count + 1)] + ([stop] if (stop - start) % step > 1e-6 else [])
 
 
-def weld_outline(plan):
-    """Fusion faces of the single-V weld, from the cap edge down to the root, for the -x side."""
-    t = plan.thickness
+ARC_STEPS = 12                        # straight pieces drawing a J / U groove's root radius
+
+
+def _tan(degrees):
+    return math.tan(math.radians(degrees))
+
+
+def weld_thickness(plan):
+    """Wall at the weld: the thickness less any counterbore."""
+    depth = getattr(plan, 'counterbore_depth', None) or 0
+    return max(plan.thickness - depth, 1e-3)
+
+
+def _bevel_face(plan):
+    """
+    The prepped fusion face on the -x side, from the cap (y = 0) down to the root, for the plan's
+    weld type: a single V's bevel, a double V's two bevels, a compound bevel's two angles or a
+    J / U groove's root radius and side wall.
+    """
+    t = weld_thickness(plan)
     half_gap = (plan.root_gap or 0) / 2
     land = min(plan.root_face or 0, t)
-    half_cap_prep = half_gap + (t - land) * math.tan(math.radians(plan.bevel_angle))
+    kind = getattr(plan, 'weld_type', None) or 'single_v'
+
+    if kind == 'double_v':
+        top_depth = plan.land_depth if plan.land_depth is not None else (t - land) / 2
+        top_depth = min(max(top_depth, 0.0), t - land)
+        top = half_gap + top_depth * _tan(plan.bevel_angle)
+        bottom = half_gap + (t - top_depth - land) * _tan(plan.bottom_bevel_angle)
+        return _distinct([(-top, 0.0), (-half_gap, top_depth), (-half_gap, top_depth + land), (-bottom, t)])
+
+    if kind == 'compound':
+        height = min(max(plan.transition_height or 0, 0.0), t - land)
+        change_y = t - land - height
+        change_x = half_gap + height * _tan(plan.bevel_angle)
+        top = change_x + change_y * _tan(plan.upper_bevel_angle)
+        return _distinct([(-top, 0.0), (-change_x, change_y), (-half_gap, t - land), (-half_gap, t)])
+
+    if kind in ('j_bevel', 'u_groove'):
+        # The root radius starts level at the top of the land and turns up into the side wall
+        # (bevel_angle from vertical): its centre is straight above the land's top edge
+        radius = max(plan.root_radius or 0, 0.0)
+        centre_y = t - land - radius
+        end = math.radians(90 - plan.bevel_angle)
+        arc = []
+        for i in range(ARC_STEPS + 1):
+            phi = end * i / ARC_STEPS
+            x, y = -half_gap - radius * math.sin(phi), centre_y + radius * math.cos(phi)
+            if y < 0:   # the radius reaches the cap: no straight side wall
+                break
+            arc.append((x, y))
+        if not arc:
+            arc = [(-half_gap, t - land)]
+        end_x, end_y = arc[-1]
+        top = [(end_x - end_y * _tan(plan.bevel_angle), 0.0)] if end_y > 0 else []
+        return _distinct(top + arc[::-1] + [(-half_gap, t)])
+
+    # Single V (and the prepped side of a single bevel)
+    half_cap_prep = half_gap + (t - land) * _tan(plan.bevel_angle)
     return [(-half_cap_prep, 0.0), (-half_gap, t - land), (-half_gap, t)]
 
 
+def _distinct(points):
+    """`points` without repeats (from a zero-height land or transition)."""
+    out = []
+    for point in points:
+        if not out or math.dist(out[-1], point) > 1e-9:
+            out.append(point)
+    return out
+
+
+def mirror(points):
+    return [(-x, y) for x, y in points]
+
+
+def weld_faces(plan):
+    """
+    (left, right): the fusion faces on the -x and +x sides of the weld centre line, each from the
+    cap down to the root. A single bevel / J bevel has its prep on `bevel_side` (90: the -x side,
+    where the 90 deg skew's probe sits) and a square face on the other.
+    """
+    face = _bevel_face(plan)
+    if getattr(plan, 'weld_type', None) in ('single_bevel', 'j_bevel'):
+        half_gap = (plan.root_gap or 0) / 2
+        square = [(-half_gap, 0.0), (-half_gap, weld_thickness(plan))]
+        if plan.bevel_side == 90:
+            return face, mirror(square)
+        return square, mirror(face)
+    return face, mirror(face)
+
+
+def symmetric(plan):
+    """Whether the weld is the same on both sides of its centre line."""
+    left, right = weld_faces(plan)
+    return left == mirror(right)
+
+
+def weld_outline(plan):
+    """The -x side's fusion face, from the cap edge down to the root."""
+    return weld_faces(plan)[0]
+
+
 def cap_width(plan):
-    """Cap width as entered, or the bevel opening plus 1/16" overlap on each side."""
+    """Cap width as entered, or the groove's opening plus 1/16" overlap on each side."""
     if plan.cap_width:
         return plan.cap_width
-    return -2 * weld_outline(plan)[0][0] + 0.125
+    left, right = weld_faces(plan)
+    return right[0][0] - left[0][0] + 0.125
+
+
+def cap_edges(plan):
+    """(left, right) x of the cap's edges: the cap is centred on the groove's opening."""
+    left, right = weld_faces(plan)
+    centre = (left[0][0] + right[0][0]) / 2
+    half = cap_width(plan) / 2
+    return centre - half, centre + half
+
+
+def toe(plan):
+    """Weld centre line to the farther weld toe: a wedge front this far out clears the cap either side."""
+    left, right = cap_edges(plan)
+    return max(-left, right)
 
 
 def index_offset(plan):
     """Wedge front to the weld centre line: as entered, else the weld toe (half the cap width)."""
-    return plan.index_offset if plan.index_offset is not None else cap_width(plan) / 2
+    return plan.index_offset if plan.index_offset is not None else toe(plan)
 
 
 def exit_x(plan):
@@ -107,8 +215,43 @@ class Part:
     thickness: float
 
 
-def part(plan):
-    """A flat plate of the plan's thickness: the scanning surface (OD) and the back wall (ID)."""
+def back_wall(plan, x_min=-PLATE_EXTENT, x_max=PLATE_EXTENT):
+    """
+    The back wall (ID) from x_min to x_max, left to right, as points: flat at the thickness, or
+    with the counterbore (the weld's wall within `counterbore_length` of the centre line) and its
+    tapers back to the full wall.
+    """
     t = plan.thickness
-    return Part([Surface((-PLATE_EXTENT, 0.0), (PLATE_EXTENT, 0.0), 'scanning surface'),
-                 Surface((-PLATE_EXTENT, t), (PLATE_EXTENT, t), 'back wall')], t)
+    if not getattr(plan, 'counterbore_depth', None):
+        return [(x_min, t), (x_max, t)]
+    bore, length = weld_thickness(plan), plan.counterbore_length
+    taper = min(max(plan.counterbore_taper or 90.0, 1.0), 90.0)
+    run = (t - bore) / _tan(taper) if taper < 90 else 0.0
+    profile = [(-PLATE_EXTENT, t), (-length - run, t), (-length, bore), (length, bore), (length + run, t),
+               (PLATE_EXTENT, t)]
+    return _clip(profile, x_min, x_max)
+
+
+def _clip(points, x_min, x_max):
+    """The piece of a left-to-right polyline between x_min and x_max."""
+    def y_at(x):
+        for (ax, ay), (bx, by) in zip(points, points[1:]):
+            if ax <= x <= bx:
+                return ay if bx == ax else ay + (by - ay) * (x - ax) / (bx - ax)
+        return points[-1][1]
+    inside = [p for p in points if x_min < p[0] < x_max]
+    return [(x_min, y_at(x_min))] + inside + [(x_max, y_at(x_max))]
+
+
+def part(plan):
+    """
+    The part as surfaces: the scanning surface (OD) and the back wall (ID), with any counterbore
+    and its tapers as surfaces of their own.
+    """
+    t = plan.thickness
+    surfaces = [Surface((-PLATE_EXTENT, 0.0), (PLATE_EXTENT, 0.0), 'scanning surface')]
+    wall = back_wall(plan)
+    for a, b in zip(wall, wall[1:]):
+        flat = a[1] == t and b[1] == t
+        surfaces.append(Surface(a, b, 'back wall' if flat else 'counterbore'))
+    return Part(surfaces, t)

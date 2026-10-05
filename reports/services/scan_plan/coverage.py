@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .geometry import cap_width, part, weld_outline
+from .geometry import part, toe, weld_faces
 from .probe import at_position, layout
 from .tracer import trace
 
@@ -40,10 +40,10 @@ def drawings(plan):
 
 
 def inspection_region(plan):
-    """The weld and its HAZ bands as a polygon (the -x side's fusion face moved out by the HAZ)."""
+    """The weld and its HAZ bands as a polygon: each fusion face moved out by the HAZ width."""
     haz = haz_width(plan)
-    side = [(x - haz, y) for x, y in weld_outline(plan)]
-    return side + [(-x, y) for x, y in reversed(side)]
+    left, right = weld_faces(plan)
+    return [(x - haz, y) for x, y in left] + [(x + haz, y) for x, y in reversed(right)]
 
 
 def _inside(x, y, polygon):
@@ -150,9 +150,9 @@ def suggest_offset(plan):
     """
     sides = [side for side, name in ((1, 'skew_90'), (2, 'skew_270')) if getattr(plan, name)] or [1, 2]
     x, y = samples(plan)
-    toe = np.ceil(cap_width(plan) / 2 * 1e4) / 1e4      # rounded up: never onto the cap
+    start = np.ceil(toe(plan) * 1e4) / 1e4      # the weld toe, rounded up: never onto the cap
     reach = plan.thickness * plan.legs * 3 + 1.0      # well past where a 70 deg beam's legs end
-    offsets = np.round(np.arange(toe, toe + reach, SEARCH_STEP), 4)
+    offsets = np.round(np.arange(start, start + reach, SEARCH_STEP), 4)
     trial = copy.copy(plan)
     masks = []
     for offset in offsets:

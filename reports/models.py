@@ -105,7 +105,8 @@ for _name, _label in material_fields():
 
 class ScanPlan(models.Model):
     """
-    Scan plan for a basic single-V butt weld, drawn by reports/services/scan_plan/ and printed
+    Scan plan for a butt weld (single V, double V, bevel, J, U or compound prep, optional
+    counterbore), drawn by reports/services/scan_plan/ and printed
     on the weld report's Scan Plan page. Saved on its own so one plan serves every report for the
     same pipe size and setup. Lengths are in inches, angles in degrees.
     """
@@ -137,6 +138,29 @@ class ScanPlan(models.Model):
     cap_width = models.FloatField(null=True, blank=True, help_text='Blank = bevel opening plus 1/16" each side.')
     # Inspection volume for coverage: the weld plus this band of parent metal beyond each fusion face
     haz_width = models.FloatField(default=0.25)
+
+    # Weld profile (advanced). bevel_angle is the V's angle, the double V's top, the compound
+    # bevel's lower (root) angle and the J / U side wall angle; all angles from vertical.
+    SINGLE_V, DOUBLE_V, SINGLE_BEVEL, J_BEVEL, U_GROOVE, COMPOUND = (
+        'single_v', 'double_v', 'single_bevel', 'j_bevel', 'u_groove', 'compound')
+    WELD_TYPE_CHOICES = [(SINGLE_V, 'Single V'), (DOUBLE_V, 'Double V'), (SINGLE_BEVEL, 'Single bevel'),
+                         (J_BEVEL, 'J bevel'), (U_GROOVE, 'U groove'), (COMPOUND, 'Compound bevel')]
+    weld_type = models.CharField(max_length=20, choices=WELD_TYPE_CHOICES, default=SINGLE_V)
+    # Single bevel / J bevel: the side with the prep (the other is square); 90 = the 90 deg skew's side
+    bevel_side = models.PositiveSmallIntegerField(choices=[(SKEW_90, '90° side'), (SKEW_270, '270° side')],
+                                                  default=SKEW_270)
+    bottom_bevel_angle = models.FloatField(default=37.5)                  # double V's lower prep
+    land_depth = models.FloatField(null=True, blank=True)                 # double V: OD to the land; blank = middle
+    upper_bevel_angle = models.FloatField(default=10.0)                   # compound bevel's upper angle
+    transition_height = models.FloatField(default=0.75)                   # compound: land top to the angle change
+    root_radius = models.FloatField(default=0.25)                         # J / U groove bottom radius
+    cap_height = models.FloatField(null=True, blank=True)                 # blank = drawn to suit the wall
+    root_height = models.FloatField(null=True, blank=True)
+    # Counterbore: the bore machined into each pipe's ID at the joint; thins the wall to
+    # thickness - depth within `length` of the weld centre line, tapering back at `taper` deg
+    counterbore_depth = models.FloatField(null=True, blank=True)
+    counterbore_length = models.FloatField(default=1.0)
+    counterbore_taper = models.FloatField(default=30.0)
 
     # Probe position and beams
     index_offset = models.FloatField(null=True, blank=True,

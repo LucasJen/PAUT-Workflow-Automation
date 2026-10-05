@@ -1372,7 +1372,8 @@ textarea.result-cell-input {
 }
 .mode-switch-option input:checked + span { background: var(--accent-soft); color: var(--accent-text); }
 .mode-switch-option input:focus-visible + span { outline: 2px solid var(--accent-text); outline-offset: 1px; }
-.scan-plan-fields[data-mode="simple"] .advanced-only { display: none; }
+.scan-plan-fields[data-mode="simple"] .advanced-only,
+.scan-plan-fields .field-cell.weld-type-hidden { display: none; }
 .scan-plan-fields .field-cell { grid-template-columns: 9rem minmax(0, 1fr); }
 
 /* Scan plan: how much of the weld + HAZ the beams cover */

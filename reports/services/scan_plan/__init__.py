@@ -9,8 +9,8 @@ render_png(plan, side) returns PNG bytes for the scan plan page and the Excel re
 from .coverage import Coverage, Suggestion, coverage, inspection_region, suggest_offset  # noqa: F401
 from .geometry import (  # noqa: F401
     GENERIC_PROBE, GENERIC_WEDGE, M_PER_S_TO_IN_PER_US, MM_PER_IN, REXOLITE_VELOCITY, STEEL_LONGITUDINAL,
-    STEEL_SHEAR, angles, cap_width, exit_x, first_number, fmt_in, fmt_length, index_offset, part, part_velocity,
-    weld_outline,
+    STEEL_SHEAR, angles, back_wall, cap_edges, cap_width, exit_x, first_number, fmt_in, fmt_length, index_offset, part,
+    part_velocity, symmetric, toe, weld_faces, weld_outline, weld_thickness,
 )
 from .probe import HEEL_FRACTION, Layout, at_position, catalogue_layout, exact_layout, layout  # noqa: F401
 from .render import WIDTH_PX, render_png, render_scene  # noqa: F401

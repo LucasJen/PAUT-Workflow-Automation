@@ -389,12 +389,25 @@ class TextSnippetForm(StyledFormMixin, ModelForm):
 SCAN_PLAN_NUMBERS = (
     'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2',
     'exit_point', 'wedge_angle', 'angle_start', 'angle_stop', 'angle_step', 'shear_velocity',
+    'bottom_bevel_angle', 'land_depth', 'upper_bevel_angle', 'transition_height', 'root_radius', 'cap_height',
+    'root_height', 'counterbore_depth', 'counterbore_length', 'counterbore_taper',
 )
+# Weld profile fields that apply to only some weld types (scan_plan.js shows them for those)
+SCAN_PLAN_WELD_TYPE_FIELDS = {
+    'bevel_side': ['single_bevel', 'j_bevel'],
+    'bottom_bevel_angle': ['double_v'],
+    'land_depth': ['double_v'],
+    'upper_bevel_angle': ['compound'],
+    'transition_height': ['compound'],
+    'root_radius': ['j_bevel', 'u_groove'],
+}
 
 
 # Scan plan fields with a unit: stored in inches (in/µs), shown in mm (m/s) for metric plans
 SCAN_PLAN_UNIT_FIELDS = {
-    'length': ['thickness', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2'],
+    'length': ['thickness', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2',
+               'land_depth', 'transition_height', 'root_radius', 'cap_height', 'root_height', 'counterbore_depth',
+               'counterbore_length'],
     'velocity': ['shear_velocity'],
 }
 UNIT_FACTORS = {'length': 25.4, 'velocity': 25400.0}   # imperial -> metric
@@ -403,7 +416,10 @@ UNIT_FACTORS = {'length': 25.4, 'velocity': 25400.0}   # imperial -> metric
 class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     fieldsets_spec = [
         ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'units']),
-        ('Weld', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'shear_velocity']),
+        ('Weld', ['weld_type', 'bevel_side', 'thickness', 'bevel_angle', 'bottom_bevel_angle', 'land_depth',
+                  'upper_bevel_angle', 'transition_height', 'root_radius', 'root_gap', 'root_face', 'cap_width',
+                  'cap_height', 'root_height', 'haz_width', 'shear_velocity']),
+        ('Counterbore', ['counterbore_depth', 'counterbore_length', 'counterbore_taper']),
         # Laid out by hand (edit_scan_plan.html): each index offset beside its 90 / 270 deg skew boxes
         ('Probe positions', ['index_offset', 'skew_90', 'skew_270', 'index_offset_2', 'skew_90_2', 'skew_270_2']),
         ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
@@ -415,9 +431,16 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     ]
     # Shown in advanced mode only: simple mode keeps their values (defaults, or what a setup filled)
     ADVANCED_FIELDS = ('root_gap', 'root_face', 'cap_width', 'haz_width', 'shear_velocity', 'first_element',
-                       'aperture_elements', 'legs', 'angle_step')
-    LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2', 'exit_point')
-    ANGLES = ('bevel_angle', 'wedge_angle', 'angle_start', 'angle_stop')
+                       'aperture_elements', 'legs', 'angle_step', 'weld_type', 'bevel_side', 'bottom_bevel_angle',
+                       'land_depth', 'upper_bevel_angle', 'transition_height', 'root_radius', 'cap_height',
+                       'root_height', 'counterbore_depth', 'counterbore_length', 'counterbore_taper')
+    # A form posted without these keeps the model's default
+    OPTIONAL_WITH_DEFAULT = ('weld_type', 'bevel_side', 'bottom_bevel_angle', 'upper_bevel_angle',
+                             'transition_height', 'root_radius', 'counterbore_length', 'counterbore_taper')
+    LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2',
+               'exit_point', 'land_depth', 'transition_height', 'root_radius', 'cap_height', 'root_height',
+               'counterbore_depth', 'counterbore_length')
+    ANGLES = ('bevel_angle', 'wedge_angle', 'angle_start', 'angle_stop', 'bottom_bevel_angle', 'upper_bevel_angle')
 
     class Meta:
         model = ScanPlan
@@ -447,6 +470,18 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'units': 'Units',
             'aperture_elements': 'Aperture (elements)',
             'haz_width': 'HAZ width',
+            'weld_type': 'Weld type',
+            'bevel_side': 'Bevelled side',
+            'bottom_bevel_angle': 'Lower bevel (°)',
+            'land_depth': 'Land depth',
+            'upper_bevel_angle': 'Upper bevel (°)',
+            'transition_height': 'Angle change height',
+            'root_radius': 'Root radius',
+            'cap_height': 'Cap height',
+            'root_height': 'Root height',
+            'counterbore_depth': 'Depth',
+            'counterbore_length': 'Length from C/L',
+            'counterbore_taper': 'Taper (°)',
         }
         # Shown when the cursor is over an input or its name (components/field_cell.html)
         help_texts = {
@@ -486,6 +521,26 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'legs': 'First leg only, or also the second leg after the skip off the back wall. Coverage counts '
                     'every drawn leg.',
             'notes': 'Printed under the scan plan on the report.',
+            'weld_type': 'Joint preparation. Single V: one bevel each side. Double V: bevels from both surfaces '
+                         'to a land in the wall. Single bevel / J bevel: one side prepped, the other square. '
+                         'U groove: a J both sides. Compound bevel: a steeper angle near the root changing to a '
+                         'shallower one higher up.',
+            'bevel_side': "Which side of the weld has the bevel (the other side is square): the 90° skew's "
+                          "side or the 270° skew's.",
+            'bottom_bevel_angle': 'Double V: the bevel of the lower (ID side) preparation, from vertical.',
+            'land_depth': 'Double V: depth from the OD to the top of the land. Blank = the land in the middle '
+                          'of the wall.',
+            'upper_bevel_angle': 'Compound bevel: the shallower angle above the change, from vertical (10° for '
+                                 'the usual thick-wall compound bevel).',
+            'transition_height': 'Compound bevel: height above the land where the bevel angle changes to the '
+                                 'upper angle (3/4" for the usual thick-wall compound bevel).',
+            'root_radius': 'J bevel / U groove: radius at the bottom of the groove, above the land.',
+            'cap_height': 'Cap reinforcement drawn above the surface. Blank = sized to suit the wall.',
+            'root_height': 'Root reinforcement drawn below the ID. Blank = sized to suit the wall.',
+            'counterbore_depth': 'How much the counterbore takes off the wall at the weld. Blank = no counterbore. '
+                                 'The weld and its root sit at the counterbored wall, and the beams skip off it.',
+            'counterbore_length': 'Weld centre line to where the counterbore starts to taper back to the full wall.',
+            'counterbore_taper': "Angle of the counterbore's taper back to the full wall, from the pipe axis.",
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),
@@ -510,6 +565,9 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         unit_toggle(self, 'units', SCAN_PLAN_UNIT_FIELDS)
         # Not required: a form posted without them keeps simple mode and the default HAZ
         self.fields['mode'].required = self.fields['haz_width'].required = False
+        for name in self.OPTIONAL_WITH_DEFAULT:
+            self.fields[name].required = False
+        self.fields['weld_type'].widget.attrs['data-weld-type-fields'] = json.dumps(SCAN_PLAN_WELD_TYPE_FIELDS)
         self.fields['mode'].widget.attrs['class'] = 'mode-switch-input'
         self.fields['legs'].choices = [(ScanPlan.ONE_LEG, '1st leg'), (ScanPlan.TWO_LEGS, '1st and 2nd')]
         for field in self.fields.values():   # every number in the same face
@@ -533,8 +591,9 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                 for name in names:
                     if data.get(name) is not None:
                         data[name] = data[name] / UNIT_FACTORS[kind]
-        if data.get('haz_width') is None and 'haz_width' not in self.errors:
-            data['haz_width'] = ScanPlan._meta.get_field('haz_width').default
+        for name in ('haz_width',) + self.OPTIONAL_WITH_DEFAULT:
+            if data.get(name) in (None, '') and name not in self.errors:
+                data[name] = ScanPlan._meta.get_field(name).default
         skews = ('skew_90', 'skew_270', 'skew_90_2', 'skew_270_2')
         if not any(data.get(name) for name in skews):
             self.add_error('skew_90', 'Tick at least one skew to draw.')
@@ -556,6 +615,14 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             self.add_error('wedge_model', f'{wedge} fits {fits}, not {probe}.')
         if (data.get('thickness') and data.get('root_face') is not None and data['root_face'] > data['thickness']):
             self.add_error('root_face', 'The root face cannot be thicker than the wall.')
+        depth = data.get('counterbore_depth')
+        if depth is not None and data.get('thickness') and depth >= data['thickness']:
+            self.add_error('counterbore_depth', 'The counterbore must leave some wall: make it less than the thickness.')
+        if depth and data.get('counterbore_length') is not None and data['counterbore_length'] <= (data.get('root_gap') or 0) / 2:
+            self.add_error('counterbore_length', 'The counterbore must reach past the root.')
+        taper = data.get('counterbore_taper')
+        if taper is not None and not 1 <= taper <= 90:
+            self.add_error('counterbore_taper', 'Enter a taper from 1 to 90°.')
         return data
 
 

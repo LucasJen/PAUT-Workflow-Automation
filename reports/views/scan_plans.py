@@ -14,8 +14,8 @@ from ..forms import ScanPlanForm
 from ..models import Report, ReportGroup, ScanPlan, Setup
 from ..weld_form import PAUT
 from ..services.scan_plan import (
-    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, build_scene, cap_width, coverage, layout,
-    render_png, suggest_offset,
+    M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, build_scene, coverage, layout,
+    render_png, suggest_offset, toe,
 )
 from ..services.scan_plan.coverage import drawings as plan_drawings
 from ..services.scan_plan.render import COLOURS, WIDTH_PX
@@ -334,7 +334,7 @@ def scan_plan_suggest(request):
     return JsonResponse({
         'offset': suggestion.offset, 'low': suggestion.low, 'high': suggestion.high,
         'fraction': suggestion.fraction, 'second_offset': suggestion.second_offset,
-        'pair_fraction': suggestion.pair_fraction, 'toe': cap_width(plan) / 2,
+        'pair_fraction': suggestion.pair_fraction, 'toe': toe(plan),
     })
 
 

@@ -14,7 +14,9 @@ import math
 from dataclasses import asdict, dataclass, field
 
 from .coverage import cell_size, coverage, inspection_region
-from .geometry import cap_width, fmt_length, index_offset, part, weld_outline
+from .geometry import (
+    back_wall, cap_edges, fmt_length, index_offset, mirror, part, symmetric, toe, weld_faces, weld_thickness,
+)
 from .probe import at_position, layout
 from .tracer import trace
 
@@ -50,48 +52,57 @@ def build_scene(plan, side=1, position=1, analysis=False):
     wedge, probe, (p1, p2) = lay.wedge, lay.probe, lay.face
     the_part = part(plan)
     traces = [trace(the_part, (x0, 0.0), angle, plan.legs) for angle, x0 in lay.exits.items()]
-    half_cap = cap_width(plan) / 2
-    cap_height = min(0.08, t * 0.3)
-    root_height = min(0.05, t * 0.2)
+    t_weld = weld_thickness(plan)
+    # The weld as it is, turned round for a mirrored (270 deg) drawing when it isn't symmetric,
+    # so it lands the right way round once the drawing is flipped
+    flip = -1 if side == 2 and not symmetric(plan) else 1
+    left, right = weld_faces(plan)
+    if flip == -1:
+        left, right = mirror(right), mirror(left)
+    cap_left, cap_right = sorted(flip * x for x in cap_edges(plan))
+    reach_toe = toe(plan)
+    cap_height = plan.cap_height if getattr(plan, 'cap_height', None) else min(0.08, t_weld * 0.3)
+    root_height = plan.root_height if getattr(plan, 'root_height', None) else min(0.05, t_weld * 0.2)
 
-    reach = max((p[0] for beam in traces for p in beam.points), default=half_cap)
+    reach = max((p[0] for beam in traces for p in beam.points), default=reach_toe)
     x_min = min(p[0] for p in wedge + probe) - 0.25
-    x_max = max(half_cap + 0.35, min(reach, half_cap + 2.5) + 0.1)
+    x_max = max(reach_toe + 0.35, min(reach, reach_toe + 2.5) + 0.1)
     y_min = min(p[1] for p in wedge + probe) - 0.3  # room for the offset dimension
-    y_max = t + root_height + 0.25
+    y_max = max(t, t_weld + root_height) + 0.25
     if analysis:
-        x_max = max(x_max, max(x for x, _ in inspection_region(plan)) + 0.1)
+        x_max = max(x_max, max(abs(x) for x, _ in inspection_region(plan)) + 0.1)
     scene = Scene(x_min, x_max, y_min, y_max, mirror=(side == 2), meta={
-        'side': side, 'position': position, 'thickness': t, 'index_offset': index_offset(plan), 'toe': half_cap,
+        'side': side, 'position': position, 'thickness': t, 'index_offset': index_offset(plan), 'toe': reach_toe,
         'units': getattr(plan, 'units', 'imperial'), 'legs': plan.legs,
     })
 
-    # Plate
-    scene.add('polygon', points=[(x_min, 0), (x_max, 0), (x_max, t), (x_min, t)], fill='plate_fill')
+    # Plate, down to its back wall (with any counterbore)
+    wall = back_wall(plan, x_min, x_max)
+    scene.add('polygon', points=[(x_min, 0), (x_max, 0)] + wall[::-1], fill='plate_fill')
 
     # Weld: fusion zone, cap and root beads
-    faces = weld_outline(plan)
-    mirrored = [(-x, y) for x, y in reversed(faces)]
-    scene.add('polygon', points=faces + mirrored, fill='weld')
-    cap = [(half_cap * math.cos(math.pi - i * math.pi / 40), -cap_height * math.sin(i * math.pi / 40))
+    right_up = right[::-1]   # root to cap
+    scene.add('polygon', points=left + right_up, fill='weld')
+    centre, half_cap = (cap_left + cap_right) / 2, (cap_right - cap_left) / 2
+    cap = [(centre + half_cap * math.cos(math.pi - i * math.pi / 40), -cap_height * math.sin(i * math.pi / 40))
            for i in range(41)]
     scene.add('polygon', points=cap, fill='weld')
-    root_half = max(-faces[-1][0] + 0.05, 0.06)
-    root = [(root_half * math.cos(math.pi - i * math.pi / 40), t + root_height * math.sin(i * math.pi / 40))
+    root_half = max(max(-left[-1][0], right[-1][0]) + 0.05, 0.06)
+    root = [(root_half * math.cos(math.pi - i * math.pi / 40), t_weld + root_height * math.sin(i * math.pi / 40))
             for i in range(41)]
     scene.add('polygon', points=root, fill='weld')
     if analysis:  # gaps over the weld fill, under its outlines and the beams
         _add_coverage(scene, whole_plan, -1 if side == 2 else 1)
-    scene.add('line', points=faces, stroke='weld_line', width=1.5)
-    scene.add('line', points=mirrored, stroke='weld_line', width=1.5)
+    scene.add('line', points=left, stroke='weld_line', width=1.5)
+    scene.add('line', points=right_up, stroke='weld_line', width=1.5)
     scene.add('line', points=cap, stroke='weld_line', width=1)
     scene.add('line', points=root, stroke='weld_line', width=1)
 
     # Plate surfaces drawn over the weld fill
-    scene.add('line', points=[(x_min, 0), (-half_cap, 0)], stroke='plate', width=1.5)
-    scene.add('line', points=[(half_cap, 0), (x_max, 0)], stroke='plate', width=1.5)
-    scene.add('line', points=[(x_min, t), (-root_half, t)], stroke='plate', width=1.5)
-    scene.add('line', points=[(root_half, t), (x_max, t)], stroke='plate', width=1.5)
+    scene.add('line', points=[(x_min, 0), (cap_left, 0)], stroke='plate', width=1.5)
+    scene.add('line', points=[(cap_right, 0), (x_max, 0)], stroke='plate', width=1.5)
+    scene.add('line', points=back_wall(plan, x_min, -root_half), stroke='plate', width=1.5)
+    scene.add('line', points=back_wall(plan, root_half, x_max), stroke='plate', width=1.5)
 
     # Weld centre line
     scene.add('dashed', a=(0, -cap_height - 0.12), b=(0, t + root_height + 0.12), stroke='centre_line', width=1)
