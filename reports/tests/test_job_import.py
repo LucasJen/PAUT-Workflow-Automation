@@ -107,7 +107,7 @@ class FromFilesPagesTests(TestCase):
         self.assertContains(page, 'name="weld_1" value="W6"')
 
         resp = self.client.post(reverse('confirm-job'), {
-            'document_filename': 'PPI-31-37575-W5&W6', 'pipe_size': '', 'include_0': '1', 'include_1': '1',
+            'document_filename': 'PPI-31-37575-W5&W6', 'sensitivity_block': '', 'include_0': '1', 'include_1': '1',
             'weld_0': 'w5', 'weld_1': 'W6'})
         from reports.models import Report
         report = Report.objects.get()
@@ -115,6 +115,23 @@ class FromFilesPagesTests(TestCase):
         self.assertEqual((report.client, report.document_filename), ('PPI', 'PPI-31-37575-W5&W6'))
         self.assertEqual([r[0] for r in report.results_table.rows.values_list('cells', flat=True)], ['W5', 'W6'])
         self.assertIsNone(self.client.session.get('job_import'))
+
+    def test_the_picked_block_fills_the_report(self):
+        from django.urls import reverse
+        from equipment.models import SensitivityBlock
+        from reports.models import Report
+        block = SensitivityBlock.objects.get(pipe_size='6in Sch 80')
+        page = self.client.get(reverse('start-from-files'))
+        self.assertContains(page, f'<option value="{block.pk}">6in Sch 80')
+        self.client.post(reverse('start-from-files'), {
+            'units': 'imperial', 'sensitivity_block': block.pk, 'nde_files': [nde_file('PPI 31-37575 w5 n off1.nde')]})
+        page = self.client.get(reverse('confirm-job'))
+        self.assertContains(page, f'<option value="{block.pk}" selected>')
+        self.client.post(reverse('confirm-job'), {
+            'document_filename': 'X', 'sensitivity_block': block.pk, 'include_0': '1', 'weld_0': 'W5'})
+        report = Report.objects.get()
+        self.assertEqual((report.sensitivity_block, report.pipe_size, report.cal_std_serial),
+                         (block, '6in Sch 80', block.serial_number))
 
     def test_confirm_without_files_goes_back(self):
         from django.urls import reverse

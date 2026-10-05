@@ -18,8 +18,14 @@
                 <input type="text" class="form-control" id="job-name" name="document_filename" value="{{ document_filename }}">
             </div>
             <div class="field">
-                <label for="job-pipe">NPS / Sch</label>
-                <input type="text" class="form-control" id="job-pipe" name="pipe_size" value="{{ pipe_size }}" placeholder="e.g. 6in Sch 40">
+                <label for="job-block">NPS / Sch</label>
+                <select class="form-select" id="job-block" name="sensitivity_block"{% if not job_block %} data-fill="user"{% endif %}>
+                    <option value="">Auto-detect from the files</option>
+                    {% for item in blocks %}
+                    <option value="{{ item.pk }}"{% if item.pk == job_block.pk %} selected{% endif %}>{{ item }}{% if item.serial_number %} · {{ item.serial_number }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">{% if block_note %}{{ block_note }}{% elif job_block and not block_picked %}Detected from the files' pipe diameter and wall.{% else %}Sensitivity block library.{% endif %}</div>
             </div>
         </div>
         <p class="form-text mb-0">

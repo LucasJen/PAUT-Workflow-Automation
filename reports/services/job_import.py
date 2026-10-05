@@ -244,11 +244,26 @@ def _set_report_values(report, values):
         setattr(report, field.attname, value)
 
 
+def job_part(files):
+    """The part the files' groups recorded (OD, wall, material…), merged."""
+    part = {}
+    for item in (item for data in files if not data.get('error') for item in data['items']):
+        part.update(item.get('part') or {})
+    return part
+
+
+def job_block(files, pipe_size=''):
+    """(block or None, why): the library sensitivity block for the part the files recorded."""
+    part = job_part(files)
+    return detect_block(part, pipe_size) if part else (None, '')
+
+
 @transaction.atomic
-def build_report(files, defaults=None, document_filename='', pipe_size=''):
+def build_report(files, defaults=None, document_filename='', block=None):
     """
     The weld report for these read files (read_job_file, with confirmed 'weld' IDs; files with an
-    'error' are left out) starting from a defaults set. Returns (report, notes).
+    'error' are left out) starting from a defaults set, with the sensitivity block picked for the
+    job (else the one detected from the files). Returns (report, notes).
     """
     from ..views.scan_plans import add_weld_to_plan
     files = [f for f in files if not f.get('error')]
@@ -259,19 +274,17 @@ def build_report(files, defaults=None, document_filename='', pipe_size=''):
     if defaults is not None:
         _set_report_values(report, defaults.report_values)
     report.document_filename = document_filename or report.document_filename
-    if pipe_size:
-        report.pipe_size = pipe_size
     # The instrument: the files' (with the scope library's details)
     for name, value in (items[0]['instrument'] if items else {}).items():
         setattr(report, name, value)
     report.cal_time_initial, report.cal_time_out = calibration_window([d.get('scan_time') for d in files])
 
     # The part and its sensitivity block
-    part = {}
-    for item in items:
-        part.update(item.get('part') or {})
+    part = job_part(files)
     report.scan_part = part or None
-    block, why = detect_block(part, report.pipe_size) if part else (None, '')
+    why = ''
+    if block is None:
+        block, why = job_block(files, report.pipe_size)
     if block is not None:
         for name, value in {**block_values(block), **part_values(part, block)}.items():
             setattr(report, 'sensitivity_block_id' if name == 'sensitivity_block' else name, value)

@@ -24,9 +24,14 @@
                 <div class="form-text">Library › Defaults: client, procedure, prefilled probe and group columns…</div>
             </div>
             <div class="field">
-                <label for="start-pipe">NPS / Sch</label>
-                <input type="text" class="form-control" id="start-pipe" name="pipe_size" placeholder="e.g. 6in Sch 40">
-                <div class="form-text">Only needed when the files are plate specimens and the defaults don't give it.</div>
+                <label for="start-block">NPS / Sch</label>
+                <select class="form-select" id="start-block" name="sensitivity_block">
+                    <option value="">Auto-detect from the files</option>
+                    {% for block in blocks %}
+                    <option value="{{ block.pk }}">{{ block }}{% if block.serial_number %} · {{ block.serial_number }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Equipment › Sensitivity blocks: fills the pipe size, cal. standard, test material and TCG block.</div>
             </div>
             <div class="field">
                 <label for="start-units">Units</label>

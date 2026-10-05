@@ -9,8 +9,10 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
+from equipment.models import SensitivityBlock
+
 from ..models import ReportDefaults
-from ..services.job_import import WELD_TYPE, build_report, read_job_file
+from ..services.job_import import WELD_TYPE, build_report, job_block, read_job_file
 from ..services.nde_parser import UNIT_SYSTEMS
 
 SESSION_KEY = 'job_import'
@@ -18,6 +20,11 @@ SESSION_KEY = 'job_import'
 
 def _weld_defaults():
     return list(ReportDefaults.objects.filter(report_type=WELD_TYPE).order_by('-in_use', 'name'))
+
+
+def _picked_block(value):
+    """The library sensitivity block a dropdown's value names (None for Auto-detect)."""
+    return SensitivityBlock.objects.filter(pk=value).first() if str(value or '').isdigit() else None
 
 
 def _suggested_name(files):
@@ -46,10 +53,11 @@ def start_from_files(request):
             request.session[SESSION_KEY] = {
                 'files': files,
                 'defaults': request.POST.get('defaults') or '',
-                'pipe_size': request.POST.get('pipe_size', '').strip(),
+                'sensitivity_block': request.POST.get('sensitivity_block') or '',
             }
             return redirect('confirm-job')
-    return render(request, 'reports/start_from_files.html', {'defaults_sets': defaults})
+    return render(request, 'reports/start_from_files.html',
+                  {'defaults_sets': defaults, 'blocks': SensitivityBlock.objects.all()})
 
 
 def confirm_job(request):
@@ -72,7 +80,7 @@ def confirm_job(request):
             messages.error(request, 'Keep at least one file.')
         else:
             report, notes = build_report(kept, defaults, request.POST.get('document_filename', '').strip(),
-                                         request.POST.get('pipe_size', '').strip())
+                                         _picked_block(request.POST.get('sensitivity_block')))
             request.session.pop(SESSION_KEY, None)
             messages.success(request, f'Report made from {len(kept)} file{"s" if len(kept) != 1 else ""}. '
                                       'Fill in what\'s outlined, add the indications, then save and download.')
@@ -80,9 +88,12 @@ def confirm_job(request):
                 messages.warning(request, note)
             return redirect(f"{reverse('create-report')}?loaded={report.pk}")
 
-    pipe_size = job.get('pipe_size') or ((defaults.report_values or {}).get('pipe_size', '') if defaults else '')
+    # The block picked on the first page, else the one the files' part points to
+    picked = _picked_block(job.get('sensitivity_block'))
+    detected, why = (None, '') if picked else job_block(readable, (defaults.report_values or {}).get('pipe_size', '') if defaults else '')
     scopes = sorted({item['scope'] for f in readable for item in f['items'] if item.get('scope')})
     return render(request, 'reports/confirm_job.html', {
-        'files': files, 'defaults': defaults, 'pipe_size': pipe_size, 'scopes': scopes,
+        'files': files, 'defaults': defaults, 'scopes': scopes, 'blocks': SensitivityBlock.objects.all(),
+        'job_block': picked or detected, 'block_picked': picked is not None, 'block_note': why,
         'document_filename': _suggested_name(readable),
     })
