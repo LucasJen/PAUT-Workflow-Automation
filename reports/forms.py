@@ -404,7 +404,7 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     fieldsets_spec = [
         ('Scan plan', ['name', 'sensitivity_block', 'pipe_size', 'units']),
         ('Weld', ['thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'shear_velocity']),
-        # Three columns: each index offset with its 90 / 270 deg skew boxes (1 to 4 drawings)
+        # Laid out by hand (edit_scan_plan.html): each index offset beside its 90 / 270 deg skew boxes
         ('Probe positions', ['index_offset', 'skew_90', 'skew_270', 'index_offset_2', 'skew_90_2', 'skew_270_2']),
         ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
         # Two columns: start / stop angle, then beam legs / angle step under them
@@ -440,24 +440,60 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'angle_stop': 'Stop angle (°)',
             'angle_step': 'Angle step (°)',
             'legs': 'Beam legs',
-            'notes': 'Notes (printed under the scan plan)',
-            'sensitivity_block': 'Sensitivity block (pipe size)',
-            'shear_velocity': 'Shear velocity (in/µs or m/s)',
+            'notes': 'Notes',
+            'sensitivity_block': 'Sensitivity block',
+            'shear_velocity': 'Shear velocity',
             'thickness': 'Thickness',
             'units': 'Units',
             'aperture_elements': 'Aperture (elements)',
             'haz_width': 'HAZ width',
         }
+        # Shown when the cursor is over an input or its name (components/field_cell.html)
         help_texts = {
-            'index_offset': 'Wedge front to the weld centre line. Leave blank to put the wedge at the weld toe '
-                            '(half the cap width).',
+            'name': 'A name to find this plan by, e.g. the pipe size and the setup.',
+            'sensitivity_block': "Picks a row of the cal block table: fills the thickness, bevel and velocity, "
+                                 "and the weld report's Material Information.",
+            'pipe_size': 'For your reference, e.g. 6in Sch 40. Not used in the drawing.',
+            'units': "Inches or millimetres for the inputs and the drawing's labels. Switching converts the "
+                     'values already entered.',
+            'thickness': 'Wall thickness at the weld: where the beams skip off the back wall.',
+            'bevel_angle': 'Weld prep angle of each side, from vertical (37.5° for a 75° included V).',
+            'root_gap': 'Gap between the two lands at the root.',
+            'root_face': 'Height of the flat land at the bottom of each bevel.',
+            'cap_width': 'Width of the weld cap. Blank = the bevel opening plus 1/16" each side. The wedge front '
+                         'never goes closer to the centre line than half of it (the weld toe).',
+            'haz_width': 'Parent metal each side of the fusion faces that the beams must also cover, on top of '
+                         'the weld itself.',
+            'shear_velocity': 'Shear velocity of the part (in/µs, or m/s for metric): sets how the beams refract '
+                              'into the part.',
+            'index_offset': 'Wedge front to the weld centre line. Blank = the wedge front at the weld toe (half '
+                            'the cap width). "Suggest index offset" finds the one that covers the weld + HAZ.',
+            'skew_90': 'Draw the probe on the 90° side of the weld at this index offset.',
+            'skew_270': 'Draw the probe on the 270° side of the weld (the mirror image) at this index offset.',
             'index_offset_2': 'An optional second probe position, drawn for its ticked skews.',
-            'haz_width': 'Parent metal each side of the weld that the beams must also cover.',
+            'skew_90_2': 'Draw the probe on the 90° side of the weld at the second index offset.',
+            'skew_270_2': 'Draw the probe on the 270° side of the weld at the second index offset.',
+            'probe_model': 'Phased-array probe from the catalogue: its pitch and element count place the active '
+                           'aperture on the wedge.',
+            'wedge_model': 'Wedge from the catalogue (only those that fit the probe are listed): its angle, '
+                           'velocity and offsets place the probe and where each beam leaves the wedge.',
+            'first_element': 'Element the active aperture starts at (element 1 is at the low, back end of the '
+                             'wedge).',
+            'aperture_elements': 'Number of elements firing together. Blank = all of them.',
+            'angle_start': 'Lowest refracted angle of the sectorial scan.',
+            'angle_stop': 'Highest refracted angle of the sectorial scan.',
+            'angle_step': 'Spacing between the drawn beams. Coverage treats the fan as solid between them.',
+            'legs': 'First leg only, or also the second leg after the skip off the back wall. Coverage counts '
+                    'every drawn leg.',
+            'notes': 'Printed under the scan plan on the report.',
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),
             'mode': RadioSelect(attrs={'class': 'mode-switch-input'}),
-            **{name: NumberInput(attrs={'step': 'any'}) for name in SCAN_PLAN_NUMBERS},
+            # Text boxes, not number boxes: Up / Down move between fields (arrow_nav.js) rather than
+            # stepping the value
+            **{name: TextInput(attrs={'inputmode': 'decimal'})
+               for name in SCAN_PLAN_NUMBERS + ('first_element', 'aperture_elements')},
             # Set only by the wedge selector (scan_plan.js fills them from the chosen wedge)
             'wedge_angle': HiddenInput(),
             'exit_point': HiddenInput(),
@@ -475,6 +511,10 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         # Not required: a form posted without them keeps simple mode and the default HAZ
         self.fields['mode'].required = self.fields['haz_width'].required = False
         self.fields['mode'].widget.attrs['class'] = 'mode-switch-input'
+        self.fields['legs'].choices = [(ScanPlan.ONE_LEG, '1st leg'), (ScanPlan.TWO_LEGS, '1st and 2nd')]
+        for field in self.fields.values():   # every number in the same face
+            if field.widget.attrs.get('inputmode') == 'decimal' and 'mono' not in field.widget.attrs['class']:
+                field.widget.attrs['class'] += ' mono'
         # A metric plan shows its stored inches as mm (and in/µs as m/s)
         if not self.is_bound and self.instance.units == 'metric':
             for kind, names in SCAN_PLAN_UNIT_FIELDS.items():

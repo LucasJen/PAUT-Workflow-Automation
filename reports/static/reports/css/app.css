@@ -1107,7 +1107,8 @@ textarea.result-cell-input {
     border-bottom: 1px solid var(--border);
 }
 .field-cell-wide { grid-column: 1 / -1; }
-.field-cell label {
+.field-cell label,
+.field-cell-label {
     display: flex;
     align-items: center;
     margin: 0;
@@ -1140,6 +1141,21 @@ textarea.result-cell-input {
 .field-cell .select-filter, .field-cell .select-filter ~ .form-select { grid-column: 2; }
 @media (max-width: 1399.98px) { .cell-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 767.98px) { .cell-grid { grid-template-columns: minmax(0, 1fr); } }
+/* Two columns at most, for a grid beside something else (the scan plan's fields beside its drawing) */
+.cell-grid.cell-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 767.98px) { .cell-grid.cell-grid-2 { grid-template-columns: minmax(0, 1fr); } }
+/* Checkboxes side by side in a cell's value column */
+.cell-checks { display: flex; align-items: center; gap: 1rem; padding: 2px 8px; }
+.field-cell .cell-check {   /* not a cell's name label */
+    display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; padding: 0;
+    background: none; border: 0; color: var(--text); font-weight: 400; cursor: pointer;
+}
+.cell-check .form-check-input { margin: 0; }
+/* Buttons (and a status line) under a grid's cells */
+.cell-grid-actions {
+    grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+    padding: 4px 8px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
 
 @media (max-width: 1199.98px) {
     .editor-layout { grid-template-columns: minmax(0, 1fr); }
@@ -1319,7 +1335,7 @@ textarea.result-cell-input {
 
 /* Scan plan: Simple / Advanced inputs switch (advanced-only fields hide in simple mode) */
 .mode-switch {
-    display: inline-flex; padding: 0.2rem; gap: 0.2rem; margin-bottom: 0.5rem;
+    display: inline-flex; padding: 0.2rem; gap: 0.2rem; margin-bottom: 0.75rem;
     background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
 }
 .mode-switch-option { margin: 0; cursor: pointer; }
@@ -1330,10 +1346,8 @@ textarea.result-cell-input {
 }
 .mode-switch-option input:checked + span { background: var(--accent-soft); color: var(--accent-text); }
 .mode-switch-option input:focus-visible + span { outline: 2px solid var(--accent-text); outline-offset: 1px; }
-.mode-switch-hint { margin: 0 0 0.75rem; font-size: 0.8125rem; color: var(--text-3); }
-.scan-plan-fields[data-mode="simple"] .advanced-only,
-.scan-plan-fields[data-mode="simple"] [data-for-mode="advanced"],
-.scan-plan-fields[data-mode="advanced"] [data-for-mode="simple"] { display: none; }
+.scan-plan-fields[data-mode="simple"] .advanced-only { display: none; }
+.scan-plan-fields .field-cell { grid-template-columns: 9rem minmax(0, 1fr); }
 
 /* Scan plan: how much of the weld + HAZ the beams cover */
 .coverage-summary {

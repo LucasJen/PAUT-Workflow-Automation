@@ -29,12 +29,12 @@ for (const name of JSON.parse(document.getElementById('advanced-fields').textCon
 function applyMode() {
     const mode = form.querySelector('input[name="mode"]:checked')?.value || 'simple';
     fieldsPanel.dataset.mode = mode;
-    // A section heading with nothing left to show in simple mode goes too
-    fieldsPanel.querySelectorAll('.field-grid').forEach(grid => {
+    // A section with nothing left to show in simple mode goes, heading and all
+    fieldsPanel.querySelectorAll('.cell-grid').forEach(grid => {
         const empty = mode === 'simple' && !grid.querySelector('[data-field]:not(.advanced-only)');
         grid.hidden = empty;
         const title = grid.previousElementSibling;
-        if (title?.classList.contains('panel-subtitle')) title.hidden = empty;
+        if (title?.classList.contains('cell-grid-head')) title.hidden = empty;
     });
 }
 form.querySelectorAll('input[name="mode"]').forEach(radio => radio.addEventListener('change', applyMode));
@@ -42,7 +42,7 @@ applyMode();
 
 // ── Probe positions: the index offset and an optional second one, each with 90 / 270 deg skews ──
 
-const SECOND = ['index_offset_2', 'skew_90_2', 'skew_270_2'];
+const SECOND = ['index_offset_2', 'skews_2'];   // the cells of the second offset's row
 const secondButton = document.getElementById('toggle-second-offset');
 
 function secondShown() {

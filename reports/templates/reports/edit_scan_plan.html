@@ -11,52 +11,78 @@
 
 {% block form_body %}
 <div class="scan-plan-layout">
-    <div>
-        {% if setup_fill_values or group_fill_values %}
-        <section class="panel">
-            <label class="form-label" for="fill-from-setup">Fill from a report group or setup</label>
-            <select class="form-select" id="fill-from-setup">
-                <option value="">Choose one to copy its probe, wedge and angles…</option>
-                {% if group_fill_values %}
-                <optgroup label="Weld report groups">
-                    {% for key, item in group_fill_values.items %}<option value="{{ key }}">{{ item.label }}</option>{% endfor %}
-                </optgroup>
-                {% endif %}
-                {% if setup_fill_values %}
-                <optgroup label="Setups">
-                    {% for pk, item in setup_fill_values.items %}<option value="{{ pk }}">{{ item.label }}</option>{% endfor %}
-                </optgroup>
-                {% endif %}
-            </select>
-        </section>
-        {% endif %}
-        <section class="panel scan-plan-fields" id="scan-plan-fields" data-mode="{{ form.mode.value|default:'simple' }}">
-            {# Simple: the few inputs a plain butt weld needs; Advanced: every input (scan_plan.js) #}
-            <div class="mode-switch" role="radiogroup" aria-label="Inputs">
-                {% for radio in form.mode %}<label class="mode-switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+    <section class="panel scan-plan-fields" id="scan-plan-fields" data-mode="{{ form.mode.value|default:'simple' }}">
+        {# Simple: the few inputs a plain butt weld needs; Advanced: every input (scan_plan.js) #}
+        <div class="mode-switch" role="radiogroup" aria-label="Inputs"
+             title="Simple: the fewest inputs for a plain butt weld; root gap, land, cap width, HAZ, legs and the rest keep their values. Advanced: every input.">
+            {% for radio in form.mode %}<label class="mode-switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+        </div>
+        {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+
+        {# Compact label / value cells (help texts show on hover), like the report editor's setup blocks #}
+        <div class="cell-grid-wrap">
+            {% if setup_fill_values or group_fill_values %}
+            <div class="cell-grid-head">Start from</div>
+            <div class="cell-grid cell-grid-2">
+                <div class="field-cell field-cell-wide" title="Copies a weld report group's or saved setup's probe, wedge, angles and the wedge geometry its .nde recorded.">
+                    <label for="fill-from-setup">Report group or setup</label>
+                    <select class="form-select" id="fill-from-setup">
+                        <option value="">Choose one to copy its probe, wedge and angles…</option>
+                        {% if group_fill_values %}
+                        <optgroup label="Weld report groups">
+                            {% for key, item in group_fill_values.items %}<option value="{{ key }}">{{ item.label }}</option>{% endfor %}
+                        </optgroup>
+                        {% endif %}
+                        {% if setup_fill_values %}
+                        <optgroup label="Setups">
+                            {% for pk, item in setup_fill_values.items %}<option value="{{ pk }}">{{ item.label }}</option>{% endfor %}
+                        </optgroup>
+                        {% endif %}
+                    </select>
+                </div>
             </div>
-            <p class="mode-switch-hint" data-for-mode="simple">The fewest inputs for a plain butt weld. Root gap, land, cap width, HAZ, legs and the rest keep their values; switch to Advanced to change them.</p>
-            <p class="mode-switch-hint" data-for-mode="advanced">Every input.</p>
-            {% for field in form.hidden_fields %}{{ field }}{% endfor %}
-            {% for title, fields in form.fieldsets %}
-            {% if title %}<h2 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h2>{% endif %}
-            <div class="field-grid {% if title == 'Probe positions' %}cols-3 probe-positions{% else %}cols-2{% endif %}">
-                {% for field in fields %}{{ field.as_field_group }}{% endfor %}
-            </div>
-            {% if title == 'Probe positions' %}
-            <div class="d-flex flex-wrap gap-2 mt-2">
-                <button type="button" class="btn btn-sm btn-primary" id="suggest-offset" data-url="{% url 'scan-plan-suggest' %}">
-                    <i class="bi bi-magic"></i> Suggest index offset
-                </button>
-                <button type="button" class="btn btn-sm btn-secondary" id="toggle-second-offset">
-                    <i class="bi bi-plus-lg"></i> Add a second index offset
-                </button>
-            </div>
-            <p class="scan-plan-status mt-2" id="suggest-status" role="status" hidden></p>
             {% endif %}
+
+            {% for title, fields in form.fieldsets %}
+            {% if title %}<div class="cell-grid-head">{{ title }}</div>{% endif %}
+            <div class="cell-grid cell-grid-2">
+                {% if title == 'Probe positions' %}
+                {# Each index offset with its 90 / 270 deg skew boxes in one cell (1 to 4 drawings) #}
+                {% include 'reports/components/field_cell.html' with field=form.index_offset %}
+                <div class="field-cell{% if form.skew_90.errors %} has-error{% endif %}" data-field="skews"
+                     title="Which sides of the weld to draw the probe on at the index offset: 90° and / or 270° (the mirror image).">
+                    <span class="field-cell-label">Skews</span>
+                    <div class="cell-checks">
+                        <label class="cell-check">{{ form.skew_90 }} 90°</label>
+                        <label class="cell-check">{{ form.skew_270 }} 270°</label>
+                    </div>
+                    {% if form.skew_90.errors %}<div class="field-cell-error">{{ form.skew_90.errors|join:" " }}</div>{% endif %}
+                </div>
+                {% include 'reports/components/field_cell.html' with field=form.index_offset_2 %}
+                <div class="field-cell" data-field="skews_2" title="Which sides of the weld to draw the probe on at the second index offset.">
+                    <span class="field-cell-label">Skews</span>
+                    <div class="cell-checks">
+                        <label class="cell-check">{{ form.skew_90_2 }} 90°</label>
+                        <label class="cell-check">{{ form.skew_270_2 }} 270°</label>
+                    </div>
+                </div>
+                <div class="cell-grid-actions">
+                    <button type="button" class="btn btn-sm btn-primary" id="suggest-offset" data-url="{% url 'scan-plan-suggest' %}"
+                            title="Finds the index offset that covers the most of the weld + HAZ with the ticked skews, searching from the weld toe outwards.">
+                        <i class="bi bi-magic"></i> Suggest index offset
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="toggle-second-offset">
+                        <i class="bi bi-plus-lg"></i> Add a second index offset
+                    </button>
+                    <span class="scan-plan-status" id="suggest-status" role="status" hidden></span>
+                </div>
+                {% else %}
+                {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
+                {% endif %}
+            </div>
             {% endfor %}
-        </section>
-    </div>
+        </div>
+    </section>
     <section class="panel scan-plan-preview" id="scan-plan-preview" data-url="{% url 'scan-plan-preview' %}">
         <h2 class="panel-subtitle mt-0">Drawing</h2>
         {# One figure per ticked skew per index offset (1 to 4), built by scan_plan.js #}
