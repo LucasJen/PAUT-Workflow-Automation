@@ -4,7 +4,7 @@
         <h2 class="panel-title">Equipment &amp; parameters</h2>
     </div>
 
-    {# Replace the columns with an .nde file's (a group column per inspection group) or a saved setup's #}
+    {# Fill columns from an .nde file (a group column per inspection group) or a saved setup #}
     <div class="weld-grid-toolbar" id="weld-grid-toolbar" data-nde-url="{% url 'nde-columns' %}">
         <input type="file" accept=".nde" id="weld-nde-file" hidden>
         <div class="input-group input-group-sm w-auto">
@@ -14,8 +14,8 @@
                 <option value="metric">mm</option>
             </select>
         </div>
-        <select class="form-select form-select-sm w-auto" id="weld-setup-loader" aria-label="Replace the columns with a saved setup">
-            <option value="">Load saved setup…</option>
+        <select class="form-select form-select-sm w-auto" id="weld-setup-loader" aria-label="Add columns from a saved setup">
+            <option value="">Add from saved setup…</option>
             {% if saved_setups.saved %}
             <optgroup label="Saved setups">
                 {% for s in saved_setups.saved %}
