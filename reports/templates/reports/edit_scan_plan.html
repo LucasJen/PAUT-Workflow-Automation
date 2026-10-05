@@ -1,5 +1,5 @@
 {% extends 'reports/components/edit_page.html' %}
-{% block form_attrs %} data-arrow-nav{% endblock %}
+{% block form_attrs %} data-arrow-nav data-fill-marks class="fill-marks"{% endblock %}
 {% load ui %}
 
 {% block title %}{% if plan %}{{ plan.name }}{% else %}New scan plan{% endif %} · Scan plans · PAUT Report Automation{% endblock %}
@@ -17,6 +17,17 @@
              title="Simple: the fewest inputs for a plain butt weld; root gap, land, cap width, HAZ, legs and the rest keep their values. Advanced: every input.">
             {% for radio in form.mode %}<label class="mode-switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
         </div>
+        {# Fill marks (fill_marks.js): what's still empty, by where it comes from #}
+        <p class="fill-legend scan-plan-fill-legend form-text">
+            <span class="fill-key fill-key-user"></span>
+            <span title="The drawing can't be made without these (and a plan needs a name to save)">To fill in:</span>
+            <strong id="fill-count-user">0</strong>
+            <span class="fill-key fill-key-auto ms-3"></span>
+            <span title="Usually filled by Fill from setup or the sensitivity block">From setup or block:</span>
+            <strong id="fill-count-auto">0</strong>
+            <button type="button" class="btn btn-secondary btn-sm ms-3" id="fill-next" title="Go to the next outlined field">
+                <i class="bi bi-arrow-down-short"></i> Next missing</button>
+        </p>
         {% for field in form.hidden_fields %}{{ field }}{% endfor %}
 
         {# Compact label / value cells (help texts show on hover), like the report editor's setup blocks #}
@@ -113,6 +124,7 @@
 {{ group_fill_values|json_script:"group-fill-values" }}
 {{ catalogue_fill_values|json_script:"catalogue-fill-values" }}
 {{ advanced_fields|json_script:"advanced-fields" }}
+<script src="{% static_v 'reports/js/fill_marks.js' %}"></script>
 <script src="{% static_v 'reports/js/scan_plan_view.js' %}"></script>
 <script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
 {% endblock %}

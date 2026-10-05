@@ -2,17 +2,21 @@
 // only the technician can fill is outlined red, an empty field an .nde import, the scope library
 // or the sensitivity block usually fills is outlined yellow (data-fill="user" / "auto", set by
 // reports/fill_marks.py). On while the report type has fill_marks (create_report.js adds the
-// form's fill-marks class); N/A and hidden fields aren't marked.
+// form's fill-marks class); N/A and hidden fields aren't marked. Other editors opt in with a
+// form marked data-fill-marks (the scan plan editor); there, fields not on screen (another mode's
+// or weld type's) aren't marked either.
 
 (function () {
-    const form = document.getElementById('report-form');
+    const form = document.getElementById('report-form') || document.querySelector('form[data-fill-marks]');
     if (!form) return;
+    const visibleOnly = form.hasAttribute('data-fill-marks');
     const counts = { user: document.getElementById('fill-count-user'), auto: document.getElementById('fill-count-auto') };
 
     function refresh() {
         const missing = { user: 0, auto: 0 };
         form.querySelectorAll('[data-fill]').forEach(el => {
-            const skipped = el.readOnly || el.disabled || el.type === 'hidden' || el.closest('[hidden], template');
+            const skipped = el.readOnly || el.disabled || el.type === 'hidden' || el.closest('[hidden], template')
+                || (visibleOnly && !el.getClientRects().length);
             const empty = !skipped && el.type !== 'checkbox' && !String(el.value ?? '').trim();
             el.classList.toggle('fill-missing', empty);
             if (empty) missing[el.dataset.fill] += 1;

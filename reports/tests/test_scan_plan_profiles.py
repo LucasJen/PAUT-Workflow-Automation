@@ -152,3 +152,27 @@ class FormTests(TestCase):
         page = self.client.get(reverse('new-scan-plan')).content.decode()
         self.assertIn('data-weld-type-fields', page)
         self.assertIn('name="counterbore_depth"', page)
+
+
+class FillMarkTests(TestCase):
+    def test_required_fields_are_red_and_setup_values_yellow(self):
+        from reports.forms import ScanPlanForm
+        form = ScanPlanForm()
+        fill = {name: field.widget.attrs.get('data-fill') for name, field in form.fields.items()}
+        self.assertEqual(fill['name'], 'user')
+        self.assertEqual(fill['bevel_angle'], 'user')              # needed to draw
+        self.assertEqual(fill['thickness'], 'auto')                # from the sensitivity block
+        self.assertEqual((fill['probe_model'], fill['wedge_model']), ('auto', 'auto'))
+        self.assertIsNone(fill['index_offset'])                    # blank has a meaning: the weld toe
+        self.assertIsNone(fill['weld_type'])                       # has a default when not posted
+        page = self.client.get(reverse('new-scan-plan')).content.decode()
+        self.assertIn('data-fill-marks', page)
+        self.assertIn('id="fill-next"', page)
+
+    def test_drawing_names_the_fields_it_needs(self):
+        resp = self.client.get(reverse('scan-plan-scenes'), {**PLAN_FIELDS, 'thickness': '', 'bevel_angle': '95'})
+        self.assertEqual(resp.status_code, 400)
+        fields = resp.json()['fields']
+        self.assertEqual(fields['thickness']['label'], 'Thickness')
+        self.assertEqual(fields['thickness']['errors'], ['This field is required.'])
+        self.assertIn('Enter an angle from 0 to 89°.', fields['bevel_angle']['errors'])

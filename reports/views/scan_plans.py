@@ -277,13 +277,20 @@ def _position(request):
     return 2 if request.GET.get('position') == '2' else 1
 
 
-def _unsaved_plan(request):
-    """The scan plan the form's current values describe (not saved), or None if they are invalid."""
+def _plan_or_errors(request):
+    """
+    (plan, None): the scan plan the form's current values describe (not saved); or (None, the
+    400 response naming the fields that stop it being drawn, for the editor to mark).
+    """
     data = request.GET.copy()
     if not data.get('name'):
         data['name'] = 'preview'  # a name is only needed to save
     form = ScanPlanForm(data)
-    return form.save(commit=False) if form.is_valid() else None
+    if form.is_valid():
+        return form.save(commit=False), None
+    fields = {name: {'label': str(form.fields[name].label) if name in form.fields else '', 'errors': list(errors)}
+              for name, errors in form.errors.items()}
+    return None, JsonResponse({'error': 'Check the highlighted values.', 'fields': fields}, status=400)
 
 
 def _coverage_json(plan):
@@ -311,9 +318,9 @@ def scan_plan_scenes(request):
     Everything the editor's interactive drawing needs for the form's current values: one scene
     per ticked skew per index offset (with the coverage marks), the coverage and the wedge numbers
     """
-    plan = _unsaved_plan(request)
+    plan, errors = _plan_or_errors(request)
     if plan is None:
-        return JsonResponse({'error': 'Check the highlighted values.'}, status=400)
+        return errors
     return JsonResponse({
         'drawings': [_rounded(build_scene(plan, side, position, analysis=True).as_dict())
                      for position, side in plan_drawings(plan)],
@@ -327,9 +334,9 @@ def scan_plan_suggest(request):
     The index offset (inches) that covers the most of the weld + HAZ for the form's current values,
     and a second offset when one can't cover it all
     """
-    plan = _unsaved_plan(request)
+    plan, errors = _plan_or_errors(request)
     if plan is None:
-        return JsonResponse({'error': 'Check the highlighted values.'}, status=400)
+        return errors
     suggestion = suggest_offset(plan)
     return JsonResponse({
         'offset': suggestion.offset, 'low': suggestion.low, 'high': suggestion.high,

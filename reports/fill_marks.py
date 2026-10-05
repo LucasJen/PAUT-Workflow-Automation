@@ -48,6 +48,16 @@ SETUP_USER_FIELDS = {
 # The long form's people
 PERSON_USER_FIELDS = {'name'}
 
+# Scan plans: what Fill from setup / the sensitivity block usually gives (yellow); every field the
+# drawing can't be made without, and the name, is red (mark_scan_plan)
+SCAN_PLAN_AUTO_FIELDS = {'sensitivity_block', 'pipe_size', 'thickness', 'probe_model', 'wedge_model'}
+
+
+def mark_scan_plan(form):
+    """A scan plan form's fill marks: the required fields (and the name) red, SCAN_PLAN_AUTO_FIELDS yellow."""
+    required = {name for name, field in form.fields.items() if field.required}
+    mark_fill(form, SCAN_PLAN_AUTO_FIELDS, required | {'name'})
+
 
 def mark_fill(form, auto, user):
     """Tags the form's fields data-fill="auto" / "user" for fill_marks.js."""

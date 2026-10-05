@@ -568,6 +568,8 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         for name in self.OPTIONAL_WITH_DEFAULT:
             self.fields[name].required = False
         self.fields['weld_type'].widget.attrs['data-weld-type-fields'] = json.dumps(SCAN_PLAN_WELD_TYPE_FIELDS)
+        # Empty fields outlined (fill_marks.js): red = needed to draw, yellow = Fill from setup gives it
+        fill_marks.mark_scan_plan(self)
         self.fields['mode'].widget.attrs['class'] = 'mode-switch-input'
         self.fields['legs'].choices = [(ScanPlan.ONE_LEG, '1st leg'), (ScanPlan.TWO_LEGS, '1st and 2nd')]
         for field in self.fields.values():   # every number in the same face

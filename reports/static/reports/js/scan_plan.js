@@ -126,13 +126,15 @@ async function redraw() {
     const response = await fetch(`${preview.dataset.scenesUrl}?${formParams()}`, { cache: 'no-store' });
     if (request !== latestRequest) return;
     if (!response.ok) {
-        // Keep the last good drawing while a value is incomplete
-        status.textContent = 'Fill in the required values to update the drawing.';
-        status.hidden = false;
+        // Keep the last good drawing while a value is incomplete, and say which values
+        const { fields = {} } = await response.json().catch(() => ({}));
+        if (request !== latestRequest) return;
+        showDrawErrors(fields);
         return;
     }
     const data = await response.json();
     if (request !== latestRequest) return;
+    showDrawErrors({});
     const keys = data.drawings.map(scene => `${scene.meta.position}-${scene.meta.side}`);
     for (const key of Object.keys(views)) {
         if (!keys.includes(key)) {
@@ -150,6 +152,25 @@ async function redraw() {
     status.hidden = true;
     showCoverage(data.coverage);
     showWedgeData(data.wedge);
+}
+
+// The fields that stop the drawing updating: named in the status line, their cells marked
+function showDrawErrors(fields) {
+    form.querySelectorAll('.field-cell.draw-error').forEach(cell => cell.classList.remove('draw-error', 'has-error'));
+    const names = Object.keys(fields);
+    if (!names.length) {
+        status.hidden = true;
+        return;
+    }
+    const problems = names.map(name => {
+        const cell = form.querySelector(`[data-field="${name}"]`);
+        if (cell && !cell.classList.contains('has-error')) cell.classList.add('draw-error', 'has-error');
+        const label = fields[name].label || name;
+        const message = fields[name].errors.join(' ');
+        return message === 'This field is required.' ? label : `${label} (${message.replace(/\.$/, '')})`;
+    });
+    status.textContent = `To update the drawing, fill in or check: ${problems.join(', ')}.`;
+    status.hidden = false;
 }
 
 document.getElementById('reset-views').addEventListener('click', () => Object.values(views).forEach(v => v.resetView()));
