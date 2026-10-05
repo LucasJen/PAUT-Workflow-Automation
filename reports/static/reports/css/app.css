@@ -983,6 +983,80 @@ textarea.result-cell-input {
     text-align: center;
 }
 
+/* ── Guided editor (wizard.js): one step at a time, the step list on top ── */
+
+.wizard-off { display: none !important; }
+form[data-wizard] .editor-layout { grid-template-columns: minmax(0, 1fr); }
+form[data-wizard] .section-nav { display: none; }
+
+.wizard-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin: 0 0 0.875rem;
+    padding: 0;
+    list-style: none;
+}
+
+.wizard-steps li,
+.wizard-steps button {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-3);
+}
+
+.wizard-steps li { padding: 0.3rem 0.5rem; }
+.wizard-steps li:has(button) { padding: 0; }
+.wizard-steps li:not(:last-child)::after { content: '›'; margin-left: 0.25rem; color: var(--border-strong); }
+
+.wizard-steps button {
+    padding: 0.3rem 0.5rem;
+    border: 0;
+    border-radius: var(--radius);
+    background: none;
+}
+.wizard-steps button:hover { color: var(--text); background: var(--surface-2, var(--accent-soft)); }
+
+.wizard-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    font-size: 0.7rem;
+}
+
+.wizard-steps .is-done { color: var(--text-2); }
+.wizard-steps .is-done .wizard-dot { border-color: var(--accent); color: var(--accent-text); }
+.wizard-steps .is-current button { color: var(--accent-text); background: var(--accent-soft); }
+.wizard-steps .is-current .wizard-dot { border-color: var(--accent); background: var(--accent); color: var(--accent-contrast); }
+.wizard-steps .nav-missing { margin-left: 0.15rem; }
+
+.wizard-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+}
+.wizard-title h2 { margin: 0; font-size: 1.125rem; font-weight: 600; }
+.wizard-count { font-size: 0.8125rem; color: var(--text-3); }
+.wizard-status { font-size: 0.8125rem; color: var(--danger); }
+.wizard-status.is-complete { color: var(--success); }
+
+.wizard-plan img {
+    display: block;
+    max-width: 100%;
+    max-height: 60vh;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #fff;
+}
+
 /* ── Weld form equipment grid (reports/editor/equipment.html) ───────────── */
 
 .weld-grid-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }

@@ -15,19 +15,35 @@
     <option value="Longitudinal">
 </datalist>
 
-<form method="post" enctype="multipart/form-data" id="report-form" novalidate data-arrow-nav>
+<form method="post" enctype="multipart/form-data" id="report-form" novalidate data-arrow-nav{% if wizard %} data-wizard="1"{% endif %}>
     {% csrf_token %}
+    {% if wizard %}
+    {# Guided mode (wizard.js): one step at a time; Prev / Next save, then go to wizard_goto #}
+    <input type="hidden" name="wizard" value="1">
+    <input type="hidden" name="wizard_step" id="wizard-step" value="{{ wizard_step }}">
+    <section class="panel wizard-head" aria-label="Steps">
+        <ol class="wizard-steps" id="wizard-steps">
+            <li class="is-done"><span class="wizard-dot"><i class="bi bi-check"></i></span> Files</li>
+            <li class="is-done"><span class="wizard-dot"><i class="bi bi-check"></i></span> Welds</li>
+        </ol>
+        <div class="wizard-title">
+            <span class="wizard-count" id="wizard-count"></span>
+            <h2 id="wizard-title"></h2>
+            <span class="wizard-status" id="wizard-status" role="status"></span>
+        </div>
+    </section>
+    {% endif %}
     <input type="hidden" name="report_id" value="{{ form.instance.pk|default_if_none:'' }}">
     {% if form.instance.pk %}<input type="hidden" name="selected" value="{{ form.instance.pk }}">{% endif %}
 
     <!-- Report type + file name -->
     <section class="panel editor-header">
         <div class="field-grid cols-3">
-            {{ form.report_type.as_field_group }}
+            {% if wizard %}<div hidden>{{ form.report_type }}</div>{% else %}{{ form.report_type.as_field_group }}{% endif %}
             <div class="span-2">{{ form.document_filename.as_field_group }}</div>
         </div>
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <p class="form-text mb-0">The report type chooses the Word template and which sections are shown. Values in hidden sections are kept.</p>
+            <p class="form-text mb-0"{% if wizard %} hidden{% endif %}>The report type chooses the Word template and which sections are shown. Values in hidden sections are kept.</p>
             {# The weld form's fill marks (fill_marks.js): what's still empty, by where it comes from #}
             <p class="fill-legend form-text mb-0">
                 <span class="fill-key fill-key-user"></span> To fill in: <strong id="fill-count-user">0</strong>
@@ -67,9 +83,42 @@
             {% with section_template="reports/editor/"|add:key|add:".html" %}{% include section_template %}{% endwith %}
             {% endif %}
             {% endfor %}
+            {% if wizard %}
+            {# The guided editor's last step before the preview: the scan plan printed on the last page #}
+            <section class="panel editor-section" id="sec-wizard-scanplan" data-wizard-panel="scanplan" data-title="Scan plan">
+                <div class="panel-header"><h2 class="panel-title">Scan plan</h2></div>
+                {% with plan=form.instance.scan_plan %}
+                {% if plan %}
+                <p class="form-text">“{{ plan.name }}” prints on the report's last page. The drawing is as last saved: after editing the plan, reload it here.</p>
+                <div class="wizard-plan">
+                    <img src="{% url 'scan-plan-png' plan.pk %}" alt="Scan plan {{ plan.name }}" id="wizard-plan-img">
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <a href="{% url 'edit-scan-plan' plan.pk %}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
+                        <i class="bi bi-box-arrow-up-right"></i> Edit scan plan</a>
+                    <button type="button" class="btn btn-secondary btn-sm" id="wizard-plan-reload"><i class="bi bi-arrow-clockwise"></i> Reload drawing</button>
+                </div>
+                {% else %}
+                <p class="mb-0">No scan plan is linked to this report. Pick one in the <em>Calibration, scan plan &amp; notes</em> step, or make one under <a href="{% url 'scan-plan-list' %}" target="_blank" rel="noopener">Scan plans</a>.</p>
+                {% endif %}
+                {% endwith %}
+            </section>
+            {% endif %}
         </div>
     </div>
 
+    {% if wizard %}
+    <div class="sticky-actions">
+        <span class="status">
+            Report #{{ form.instance.pk }} · saved as you go<span id="unsaved-indicator" hidden> · <strong>unsaved changes</strong></span>
+        </span>
+        <a href="{% url 'create-report' %}?loaded={{ form.instance.pk }}" class="btn btn-secondary" title="All sections on one page, with every button">Open in full editor</a>
+        {# Next first in the DOM so pressing Enter goes on; Prev and the step list submit through wizard-jump #}
+        <button type="submit" name="wizard_goto" value="" class="btn btn-primary order-last" id="wizard-next">Next <i class="bi bi-arrow-right"></i></button>
+        <button type="button" class="btn btn-secondary" id="wizard-prev"><i class="bi bi-arrow-left"></i> Prev</button>
+        <button type="submit" name="wizard_goto" value="" id="wizard-jump" hidden></button>
+    </div>
+    {% else %}
     <div class="sticky-actions">
         <span class="status">
             {% if form.instance.pk %}
@@ -104,6 +153,7 @@
         </button>
         {% endif %}
     </div>
+    {% endif %}
 </form>
 
 {{ results_data|json_script:"results-initial-data" }}
@@ -119,4 +169,5 @@
 <script src="{% static_v 'reports/js/weld_results.js' %}"></script>
 <script src="{% static_v 'reports/js/materials.js' %}"></script>
 <script src="{% static_v 'reports/js/fill_marks.js' %}"></script>
+{% if wizard %}<script src="{% static_v 'reports/js/wizard.js' %}"></script>{% endif %}
 {% endblock %}

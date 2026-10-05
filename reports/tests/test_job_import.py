@@ -111,7 +111,7 @@ class FromFilesPagesTests(TestCase):
             'weld_0': 'w5', 'weld_1': 'W6'})
         from reports.models import Report
         report = Report.objects.get()
-        self.assertRedirects(resp, f"{reverse('create-report')}?loaded={report.pk}")
+        self.assertRedirects(resp, f"{reverse('create-report')}?loaded={report.pk}&wizard=1")
         self.assertEqual((report.client, report.document_filename), ('PPI', 'PPI-31-37575-W5&W6'))
         self.assertEqual([r[0] for r in report.results_table.rows.values_list('cells', flat=True)], ['W5', 'W6'])
         self.assertIsNone(self.client.session.get('job_import'))
@@ -136,6 +136,51 @@ class FromFilesPagesTests(TestCase):
     def test_confirm_without_files_goes_back(self):
         from django.urls import reverse
         self.assertRedirects(self.client.get(reverse('confirm-job')), reverse('start-from-files'))
+
+
+class GuidedEditorTests(TestCase):
+    """The From-scan-files report opens in the guided editor: one step at a time, saved on each move."""
+
+    def setUp(self):
+        from django.urls import reverse
+        self.report, _ = build_report([read_job_file(nde_file('PPI 31-37575 w5 n off1.nde'))], None, 'Job')
+        self.editor = reverse('create-report')
+
+    def post(self, goto, **fields):
+        from reports.tests.test_create_report import post_data
+        return self.client.post(self.editor, post_data(
+            self.report, report_type='paut_weld', wizard='1', wizard_step='project', wizard_goto=goto, **fields))
+
+    def test_the_guided_page(self):
+        page = self.client.get(f'{self.editor}?loaded={self.report.pk}&wizard=1&step=materials')
+        self.assertContains(page, 'data-wizard="1"')
+        self.assertContains(page, 'name="wizard_step" id="wizard-step" value="materials"')
+        self.assertContains(page, 'data-wizard-panel="scanplan"')
+        self.assertContains(page, 'id="wizard-next"')
+        self.assertNotContains(page, 'Save &amp; download')
+        plain = self.client.get(f'{self.editor}?loaded={self.report.pk}')
+        self.assertNotContains(plain, 'data-wizard')
+
+    def test_next_saves_and_goes_to_the_step(self):
+        resp = self.post('equipment', client='Saved on Next')
+        self.assertRedirects(resp, f'{self.editor}?loaded={self.report.pk}&wizard=1&step=equipment')
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.client, 'Saved on Next')
+
+    def test_the_last_step_is_the_preview(self):
+        from django.urls import reverse
+        resp = self.post('finish')
+        preview = f"{reverse('preview-report', args=[self.report.pk])}?wizard=1"
+        self.assertRedirects(resp, preview, fetch_redirect_response=False)
+        page = self.client.get(preview)
+        self.assertContains(page, f'{self.editor}?loaded={self.report.pk}&amp;wizard=1&amp;step=scanplan')
+        self.assertContains(page, 'Open in full editor')
+
+    def test_no_equipment_goes_back_to_its_step(self):
+        self.report.probes.all().delete()
+        self.report.groups.all().delete()
+        resp = self.post('finish')
+        self.assertRedirects(resp, f'{self.editor}?loaded={self.report.pk}&wizard=1&step=equipment')
 
 
 class SetupBlockImportTests(TestCase):

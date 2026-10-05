@@ -184,6 +184,9 @@ def create_report(request):
     Takes user input to either save the input as report and setup information or to generate a report
     """
     results_data = {}
+    # Guided mode (wizard.js): one section at a time, saved on each Prev / Next
+    wizard = (request.POST if request.method == 'POST' else request.GET).get('wizard') == '1'
+    wizard_step = (request.POST.get('wizard_step') if request.method == 'POST' else request.GET.get('step')) or ''
 
     if request.method == 'POST':
         # Bind to the loaded report (if any) so saving updates it instead of creating a copy
@@ -233,6 +236,8 @@ def create_report(request):
                     _save_results_table(report, *results)
                     _save_indication_images(request, report, results[1])
 
+            if wizard:
+                return _wizard_redirect(request, report, request.POST.get('wizard_goto', ''))
             wants_output = 'generate' in request.POST or 'preview' in request.POST
             if wants_output and not has_equipment(report):
                 messages.success(request, 'Report saved.')
@@ -296,7 +301,28 @@ def create_report(request):
         'report_defaults': all_defaults(),
         'pdf_available': pdf_available(form.instance if form.instance.pk else None),
         'excel': bool(form.instance.pk) and _is_excel(form.instance),
+        'wizard': wizard and bool(form.instance.pk),
+        'wizard_step': wizard_step,
     })
+
+
+# The guided editor's last section step; its last step is the preview page
+WIZARD_LAST_STEP = 'scanplan'
+
+
+def wizard_url(report, step=''):
+    """The guided editor at this step (its first when blank)."""
+    return f"{reverse('create-report')}?loaded={report.pk}&wizard=1" + (f'&step={step}' if step else '')
+
+
+def _wizard_redirect(request, report, goto):
+    """After a guided step saved: the step asked for, or the preview at the end."""
+    if goto != 'finish':
+        return redirect(wizard_url(report, re.sub(r'[^\w-]', '', goto)))
+    if not has_equipment(report):
+        messages.error(request, NEEDS_SETUP_MESSAGE)
+        return redirect(wizard_url(report, 'equipment'))
+    return redirect(f"{reverse('preview-report', args=[report.pk])}?wizard=1")
 
 
 def _saved_setup_choices():
@@ -370,11 +396,16 @@ def preview_report(request, pk):
     Preview page: the browser renders the generated .docx (docx-preview) so layout, text and
     images can be checked before downloading
     """
+    wizard = request.GET.get('wizard') == '1'
     report, redirect_response = _report_with_setups(request, pk)
     if redirect_response:
-        return redirect_response
+        return redirect(wizard_url(report, 'equipment')) if wizard else redirect_response
     return render(request, 'reports/preview.html', {
         'report': report,
+        'wizard': wizard,
+        'wizard_prev': wizard_url(report, WIZARD_LAST_STEP),
+        # Files, Welds, the type's sections, the scan plan, this page
+        'wizard_steps': len(get_report_type(report.report_type).sections) + 4,
         'excel': _is_excel(report),
         'pdf_available': pdf_available(report),
     })

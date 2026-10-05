@@ -56,7 +56,8 @@
         if (event.target.matches('input, select, textarea')) lastField = event.target;
     });
     document.getElementById('fill-next')?.addEventListener('click', () => {
-        const missing = Array.from(form.querySelectorAll('.fill-missing'));
+        // Only those on screen (the guided editor shows one section at a time)
+        const missing = Array.from(form.querySelectorAll('.fill-missing')).filter(el => el.getClientRects().length);
         if (!missing.length) return;
         const here = lastField;
         const next = missing.find(el => here && here !== el

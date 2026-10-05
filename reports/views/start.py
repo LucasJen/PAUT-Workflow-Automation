@@ -7,13 +7,13 @@ import re
 
 from django.contrib import messages
 from django.shortcuts import redirect, render
-from django.urls import reverse
 
 from equipment.models import SensitivityBlock
 
 from ..models import ReportDefaults
 from ..services.job_import import WELD_TYPE, build_report, job_block, read_job_file
 from ..services.nde_parser import UNIT_SYSTEMS
+from .reports import wizard_url
 
 SESSION_KEY = 'job_import'
 
@@ -83,10 +83,10 @@ def confirm_job(request):
                                          _picked_block(request.POST.get('sensitivity_block')))
             request.session.pop(SESSION_KEY, None)
             messages.success(request, f'Report made from {len(kept)} file{"s" if len(kept) != 1 else ""}. '
-                                      'Fill in what\'s outlined, add the indications, then save and download.')
+                                      'Go through the steps and fill in what\'s outlined; Next saves as you go.')
             for note in notes:
                 messages.warning(request, note)
-            return redirect(f"{reverse('create-report')}?loaded={report.pk}")
+            return redirect(wizard_url(report))
 
     # The block picked on the first page, else the one the files' part points to
     picked = _picked_block(job.get('sensitivity_block'))
