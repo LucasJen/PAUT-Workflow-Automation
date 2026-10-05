@@ -105,7 +105,7 @@ for _name, _label in material_fields():
 
 class ScanPlan(models.Model):
     """
-    Scan plan for a basic single-V butt weld, drawn by reports/services/scan_plan.py and printed
+    Scan plan for a basic single-V butt weld, drawn by reports/services/scan_plan/ and printed
     on the weld report's Scan Plan page. Saved on its own so one plan serves every report for the
     same pipe size and setup. Lengths are in inches, angles in degrees.
     """

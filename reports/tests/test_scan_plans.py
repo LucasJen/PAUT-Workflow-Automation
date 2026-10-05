@@ -62,6 +62,46 @@ class GeometryTests(TestCase):
             self.assertEqual(image.width, scan_plan.WIDTH_PX)
 
 
+class TracerTests(TestCase):
+    def test_flat_plate_trace_names_the_surfaces_and_sound_path(self):
+        plan = ScanPlan(thickness=0.5, legs=2)
+        beam = scan_plan.trace(scan_plan.part(plan), (0.0, 0.0), 45, 2)
+        self.assertEqual(beam.surfaces, ['back wall', 'scanning surface'])
+        self.assertAlmostEqual(beam.sound_path, 2 * 0.5 * math.sqrt(2))
+
+    def test_reflects_off_any_surface(self):
+        # A 45 deg beam meets an end wall, comes back to the back wall, then the scanning surface
+        Surface = scan_plan.geometry.Surface
+        block = scan_plan.geometry.Part([
+            Surface((-5.0, 0.0), (0.5, 0.0), 'top'), Surface((-5.0, 1.0), (0.5, 1.0), 'bottom'),
+            Surface((0.5, 0.0), (0.5, 1.0), 'end')], 1.0)
+        beam = scan_plan.trace(block, (0.0, 0.0), 45, 3)
+        self.assertEqual(beam.surfaces, ['end', 'bottom', 'top'])
+        for (x, y), (ex, ey) in zip(beam.points, [(0, 0), (0.5, 0.5), (0, 1), (-1, 0)]):
+            self.assertAlmostEqual(x, ex)
+            self.assertAlmostEqual(y, ey)
+
+    def test_stops_when_the_beam_leaves_the_part(self):
+        short = scan_plan.geometry.Part([scan_plan.geometry.Surface((0.5, 1.0), (1.0, 1.0), 'ledge')], 1.0)
+        self.assertEqual(scan_plan.trace(short, (0.0, 0.0), 0, 2).points, [(0.0, 0.0)])
+
+
+class SceneTests(TestCase):
+    def test_scene_is_plain_data_with_beam_readouts(self):
+        import json
+        plan = make_plan(angle_start=45, angle_stop=60, angle_step=5)
+        scene = scan_plan.build_scene(plan, side=2)
+        self.assertTrue(scene.mirror)
+        beams = [s for s in scene.shapes if s.get('data', {}).get('angle') is not None]
+        self.assertEqual([b['data']['angle'] for b in beams], [45, 50, 55, 60])
+        self.assertEqual(beams[0]['data']['surfaces'], ['back wall', 'scanning surface'])
+        json.dumps(scene.as_dict())   # sendable to the browser as it is
+
+    def test_render_scene_matches_render_png(self):
+        plan = make_plan()
+        self.assertEqual(scan_plan.render_scene(scan_plan.build_scene(plan)), scan_plan.render_png(plan))
+
+
 class ScanPlanPageTests(TestCase):
     def test_list_and_new_pages(self):
         make_plan(name='Listed plan')
