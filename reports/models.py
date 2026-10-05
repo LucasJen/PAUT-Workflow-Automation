@@ -162,6 +162,17 @@ class ScanPlan(models.Model):
     counterbore_length = models.FloatField(default=1.0)
     counterbore_taper = models.FloatField(default=30.0)
 
+    # Beam direction: axial (across a girth weld; the section the beams travel in is flat) or
+    # circumferential (across a long seam: the beams travel round the pipe's curved wall)
+    AXIAL, CIRCUMFERENTIAL = 'axial', 'circumferential'
+    beam_direction = models.CharField(max_length=20, default=AXIAL, choices=[
+        (AXIAL, 'Axial (girth weld)'), (CIRCUMFERENTIAL, 'Circumferential (long seam)')])
+    # Pipe OD for circumferential beams: filled from the sensitivity block's test diameter, or typed
+    outside_diameter = models.FloatField(null=True, blank=True)
+    FLAT_WEDGE, CONTOURED_WEDGE = 'flat', 'contoured'
+    wedge_contour = models.CharField(max_length=10, default=FLAT_WEDGE, choices=[
+        (FLAT_WEDGE, 'Flat'), (CONTOURED_WEDGE, 'Contoured to the OD')])
+
     # Probe position and beams
     index_offset = models.FloatField(null=True, blank=True,
                                      help_text='Wedge front to weld centre line. Blank = the weld toe (half the cap width).')

@@ -36,6 +36,7 @@ class Layout:
     estimated: list = field(default_factory=list)   # catalogue values that had to be estimated
     from_file: bool = False     # wedge geometry from the .nde of the setup the plan was filled from
     wedge_data: dict = None     # the wedge numbers the layout used (mm, degrees, m/s), for the page
+    ratio: float = None         # wedge velocity / part velocity: sin(incidence) = ratio * sin(refracted)
 
 
 def _known(value, default, name, estimated):
@@ -172,7 +173,8 @@ def catalogue_layout(plan):
     }
     return Layout(outline, probe_outline, (p1, p2), (cx, cy), exits,
                   aperture=(face(s_first - pitch / 2), face(s_last + pitch / 2)),
-                  exact=not estimated, estimated=estimated, from_file=from_file, wedge_data=wedge_data)
+                  exact=not estimated, estimated=estimated, from_file=from_file, wedge_data=wedge_data,
+                  ratio=ratio)
 
 
 def exact_layout(plan):
@@ -188,7 +190,8 @@ def layout(plan):
         return lay
     wedge, probe, centre, face = _wedge(plan)
     x0 = exit_x(plan)
-    return Layout(wedge, probe, face, (x0, 0.0), {angle: x0 for angle in angles(plan)})
+    ratio = REXOLITE_VELOCITY * M_PER_S_TO_IN_PER_US / part_velocity(plan, None)
+    return Layout(wedge, probe, face, (x0, 0.0), {angle: x0 for angle in angles(plan)}, ratio=ratio)
 
 
 def _wedge(plan):

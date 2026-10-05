@@ -4,6 +4,10 @@ and the part's surfaces for the tracer.
 
 All geometry is in inches with the weld centre line at x = 0, the scanning surface at y = 0
 and depth increasing downwards. The probe sits on the -x side; side 2 is the mirror image.
+
+Circumferential beams (across a long seam) travel round the pipe: the section is an annulus
+with its centre at (0, OD radius), so the OD's top is still (0, 0). The weld, HAZ and cap are
+laid out flat first (x along the OD, y the depth below it) and wrapped onto the pipe (wrap()).
 """
 import math
 import re
@@ -73,9 +77,58 @@ def _tan(degrees):
     return math.tan(math.radians(degrees))
 
 
+def od_radius(plan):
+    """
+    The pipe's OD radius when the beams travel round it (circumferential), else None: the section
+    is flat. The OD is the plan's, else its sensitivity block's test diameter.
+    """
+    if getattr(plan, 'beam_direction', None) != 'circumferential':
+        return None
+    od = getattr(plan, 'outside_diameter', None)
+    if not od:
+        block = related(plan, 'sensitivity_block')
+        od = first_number(block.test_diameter or block.cal_diameter) if block else None
+    return od / 2 if od and od / 2 > plan.thickness else None
+
+
+def outside_diameter(plan):
+    """The OD a circumferential plan is drawn with (inches), else None."""
+    radius = od_radius(plan)
+    return radius * 2 if radius else None
+
+
+def wrap(plan, x, depth):
+    """A point laid out flat (x along the OD from the weld centre line, depth below it) on the pipe."""
+    radius = od_radius(plan)
+    if radius is None:
+        return (x, depth)
+    theta, r = x / radius, radius - depth
+    return (r * math.sin(theta), radius - r * math.cos(theta))
+
+
+def wrap_path(plan, points, step=0.02):
+    """A flat polyline on the pipe, its straight pieces split every `step` inches so they bend round it."""
+    if od_radius(plan) is None:
+        return points
+    out = []
+    for a, b in zip(points, points[1:]):
+        pieces = max(1, math.ceil(math.dist(a, b) / step))
+        out += [wrap(plan, a[0] + (b[0] - a[0]) * i / pieces, a[1] + (b[1] - a[1]) * i / pieces) for i in range(pieces)]
+    return out + [wrap(plan, *points[-1])] if points else out
+
+
+def arc_position(plan, point):
+    """(Distance along the OD from the weld centre line, depth below the OD) of a point on the pipe."""
+    radius = od_radius(plan)
+    if radius is None:
+        return point
+    x, y = point
+    return radius * math.atan2(x, radius - y), radius - math.hypot(x, y - radius)
+
+
 def weld_thickness(plan):
-    """Wall at the weld: the thickness less any counterbore."""
-    depth = getattr(plan, 'counterbore_depth', None) or 0
+    """Wall at the weld: the thickness less any counterbore (girth welds only)."""
+    depth = (getattr(plan, 'counterbore_depth', None) or 0) if od_radius(plan) is None else 0
     return max(plan.thickness - depth, 1e-3)
 
 
@@ -209,6 +262,14 @@ class Surface:
 
 
 @dataclass
+class Circle:
+    """A pipe's OD or ID in the curved section circumferential beams travel in."""
+    centre: tuple
+    radius: float
+    name: str
+
+
+@dataclass
 class Part:
     """The part's cross-section as the boundary surfaces the tracer reflects beams off."""
     surfaces: list
@@ -222,7 +283,7 @@ def back_wall(plan, x_min=-PLATE_EXTENT, x_max=PLATE_EXTENT):
     tapers back to the full wall.
     """
     t = plan.thickness
-    if not getattr(plan, 'counterbore_depth', None):
+    if not getattr(plan, 'counterbore_depth', None) or od_radius(plan) is not None:
         return [(x_min, t), (x_max, t)]
     bore, length = weld_thickness(plan), plan.counterbore_length
     taper = min(max(plan.counterbore_taper or 90.0, 1.0), 90.0)
@@ -249,6 +310,10 @@ def part(plan):
     and its tapers as surfaces of their own.
     """
     t = plan.thickness
+    radius = od_radius(plan)
+    if radius is not None:   # round the pipe: the OD and ID circles
+        return Part([Circle((0.0, radius), radius, 'scanning surface'),
+                     Circle((0.0, radius), radius - t, 'back wall')], t)
     surfaces = [Surface((-PLATE_EXTENT, 0.0), (PLATE_EXTENT, 0.0), 'scanning surface')]
     wall = back_wall(plan)
     for a, b in zip(wall, wall[1:]):

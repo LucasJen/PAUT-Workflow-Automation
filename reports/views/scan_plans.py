@@ -17,7 +17,9 @@ from ..services.scan_plan import (
     M_PER_S_TO_IN_PER_US, MM_PER_IN, STEEL_LONGITUDINAL, STEEL_SHEAR, build_scene, coverage, layout,
     render_png, suggest_offset, toe,
 )
+from ..services.scan_plan.beams import LIFT_OFF_WARNING, fan as beam_fan
 from ..services.scan_plan.coverage import drawings as plan_drawings
+from ..services.scan_plan.geometry import outside_diameter
 from ..services.scan_plan.render import COLOURS, WIDTH_PX
 
 NUMBER = re.compile(r'-?\d+(?:\.\d+)?')
@@ -159,6 +161,7 @@ def _block_fill(block):
     fill = {
         'pipe_size': block.pipe_size,
         'thickness': _first_number(block.test_thickness) or _first_number(block.cal_thickness),
+        'outside_diameter': _first_number(block.test_diameter) or _first_number(block.cal_diameter),
         'bevel_angle': _first_number(block.bevel_geometry),
         'shear_velocity': _first_number(block.velocity_shear),
     }
@@ -302,6 +305,24 @@ def _coverage_json(plan):
     }
 
 
+def _pipe_json(plan):
+    """
+    For circumferential beams round a pipe: the OD drawn, the refracted angles the beams really
+    enter at (against the nominal range) and a flat wedge's lift-off. None for a flat section.
+    """
+    od = outside_diameter(plan)
+    if od is None:
+        return None
+    beams = beam_fan(plan)
+    refracted = [t.refracted for t in beams.traces if t.refracted is not None]
+    return {
+        'od': od, 'contoured': plan.wedge_contour == ScanPlan.CONTOURED_WEDGE,
+        'refracted': [min(refracted), max(refracted)] if refracted else None,
+        'nominal': [min(plan.angle_start, plan.angle_stop), max(plan.angle_start, plan.angle_stop)],
+        'lift_off': beams.lift_off, 'lift_off_warning': (beams.lift_off or 0) > LIFT_OFF_WARNING,
+    }
+
+
 def _rounded(value):
     """`value` with its floats to 5 places (a hundred-thousandth of an inch is plenty to draw)."""
     if isinstance(value, float):
@@ -324,7 +345,7 @@ def scan_plan_scenes(request):
     return JsonResponse({
         'drawings': [_rounded(build_scene(plan, side, position, analysis=True).as_dict())
                      for position, side in plan_drawings(plan)],
-        'coverage': _coverage_json(plan), 'wedge': layout(plan).wedge_data,
+        'coverage': _coverage_json(plan), 'wedge': layout(plan).wedge_data, 'pipe': _pipe_json(plan),
         'colours': {name: '#%02x%02x%02x' % rgb for name, rgb in COLOURS.items()}, 'width_px': WIDTH_PX,
     })
 

@@ -150,7 +150,7 @@ class FormTests(TestCase):
 
     def test_editor_lists_which_types_use_which_fields(self):
         page = self.client.get(reverse('new-scan-plan')).content.decode()
-        self.assertIn('data-weld-type-fields', page)
+        self.assertIn('data-shows-fields', page)
         self.assertIn('name="counterbore_depth"', page)
 
 

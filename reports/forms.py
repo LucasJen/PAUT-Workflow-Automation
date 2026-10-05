@@ -11,6 +11,7 @@ from equipment.models import ProbeModel
 from . import fill_marks, weld_form
 from .models import Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
+from .services.scan_plan.geometry import first_number
 from datetime import date
 import json
 
@@ -390,8 +391,17 @@ SCAN_PLAN_NUMBERS = (
     'thickness', 'bevel_angle', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2',
     'exit_point', 'wedge_angle', 'angle_start', 'angle_stop', 'angle_step', 'shear_velocity',
     'bottom_bevel_angle', 'land_depth', 'upper_bevel_angle', 'transition_height', 'root_radius', 'cap_height',
-    'root_height', 'counterbore_depth', 'counterbore_length', 'counterbore_taper',
+    'root_height', 'counterbore_depth', 'counterbore_length', 'counterbore_taper', 'outside_diameter',
 )
+# Fields that apply to only some beam directions (scan_plan.js shows them for those): a pipe's OD
+# and the wedge's contour for beams round it; a counterbore for beams along it (girth welds)
+SCAN_PLAN_BEAM_DIRECTION_FIELDS = {
+    'outside_diameter': ['circumferential'],
+    'wedge_contour': ['circumferential'],
+    'counterbore_depth': ['axial'],
+    'counterbore_length': ['axial'],
+    'counterbore_taper': ['axial'],
+}
 # Weld profile fields that apply to only some weld types (scan_plan.js shows them for those)
 SCAN_PLAN_WELD_TYPE_FIELDS = {
     'bevel_side': ['single_bevel', 'j_bevel'],
@@ -407,7 +417,7 @@ SCAN_PLAN_WELD_TYPE_FIELDS = {
 SCAN_PLAN_UNIT_FIELDS = {
     'length': ['thickness', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2',
                'land_depth', 'transition_height', 'root_radius', 'cap_height', 'root_height', 'counterbore_depth',
-               'counterbore_length'],
+               'counterbore_length', 'outside_diameter'],
     'velocity': ['shear_velocity'],
 }
 UNIT_FACTORS = {'length': 25.4, 'velocity': 25400.0}   # imperial -> metric
@@ -419,7 +429,8 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         ('Weld', ['weld_type', 'bevel_side', 'thickness', 'bevel_angle', 'bottom_bevel_angle', 'land_depth',
                   'upper_bevel_angle', 'transition_height', 'root_radius', 'root_gap', 'root_face', 'cap_width',
                   'cap_height', 'root_height', 'haz_width', 'shear_velocity']),
-        ('Counterbore', ['counterbore_depth', 'counterbore_length', 'counterbore_taper']),
+        ('Pipe', ['beam_direction', 'outside_diameter', 'wedge_contour', 'counterbore_depth', 'counterbore_length',
+                  'counterbore_taper']),
         # Laid out by hand (edit_scan_plan.html): each index offset beside its 90 / 270 deg skew boxes
         ('Probe positions', ['index_offset', 'skew_90', 'skew_270', 'index_offset_2', 'skew_90_2', 'skew_270_2']),
         ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
@@ -433,13 +444,15 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     ADVANCED_FIELDS = ('root_gap', 'root_face', 'cap_width', 'haz_width', 'shear_velocity', 'first_element',
                        'aperture_elements', 'legs', 'angle_step', 'weld_type', 'bevel_side', 'bottom_bevel_angle',
                        'land_depth', 'upper_bevel_angle', 'transition_height', 'root_radius', 'cap_height',
-                       'root_height', 'counterbore_depth', 'counterbore_length', 'counterbore_taper')
+                       'root_height', 'counterbore_depth', 'counterbore_length', 'counterbore_taper',
+                       'beam_direction', 'outside_diameter', 'wedge_contour')
     # A form posted without these keeps the model's default
     OPTIONAL_WITH_DEFAULT = ('weld_type', 'bevel_side', 'bottom_bevel_angle', 'upper_bevel_angle',
-                             'transition_height', 'root_radius', 'counterbore_length', 'counterbore_taper')
+                             'transition_height', 'root_radius', 'counterbore_length', 'counterbore_taper',
+                             'beam_direction', 'wedge_contour')
     LENGTHS = ('thickness', 'root_gap', 'root_face', 'cap_width', 'haz_width', 'index_offset', 'index_offset_2',
                'exit_point', 'land_depth', 'transition_height', 'root_radius', 'cap_height', 'root_height',
-               'counterbore_depth', 'counterbore_length')
+               'counterbore_depth', 'counterbore_length', 'outside_diameter')
     ANGLES = ('bevel_angle', 'wedge_angle', 'angle_start', 'angle_stop', 'bottom_bevel_angle', 'upper_bevel_angle')
 
     class Meta:
@@ -479,9 +492,12 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'root_radius': 'Root radius',
             'cap_height': 'Cap height',
             'root_height': 'Root height',
-            'counterbore_depth': 'Depth',
-            'counterbore_length': 'Length from C/L',
-            'counterbore_taper': 'Taper (°)',
+            'counterbore_depth': 'Counterbore depth',
+            'counterbore_length': 'Counterbore length',
+            'counterbore_taper': 'Counterbore taper (°)',
+            'beam_direction': 'Beam direction',
+            'outside_diameter': 'Outside diameter',
+            'wedge_contour': 'Wedge bottom',
         }
         # Shown when the cursor is over an input or its name (components/field_cell.html)
         help_texts = {
@@ -541,6 +557,14 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                                  'The weld and its root sit at the counterbored wall, and the beams skip off it.',
             'counterbore_length': 'Weld centre line to where the counterbore starts to taper back to the full wall.',
             'counterbore_taper': "Angle of the counterbore's taper back to the full wall, from the pipe axis.",
+            'beam_direction': 'Axial: the beams run along the pipe, across a girth weld; the section they travel '
+                              'in is flat. Circumferential: the beams run round the pipe, across a long seam; '
+                              'they enter a curved OD (the refracted angle drifts from nominal) and skip off a '
+                              'curved ID.',
+            'outside_diameter': "Pipe OD for circumferential beams. Picking a sensitivity block fills its test "
+                                "diameter; type over it for a custom OD. Blank = the block's.",
+            'wedge_contour': 'Flat: the wedge rocks on the OD and lifts off at its ends (the gap is shown and '
+                             'warned about). Contoured: its bottom is machined to the OD.',
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),
@@ -567,7 +591,9 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         self.fields['mode'].required = self.fields['haz_width'].required = False
         for name in self.OPTIONAL_WITH_DEFAULT:
             self.fields[name].required = False
-        self.fields['weld_type'].widget.attrs['data-weld-type-fields'] = json.dumps(SCAN_PLAN_WELD_TYPE_FIELDS)
+        # Which fields each weld type / beam direction uses (scan_plan.js shows only those)
+        self.fields['weld_type'].widget.attrs['data-shows-fields'] = json.dumps(SCAN_PLAN_WELD_TYPE_FIELDS)
+        self.fields['beam_direction'].widget.attrs['data-shows-fields'] = json.dumps(SCAN_PLAN_BEAM_DIRECTION_FIELDS)
         # Empty fields outlined (fill_marks.js): red = needed to draw, yellow = Fill from setup gives it
         fill_marks.mark_scan_plan(self)
         self.fields['mode'].widget.attrs['class'] = 'mode-switch-input'
@@ -622,6 +648,14 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             self.add_error('counterbore_depth', 'The counterbore must leave some wall: make it less than the thickness.')
         if depth and data.get('counterbore_length') is not None and data['counterbore_length'] <= (data.get('root_gap') or 0) / 2:
             self.add_error('counterbore_length', 'The counterbore must reach past the root.')
+        if data.get('beam_direction') == ScanPlan.CIRCUMFERENTIAL:
+            block = data.get('sensitivity_block')
+            od = data.get('outside_diameter') or (
+                first_number(block.test_diameter or block.cal_diameter) if block else None)
+            if not od:
+                self.add_error('outside_diameter', "Enter the pipe's OD, or pick a sensitivity block with a test diameter.")
+            elif data.get('thickness') and od <= 2 * data['thickness']:
+                self.add_error('outside_diameter', 'The OD must be more than twice the thickness.')
         taper = data.get('counterbore_taper')
         if taper is not None and not 1 <= taper <= 90:
             self.add_error('counterbore_taper', 'Enter a taper from 1 to 90°.')

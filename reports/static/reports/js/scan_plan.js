@@ -39,18 +39,18 @@ function applyMode() {
 }
 form.querySelectorAll('input[name="mode"]').forEach(radio => radio.addEventListener('change', applyMode));
 
-// ── Weld type: fields that only some weld types use show for those (they keep their values) ──
+// ── Fields only some weld types / beam directions use show for those (they keep their values) ──
 
-const weldType = form.elements.weld_type;
-const weldTypeFields = JSON.parse(weldType.dataset.weldTypeFields || '{}');
-
-function applyWeldType() {
-    for (const [name, types] of Object.entries(weldTypeFields)) {
-        form.querySelector(`[data-field="${name}"]`)?.classList.toggle('weld-type-hidden', !types.includes(weldType.value));
-    }
-}
-weldType.addEventListener('change', applyWeldType);
-applyWeldType();
+form.querySelectorAll('select[data-shows-fields]').forEach(select => {
+    const fields = JSON.parse(select.dataset.showsFields);
+    const apply = () => {
+        for (const [name, values] of Object.entries(fields)) {
+            form.querySelector(`[data-field="${name}"]`)?.classList.toggle('condition-hidden', !values.includes(select.value));
+        }
+    };
+    select.addEventListener('change', apply);
+    apply();
+});
 applyMode();
 
 // ── Probe positions: the index offset and an optional second one, each with 90 / 270 deg skews ──
@@ -152,6 +152,31 @@ async function redraw() {
     status.hidden = true;
     showCoverage(data.coverage);
     showWedgeData(data.wedge);
+    showPipe(data.pipe);
+}
+
+// Beams round a pipe (long seam): the angles they really enter at, and a flat wedge's lift-off
+const pipeBox = document.getElementById('pipe-summary');
+
+function showPipe(pipe) {
+    if (!pipe) { pipeBox.hidden = true; return; }
+    const angles = ([a, b]) => `${+a.toFixed(1)}–${+b.toFixed(1)}°`;
+    const lines = [`Round a ${lengthText(pipe.od)} OD: `];
+    lines.push(pipe.refracted
+        ? `the beams enter at ${angles(pipe.refracted)} (nominal ${angles(pipe.nominal)}) on the curved OD.`
+        : 'no beam enters the OD at these angles.');
+    let wedge;
+    if (pipe.contoured) {
+        wedge = ' Contoured wedge: no lift-off.';
+    } else {
+        const gap = form.elements.units?.value === 'metric' ? `${(pipe.lift_off * 25.4).toFixed(2)} mm`
+                                                           : `${pipe.lift_off.toFixed(3)}" (${(pipe.lift_off * 25.4).toFixed(2)} mm)`;
+        wedge = ` Flat wedge: it lifts off ${gap} at its ends (shaded).`
+              + (pipe.lift_off_warning ? ' Over 0.5 mm: consider a contoured wedge, and check your procedure\'s limit.' : '');
+    }
+    pipeBox.className = `coverage-summary ${pipe.lift_off_warning ? 'is-short' : 'is-full'}`;
+    pipeBox.textContent = lines.join('') + wedge;
+    pipeBox.hidden = false;
 }
 
 // The fields that stop the drawing updating: named in the status line, their cells marked

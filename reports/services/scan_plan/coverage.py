@@ -11,9 +11,9 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .geometry import part, toe, weld_faces
-from .probe import at_position, layout
-from .tracer import trace
+from .beams import fan as beam_fan
+from .geometry import od_radius, toe, weld_faces, wrap_path
+from .probe import at_position
 
 DEFAULT_HAZ = 0.25          # in, each side of the fusion faces
 GRID_X, GRID_Y = 80, 40     # samples across and through the inspection volume's bounding box
@@ -39,11 +39,19 @@ def drawings(plan):
     return out
 
 
-def inspection_region(plan):
-    """The weld and its HAZ bands as a polygon: each fusion face moved out by the HAZ width."""
+def flat_inspection_region(plan):
+    """The weld and its HAZ bands as a polygon laid out flat: each fusion face moved out by the HAZ width."""
     haz = haz_width(plan)
     left, right = weld_faces(plan)
     return [(x - haz, y) for x, y in left] + [(x + haz, y) for x, y in reversed(right)]
+
+
+def inspection_region(plan):
+    """The weld and its HAZ bands as a polygon (wrapped onto the pipe for circumferential beams)."""
+    region = flat_inspection_region(plan)
+    if od_radius(plan) is None:
+        return region
+    return wrap_path(plan, region + region[:1])[:-1]
 
 
 def _inside(x, y, polygon):
@@ -84,9 +92,7 @@ def samples(plan):
 
 def fan(plan, side=1, position=1):
     """The areas a fan sweeps: one polygon per leg between each pair of neighbouring beams."""
-    plan = at_position(plan, position)
-    the_part = part(plan)
-    beams = [trace(the_part, (x0, 0.0), angle, plan.legs).points for angle, x0 in layout(plan).exits.items()]
+    beams = [beam.points for beam in beam_fan(at_position(plan, position)).traces]
     sign = -1 if side == 2 else 1
     areas = []
     for a, b in zip(beams, beams[1:]):

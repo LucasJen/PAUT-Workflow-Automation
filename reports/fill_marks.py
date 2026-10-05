@@ -50,7 +50,8 @@ PERSON_USER_FIELDS = {'name'}
 
 # Scan plans: what Fill from setup / the sensitivity block usually gives (yellow); every field the
 # drawing can't be made without, and the name, is red (mark_scan_plan)
-SCAN_PLAN_AUTO_FIELDS = {'sensitivity_block', 'pipe_size', 'thickness', 'probe_model', 'wedge_model'}
+SCAN_PLAN_AUTO_FIELDS = {'sensitivity_block', 'pipe_size', 'thickness', 'probe_model', 'wedge_model',
+                         'outside_diameter'}
 
 
 def mark_scan_plan(form):

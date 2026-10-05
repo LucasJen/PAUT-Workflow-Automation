@@ -367,7 +367,8 @@ class ExactGeometryTests(TestCase):
         values = self.client.get(reverse('new-scan-plan')).context['catalogue_fill_values']
         block = SensitivityBlock.objects.get(pipe_size='6in Sch 40')
         self.assertEqual(values['sensitivity_block'][block.pk],
-                         {'pipe_size': '6in Sch 40', 'thickness': 0.28, 'bevel_angle': 37.0, 'shear_velocity': 0.128})
+                         {'pipe_size': '6in Sch 40', 'thickness': 0.28, 'outside_diameter': 6.625, 'bevel_angle': 37.0,
+                          'shear_velocity': 0.128})
         wedge = WedgeModel.objects.get(model='SA1-N60S')
         self.assertEqual(values['wedge_model'][wedge.pk], {'wedge_angle': 38.9, 'wedge_primary_offset': '', 'wedge_first_element_height': '', 'wedge_velocity': '', 'wedge_length': '', 'wedge_height': ''})
 

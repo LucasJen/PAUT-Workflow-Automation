@@ -5,7 +5,9 @@
 // line and the depth. Dragging the wedge moves the probe and reports the new index offset.
 //
 // Scene coordinates are inches: weld centre line at x = 0, scanning surface at y = 0, depth down.
-// A mirrored scene (270 deg skew) is flipped here, so the readouts use the scene's own x.
+// A mirrored scene (270 deg skew) is flipped here, so the readouts use the scene's own x. A pipe
+// section (meta.od_radius: beams round a long seam) has its centre at (0, radius): distances are
+// then along the OD and depths below it, and dragging rolls the wedge round the centre.
 
 (function () {
     const SVG = 'http://www.w3.org/2000/svg';
@@ -159,6 +161,18 @@
             return { svgX: point.x, x: this.X(point.x), y: point.y };   // X() is its own inverse
         }
 
+        // Distance along the scanning surface from the weld centre line (along the OD on a pipe)
+        along([x, y]) {
+            const r = this.scene.meta.od_radius;
+            return r ? r * Math.atan2(x, r - y) : x;
+        }
+
+        // Depth below the scanning surface (below the OD on a pipe)
+        depth([x, y]) {
+            const r = this.scene.meta.od_radius;
+            return r ? r - Math.hypot(x, y - r) : y;
+        }
+
         unitsPerPixel() {
             return (this.view || this.fit)[2] / this.svg.getBoundingClientRect().width;
         }
@@ -226,13 +240,17 @@
             const drag = this.drag, here = this.toScene(event);
             const step = this.options.step();
             // Towards the weld (+x in the scene) shortens the offset; never past the centre line
-            let offset = drag.offset - (here.x - drag.start.x);
+            let offset = drag.offset - (this.along([here.x, here.y]) - this.along([drag.start.x, drag.start.y]));
             offset = Math.max(0, Math.round(offset / step) * step);
-            const shift = drag.offset - offset;                    // scene x the probe moved
+            const shift = drag.offset - offset;                    // how far the probe moved, along the surface
             drag.moved = drag.moved || Math.abs(shift) > 1e-9;
             drag.newOffset = offset;
-            const svgShift = this.scene.mirror ? -shift : shift;
-            this.moving.forEach(g => g.setAttribute('transform', `translate(${svgShift} 0)`));
+            const sign = this.scene.mirror ? -1 : 1;
+            const r = this.scene.meta.od_radius;
+            const transform = r   // round the pipe's centre: everything on it turns with the wedge
+                ? `rotate(${sign * shift / r * 180 / Math.PI} ${this.X(0)} ${r})`
+                : `translate(${sign * shift} 0)`;
+            this.moving.forEach(g => g.setAttribute('transform', transform));
             this.dimension.forEach(g => { g.style.display = 'none'; });
             const rows = [['Index offset', this.options.format(offset)]];
             if (offset < this.scene.meta.toe - 1e-9) {   // the suggestion never goes there
@@ -250,10 +268,12 @@
                 if (near && near.distance <= reach && (!best || near.distance < best.near.distance)) best = { beam, near };
             }
             const t = this.scene.meta.thickness;
-            const inPart = p.y >= 0 && p.y <= t;
+            const depth = this.depth([p.x, p.y]);
+            const inPart = depth >= 0 && depth <= t;
             const format = this.options.format;
+            const onOd = this.scene.meta.od_radius ? ' along the OD' : '';
             this.readout.textContent = inPart
-                ? `Cursor: ${format(Math.abs(p.x))} from the weld C/L, depth ${format(p.y)}`
+                ? `Cursor: ${format(Math.abs(this.along([p.x, p.y])))} from the weld C/L${onOd}, depth ${format(depth)}`
                 : '';
             if (!best) {
                 this.clearHover(false);
@@ -266,15 +286,18 @@
             this.dot.setAttribute('cx', this.X(x));
             this.dot.setAttribute('cy', y);
             this.dot.style.display = '';
-            const exit = points[0][0];
+            const exit = this.along(points[0]), here = this.along([x, y]);
             const rows = [
                 ['Beam', `${+shape.data.angle.toFixed(1)}°, leg ${segment + 1}`],
                 ['Sound path', `${format(along)} of ${format(shape.data.sound_path)}`],
-                ['Depth', format(y)],
-                ['From exit point', format(Math.abs(x - exit))],
-                ['From weld C/L', format(Math.abs(x))],
+                ['Depth', format(this.depth([x, y]))],
+                ['From exit point', format(Math.abs(here - exit))],
+                ['From weld C/L', format(Math.abs(here))],
             ];
-            if (points.length > 1) rows.push(['Half skip', format(Math.abs(points[1][0] - exit))]);
+            if (shape.data.refracted !== undefined) {   // round a pipe, it enters at its own angle
+                rows.splice(1, 0, ['Refracted', `${shape.data.refracted.toFixed(1)}° at the OD`]);
+            }
+            if (points.length > 1) rows.push(['Half skip', format(Math.abs(this.along(points[1]) - exit))]);
             this.showTip(event, rows);
         }
 
