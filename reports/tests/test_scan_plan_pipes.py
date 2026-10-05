@@ -114,3 +114,68 @@ class PipeFormTests(TestCase):
         self.assertGreater(pipe['refracted'][1], pipe['nominal'][1])
         self.assertTrue(pipe['lift_off_warning'])           # an SA1-size flat wedge on 6.625" lifts > 0.5 mm
         self.assertIsNone(self.client.get(reverse('scan-plan-scenes'), PLAN_FIELDS).json()['pipe'])
+
+
+class ReflectorTests(TestCase):
+    from reports.services.scan_plan import reflectors as R
+
+    def flat_plan(self, items, **fields):
+        return plan(beam_direction='axial', index_offset=0.35, angle_start=40, angle_stop=70,
+                    reflectors=self.R.clean(items, 0.28), **fields)
+
+    def test_clean_checks_and_drops_unused_values(self):
+        items = self.R.clean([{'kind': 'sidewall', 'side': '270', 'depth': '0.1', 'size': '0.1', 'distance': '9'}])
+        self.assertEqual(items, [{'kind': 'sidewall', 'label': 'LOF 1', 'side': 270, 'depth': 0.1, 'size': 0.1}])
+        for bad, message in (([{'kind': 'x'}], 'pick a type'),
+                             ([{'kind': 'sdh', 'distance': 0, 'depth': 0.1}], 'enter its size'),
+                             ([{'kind': 'sdh', 'distance': 0, 'depth': 0.5, 'size': 0.06}], 'past the wall')):
+            with self.assertRaisesMessage(ValueError, message):
+                self.R.clean(bad, 0.28)
+
+    def test_hole_hit_by_the_beams_through_it(self):
+        p = self.flat_plan([{'kind': 'sdh', 'side': 90, 'distance': 0.1, 'depth': 0.14, 'size': 0.0625}])
+        scene = scan_plan.build_scene(p, analysis=True)
+        (result,) = scene.meta['reflectors']
+        self.assertTrue(result['hits'])
+        best = result['best']
+        self.assertLess(best['miss'], 0.0625 / 2)
+        # Every listed beam really passes within the hole's radius
+        for beam in (s for s in scene.shapes if s.get('group') == 'beam' and 'hits' in s.get('data', {})):
+            self.assertEqual(beam['data']['hits'][0]['label'], 'SDH 1')
+
+    def test_planar_flaw_square_on_beam_is_best(self):
+        # A flaw tilted 30 deg towards the C/L on the 90 side is square-on to a ~60 deg first-leg beam
+        p = self.flat_plan([{'kind': 'flaw', 'side': 90, 'distance': 0.05, 'depth': 0.14, 'size': 0.1, 'angle': -30}])
+        (result,) = scan_plan.build_scene(p, analysis=True).meta['reflectors']
+        self.assertTrue(result['hits'])
+        self.assertLess(result['best']['incidence'], result['hits'][0]['incidence'] + 1e-9)
+
+    def test_reflector_behind_the_wedge_is_not_reached(self):
+        p = self.flat_plan([{'kind': 'od_notch', 'side': 90, 'distance': 1.5, 'size': 0.04}])
+        (result,) = scan_plan.build_scene(p, analysis=True).meta['reflectors']
+        self.assertEqual((result['hits'], result['best']), ([], None))
+
+    def test_mirrored_drawing_puts_reflectors_where_they_are(self):
+        p = self.flat_plan([{'kind': 'sdh', 'side': 90, 'distance': 0.2, 'depth': 0.14, 'size': 0.0625}])
+        hole = lambda scene: next(s for s in scene.shapes if s.get('fill') == 'reflector_fill')
+        x1 = sum(x for x, _ in hole(scan_plan.build_scene(p, 1, analysis=True))['points']) / 32
+        x2 = sum(x for x, _ in hole(scan_plan.build_scene(p, 2, analysis=True))['points']) / 32
+        self.assertAlmostEqual(x1, -0.2)
+        self.assertAlmostEqual(x2, 0.2)     # flipped back by the drawing: still on the 90 side
+
+    def test_printed_only_when_asked(self):
+        items = [{'kind': 'sdh', 'side': 90, 'distance': 0.1, 'depth': 0.14, 'size': 0.0625}]
+        quiet, printed = self.flat_plan(items), self.flat_plan(items, print_reflectors=True)
+        has = lambda scene: any(s.get('group') == 'reflector' for s in scene.shapes)
+        self.assertFalse(has(scan_plan.build_scene(quiet)))
+        self.assertTrue(has(scan_plan.build_scene(printed)))
+
+    def test_form_saves_reflectors_and_rejects_bad_ones(self):
+        import json
+        good = json.dumps([{'kind': 'sdh', 'side': 90, 'distance': 0.1, 'depth': 0.14, 'size': 0.0625}])
+        self.client.post(reverse('new-scan-plan'), {**PLAN_FIELDS, 'reflectors': good})
+        self.assertEqual(ScanPlan.objects.get().reflectors[0]['label'], 'SDH 1')
+        bad = json.dumps([{'kind': 'sdh', 'side': 90, 'distance': 0.1, 'depth': 0.9, 'size': 0.0625}])
+        resp = self.client.get(reverse('scan-plan-scenes'), {**PLAN_FIELDS, 'reflectors': bad})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('past the wall', resp.json()['fields']['reflectors']['errors'][0])

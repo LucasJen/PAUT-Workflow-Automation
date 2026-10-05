@@ -105,7 +105,7 @@
                     group = make('g', { class: name ? `scene-${name}` : null }, this.svg);
                     groupName = name;
                     if (name === 'probe' || name === 'beam') this.moving.push(group);
-                    if (name === 'dimension') this.dimension.push(group);
+                    if (name === 'dimension' || name === 'best') this.dimension.push(group);   // hidden while dragging
                 }
                 const node = this.shape(shape, group);
                 if (name === 'beam') this.beams.push({ shape, node });
@@ -137,7 +137,7 @@
                     const baseline = { m: 'central', b: 'text-after-edge', t: 'text-before-edge' }[(s.anchor || 'mm')[1]];
                     const text = make('text', {
                         x: this.X(s.at[0]), y: s.at[1], 'font-size': s.size / this.px, 'font-family': 'Arial, sans-serif',
-                        'text-anchor': 'middle', 'dominant-baseline': baseline, fill: this.colour(s.stroke || 'text'),
+                        'text-anchor': { l: 'start', r: 'end' }[(s.anchor || 'mm')[0]] || 'middle', 'dominant-baseline': baseline, fill: this.colour(s.stroke || 'text'),
                         ...(s.halo ? { stroke: '#fff', 'stroke-width': 6 / this.px, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {}),
                     }, parent);
                     text.textContent = s.text;
@@ -298,6 +298,9 @@
                 rows.splice(1, 0, ['Refracted', `${shape.data.refracted.toFixed(1)}° at the OD`]);
             }
             if (points.length > 1) rows.push(['Half skip', format(Math.abs(this.along(points[1]) - exit))]);
+            for (const h of shape.data.hits || []) {   // reflectors this beam meets
+                rows.push([`Meets ${h.label}`, `leg ${h.leg}, SP ${format(h.sound_path)}`]);
+            }
             this.showTip(event, rows);
         }
 

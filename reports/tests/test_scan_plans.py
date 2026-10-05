@@ -462,7 +462,7 @@ class ScanPlanFormLayoutTests(TestCase):
         self.assertEqual(sections['Beams'], ['angle_start', 'angle_stop', 'legs', 'angle_step'])
         hidden = {f.name for f in form.hidden_fields()}
         self.assertEqual(hidden, {'wedge_angle', 'exit_point', 'wedge_primary_offset', 'wedge_first_element_height',
-                                  'wedge_velocity', 'wedge_length', 'wedge_height'})
+                                  'wedge_velocity', 'wedge_length', 'wedge_height', 'reflectors'})
         self.assertFalse(any(name in hidden for names in sections.values() for name in names))
         self.assertEqual((form['angle_start'].initial, form['angle_stop'].initial), (40.0, 70.0))
         page = self.client.get(reverse('new-scan-plan')).content.decode()

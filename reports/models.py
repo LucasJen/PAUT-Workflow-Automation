@@ -173,6 +173,12 @@ class ScanPlan(models.Model):
     wedge_contour = models.CharField(max_length=10, default=FLAT_WEDGE, choices=[
         (FLAT_WEDGE, 'Flat'), (CONTOURED_WEDGE, 'Contoured to the OD')])
 
+    # Reflectors to check the beams against (reports/services/scan_plan/reflectors.py): a list of
+    # {kind, label, side, distance, depth, size, angle}, lengths in inches. Drawn in the editor;
+    # on the printed drawing only with print_reflectors.
+    reflectors = models.JSONField(default=list, blank=True)
+    print_reflectors = models.BooleanField(default=False)
+
     # Probe position and beams
     index_offset = models.FloatField(null=True, blank=True,
                                      help_text='Wedge front to weld centre line. Blank = the weld toe (half the cap width).')

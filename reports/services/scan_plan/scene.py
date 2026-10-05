@@ -20,6 +20,7 @@ from .geometry import (
     wrap, wrap_path,
 )
 from .probe import at_position
+from . import reflectors as reflector_shapes
 
 
 @dataclass
@@ -133,11 +134,50 @@ def build_scene(plan, side=1, position=1, analysis=False):
     # Weld centre line
     scene.add('dashed', a=(0, -cap_height - 0.12), b=(0, t + root_height + 0.12), stroke='centre_line', width=1)
 
-    for beam in traces:
+    # Reflectors (the editor's drawing; the printed one only when asked): which beams meet each
+    reflectors = []
+    if (analysis or getattr(plan, 'print_reflectors', False)) and getattr(plan, 'reflectors', None):
+        reflectors = reflector_shapes.shapes(plan, -1 if side == 2 else 1)
+    beam_hits = [{} for _ in traces]                  # per beam: {reflector index: hit}
+    for i, shape in enumerate(reflectors):
+        for j, beam in enumerate(traces):
+            found = reflector_shapes.hit(beam.points, shape)
+            if found:
+                beam_hits[j][i] = found
+
+    for beam, hits in zip(traces, beam_hits):
         data = {'angle': beam.angle, 'sound_path': beam.sound_path, 'surfaces': beam.surfaces}
         if beam.refracted is not None:   # on a curved OD, the angle it really enters at
             data['refracted'] = beam.refracted
+        if hits:
+            data['hits'] = [{'label': reflectors[i].label, 'leg': h['leg'], 'sound_path': h['sound_path']}
+                            for i, h in hits.items()]
         scene.add('line', points=beam.points, stroke='beam', width=0.8, group='beam', data=data)
+
+    if reflectors:
+        summaries = []
+        for i, shape in enumerate(reflectors):
+            met = [(traces[j].angle, hits[i]) for j, hits in enumerate(beam_hits) if i in hits]
+            summary = reflector_shapes.summary(shape, met)
+            summaries.append(summary)
+            if summary['best']:   # the best beam, up to where it meets the reflector
+                beam = next(traces[j] for j, hits in enumerate(beam_hits)
+                            if i in hits and traces[j].angle == summary['best']['angle'])
+                found = beam_hits[traces.index(beam)][i]
+                path = beam.points[:found['leg']] + [found['point']]
+                scene.add('line', points=path, stroke='reflector_beam', width=1.8, group='best',
+                          data={'best_for': shape.label})
+            if shape.centre is not None:
+                scene.add('polygon', points=reflector_shapes.circle_points(shape), fill='reflector_fill',
+                          stroke='reflector', width=1.5, group='reflector', data={'reflector': shape.label})
+                tag = (shape.centre[0] + shape.radius, shape.centre[1] - shape.radius)
+            else:
+                scene.add('line', points=shape.path, stroke='reflector', width=2.5, group='reflector',
+                          data={'reflector': shape.label})
+                tag = min(shape.path, key=lambda p: p[1])
+            scene.add('text', at=(tag[0] + 0.02, tag[1] - 0.02), text=shape.label, size=13, stroke='reflector',
+                      anchor='lb', halo=True, group='reflector')
+        scene.meta['reflectors'] = summaries
 
     # Wedge and probe (a flat wedge on a pipe: the couplant gap under its ends)
     if beams.couplant:

@@ -1384,6 +1384,30 @@ textarea.result-cell-input {
 .coverage-summary.is-full { border-left-color: var(--success, #198754); }
 .coverage-summary.is-short { border-left-color: var(--danger, #dc3545); }
 
+/* Scan plan reflectors: the editor's rows (scan_plan_reflectors.js) and which beams meet them */
+.reflector-editor { grid-column: 1 / -1; padding: 6px 8px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.reflector-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; table-layout: fixed; }
+.reflector-table th { font-weight: 600; color: var(--text-2); padding: 0 3px 2px; white-space: nowrap; cursor: help; }
+.reflector-table td { padding: 1px 2px; }
+.reflector-table .form-control, .reflector-table .form-select { min-width: 0; padding: 0.1rem 0.35rem; font-size: 0.75rem; }
+.reflector-table .form-select { padding-right: 1.4rem; background-position: right 0.3rem center; }
+/* Name, type, side, from C/L, depth, size, tilt, remove */
+.reflector-table th:nth-child(1) { width: 15%; }
+.reflector-table th:nth-child(2) { width: 23%; }
+.reflector-table th:nth-child(3) { width: 13%; }
+.reflector-table th:nth-child(4), .reflector-table th:nth-child(5), .reflector-table th:nth-child(6) { width: 12%; }
+.reflector-table th:nth-child(7) { width: 9%; }
+.reflector-table th:nth-child(8) { width: 2.2rem; }
+.reflector-table .form-control { padding-left: 0.25rem; padding-right: 0.25rem; }
+.reflector-table .form-control:disabled { background: var(--surface-2); opacity: 0.45; }
+.reflector-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 4px; }
+.reflector-actions .form-select { width: auto; }
+.reflector-empty { margin: 0; font-size: 0.75rem; color: var(--text-3); }
+.reflector-summary { margin: 0 0 1rem; }
+.reflector-results td:first-child { white-space: nowrap; font-weight: 600; }
+.reflector-results.wedge-data-table td:last-child { text-align: left; }
+.reflector-results tr.is-missed td { color: var(--danger); }
+
 /* Catalogue import: a file button that sits in the page header actions */
 .catalogue-import { display: contents; }
 

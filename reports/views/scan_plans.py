@@ -19,6 +19,7 @@ from ..services.scan_plan import (
 )
 from ..services.scan_plan.beams import LIFT_OFF_WARNING, fan as beam_fan
 from ..services.scan_plan.coverage import drawings as plan_drawings
+from ..services.scan_plan import reflectors as reflector_kinds
 from ..services.scan_plan.geometry import outside_diameter
 from ..services.scan_plan.render import COLOURS, WIDTH_PX
 
@@ -228,6 +229,7 @@ def _edit_page(request, form, plan):
         'form': form, 'plan': plan, 'setup_fill_values': _setup_fill_values(),
         'group_fill_values': _group_fill_values(),
         'advanced_fields': list(ScanPlanForm.ADVANCED_FIELDS),
+        'reflector_kinds': reflector_kinds.KINDS, 'reflector_uses': reflector_kinds.USES,
         'catalogue_fill_values': {
             'sensitivity_block': _block_fill_values(),
             'wedge_model': _wedge_fill_values(),

@@ -11,6 +11,7 @@ from equipment.models import ProbeModel
 from . import fill_marks, weld_form
 from .models import Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
+from .services.scan_plan import reflectors as scan_plan_reflectors
 from .services.scan_plan.geometry import first_number
 from datetime import date
 import json
@@ -436,6 +437,8 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         ('Probe and wedge', ['probe_model', 'wedge_model', 'first_element', 'aperture_elements']),
         # Two columns: start / stop angle, then beam legs / angle step under them
         ('Beams', ['angle_start', 'angle_stop', 'legs', 'angle_step']),
+        # The reflector table (scan_plan_reflectors.js edits the hidden reflectors field) and its print box
+        ('Reflectors', ['print_reflectors']),
         (None, ['notes']),
         # wedge_angle and exit_point are hidden: they come from the selected wedge; mode is the
         # Simple / Advanced switch above the fields
@@ -445,7 +448,7 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                        'aperture_elements', 'legs', 'angle_step', 'weld_type', 'bevel_side', 'bottom_bevel_angle',
                        'land_depth', 'upper_bevel_angle', 'transition_height', 'root_radius', 'cap_height',
                        'root_height', 'counterbore_depth', 'counterbore_length', 'counterbore_taper',
-                       'beam_direction', 'outside_diameter', 'wedge_contour')
+                       'beam_direction', 'outside_diameter', 'wedge_contour', 'print_reflectors')
     # A form posted without these keeps the model's default
     OPTIONAL_WITH_DEFAULT = ('weld_type', 'bevel_side', 'bottom_bevel_angle', 'upper_bevel_angle',
                              'transition_height', 'root_radius', 'counterbore_length', 'counterbore_taper',
@@ -498,6 +501,7 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'beam_direction': 'Beam direction',
             'outside_diameter': 'Outside diameter',
             'wedge_contour': 'Wedge bottom',
+            'print_reflectors': 'Print reflectors',
         }
         # Shown when the cursor is over an input or its name (components/field_cell.html)
         help_texts = {
@@ -565,6 +569,8 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                                 "diameter; type over it for a custom OD. Blank = the block's.",
             'wedge_contour': 'Flat: the wedge rocks on the OD and lifts off at its ends (the gap is shown and '
                              'warned about). Contoured: its bottom is machined to the OD.',
+            'print_reflectors': "Also draw the reflectors (and each one's best beam) on the report's Scan Plan "
+                                'page. They are always drawn here.',
         }
         widgets = {
             'notes': Textarea(attrs={'rows': 2}),
@@ -581,6 +587,7 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'wedge_velocity': HiddenInput(),
             'wedge_length': HiddenInput(),
             'wedge_height': HiddenInput(),
+            'reflectors': HiddenInput(),
         }
 
     def __init__(self, *args, **kwargs):
@@ -591,6 +598,7 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         self.fields['mode'].required = self.fields['haz_width'].required = False
         for name in self.OPTIONAL_WITH_DEFAULT:
             self.fields[name].required = False
+        self.fields['reflectors'].required = False
         # Which fields each weld type / beam direction uses (scan_plan.js shows only those)
         self.fields['weld_type'].widget.attrs['data-shows-fields'] = json.dumps(SCAN_PLAN_WELD_TYPE_FIELDS)
         self.fields['beam_direction'].widget.attrs['data-shows-fields'] = json.dumps(SCAN_PLAN_BEAM_DIRECTION_FIELDS)
@@ -656,6 +664,10 @@ class ScanPlanForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                 self.add_error('outside_diameter', "Enter the pipe's OD, or pick a sensitivity block with a test diameter.")
             elif data.get('thickness') and od <= 2 * data['thickness']:
                 self.add_error('outside_diameter', 'The OD must be more than twice the thickness.')
+        try:
+            data['reflectors'] = scan_plan_reflectors.clean(data.get('reflectors'), data.get('thickness'))
+        except ValueError as error:
+            self.add_error('reflectors', str(error))
         taper = data.get('counterbore_taper')
         if taper is not None and not 1 <= taper <= 90:
             self.add_error('counterbore_taper', 'Enter a taper from 1 to 90°.')

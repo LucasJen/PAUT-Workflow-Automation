@@ -88,6 +88,20 @@
                     </button>
                     <span class="scan-plan-status" id="suggest-status" role="status" hidden></span>
                 </div>
+                {% elif title == 'Reflectors' %}
+                {# Rows of reflectors to check the beams against: scan_plan_reflectors.js #}
+                <div class="reflector-editor advanced-only" id="reflector-editor" data-field="reflector_table">
+                    <div class="reflector-rows"></div>
+                    <div class="reflector-actions">
+                        <select class="form-select form-select-sm" id="reflector-add" aria-label="Add a reflector"
+                                title="Add a reflector to check the beams against">
+                            <option value="">+ Add a reflector…</option>
+                            {% for kind, label in reflector_kinds.items %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
+                        </select>
+                        {% if form.reflectors.errors %}<span class="field-cell-error">{{ form.reflectors.errors|join:" " }}</span>{% endif %}
+                    </div>
+                </div>
+                {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
                 {% else %}
                 {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
                 {% endif %}
@@ -115,6 +129,8 @@
         <div class="coverage-summary" id="coverage-summary" hidden></div>
         {# Beams round a pipe: refracted angles against nominal, a flat wedge's lift-off (scan_plan.js) #}
         <div class="coverage-summary" id="pipe-summary" hidden></div>
+        {# Which beams meet each reflector, per drawing (scan_plan.js) #}
+        <div class="reflector-summary" id="reflector-summary" hidden></div>
         {# The wedge numbers the drawing uses (filled by scan_plan.js) #}
         <div class="wedge-data" id="wedge-data"></div>
     </section>
@@ -128,5 +144,8 @@
 {{ advanced_fields|json_script:"advanced-fields" }}
 <script src="{% static_v 'reports/js/fill_marks.js' %}"></script>
 <script src="{% static_v 'reports/js/scan_plan_view.js' %}"></script>
+{{ reflector_kinds|json_script:"reflector-kinds" }}
+{{ reflector_uses|json_script:"reflector-uses" }}
 <script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
+<script src="{% static_v 'reports/js/scan_plan_reflectors.js' %}"></script>
 {% endblock %}

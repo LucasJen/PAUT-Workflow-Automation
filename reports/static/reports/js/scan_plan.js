@@ -153,6 +153,46 @@ async function redraw() {
     showCoverage(data.coverage);
     showWedgeData(data.wedge);
     showPipe(data.pipe);
+    showReflectors(data.drawings);
+}
+
+// Reflectors: per drawing, which beams meet each one and the best of them
+const reflectorBox = document.getElementById('reflector-summary');
+
+function showReflectors(drawings) {
+    const byLabel = new Map();
+    for (const scene of drawings) {
+        for (const r of scene.meta.reflectors || []) {
+            if (!byLabel.has(r.label)) byLabel.set(r.label, []);
+            byLabel.get(r.label).push({ meta: scene.meta, ...r });
+        }
+    }
+    if (!byLabel.size) { reflectorBox.hidden = true; return; }
+    const table = document.createElement('table');
+    table.className = 'table table-sm wedge-data-table reflector-results mb-0';
+    table.createCaption().textContent = 'Reflectors: the beams that meet each one (best: closest to a hole\'s centre, '
+        + 'or most nearly square-on to a notch / flaw)';
+    const body = table.createTBody();
+    for (const [label, results] of byLabel) {
+        const row = body.insertRow();
+        row.insertCell().textContent = label;
+        const cell = row.insertCell();
+        const missed = results.every(r => !r.hits.length);
+        row.classList.toggle('is-missed', missed);
+        cell.textContent = results.map(r => {
+            const where = `${r.meta.side === 1 ? 90 : 270}°${r.meta.position === 2 ? ' (2nd offset)' : ''}`;
+            if (!r.hits.length) return `${where}: none`;
+            const angles = r.hits.map(h => h.angle);
+            const legs = [...new Set(r.hits.map(h => h.leg))].sort().join(' & ');
+            const b = r.best;
+            const quality = b.miss !== undefined ? '' : `, ${b.incidence.toFixed(0)}° off square`;
+            return `${where}: ${r.hits.length} beam${r.hits.length > 1 ? 's' : ''} ${Math.min(...angles)}–${Math.max(...angles)}° `
+                 + `(leg ${legs}); best ${+b.angle.toFixed(1)}° leg ${b.leg}, SP ${lengthText(b.sound_path)}${quality}`;
+        }).join(' · ');
+        if (missed) cell.textContent += ' — not reached by any beam';
+    }
+    reflectorBox.replaceChildren(table);
+    reflectorBox.hidden = false;
 }
 
 // Beams round a pipe (long seam): the angles they really enter at, and a flat wedge's lift-off

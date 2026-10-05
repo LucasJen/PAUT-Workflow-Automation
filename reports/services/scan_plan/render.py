@@ -28,6 +28,9 @@ COLOURS = {
     'gap': (248, 180, 180),
     'haz': (200, 110, 0),
     'couplant': (255, 226, 150),
+    'reflector': (200, 20, 20),
+    'reflector_fill': (255, 205, 205),
+    'reflector_beam': (240, 120, 0),
 }
 
 
