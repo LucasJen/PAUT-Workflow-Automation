@@ -237,13 +237,18 @@ def _edit_page(request, form, plan):
     })
 
 
+# A new plan opens with one drawing to start from: a 1/2" flat plate (axial beams) with the
+# model's standard single V (37.5 deg bevel, 1/16" gap and land, cap from the bevel), 90 deg skew only
+NEW_PLAN_START = {'thickness': 0.5, 'skew_90': True, 'skew_270': False}
+
+
 def new_scan_plan(request):
     """
     New scan plan, with the live drawing shown while it is filled in
     """
     if request.method == 'POST' and 'delete' in request.POST:  # 'Delete' on an unsaved plan = discard
         return redirect('scan-plan-list')
-    form = ScanPlanForm(request.POST or None)
+    form = ScanPlanForm(request.POST or None, initial=None if request.method == 'POST' else NEW_PLAN_START)
     if request.method == 'POST' and form.is_valid():
         plan = form.save()
         messages.success(request, f'Scan plan "{plan.name}" saved.')

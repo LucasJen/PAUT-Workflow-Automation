@@ -176,3 +176,19 @@ class FillMarkTests(TestCase):
         self.assertEqual(fields['thickness']['label'], 'Thickness')
         self.assertEqual(fields['thickness']['errors'], ['This field is required.'])
         self.assertIn('Enter an angle from 0 to 89°.', fields['bevel_angle']['errors'])
+
+
+class NewPlanStartTests(TestCase):
+    def test_new_plan_opens_with_one_drawing_of_a_half_inch_plate(self):
+        page = self.client.get(reverse('new-scan-plan'))
+        form = page.context['form']
+        self.assertEqual(form['thickness'].value(), 0.5)
+        self.assertEqual((form['skew_90'].value(), form['skew_270'].value()), (True, False))
+        self.assertEqual((form['bevel_angle'].value(), form['beam_direction'].value()), (37.5, 'axial'))
+        # What the page sends for its first drawing draws exactly one
+        values = {name: form[name].value() for name in ('thickness', 'bevel_angle', 'root_gap', 'root_face',
+                                                        'exit_point', 'wedge_angle', 'angle_start', 'angle_stop',
+                                                        'angle_step', 'legs', 'shear_velocity', 'first_element')}
+        data = self.client.get(reverse('scan-plan-scenes'), {**values, 'skew_90': 'on'}).json()
+        self.assertEqual(len(data['drawings']), 1)
+        self.assertEqual(data['drawings'][0]['meta']['thickness'], 0.5)
