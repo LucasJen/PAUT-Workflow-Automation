@@ -194,7 +194,7 @@ class ReportType:
 
 _TYPES = [
     ReportType(
-        'paut_long', 'PAUT long form (HIC)',
+        'paut_long', 'Long Form',
         sections=tuple(s for s in SECTIONS
                        if s not in ('weld_cal', 'equipment', 'materials', 'weld_results', 'weld_personnel')),
         hidden_fields=WELD_ONLY_FIELDS | CORROSION_ONLY_FIELDS,
@@ -213,7 +213,7 @@ _TYPES = [
         guided=True,
     ),
     ReportType(
-        'paut_corrosion', 'PAUT corrosion (Excel)',
+        'paut_corrosion', 'Short Form',
         template='paut_corrosion.xlsx', output_format='xlsx',
         # Form 598-PAUTFORM-009: Summary, a Setup Information page per setup, drawings, images
         sections=('project', 'weld_personnel', 'summary', 'setups', 'drawings', 'images'),

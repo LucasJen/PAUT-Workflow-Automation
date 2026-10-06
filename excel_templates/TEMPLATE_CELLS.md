@@ -31,7 +31,7 @@ updates every page. The page numbers (X4 / Z4) on each sheet are written by the 
 To change the template's look, edit it in Excel and keep the cell positions. If cells move,
 update the cell map in `excel_report.py` to match.
 
-## paut_corrosion.xlsx — PAUT corrosion report (form 598-PAUTFORM-009 Rev 0)
+## paut_corrosion.xlsx — Short Form report (form 598-PAUTFORM-009 Rev 0)
 
 A copy of `598-PAUTFORM-009 Rev_0 10.7.xlsx` with its sample job values (client, location, work
 order on Summary) cleared; the sheets keep their protection (no password), formulas, procedure
