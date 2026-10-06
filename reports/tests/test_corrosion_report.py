@@ -56,7 +56,7 @@ class CorrosionPagesTests(TestCase):
         self.assertEqual(s['AJ5'], date.today())   # no report date: today, as the form's =TODAY() would
         self.assertEqual(s['I8'], 'Lucas Jennings\nPAUT Level II')
         self.assertEqual(s['AC8'], '')
-        self.assertEqual((s['B11'], s['B16'], s['B45']), ('Manual 0 degree UT on the shell and heads.', 'No corrosion.', 'See drawing.'))
+        self.assertEqual((s['B11'], s['B18'], s['B43']), ('Manual 0 degree UT on the shell and heads.', 'No corrosion.', 'See drawing.'))
         self.assertEqual((pages.page_count, s['AO6']), (1, '1'))
 
     def test_a_setup_page_per_setup_with_its_first_image(self):

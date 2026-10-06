@@ -41,7 +41,8 @@ The cell map lives in `reports/services/corrosion_report.py`.
 Sheets:
 
 - **Summary** (page 1): the title ("…on Selected Areas On" + the equipment description), the
-  header, Examination Scope, Summary of Results and Notes. Total Pages (AO6) is counted.
+  header, Examination Scope (B11:AO16), Summary of Results (B18:AO41) and Notes (B43:AO48). Total Pages
+  (AO6) is counted. (Scope and Notes each got 2 of Summary of Results' rows; the page height is unchanged.)
 - **Setup Information**: master page, copied once per setup. The method (AG2) picks its
   description from the Formulas sheet (B5); a method the form doesn't list leaves it blank. The
   setup's first image goes in B10:AO44.

@@ -114,8 +114,8 @@ def _summary(report):
         'I8': _lines(report.weld_technician, report.weld_technician_cert),
         'AC8': _lines(report.weld_reviewer, report.weld_reviewer_cert),
         'B11': report.examination_scope,
-        'B16': report.executive_summary,
-        'B45': report.notes,
+        'B18': report.executive_summary,
+        'B43': report.notes,
     }
 
 
