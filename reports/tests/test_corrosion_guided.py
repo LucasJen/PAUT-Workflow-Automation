@@ -8,9 +8,10 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
+from equipment.models import ProbeModel
 from reports.models import Report, ReportImage, WorkingFolder
 from reports.services.corrosion_import import (
-    DRAWING, IMAGE, SETUP, caption_for, equipment_from_folder, guess_role, method_of,
+    DRAWING, IMAGE, SETUP, build_corrosion_report, caption_for, equipment_from_folder, guess_role, method_of,
 )
 from reports.tests.test_job_folder_flow import nde_bytes
 
@@ -116,6 +117,14 @@ class CorrosionGuidedTests(TestCase):
         self.client.post(reverse('confirm-job'), {'role_0': 'skip', 'role_1': 'image', 'caption_1': 'B'})
         self.assertEqual(list(Report.objects.get().images.values_list('caption', flat=True)), ['B'])
         self.assertContains(self.start(folder_mode='none'), "Choose the job")   # files only needs files
+
+    def test_catalogue_matches_link_the_setup(self):
+        probe = ProbeModel.objects.create(model='TEST-PROBE-1')
+        files = [{'filename': 'a.nde', 'setups': [{'label': 'G1', 'method': 'HydroFORM', 'values': {
+            'title': 'HydroFORM', 'transducer_model': '5L64-A2', 'catalogue_probe': probe.pk, 'catalogue_wedge': ''}}]}]
+        report, _ = build_corrosion_report(files, [])
+        setup = report.setups.get()
+        self.assertEqual((setup.catalogue_probe, setup.catalogue_wedge), (probe, None))
 
     def test_the_weld_flow_is_unchanged(self):
         WorkingFolder.objects.create(path=str(self.root), report_type='paut_weld', is_default=True)
