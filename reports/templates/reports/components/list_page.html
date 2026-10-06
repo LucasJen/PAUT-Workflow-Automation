@@ -19,9 +19,11 @@ cells may set data-sort-value (e.g. ISO dates).
         <button type="button" class="btn btn-secondary btn-sm" id="clear-selection" title="Untick all rows">
             <i class="bi bi-x-lg"></i> Clear
         </button>
+        {% block bulk_duplicate %}
         <button type="submit" form="list-form" name="duplicate" class="btn btn-secondary btn-sm" id="duplicate-btn">
             <i class="bi bi-copy"></i> Duplicate
         </button>
+        {% endblock %}
         <button type="submit" form="list-form" name="delete" class="btn btn-danger btn-sm"
                 data-confirm="Delete {count} {% block item_noun %}item{% endblock %}{s}? This can't be undone.">
             <i class="bi bi-trash"></i> Delete

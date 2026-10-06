@@ -1,0 +1,14 @@
+{% extends 'reports/components/edit_page.html' %}
+
+{% block title %}{{ document.title }} · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url library.list %}{% endblock %}
+{% block back_label %}{{ library.title }}{% endblock %}
+{% block page_title %}{{ document.title }}{% endblock %}
+{% block page_subtitle %}
+<a href="{{ document.file.url }}" target="_blank" rel="noopener" class="mono">
+    <i class="bi bi-file-earmark-pdf"></i> {{ document.filename }}
+</a>
+{% endblock %}
+{% block item_noun %}{{ library.noun }}{% endblock %}
+{% block form_attrs %} enctype="multipart/form-data"{% endblock %}
+{% block grid_cols %}cols-2{% endblock %}

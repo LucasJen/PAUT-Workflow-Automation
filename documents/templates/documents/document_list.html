@@ -1,0 +1,53 @@
+{% extends 'reports/components/list_page.html' %}
+{% load static ui %}
+
+{% block title %}{{ library.title }} · PAUT Report Automation{% endblock %}
+{% block page_title %}{{ library.title }}{% endblock %}
+{% block item_noun %}{{ library.noun }}{% endblock %}
+{% block bulk_duplicate %}{% endblock %}
+
+{% block new_button %}
+{# One or many PDFs at once; they can also be dropped anywhere on the page (pdf_drop.js) #}
+<form method="post" enctype="multipart/form-data" id="upload-form" class="catalogue-import">
+    {% csrf_token %}
+    <input type="hidden" name="upload" value="1">
+    <label class="btn btn-primary mb-0" title="Upload one or more PDFs (or drop them on the page)">
+        <i class="bi bi-upload"></i> Upload PDFs
+        <input type="file" name="files" id="upload-input" accept=".pdf,application/pdf" multiple hidden
+               onchange="this.form.submit()">
+    </label>
+</form>
+{% endblock %}
+
+{% block columns %}
+<th class="sortable">Title<span class="sort-indicator"></span></th>
+<th class="sortable">File<span class="sort-indicator"></span></th>
+<th class="sortable">Notes<span class="sort-indicator"></span></th>
+<th class="sortable">Uploaded<span class="sort-indicator"></span></th>
+<th></th>
+{% endblock %}
+
+{% block rows %}
+{% for document in items %}
+<tr data-href="{% url library.edit document.pk %}">
+    {% include 'reports/components/row_check.html' with pk=document.pk %}
+    <td class="fw-medium">{{ document.title }}</td>
+    <td class="mono">{{ document.filename }}</td>
+    <td>{{ document.notes|truncatechars:80 }}</td>
+    <td data-sort-value="{{ document.uploaded_at|date:'c' }}">{{ document.uploaded_at|date:'Y-m-d' }}</td>
+    <td class="text-end">
+        <a href="{{ document.file.url }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" title="Open the PDF in a new tab">
+            <i class="bi bi-file-earmark-pdf"></i> Open
+        </a>
+    </td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block empty_icon %}{{ library.icon }}{% endblock %}
+{% block empty_text %}No PDFs yet. Use Upload PDFs, or drop files on this page.{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="{% static_v 'reports/js/pdf_drop.js' %}"></script>
+{% endblock %}

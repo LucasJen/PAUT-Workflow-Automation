@@ -19,7 +19,7 @@
         const checked = tbody.querySelectorAll('.row-check:checked').length;
         bulkBar.classList.toggle('visible', checked > 0);
         bulkCount.textContent = `${checked} selected`;
-        duplicateBtn.hidden = checked !== 1;
+        if (duplicateBtn) duplicateBtn.hidden = checked !== 1;
         const visible = rows().filter(r => !r.hidden);
         selectAll.checked = visible.length > 0 && visible.every(r => r.querySelector('.row-check').checked);
     }

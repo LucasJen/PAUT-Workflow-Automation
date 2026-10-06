@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'django.forms',
     'reports',
     'equipment',
+    'documents',
 ]
 
 # Form fields rendered with {{ form.x.as_field_group }} use reports/components/field.html

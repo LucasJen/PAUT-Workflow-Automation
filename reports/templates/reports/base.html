@@ -90,6 +90,17 @@
             <i class="bi bi-record-circle"></i><span class="nav-label">Encoders</span>
         </a>
 
+        <div class="nav-group-label">Documentation</div>
+        <a class="nav-item-link {% nav_active 'procedure-list' 'edit-procedure' %}" href="{% url 'procedure-list' %}" title="Procedures">
+            <i class="bi bi-journal-check"></i><span class="nav-label">Procedures</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'code-material-list' 'edit-code-material' %}" href="{% url 'code-material-list' %}" title="Code Material">
+            <i class="bi bi-book"></i><span class="nav-label">Code Material</span>
+        </a>
+        <a class="nav-item-link {% nav_active 'training-material-list' 'edit-training-material' %}" href="{% url 'training-material-list' %}" title="Training Material">
+            <i class="bi bi-mortarboard"></i><span class="nav-label">Training Material</span>
+        </a>
+
         <div class="sidebar-footer">
             <button type="button" class="nav-item-link" id="theme-toggle" title="Toggle theme">
                 <i class="bi bi-moon"></i><span class="nav-label">Dark mode</span>
