@@ -16,6 +16,8 @@ LIBRARIES = {
                     'title': 'Code Material', 'noun': 'document', 'icon': Document.ICONS[Document.CODE]},
     Document.TRAINING: {'list': 'training-material-list', 'edit': 'edit-training-material',
                         'title': 'Training Material', 'noun': 'document', 'icon': Document.ICONS[Document.TRAINING]},
+    Document.FORM: {'list': 'report-form-list', 'edit': 'edit-report-form',
+                    'title': 'Report Forms', 'noun': 'form', 'icon': Document.ICONS[Document.FORM]},
 }
 
 

@@ -46,6 +46,13 @@ class DocumentLibraryTests(TestCase):
         doc = Document.objects.get(title='ASME V')
         self.assertEqual(self.client.get(reverse('edit-training-material', args=[doc.pk])).status_code, 404)
 
+    def test_report_forms_library(self):
+        self.client.post(reverse('report-form-list'), {'upload': '1', 'files': [pdf('Weld form.pdf')]})
+        doc = Document.objects.get()
+        self.assertEqual(doc.category, Document.FORM)
+        self.assertContains(self.client.get(reverse('report-form-list')), 'Weld form')
+        self.assertEqual(self.client.get(reverse('edit-report-form', args=[doc.pk])).status_code, 200)
+
     def test_replace_and_delete_remove_the_old_file(self):
         self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('old.pdf')]})
         doc = Document.objects.get()
@@ -111,10 +118,12 @@ class DashboardDocumentsTests(TestCase):
         self.make('PAUT-001', notes='Girth welds')
         self.make('ASME V Article 4', Document.CODE)
         self.make('Level II course', Document.TRAINING)
+        self.make('Weld inspection form', Document.FORM)
         search = lambda q: [d.title for d in self.client.get(reverse('document-search'), {'q': q}).context['documents']]
         self.assertEqual(search('girth'), ['PAUT-001'])
         self.assertEqual(search('asme article'), ['ASME V Article 4'])
         self.assertEqual(search('training'), ['Level II course'])
+        self.assertEqual(search('report forms'), ['Weld inspection form'])
         self.assertContains(self.client.get(reverse('document-search'), {'q': 'zzz'}), 'No documents match')
 
     def test_opening_a_document_serves_the_pdf_and_moves_it_to_the_top(self):

@@ -19,4 +19,8 @@ urlpatterns = [
          name='training-material-list'),
     path('training-material/<int:pk>/edit/', views.edit_document, {'category': Document.TRAINING},
          name='edit-training-material'),
+
+    path('report-forms/', views.document_list, {'category': Document.FORM}, name='report-form-list'),
+    path('report-form/<int:pk>/edit/', views.edit_document, {'category': Document.FORM},
+         name='edit-report-form'),
 ]

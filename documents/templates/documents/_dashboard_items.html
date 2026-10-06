@@ -17,6 +17,6 @@
 <p class="text-body-secondary mb-0">No documents match “{{ query }}”.</p>
 {% else %}
 <p class="text-body-secondary mb-0">No documents yet. Upload PDFs to
-    <a href="{% url 'procedure-list' %}">Procedures</a>, <a href="{% url 'code-material-list' %}">Code Material</a>
-    or <a href="{% url 'training-material-list' %}">Training Material</a>.</p>
+    <a href="{% url 'procedure-list' %}">Procedures</a>, <a href="{% url 'code-material-list' %}">Code Material</a>,
+    <a href="{% url 'training-material-list' %}">Training Material</a> or <a href="{% url 'report-form-list' %}">Report Forms</a>.</p>
 {% endif %}

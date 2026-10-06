@@ -21,14 +21,16 @@ class DocumentQuerySet(models.QuerySet):
 
 
 class Document(models.Model):
-    """A PDF kept in one of the documentation libraries (procedures, code material, training material)."""
+    """A PDF kept in one of the documentation libraries (procedures, code / training material, report forms)."""
     PROCEDURE = 'procedure'
     CODE = 'code'
     TRAINING = 'training'
+    FORM = 'form'
     CATEGORY_CHOICES = [
         (PROCEDURE, 'Procedures'),
         (CODE, 'Code Material'),
         (TRAINING, 'Training Material'),
+        (FORM, 'Report Forms'),
     ]
 
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
@@ -46,7 +48,7 @@ class Document(models.Model):
     def __str__(self):
         return self.title
 
-    ICONS = {PROCEDURE: 'journal-check', CODE: 'book', TRAINING: 'mortarboard'}
+    ICONS = {PROCEDURE: 'journal-check', CODE: 'book', TRAINING: 'mortarboard', FORM: 'clipboard-check'}
 
     @property
     def icon(self):
