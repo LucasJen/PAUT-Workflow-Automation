@@ -457,6 +457,8 @@ class _GroupContext:
         smoothing = self.ut.get('smoothingFilter')
         if isinstance(smoothing, dict):
             return 'On' if smoothing.get('enabled', True) else 'Off'
+        if isinstance(smoothing, (int, float)) and not isinstance(smoothing, bool):
+            return f'{_plain(smoothing / 1e6, 2)} MHz' if smoothing else 'Off'   # the filter's frequency, Hz
         return None if smoothing is None else str(smoothing)
 
     def _sheet_gates(self):

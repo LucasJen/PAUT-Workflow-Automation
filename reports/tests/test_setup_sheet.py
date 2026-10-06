@@ -54,6 +54,11 @@ class SheetDataTests(TestCase):
         gates = json.loads(fixture_sheet(setup))['gates']
         self.assertEqual([(g['name'], g['synchro']) for g in gates], [('I', 'Pulse'), ('A', 'Gate I Crossing')])
 
+    def test_a_video_filter_frequency_in_mhz(self):
+        setup = sample_setup()
+        setup['groups'][0]['processes'][0]['ultrasonicPhasedArray']['smoothingFilter'] = 7500000.0
+        self.assertEqual(json.loads(fixture_sheet(setup))['ut']['smoothing'], '7.5 MHz')
+
     def test_sections_in_the_setups_units(self):
         data = json.loads(fixture_sheet())
         imperial = dict(setup_sheet.sections(data, 'imperial')[1][2])
