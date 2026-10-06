@@ -25,74 +25,79 @@
 </div>
 
 <div class="dashboard-grid">
-    <section class="panel">
-        <div class="panel-header">
-            <h2 class="panel-title">Recent reports</h2>
-            <a href="{% url 'report-list' %}" class="small">View all</a>
-        </div>
-        {% if recent_reports %}
-        <ul class="item-list">
-            {% for report in recent_reports %}
-            <li>
-                <a href="{% url 'create-report' %}?loaded={{ report.pk }}">
-                    <span class="item-main">
-                        <span class="item-title">{{ report.document_filename|default:"Untitled report" }}</span>
-                        <span class="item-meta">
-                            {% if report.client %}{{ report.client }}{% endif %}{% if report.client and report.location %} · {% endif %}{{ report.location }}
-                        </span>
-                    </span>
-                    <span class="item-aside">
-                        {% if report.updated_at %}{{ report.updated_at|timesince }} ago{% elif report.report_date %}{{ report.report_date|date:'M j, Y' }}{% endif %}
-                    </span>
-                </a>
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p class="text-body-secondary mb-0">No reports yet. <a href="{% url 'create-report' %}">Create the first one.</a></p>
-        {% endif %}
-    </section>
-
-    <section class="panel">
-        <div class="panel-header">
-            <h2 class="panel-title">Documentation</h2>
-        </div>
-        <form method="get" action="{% url 'home' %}" id="doc-search" class="doc-search mb-3"
-              data-search-url="{% url 'document-search' %}" role="search">
-            <div class="search-input">
-                <i class="bi bi-search"></i>
-                <input type="search" name="q" value="{{ query }}" class="form-control"
-                       placeholder="Search documentation…" aria-label="Search documentation">
+    {# Two stacked columns, so each card sits right under the one above it whatever their heights #}
+    <div class="dashboard-col">
+        <section class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Recent reports</h2>
+                <a href="{% url 'report-list' %}" class="small">View all</a>
             </div>
-            <select name="type" class="form-select" aria-label="File type">
-                <option value="">All types</option>
-                {% for key, label in file_types %}
-                <option value="{{ key }}"{% if key == file_type %} selected{% endif %}>{{ label }}</option>
+            {% if recent_reports %}
+            <ul class="item-list">
+                {% for report in recent_reports %}
+                <li>
+                    <a href="{% url 'create-report' %}?loaded={{ report.pk }}">
+                        <span class="item-main">
+                            <span class="item-title">{{ report.document_filename|default:"Untitled report" }}</span>
+                            <span class="item-meta">
+                                {% if report.client %}{{ report.client }}{% endif %}{% if report.client and report.location %} · {% endif %}{{ report.location }}
+                            </span>
+                        </span>
+                        <span class="item-aside">
+                            {% if report.updated_at %}{{ report.updated_at|timesince }} ago{% elif report.report_date %}{{ report.report_date|date:'M j, Y' }}{% endif %}
+                        </span>
+                    </a>
+                </li>
                 {% endfor %}
-            </select>
-        </form>
-        <div id="doc-results">
-            {% include 'documents/_dashboard_items.html' %}
-        </div>
-    </section>
+            </ul>
+            {% else %}
+            <p class="text-body-secondary mb-0">No reports yet. <a href="{% url 'create-report' %}">Create the first one.</a></p>
+            {% endif %}
+        </section>
 
-    <section class="panel">
-        <div class="panel-header">
-            <h2 class="panel-title">Equipment</h2>
-        </div>
-        <ul class="item-list">
-            {% for label, icon, url_name, count in libraries %}
-            <li>
-                <a href="{% url url_name %}">
-                    <span class="item-main">
-                        <span class="item-title"><i class="bi bi-{{ icon }} me-2 text-body-secondary"></i>{{ label }}</span>
-                    </span>
-                    <span class="item-aside mono">{{ count }}</span>
-                </a>
-            </li>
-            {% endfor %}
-        </ul>
-    </section>
+        <section class="panel dashboard-equipment">
+            <div class="panel-header">
+                <h2 class="panel-title">Equipment</h2>
+            </div>
+            <ul class="item-list">
+                {% for label, icon, url_name, count in libraries %}
+                <li>
+                    <a href="{% url url_name %}">
+                        <span class="item-main">
+                            <span class="item-title"><i class="bi bi-{{ icon }} me-2 text-body-secondary"></i>{{ label }}</span>
+                        </span>
+                        <span class="item-aside mono">{{ count }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+    </div>
+
+    <div class="dashboard-col">
+        <section class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Documentation</h2>
+            </div>
+            <form method="get" action="{% url 'home' %}" id="doc-search" class="doc-search mb-3"
+                  data-search-url="{% url 'document-search' %}" role="search">
+                <div class="search-input">
+                    <i class="bi bi-search"></i>
+                    <input type="search" name="q" value="{{ query }}" class="form-control"
+                           placeholder="Search documentation…" aria-label="Search documentation">
+                </div>
+                <select name="type" class="form-select" aria-label="File type">
+                    <option value="">All types</option>
+                    {% for key, label in file_types %}
+                    <option value="{{ key }}"{% if key == file_type %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <div id="doc-results">
+                {% include 'documents/_dashboard_items.html' %}
+            </div>
+        </section>
+    </div>
 </div>
 {% endblock %}
 
