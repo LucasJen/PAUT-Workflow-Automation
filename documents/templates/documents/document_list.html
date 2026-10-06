@@ -36,7 +36,7 @@
     <td>{{ document.notes|truncatechars:80 }}</td>
     <td data-sort-value="{{ document.uploaded_at|date:'c' }}">{{ document.uploaded_at|date:'Y-m-d' }}</td>
     <td class="text-end">
-        <a href="{{ document.file.url }}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" title="Open the PDF in a new tab">
+        <a href="{% url 'open-document' document.pk %}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" title="Open the PDF in a new tab">
             <i class="bi bi-file-earmark-pdf"></i> Open
         </a>
     </td>

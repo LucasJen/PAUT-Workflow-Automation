@@ -1,27 +1,15 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from equipment.models import Scope
 from reports.models import Report, Setup
 from reports.tests.test_nde_upload import make_nde, sample_setup
 
 
 class DashboardTests(TestCase):
-    def test_lists_scopes_due_within_30_days_overdue_first(self):
-        today = date.today()
-        Scope.objects.create(model='Soon', calibration_due_date=today + timedelta(days=10))
-        Scope.objects.create(model='Overdue', calibration_due_date=today - timedelta(days=3))
-        Scope.objects.create(model='Later', calibration_due_date=today + timedelta(days=90))
-        Scope.objects.create(model='NoDate')
-
-        resp = self.client.get(reverse('home'))
-        self.assertEqual([s.model for s in resp.context['cal_due']], ['Overdue', 'Soon'])
-        self.assertContains(resp, 'Overdue by 3 days')
-
     def test_recent_reports_most_recently_edited_first(self):
         older = Report.objects.create(document_filename='Older')
         newer = Report.objects.create(document_filename='Newer')

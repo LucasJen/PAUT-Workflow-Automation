@@ -2,10 +2,12 @@
 import os
 import shutil
 import tempfile
+from datetime import timedelta
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from documents.models import Document
 
@@ -64,3 +66,62 @@ class DocumentLibraryTests(TestCase):
         response = self.client.post(reverse('edit-procedure', args=[doc.pk]), {
             'title': 'a', 'replace_file': SimpleUploadedFile('a.docx', b'x')})
         self.assertContains(response, 'a.docx is not a PDF.')
+
+
+class DashboardDocumentsTests(TestCase):
+    """The dashboard's Documentation card: most recently used first, 10 by default, searchable."""
+
+    def setUp(self):
+        self.media = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media)
+        self.override.enable()
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.media, ignore_errors=True)
+
+    def make(self, title, category=Document.PROCEDURE, hours_ago=0, opened_hours_ago=None, notes=''):
+        now = timezone.now()
+        doc = Document.objects.create(category=category, title=title, file=pdf(f'{title}.pdf'), notes=notes)
+        Document.objects.filter(pk=doc.pk).update(
+            uploaded_at=now - timedelta(hours=hours_ago),
+            last_opened_at=None if opened_hours_ago is None else now - timedelta(hours=opened_hours_ago))
+        return doc
+
+    def titles(self, response):
+        return [d.title for d in response.context['documents']]
+
+    def test_most_recently_used_first_across_all_libraries(self):
+        self.make('Uploaded long ago, opened just now', Document.TRAINING, hours_ago=100, opened_hours_ago=0)
+        self.make('Uploaded an hour ago', Document.CODE, hours_ago=1)
+        self.make('Opened yesterday', hours_ago=50, opened_hours_ago=24)
+        response = self.client.get(reverse('home'))
+        self.assertEqual(self.titles(response), [
+            'Uploaded long ago, opened just now', 'Uploaded an hour ago', 'Opened yesterday'])
+        self.assertNotContains(response, 'Calibration due')
+
+    def test_only_the_10_most_recent_by_default_but_search_returns_every_match(self):
+        for n in range(12):
+            self.make(f'Procedure {n:02}', hours_ago=n)
+        self.assertEqual(self.titles(self.client.get(reverse('home'))), [f'Procedure {n:02}' for n in range(10)])
+        response = self.client.get(reverse('document-search'), {'q': 'procedure'})
+        self.assertEqual(len(response.context['documents']), 12)
+
+    def test_search_matches_title_notes_file_name_and_library(self):
+        self.make('PAUT-001', notes='Girth welds')
+        self.make('ASME V Article 4', Document.CODE)
+        self.make('Level II course', Document.TRAINING)
+        search = lambda q: [d.title for d in self.client.get(reverse('document-search'), {'q': q}).context['documents']]
+        self.assertEqual(search('girth'), ['PAUT-001'])
+        self.assertEqual(search('asme article'), ['ASME V Article 4'])
+        self.assertEqual(search('training'), ['Level II course'])
+        self.assertContains(self.client.get(reverse('document-search'), {'q': 'zzz'}), 'No documents match')
+
+    def test_opening_a_document_serves_the_pdf_and_moves_it_to_the_top(self):
+        old = self.make('Old', hours_ago=10)
+        self.make('New', hours_ago=1)
+        response = self.client.get(reverse('open-document', args=[old.pk]))
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertEqual(b''.join(response.streaming_content), PDF)
+        response.close()
+        self.assertEqual(self.titles(self.client.get(reverse('home'))), ['Old', 'New'])

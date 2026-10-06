@@ -1,5 +1,5 @@
 {% extends "reports/base.html" %}
-{% load ui %}
+{% load static ui %}
 
 {% block title %}Dashboard · PAUT Report Automation{% endblock %}
 
@@ -55,26 +55,17 @@
 
     <section class="panel">
         <div class="panel-header">
-            <h2 class="panel-title">Calibration due</h2>
-            <a href="{% url 'scope-list' %}" class="small">All scopes</a>
+            <h2 class="panel-title">Documentation</h2>
         </div>
-        {% if cal_due %}
-        <ul class="item-list">
-            {% for scope in cal_due %}
-            <li>
-                <a href="{% url 'edit-scope' scope.pk %}">
-                    <span class="item-main">
-                        <span class="item-title">{{ scope.model|default:"Scope" }}</span>
-                        <span class="item-meta mono">{{ scope.serial_number }}</span>
-                    </span>
-                    <span class="badge-due due-{{ scope.calibration_due_date|cal_status }}">{{ scope.calibration_due_date|cal_label }}</span>
-                </a>
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p class="text-body-secondary mb-0"><i class="bi bi-check-circle"></i> No scopes due for calibration in the next 30 days.</p>
-        {% endif %}
+        <form method="get" action="{% url 'home' %}" id="doc-search" class="search-input w-100 mb-3"
+              data-search-url="{% url 'document-search' %}" role="search">
+            <i class="bi bi-search"></i>
+            <input type="search" name="q" value="{{ query }}" class="form-control"
+                   placeholder="Search documentation…" aria-label="Search documentation">
+        </form>
+        <div id="doc-results">
+            {% include 'documents/_dashboard_items.html' %}
+        </div>
     </section>
 
     <section class="panel">
@@ -95,4 +86,8 @@
         </ul>
     </section>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'reports/js/doc_search.js' %}"></script>
 {% endblock %}

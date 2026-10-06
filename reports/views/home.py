@@ -1,22 +1,18 @@
-from datetime import date, timedelta
-
 from django.db.models import F
 from django.shortcuts import render
 
+from documents.views import dashboard_documents
 from equipment.models import CalibrationBlock, Encoder, Probe, ProbeModel, Scope, SensitivityBlock, WedgeModel
 from ..models import Report, Setup
-from ..templatetags.ui import CAL_DUE_SOON_DAYS
 
 
 def home(request):
     """
-    Dashboard: quick actions, recently edited reports, scopes due for calibration and the
-    equipment libraries
+    Dashboard: quick actions, recently edited reports, the documentation libraries (most recently
+    used first, searchable with ?q=) and the equipment libraries
     """
     recent_reports = Report.objects.order_by(F('updated_at').desc(nulls_last=True), '-pk')[:8]
-    cal_due = Scope.objects.filter(
-        calibration_due_date__lte=date.today() + timedelta(days=CAL_DUE_SOON_DAYS),
-    ).order_by('calibration_due_date')
+    doc_query = request.GET.get('q', '')
 
     # The equipment libraries, in the sidebar's order: (label, icon, url name, count)
     libraries = [
@@ -30,7 +26,8 @@ def home(request):
     ]
     return render(request, 'reports/home.html', {
         'recent_reports': recent_reports,
-        'cal_due': cal_due,
+        'documents': dashboard_documents(doc_query),
+        'query': doc_query,
         'libraries': libraries,
         'stats': {
             'reports': Report.objects.count(),
