@@ -30,3 +30,24 @@ updates every page. The page numbers (X4 / Z4) on each sheet are written by the 
 
 To change the template's look, edit it in Excel and keep the cell positions. If cells move,
 update the cell map in `excel_report.py` to match.
+
+## paut_corrosion.xlsx — Short Form report (form 598-PAUTFORM-009 Rev 0)
+
+A copy of `598-PAUTFORM-009 Rev_0 10.7.xlsx` with its sample job values (client, location, work
+order on Summary) cleared; the sheets keep their protection (no password), formulas, procedure
+dropdown and headers / footers. The app unprotects each sheet, fills it and protects it again.
+The cell map lives in `reports/services/corrosion_report.py`.
+
+Sheets:
+
+- **Summary** (page 1): the title ("…on Selected Areas On" + the equipment description), the
+  header, Examination Scope, Summary of Results and Notes. Total Pages (AO6) is counted.
+- **Setup Information**: master page, copied once per setup. The method (AG2) picks its
+  description from the Formulas sheet (B5); a method the form doesn't list leaves it blank. The
+  setup's first image goes in B10:AO44.
+- **Horizontal Drawing / Vertical Drawing**: masters, copied once per drawing: landscape
+  pictures on the horizontal page, portrait ones on the vertical page.
+- **Thickness Table**: never printed (the results are the technician's Summary of Results).
+- **Images**: master, copied once per two scan images (picture, caption, description each);
+  a last page with one image hides its second half.
+- **Formulas**: the method descriptions; hidden in the output.

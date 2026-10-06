@@ -3,7 +3,7 @@
     {{ img_form.id }}
     <div hidden>{{ img_form.DELETE }}</div>
     <div class="image-block-header">
-        <span class="image-block-title">{% if kind == "drawing" %}Drawing{% else %}Scan image{% endif %} <span class="image-num">{{ num }}</span></span>
+        <span class="image-block-title">{% if kind == "drawing" %}Drawing{% else %}<span data-label="image_kind">Scan image</span>{% endif %} <span class="image-num">{{ num }}</span></span>
         <button type="button" class="btn btn-ghost-danger btn-sm remove-image" title="Remove this image">
             <i class="bi bi-trash"></i> Remove
         </button>
@@ -17,9 +17,10 @@
                 {{ img_form.image.as_field_group }}
                 {% if kind == "scan" %}{{ img_form.scan_id.as_field_group }}{% endif %}
                 {{ img_form.caption.as_field_group }}
+                {% if kind == "scan" %}{{ img_form.description.as_field_group }}{% endif %}
             </div>
             {% if kind == "scan" %}
-            <div class="scan-comments-preview">
+            <div class="scan-comments-preview" data-field="scan_comments">
                 <span class="form-label">Comments (from results table)</span>
                 <p class="scan-comments mb-0"></p>
             </div>

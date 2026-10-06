@@ -18,7 +18,7 @@ class DefaultsPageTests(TestCase):
         self.assertContains(self.client.get(reverse('snippet-list')), 'href="%s"' % reverse('defaults-list'))
         page = self.client.get(reverse('defaults-list'))
         self.assertContains(page, 'PAUT weld (Excel)')
-        self.assertContains(page, 'PAUT long form (HIC)')
+        self.assertContains(page, 'Long Form')
         self.assertEqual(self.client.get(reverse('new-defaults', args=['nope'])).status_code, 404)
 
     def test_saves_only_filled_fields_and_no_per_job_fields(self):

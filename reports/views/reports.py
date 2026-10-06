@@ -15,7 +15,7 @@ from ..forms import (
     PersonFormSet, ReportForm, SetupFormSet, drawing_formset, equipment_formsets, scan_image_formset,
 )
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
-from ..report_types import DEFAULT_REPORT_TYPE, get_report_type
+from ..report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, get_report_type
 from ..defaults import all_defaults, defaults_for, in_page_order, only_defaults
 from equipment.inventory import with_library_scope
 
@@ -303,11 +303,16 @@ def create_report(request):
         'excel': bool(form.instance.pk) and _is_excel(form.instance),
         'wizard': wizard and bool(form.instance.pk),
         'wizard_step': wizard_step,
+        'rtype': get_report_type(form.instance.report_type),
     })
 
 
-# The guided editor's last section step; its last step is the preview page
-WIZARD_LAST_STEP = 'scanplan'
+
+
+def _section_titles(report_type):
+    """(section, title) for every section, with the type's own titles."""
+    own = dict(get_report_type(report_type).labels)
+    return [(key, own.get(f'section:{key}', title)) for key, title, _ in REPORT_SECTIONS]
 
 
 def wizard_url(report, step=''):
@@ -321,7 +326,7 @@ def _wizard_redirect(request, report, goto):
         return redirect(wizard_url(report, re.sub(r'[^\w-]', '', goto)))
     if not has_equipment(report):
         messages.error(request, NEEDS_SETUP_MESSAGE)
-        return redirect(wizard_url(report, 'equipment'))
+        return redirect(wizard_url(report, get_report_type(report.report_type).wizard_equipment_step))
     return redirect(f"{reverse('preview-report', args=[report.pk])}?wizard=1")
 
 
@@ -399,13 +404,16 @@ def preview_report(request, pk):
     wizard = request.GET.get('wizard') == '1'
     report, redirect_response = _report_with_setups(request, pk)
     if redirect_response:
-        return redirect(wizard_url(report, 'equipment')) if wizard else redirect_response
+        return redirect(wizard_url(report, get_report_type(report.report_type).wizard_equipment_step)) \
+            if wizard else redirect_response
     return render(request, 'reports/preview.html', {
         'report': report,
         'wizard': wizard,
-        'wizard_prev': wizard_url(report, WIZARD_LAST_STEP),
+        'wizard_prev': wizard_url(report, get_report_type(report.report_type).wizard_last_step),
+        'wizard_prev_title': dict(_section_titles(report.report_type)).get(
+            get_report_type(report.report_type).wizard_last_step, 'Scan plan'),
         # Files, Welds, the type's sections, the scan plan, this page
-        'wizard_steps': len(get_report_type(report.report_type).sections) + 4,
+        'wizard_steps': get_report_type(report.report_type).wizard_step_count,
         'excel': _is_excel(report),
         'pdf_available': pdf_available(report),
     })

@@ -23,6 +23,11 @@
         const current = mode();
         form.querySelectorAll('[data-mode]').forEach(el => { el.hidden = el.dataset.mode !== current; });
         [filesLabel.textContent, filesHelp.textContent] = FILES_TEXT[current];
+        // The corrosion form: a job may have no .nde files at all (manual UT); its pictures come from the folder
+        if (form.dataset.filesOptional && current !== 'existing') {
+            filesLabel.textContent = 'The job\'s .nde files (optional)';
+            if (current === 'new') filesHelp.textContent = 'Copied into the new folder. Put the job\'s pictures in the folder too, before going on.';
+        }
     }
 
     form.querySelectorAll('input[name="folder_mode"]').forEach(r => r.addEventListener('change', showMode));

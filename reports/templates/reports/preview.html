@@ -5,7 +5,7 @@
 
 {% block content %}
 {% if wizard %}
-<a href="{{ wizard_prev }}" class="back-link"><i class="bi bi-arrow-left"></i> Prev: Scan plan</a>
+<a href="{{ wizard_prev }}" class="back-link"><i class="bi bi-arrow-left"></i> Prev: {{ wizard_prev_title }}</a>
 {% else %}
 <a href="{% url 'create-report' %}?loaded={{ report.pk }}" class="back-link"><i class="bi bi-arrow-left"></i> Back to editor</a>
 {% endif %}

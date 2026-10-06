@@ -477,6 +477,9 @@ class Setup(models.Model):
     surface_prep = models.CharField(max_length=200, blank=True)
     tr_min = models.CharField(max_length=50, blank=True)
     tr_max = models.CharField(max_length=50, blank=True)
+    # The corrosion form's Setup Information (598-PAUTFORM-009): the material and temperature inspected
+    inspection_material = models.CharField(max_length=200, blank=True)
+    inspection_temp = models.CharField('Inspection temperature', max_length=50, blank=True)
 
     # Source data file (filled by NDE import)
     source_file = models.CharField(max_length=255, blank=True)
@@ -576,6 +579,8 @@ class ReportImage(models.Model):
     # results rows are recreated on every save); its comments come from that row. Indication
     # images: the key of the weld form indication it belongs to (saved after the row's cells).
     scan_id = models.CharField(max_length=200, blank=True)
+    # Scan images on the corrosion form's Images pages: the text beside the caption
+    description = models.TextField(blank=True)
     order = models.IntegerField(default=0)
 
     class Meta:

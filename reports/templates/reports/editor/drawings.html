@@ -3,7 +3,7 @@
         <h2 class="panel-title">Equipment drawings</h2>
         <button type="button" id="add-drawing" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add drawing</button>
     </div>
-    <p class="form-text">Vessel/equipment and isometric drawings, nozzle layouts, scan coverage maps. Each appears under the report's Drawing section with its title as a heading.</p>
+    <p class="form-text" data-label="drawings_intro">Vessel/equipment and isometric drawings, nozzle layouts, scan coverage maps. Each appears under the report's Drawing section with its title as a heading.</p>
     {{ drawing_formset.management_form }}
     <div id="drawing-formset-container">
         {% for img_form in drawing_formset %}
