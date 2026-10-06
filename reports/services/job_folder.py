@@ -17,6 +17,8 @@ SIZE = re.compile(r'^(\d+(?:\.\d+)?)\s*in(?:ch(?:es)?)?$', re.I)
 # A weld: W5, FW12, BW3, WP10, FW2R1 (repair 1); later welds of a list may be bare numbers (W1&2)
 WELD = re.compile(r'^(F?W|BW|WP)-?(\d+[A-Z]*\d*)$', re.I)
 BARE_WELD = re.compile(r'^\d+[A-Z]*\d*$', re.I)
+# Pictures a job folder can hold (drawings, screenshots), for the corrosion form
+PICTURE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.bmp', '.gif')
 # Characters Windows doesn't allow in a folder name
 INVALID = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -172,12 +174,14 @@ def job_folders(root):
     folders = []
     for entry in entries:
         try:
-            nde = sum(1 for f in os.scandir(entry.path) if f.is_file() and f.name.lower().endswith('.nde'))
+            files = [f.name.lower() for f in os.scandir(entry.path) if f.is_file()]
+            nde = sum(1 for name in files if name.endswith('.nde'))
+            pictures = sum(1 for name in files if name.endswith(PICTURE_EXTENSIONS))
             modified = entry.stat().st_mtime
         except OSError:
             continue
         info = parse_folder_name(entry.name)
-        folders.append({'name': entry.name, 'path': entry.path, 'info': info, 'nde': nde,
+        folders.append({'name': entry.name, 'path': entry.path, 'info': info, 'nde': nde, 'pictures': pictures,
                         'reports': report_files(entry.path, entry.name),
                         'modified': datetime.fromtimestamp(modified), 'job': info['recognised'] or nde > 0})
     folders.sort(key=lambda f: (not f['job'], -f['modified'].timestamp()))

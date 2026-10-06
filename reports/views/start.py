@@ -1,8 +1,10 @@
 """
-New weld report from files: pick the job folder (or make one, or just drop files), confirm the
-welds its .nde files are of and pick the NPS / Sch, and get the report built
-(reports/services/job_import.py), then finish it in the guided editor. A job folder's name gives
-the report name and client (reports/services/job_folder.py), and the downloads are saved into it.
+Guided Creation: pick the report type and the job folder (or make one, or just drop files), then
+for a weld report confirm the welds its .nde files are of and pick the NPS / Sch
+(reports/services/job_import.py), for a corrosion report say what the folder's pictures are
+(start_corrosion.py); the report is built and finished in the guided editor. A job folder's name
+gives the report name and client (reports/services/job_folder.py), and the downloads are saved
+into it.
 """
 import os
 import re
@@ -20,16 +22,18 @@ from ..report_types import REPORT_TYPES, guided_report_types
 from ..services.job_folder import (
     invalid_name, job_folders, nde_files, parse_folder_name, resolve_job_folder, save_uploads, working_folder,
 )
+from ..services.corrosion_import import CORROSION_TYPE, folder_pictures, read_corrosion_file
 from ..services.job_import import WELD_TYPE, build_report, read_job_file
 from ..services.nde_parser import UNIT_SYSTEMS
 from .reports import wizard_url
+from .start_corrosion import confirm_corrosion
 
 SESSION_KEY = 'job_import'
 FOLDER_MODES = ('existing', 'new', 'none')
 
 
-def _weld_defaults():
-    return list(ReportDefaults.objects.filter(report_type=WELD_TYPE).order_by('-in_use', 'name'))
+def _type_defaults(report_type):
+    return list(ReportDefaults.objects.filter(report_type=report_type).order_by('-in_use', 'name'))
 
 
 def _picked_block(value):
@@ -49,7 +53,7 @@ def _suggested_name(files):
     return '-'.join(parts)
 
 
-def _job_folder(request, mode, uploads, root):
+def _job_folder(request, mode, uploads, root, needs_files=True):
     """
     The job folder the start form picked or asked for (made when new), or None for no folder.
     Raises ValueError with what's wrong.
@@ -68,7 +72,7 @@ def _job_folder(request, mode, uploads, root):
             raise ValueError(problem)
         if not os.path.isdir(root.path):
             raise ValueError(f'The working folder {root.path} isn\'t there; change it in Preferences › Working folders.')
-        if not uploads:
+        if not uploads and needs_files:
             raise ValueError('Choose the job\'s .nde files to copy into the new folder.')
         folder = Path(root.path) / name
         if folder.is_dir():
@@ -98,16 +102,18 @@ def start_from_files(request):
     if request.method == 'POST' and not rtype.guided:
         messages.error(request, f'Guided Creation can\'t build {rtype.label} reports yet; use New report.')
         return redirect(_start_url(rtype))
+    # A corrosion job may have no .nde files at all (manual UT): its pictures matter more
+    corrosion = rtype.key == CORROSION_TYPE
     if request.method == 'POST':
         uploads = [f for f in request.FILES.getlist('nde_files') if f.name.lower().endswith('.nde')]
         try:
-            folder = _job_folder(request, mode, uploads, root)
+            folder = _job_folder(request, mode, uploads, root, needs_files=not corrosion)
             if folder is not None:
                 saved = save_uploads(folder, uploads)
                 if saved:
                     messages.info(request, f'Copied {len(saved)} file{"s" if len(saved) != 1 else ""} into {folder.name}.')
                 sources = nde_files(folder)
-                if not sources:
+                if not sources and not corrosion:
                     raise ValueError(f'{folder.name} has no .nde files yet; add them with the file picker.')
             else:
                 sources = uploads
@@ -117,22 +123,29 @@ def start_from_files(request):
             messages.error(request, str(e))
         else:
             units = request.POST.get('units') if request.POST.get('units') in UNIT_SYSTEMS else 'imperial'
-            files = [read_job_file(f, units) for f in sources]
-            files.sort(key=lambda f: (f.get('weld') or '~', f['filename']))
-            request.session[SESSION_KEY] = {
-                'files': files,
-                'defaults': request.POST.get('defaults') or '',
-                'sensitivity_block': request.POST.get('sensitivity_block') or '',
-                'folder': str(folder) if folder is not None else '',
-            }
+            job = {'type': rtype.key, 'defaults': request.POST.get('defaults') or '',
+                   'folder': str(folder) if folder is not None else ''}
+            if corrosion:
+                files = sorted((read_corrosion_file(f, units) for f in sources), key=lambda f: f['filename'].lower())
+                job.update(files=files, pictures=folder_pictures(folder) if folder is not None else [])
+            else:
+                files = [read_job_file(f, units) for f in sources]
+                files.sort(key=lambda f: (f.get('weld') or '~', f['filename']))
+                job.update(files=files, sensitivity_block=request.POST.get('sensitivity_block') or '')
+            request.session[SESSION_KEY] = job
             return redirect('confirm-job')
 
     codes = {c.code: c for c in ClientCode.objects.all()}
     folders = job_folders(root.path) if root is not None and rtype.guided else []
     for item in folders:
         item['client'] = codes.get(item['info']['client_code'])
+        if corrosion:   # corrosion folders aren't named like weld jobs: any with files or pictures is one
+            item['job'] = bool(item['nde'] or item['pictures'])
+    if corrosion:
+        folders.sort(key=lambda f: (not f['job'], -f['modified'].timestamp()))
     return render(request, 'reports/start_from_files.html', {
-        'defaults_sets': _weld_defaults(), 'blocks': SensitivityBlock.objects.all(),
+        'defaults_sets': _type_defaults(rtype.key), 'blocks': SensitivityBlock.objects.all(),
+        'corrosion': corrosion,
         'rtype': rtype, 'report_types': guided_report_types(),
         'root': root, 'root_exists': root is not None and os.path.isdir(root.path),
         'folders': folders, 'mode': mode, 'posted': request.POST,
@@ -159,6 +172,8 @@ def confirm_job(request):
     job = request.session.get(SESSION_KEY)
     if not job:
         return redirect('start-from-files')
+    if job.get('type') == CORROSION_TYPE:
+        return confirm_corrosion(request, job)
     files = job['files']
     defaults = ReportDefaults.objects.filter(pk=job['defaults']).first() if str(job['defaults']).isdigit() else None
     readable = [f for f in files if not f.get('error')]
