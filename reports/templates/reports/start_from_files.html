@@ -20,51 +20,28 @@
     </select>
 </form>
 
-{# The working folder (weld reports' parent folder) the job folders are listed from and made in #}
+{# The report type's default working folder: job folders are listed from and made in it (set in Preferences) #}
 <div class="job-root">
     <i class="bi bi-folder2"></i>
     <span>Working folder</span>
-    {% if roots %}
-    <form method="get" class="job-root-pick">
-        <input type="hidden" name="type" value="{{ rtype.key }}">
-        <select name="root" class="form-select form-select-sm mono" onchange="this.form.submit()" aria-label="Working folder">
-            {% for item in roots %}
-            <option value="{{ item.pk }}"{% if item.pk == root.pk %} selected{% endif %}>{{ item.path }}{% if item.is_default %} (default){% endif %}</option>
-            {% endfor %}
-        </select>
-    </form>
+    {% if root %}
+    <span class="mono">{{ root.path }}</span>
     {% if not root_exists %}<span class="text-danger">not found</span>{% endif %}
     {% else %}
-    <span class="text-body-secondary">none for {{ rtype.label }} reports yet</span>
+    <span class="text-body-secondary">none set for {{ rtype.label }} reports</span>
     {% endif %}
-    <button type="button" class="btn btn-link btn-sm p-0" id="root-change"{% if not roots %} hidden{% endif %}>Add working folder</button>
-    <a href="{% url 'working-folder-list' %}" class="small">Preferences › Working folders</a>
+    <a href="{% url 'working-folder-list' %}" class="small">Change in Preferences › Working folders</a>
 </div>
-<form method="post" class="panel job-root-add" id="root-edit"{% if roots %} hidden{% endif %}>
-    {% csrf_token %}
-    <input type="hidden" name="type" value="{{ rtype.key }}">
-    <div class="field-grid cols-3">
-        {% include 'reports/components/folder_field.html' with name='root_path' id='root-path' span='span-2' label='Add a working folder for these reports' help='The folder this report type\'s job folders are kept in, e.g. Desktop › Reports › 001 Welds.' title='Select a working folder' %}
-        <div class="field job-root-add-actions">
-            <div class="form-check">
-                <input type="checkbox" class="form-check-input" id="root-default" name="root_default" value="1"{% if not roots %} checked{% endif %}>
-                <label class="form-check-label" for="root-default">Make it the default</label>
-            </div>
-            <button type="submit" name="add_root" value="1" class="btn btn-secondary"><i class="bi bi-plus-lg"></i> Add</button>
-        </div>
-    </div>
-</form>
 
 {% if not rtype.guided %}
 <section class="panel">
     <p class="mb-2"><i class="bi bi-cone-striped"></i> The guided workflow for <strong>{{ rtype.label }}</strong> reports isn't built yet.</p>
-    <p class="text-body-secondary mb-0">Use <a href="{% url 'create-report' %}">New report</a> for now. You can already set up its working folders above.</p>
+    <p class="text-body-secondary mb-0">Use <a href="{% url 'create-report' %}">New report</a> for now. You can already set up its working folders in Preferences.</p>
 </section>
 {% else %}
 <form method="post" enctype="multipart/form-data" id="start-form">
     {% csrf_token %}
     <input type="hidden" name="type" value="{{ rtype.key }}">
-    {% if root %}<input type="hidden" name="root" value="{{ root.pk }}">{% endif %}
     <section class="panel">
         <div class="panel-header">
             <h2 class="panel-title">Job folder</h2>
@@ -110,7 +87,7 @@
             </div>
             <p class="form-text mb-0 mt-2" id="folder-no-matches" hidden>No folders match.</p>
             {% else %}
-            <p class="text-body-secondary mb-0">{% if root %}No folders in {{ root.path }} yet. Choose <strong>New folder</strong>, or pick another working folder above.{% else %}Add a working folder above first (the folder this report type's job folders are kept in), or choose <strong>Files only</strong>.{% endif %}</p>
+            <p class="text-body-secondary mb-0">{% if root %}No folders in {{ root.path }} yet. Choose <strong>New folder</strong>, or change the working folder in Preferences.{% else %}Set a working folder for these reports in <a href="{% url 'working-folder-list' %}">Preferences › Working folders</a> first (the folder their job folders are kept in), or choose <strong>Files only</strong>.{% endif %}</p>
             {% endif %}
         </div>
 
@@ -174,5 +151,4 @@
 
 {% block scripts %}
 <script src="{% static_v 'reports/js/job_folder.js' %}"></script>
-<script src="{% static_v 'reports/js/folder_browse.js' %}"></script>
 {% endblock %}

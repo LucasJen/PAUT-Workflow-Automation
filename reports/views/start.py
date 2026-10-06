@@ -18,8 +18,7 @@ from equipment.models import SensitivityBlock
 from ..models import ClientCode, ReportDefaults
 from ..report_types import REPORT_TYPES, guided_report_types
 from ..services.job_folder import (
-    add_working_folder, invalid_name, job_folders, nde_files, parse_folder_name, resolve_job_folder, save_uploads,
-    working_folder, working_folders,
+    invalid_name, job_folders, nde_files, parse_folder_name, resolve_job_folder, save_uploads, working_folder,
 )
 from ..services.job_import import WELD_TYPE, build_report, read_job_file
 from ..services.nde_parser import UNIT_SYSTEMS
@@ -56,7 +55,7 @@ def _job_folder(request, mode, uploads, root):
     Raises ValueError with what's wrong.
     """
     if mode in ('existing', 'new') and root is None:
-        raise ValueError('Add a working folder for weld reports first (at the top of the page), or choose Files only.')
+        raise ValueError('Set a working folder for these reports in Preferences › Working folders first, or choose Files only.')
     if mode == 'existing':
         folder = resolve_job_folder(request.POST.get('job_folder', ''), root.path)
         if folder is None:
@@ -68,7 +67,7 @@ def _job_folder(request, mode, uploads, root):
         if problem:
             raise ValueError(problem)
         if not os.path.isdir(root.path):
-            raise ValueError(f'The working folder {root.path} isn\'t there; pick or add another at the top of the page.')
+            raise ValueError(f'The working folder {root.path} isn\'t there; change it in Preferences › Working folders.')
         if not uploads:
             raise ValueError('Choose the job\'s .nde files to copy into the new folder.')
         folder = Path(root.path) / name
@@ -79,37 +78,26 @@ def _job_folder(request, mode, uploads, root):
     return None
 
 
-def _start_url(rtype, root=None):
-    params = {'type': rtype.key, **({'root': root.pk} if root is not None else {})}
-    return f"{reverse('start-from-files')}?{urlencode(params)}"
+def _start_url(rtype):
+    return f"{reverse('start-from-files')}?{urlencode({'type': rtype.key})}"
 
 
 def start_from_files(request):
     """
     Step 1: the report type (?type=, weld by default; only types with a guided workflow go on),
-    its working folder (?root=<pk>, else the type's default) and the job folder in it (or files
-    only), the defaults set to start from, optionally the NPS / Sch.
+    the job folder in its default working folder (set in Preferences) or files only, the defaults
+    set to start from, optionally the NPS / Sch.
     """
     key = request.POST.get('type') or request.GET.get('type')
     rtype = REPORT_TYPES.get(key) or REPORT_TYPES[WELD_TYPE]
-
-    if request.method == 'POST' and 'add_root' in request.POST:
-        added, problem = add_working_folder(request.POST.get('root_path', ''), rtype.key,
-                                            is_default=bool(request.POST.get('root_default')))
-        if problem:
-            messages.error(request, problem)
-            return redirect(_start_url(rtype))
-        messages.success(request, f'{added.name} added as a working folder for {rtype.label} reports.')
-        return redirect(_start_url(rtype, added))
-
-    root = working_folder(rtype.key, request.POST.get('root') or request.GET.get('root'))
+    root = working_folder(rtype.key)
 
     # The page opens on Existing folder; a post without a mode is files only (as before job folders)
     mode = request.POST.get('folder_mode') if request.POST.get('folder_mode') in FOLDER_MODES else (
         'none' if request.method == 'POST' else 'existing')
     if request.method == 'POST' and not rtype.guided:
         messages.error(request, f'Guided Creation can\'t build {rtype.label} reports yet; use New report.')
-        return redirect(_start_url(rtype, root))
+        return redirect(_start_url(rtype))
     if request.method == 'POST':
         uploads = [f for f in request.FILES.getlist('nde_files') if f.name.lower().endswith('.nde')]
         try:
@@ -146,7 +134,7 @@ def start_from_files(request):
     return render(request, 'reports/start_from_files.html', {
         'defaults_sets': _weld_defaults(), 'blocks': SensitivityBlock.objects.all(),
         'rtype': rtype, 'report_types': guided_report_types(),
-        'root': root, 'roots': working_folders(rtype.key), 'root_exists': root is not None and os.path.isdir(root.path),
+        'root': root, 'root_exists': root is not None and os.path.isdir(root.path),
         'folders': folders, 'mode': mode, 'posted': request.POST,
     })
 

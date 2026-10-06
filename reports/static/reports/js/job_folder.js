@@ -1,5 +1,5 @@
 // Guided Creation, step 1 (start_from_files.html): the job folder modes (existing / new / files
-// only), the folder list's search, and the working folder's Add link.
+// only) and the folder list's search.
 
 (function () {
     const form = document.getElementById('start-form');
@@ -50,16 +50,6 @@
         button.disabled = true;
         button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Reading the files…';
     });
-
-    // ── Working folder: Add ────────────────────────────────────────────
-    const change = document.getElementById('root-change');
-    if (change) {
-        change.addEventListener('click', () => {
-            document.getElementById('root-edit').hidden = false;
-            change.hidden = true;
-            document.querySelector('#root-edit input').focus();
-        });
-    }
 
     showMode();
 })();
