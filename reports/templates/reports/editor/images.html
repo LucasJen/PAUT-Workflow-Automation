@@ -3,7 +3,7 @@
         <h2 class="panel-title">Photo summary</h2>
         <button type="button" id="add-image" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add scan image</button>
     </div>
-    <p class="form-text">Data snips for the report's Scan Images section. Pick the Scan ID from the results table; the comments are taken from that row's results, so they only need typing once.</p>
+    <p class="form-text" data-label="images_intro">Data snips for the report's Scan Images section. Pick the Scan ID from the results table; the comments are taken from that row's results, so they only need typing once.</p>
     {{ image_formset.management_form }}
     <div id="image-formset-container">
         {% for img_form in image_formset %}

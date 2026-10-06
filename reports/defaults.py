@@ -37,14 +37,16 @@ def has_grid(report_type):
 def report_fields(report_type):
     """The report fields a type's defaults cover: those its editor shows, as (section key, title, names)."""
     rtype = get_report_type(report_type)
+    homes = dict(rtype.field_homes)   # fields this type shows in another section
     sections = []
     for key, title, names in REPORT_SECTIONS:
-        names = names or SECTION_FIELDS.get(key)
+        names = [n for n in (names or SECTION_FIELDS.get(key) or ()) if homes.get(n, key) == key]
+        names += [n for n, home in homes.items() if home == key and n not in names]
         if key not in rtype.sections or not names:
             continue
         names = [n for n in names if n not in REPORT_EXCLUDED and n not in rtype.hidden_fields]
         if names:
-            sections.append((key, title, names))
+            sections.append((key, dict(rtype.labels).get(f'section:{key}', title), names))
     return sections
 
 

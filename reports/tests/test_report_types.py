@@ -27,8 +27,11 @@ class RegistryTests(SimpleTestCase):
                 path = os.path.join(settings.BASE_DIR, folder, report_type.template)
                 self.assertTrue(os.path.exists(path), f'missing template {folder}/{report_type.template}')
                 self.assertLessEqual(set(report_type.sections), set(SECTIONS))
-                self.assertLessEqual(set(report_type.hidden_fields),
-                                     REPORT_FIELDS | SETUP_FIELDS | IMAGE_FIELDS | EDITOR_PARTS)
+                names = {name.removeprefix('setup.') for name in report_type.hidden_fields}
+                self.assertLessEqual(names, REPORT_FIELDS | SETUP_FIELDS | IMAGE_FIELDS | EDITOR_PARTS)
+                for name in report_type.hidden_fields:
+                    if name.startswith('setup.'):
+                        self.assertIn(name.removeprefix('setup.'), SETUP_FIELDS)
 
     def test_sections_reference_real_fields(self):
         for key, _, names in REPORT_SECTIONS:

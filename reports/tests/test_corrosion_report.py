@@ -42,6 +42,9 @@ class CorrosionPagesTests(TestCase):
         self.assertEqual(rtype.wizard_last_step, 'images')
         self.assertIn('scan_id', rtype.hidden_fields)
         self.assertNotIn('inspection_material', rtype.hidden_fields)
+        # The setup's procedure is hidden, not the report's
+        self.assertIn('setup.procedure', rtype.hidden_fields)
+        self.assertNotIn('procedure', rtype.hidden_fields)
         self.assertIn('inspection_material', get_report_type('paut_long').hidden_fields)
 
     def test_summary_page(self):

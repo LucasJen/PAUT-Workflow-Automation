@@ -492,12 +492,121 @@ function applyReportType() {
         link.hidden = !type.sections.includes(link.dataset.navSection);
     });
     reportForm.querySelectorAll('.editor-sections [data-field]').forEach(field => {
-        field.hidden = hiddenFields.has(field.dataset.field);
+        field.hidden = isHidden(hiddenFields, field);
     });
+    orderSections(type);
+    applyTypeWording(type);
     // Empty fields outlined by where their value comes from (fill_marks.js), on the weld form
     reportForm.classList.toggle('fill-marks', Boolean(type.fill_marks));
     window.FillMarks?.refresh();
     updateActiveSection();
+}
+
+// A type's own wording (report_types.py labels): a field's label, a section's title
+// ('section:<key>') or any [data-label] text; the usual wording is kept to switch back to.
+// Also its fields shown in another section (field_homes), its suggestion lists (field_options)
+// and, in setup blocks, groups whose every field it hides.
+// Hidden for this type: by name, or 'setup.<name>' for a field of a setup block only
+function isHidden(hiddenFields, field) {
+    return hiddenFields.has(field.dataset.field)
+        || (Boolean(field.closest('.setup-block')) && hiddenFields.has(`setup.${field.dataset.field}`));
+}
+
+// A type with its own section order (report_types.py ordered): sections and their menu links
+// in that order; the others keep the editor's usual order (the order they were rendered in)
+let usualOrder = null;
+function orderSections(type) {
+    const holder = reportForm.querySelector('.editor-sections');
+    const nav = document.getElementById('section-nav');
+    if (!holder) return;
+    usualOrder ??= Array.from(holder.children);
+    const rank = key => (type.ordered && type.sections.includes(key)) ? type.sections.indexOf(key) : -1;
+    // The type's sections in its order, in the places its sections take; the rest stay put
+    const mine = usualOrder.filter(el => rank(el.dataset.section) >= 0)
+        .sort((a, b) => rank(a.dataset.section) - rank(b.dataset.section));
+    let i = 0;
+    usualOrder.map(el => (rank(el.dataset.section) >= 0 ? mine[i++] : el)).forEach(el => holder.appendChild(el));
+    if (nav) {
+        Array.from(holder.querySelectorAll(':scope > [data-section]')).forEach(section => {
+            const link = nav.querySelector(`[data-nav-section="${section.dataset.section}"]`);
+            if (link) nav.appendChild(link);
+        });
+    }
+}
+
+function relabel(el, text) {
+    if (!el) return;
+    if (el.dataset.usualText === undefined) el.dataset.usualText = el.textContent;
+    el.textContent = text ?? el.dataset.usualText;
+}
+
+const fieldHomes = new Map();   // field element -> [its usual parent, the node it came before]
+
+function applyTypeWording(type) {
+    const labels = type.labels || {};
+    const hidden = new Set(type.hidden_fields);
+    // The page, and the templates new setup / image blocks are copied from
+    const roots = [document, ...Array.from(document.querySelectorAll('template'), t => t.content)];
+
+    roots.forEach(root => {
+        root.querySelectorAll('[data-label]').forEach(el => relabel(el, labels[el.dataset.label]));
+        root.querySelectorAll('[data-field]').forEach(field => {
+            relabel(field.querySelector(':scope > label'), labels[field.dataset.field]);
+            if (root !== document) field.hidden = isHidden(hidden, field);
+        });
+    });
+    document.querySelectorAll('[data-section]').forEach(section => {
+        relabel(section.querySelector(':scope > .panel-header .panel-title'), labels[`section:${section.dataset.section}`]);
+    });
+    document.querySelectorAll('[data-nav-section]').forEach(link => {
+        const text = link.childNodes[0];   // the title; a count badge may follow
+        if (text?.nodeType !== Node.TEXT_NODE) return;
+        if (link.dataset.usualText === undefined) link.dataset.usualText = text.textContent;
+        const own = labels[`section:${link.dataset.navSection}`];
+        text.textContent = own ? `${own} ` : link.dataset.usualText;
+    });
+
+    // Fields living in another section for this type, put back for the others
+    const homes = type.field_homes || {};
+    reportForm.querySelectorAll('[data-field]').forEach(field => {
+        const section = homes[field.dataset.field];
+        const target = section && document.querySelector(`#sec-${section} .field-grid`);
+        if (target) {
+            if (!fieldHomes.has(field)) fieldHomes.set(field, [field.parentNode, field.nextSibling]);
+            if (field.parentNode !== target) target.appendChild(field);
+        } else if (fieldHomes.has(field)) {
+            const [parent, before] = fieldHomes.get(field);
+            parent.insertBefore(field, before);
+            fieldHomes.delete(field);
+        }
+    });
+
+    // Suggestions in text boxes (e.g. the corrosion form's methods and procedures)
+    const options = type.field_options || {};
+    roots.forEach(root => root.querySelectorAll('[data-field] input[type="text"], [data-field] input:not([type])').forEach(input => {
+        const name = input.closest('[data-field]').dataset.field;
+        const id = `options-${name}`;
+        if (options[name]) {
+            let list = document.getElementById(id);
+            if (!list) {
+                list = document.createElement('datalist');
+                list.id = id;
+                document.body.appendChild(list);
+            }
+            list.replaceChildren(...options[name].map(value => Object.assign(document.createElement('option'), { value })));
+            input.setAttribute('list', id);
+        } else if (input.getAttribute('list') === id) {
+            input.removeAttribute('list');
+        }
+    }));
+
+    // A setup block's group heading goes when the type hides every field in it
+    roots.forEach(root => root.querySelectorAll('.cell-grid-head').forEach(head => {
+        const grid = head.nextElementSibling;
+        if (!grid?.classList.contains('cell-grid')) return;
+        const cells = Array.from(grid.querySelectorAll(':scope > [data-field]'));
+        head.hidden = grid.hidden = cells.length > 0 && cells.every(cell => cell.hidden);
+    }));
 }
 
 reportTypeSelect.addEventListener('change', applyReportType);

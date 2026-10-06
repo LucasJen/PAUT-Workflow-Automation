@@ -24,8 +24,9 @@
     <input type="hidden" name="wizard_step" id="wizard-step" value="{{ wizard_step }}">
     <section class="panel wizard-head" aria-label="Steps">
         <ol class="wizard-steps" id="wizard-steps">
-            <li class="is-done"><span class="wizard-dot"><i class="bi bi-check"></i></span> Files</li>
-            <li class="is-done"><span class="wizard-dot"><i class="bi bi-check"></i></span> Welds</li>
+            {% for done in rtype.wizard_done %}
+            <li class="is-done"><span class="wizard-dot"><i class="bi bi-check"></i></span> {{ done }}</li>
+            {% endfor %}
         </ol>
         <div class="wizard-title">
             <span class="wizard-count" id="wizard-count"></span>
@@ -84,7 +85,7 @@
             {% with section_template="reports/editor/"|add:key|add:".html" %}{% include section_template %}{% endwith %}
             {% endif %}
             {% endfor %}
-            {% if wizard %}
+            {% if wizard and rtype.wizard_last_step == 'scanplan' %}
             {# The guided editor's last step before the preview: the scan plan printed on the last page #}
             <section class="panel editor-section" id="sec-wizard-scanplan" data-wizard-panel="scanplan" data-title="Scan plan">
                 <div class="panel-header"><h2 class="panel-title">Scan plan</h2></div>
