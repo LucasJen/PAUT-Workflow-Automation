@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from ..forms import SetupForm
 from ..models import Setup
@@ -9,7 +10,7 @@ def setup_list(request):
     """
     setups = Setup.objects.all()
     if request.method == 'POST':
-        selected_pks = request.POST.getlist('selected_setups')
+        selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:
             Setup.objects.filter(pk__in=selected_pks).delete()
             return redirect('setup-list')
@@ -20,7 +21,7 @@ def setup_list(request):
             original.pk = None  # clears the pk, forcing a new row on save
             original.save()
             return redirect('setup-list')
-    return render(request, 'reports/setup_list.html', {'setups': setups})
+    return render(request, 'reports/setup_list.html', {'items': setups})
 
 
 def new_setup(request):
@@ -39,10 +40,12 @@ def edit_setup(request, pk):
     if request.method == 'POST':
         if 'delete' in request.POST:
             setup.delete()
+            messages.success(request, 'Setup deleted.')
             return redirect('setup-list')
         form = SetupForm(request.POST, instance=setup)
         if form.is_valid():
             form.save()
+            messages.success(request, 'Setup saved.')
             return redirect('setup-list')
     else:
         form = SetupForm(instance=setup)

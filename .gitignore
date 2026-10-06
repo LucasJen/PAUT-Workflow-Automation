@@ -6,4 +6,7 @@ __pycache__/
 *.egg-info/
 *.db
 *.sqlite3
-.claude
+report_images/
+media/
+.claude/*
+!.claude/agents/

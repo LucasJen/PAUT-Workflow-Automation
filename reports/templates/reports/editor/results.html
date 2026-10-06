@@ -1,0 +1,19 @@
+<section class="panel editor-section" id="sec-results" data-section="results">
+    <div class="panel-header">
+        <h2 class="panel-title">Results table</h2>
+        <div class="d-flex gap-2">
+            <button type="button" id="add-results-col" class="btn btn-secondary btn-sm"><i class="bi bi-layout-three-columns"></i> Add column</button>
+            <button type="button" id="add-results-row" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add row</button>
+        </div>
+    </div>
+    <p class="form-text" id="results-empty-hint">Add a column to start the results table.</p>
+    <div id="results-col-headers" class="d-flex flex-wrap gap-2 mb-3"></div>
+    <div class="overflow-x-auto">
+        <table class="results-table" id="results-table">
+            <thead><tr id="results-thead-row"></tr></thead>
+            <tbody id="results-tbody"></tbody>
+        </table>
+    </div>
+    <input type="hidden" name="results_columns" id="results-columns-input">
+    <input type="hidden" name="results_rows" id="results-rows-input">
+</section>

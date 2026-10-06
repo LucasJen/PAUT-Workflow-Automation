@@ -1,0 +1,34 @@
+{% extends 'reports/components/list_page.html' %}
+
+{% block title %}Working folders · Preferences · PAUT Report Automation{% endblock %}
+{% block page_title %}Preferences{% endblock %}
+{% block page_tabs %}{% include 'reports/components/library_tabs.html' with tab='working-folders' %}{% endblock %}
+{% block item_noun %}working folder{% endblock %}
+{% block bulk_duplicate %}{% endblock %}
+
+{% block new_button %}
+<a href="{% url 'new-working-folder' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Add working folder</a>
+{% endblock %}
+
+{% block columns %}
+<th class="sortable">Folder<span class="sort-indicator"></span></th>
+<th class="sortable">Report type<span class="sort-indicator"></span></th>
+<th class="sortable">Default<span class="sort-indicator"></span></th>
+{% endblock %}
+
+{% block rows %}
+{% for folder in items %}
+<tr data-href="{% url 'edit-working-folder' folder.pk %}">
+    {% include 'reports/components/row_check.html' with pk=folder.pk %}
+    <td>
+        <span class="fw-medium">{{ folder.name }}</span>
+        <span class="d-block mono small text-body-secondary">{{ folder.path }}</span>
+    </td>
+    <td>{{ folder.report_type_label }}</td>
+    <td>{% if folder.is_default %}<i class="bi bi-check-lg text-success"></i> Default{% endif %}</td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block empty_icon %}folder2{% endblock %}
+{% block empty_text %}No working folders yet. Add the folder a report type's job folders are kept in (e.g. Desktop\Reports\001 Welds for weld reports).{% endblock %}

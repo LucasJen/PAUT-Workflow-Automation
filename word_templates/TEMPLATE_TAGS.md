@@ -1,0 +1,105 @@
+# Word template tags
+
+Reports are generated with [docxtpl](https://docxtpl.readthedocs.io/): the `.docx` templates
+in this folder contain Jinja tags that are filled from the report. Edit the templates in Word;
+the values come from `reports/services/report_render.py::build_context`.
+
+## Master template and section blocks
+
+`paut_master.docx` is shared by all report types. Each report section is a block that prints
+only when the report type lists that section (the same list that shows or hides the editor
+section), using `{%p if show.<key> %}` … `{%p endif %}`:
+
+| Key | Block |
+|---|---|
+| `scope` | INTRODUCTION (intro text, scan directions, severity table, techniques) |
+| `drawings` | DRAWING (also needs at least one equipment drawing) |
+| `setups` | Calibrations / Equipment Details per setup |
+| `results` | Results text and table |
+| `images` | SCAN IMAGES (photo summary); the section break before it only exists with it |
+
+The cover, table of contents and Discussion always print.
+
+**Add a report type:** append a `ReportType` to `_TYPES` in `reports/report_types.py` with the
+sections it uses and its results columns. It uses the master template unless it names its own.
+
+**Add a section block:** wrap the new content in the master template with
+`{%p if show.<key> %}` … `{%p endif %}`, add `(key, title, fields)` to `REPORT_SECTIONS`, and,
+for a special section, add its editor part as `reports/templates/reports/editor/<key>.html`.
+
+**Preview and PDF:** where the app runs on a PC with Microsoft Word, Preview and Download PDF
+use a PDF made by Word itself (`reports/services/word_pdf.py`: a hidden, separate Word instance
+updates the fields and exports), so they match the final deliverable exactly. Without Word
+(e.g. a server without Office, or `REPORT_PDF_ENGINE=off`) Preview falls back to drawing the
+`.docx` in the browser (docx-preview), which is approximate; there the table of contents, page
+count and page numbers show placeholders until Word opens the file.
+
+**Word-valid output:** a table cell must contain a paragraph or Word calls the file corrupt.
+A cell whose only content is a loop becomes empty when the list is empty, so `render_report`
+adds an empty paragraph to any such cell.
+
+## Tag syntax
+
+| Tag | Use |
+|---|---|
+| `{{ client }}` | Insert a value. |
+| `{%p for s in setups %}` … `{%p endfor %}` | Repeat the paragraphs (and tables) between two tag-only paragraphs. |
+| `{%tr for r in scans %}` … `{%tr endfor %}` | Repeat a table row; each tag sits alone in its own row. |
+| `{%p if figures.drawings %}` … `{%p endif %}` | Keep a block only when there is something to show. |
+| `{{r t.text }}` | Insert formatted (rich) text. |
+
+Rules that avoid broken templates:
+- Type each tag in one go, and don't format part of a tag (Word splits differently
+  formatted text into separate runs, which breaks the tag).
+- `{%p … %}` and `{%tr … %}` tags must be the only thing in their paragraph / row.
+- Units are written in the template where the value is a bare number: `{{ s.x_res }}` already
+  adds `"` when needed, so don't type another `"` after it.
+
+## Variables
+
+**Report**
+
+| Variable | Content |
+|---|---|
+| `client`, `location`, `work_order`, `project_number`, `project_type`, `equipment_id` | Report fields (`project_number` shows `N/A` when blank). |
+| `document_title`, `document_title_upper` | Report title, and the same in capitals for the cover. |
+| `report_date_long` | e.g. `3 September, 2026` (cover and footer). |
+| `test_dates` | e.g. `8/13/2026 – 8/25/2026`, or one date when there is no end date. |
+| `procedures` | Each setup's procedure once, in setup order (falls back to the report's Procedure lines). |
+| `examination_scope`, `executive_summary`, `asset_description`, `access`, `work_scope` | Multi-paragraph text (blank line = new paragraph). `access` is the editor's "Access & surface condition". |
+| `discussion` | The report's Discussion, or the Text library's standard Discussion (`default`) when blank. |
+| `x_axis_reference`, `y_axis_reference` | Scan direction references. |
+| `prepared_by`, `examined_by`, `reviewed_by` | People ticked for each role in the editor's Personnel section: `p.name`, `p.certification`. |
+| `techniques` | Technique bullets `{{r t.text }}`: one per distinct setup Technique title (case-insensitive), as bold lead + " – " + description from the Text library; just the title when the library has no entry; the old UT method lines when no setup has a title. |
+
+**Setups** — `{%p for s in setups %}`, one "Equipment Details" section each
+
+`s.title`, `s.equipment_type`, `s.scope_model`, `s.scope_serial`, `s.x_res`, `s.y_res`,
+`s.transducer_model`, `s.transducer_serial`, `s.foc_depth`, `s.wave_mode`, `s.freq`,
+`s.elements`, `s.cal_material`, `s.material_temp`, `s.cal_block`, `s.surface_prep`,
+`s.tr_min`, `s.tr_max`, `s.procedure`, `s.images` (calibration screenshots).
+
+`s.title` is the setup's Technique title (e.g. "HydroFORM"), falling back to its beam
+formation or probe model; `s.procedure` falls back to the report's Procedure; `s.images` are
+the setup's calibration screenshots at 3.45" wide (two per line).
+
+**Results** — `{%tr for r in scans %}`
+
+Keys follow the report type's `results_columns` (`reports/report_types.py`); for HIC:
+`results_title`, `r.scan_id`, `r.orientation`, `r.x_range`, `r.y_range`, `r.avg_thk`,
+`r.min_thk`, `r.is_min` (true for the thinnest reading, which is highlighted yellow),
+`r.comments`.
+
+**Photo summary** — `{%p for r in scan_images %}`, one image block each
+
+`r.image`, `r.scan_id`, `r.comments`. Built from the editor's Photo summary uploads in
+results-table order: each image's comments come from the results row with the same Scan ID;
+images not tied to a row follow, labelled with their own label.
+
+**Figures** — lists of `f.title` + `f.images`
+- `figures.drawings`: the editor's Equipment drawings uploads (shown under DRAWING).
+
+## Fields Word updates on open
+
+The generated file asks Word to update fields when opened, which refreshes the table of
+contents, "Total Pages", page numbers and the page reference in the cover summary.

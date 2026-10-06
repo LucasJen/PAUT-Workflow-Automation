@@ -1,397 +1,174 @@
-{%extends 'reports/base.html'%}
-{% load static %}
+{% extends 'reports/base.html' %}
+{% load static ui %}
 
-{% block styles%}
-<link rel="stylesheet" href="{% static 'reports/css/create_report_styles.css' %}">
-{% endblock %}
+{% block title %}{% if form.instance.pk %}{{ form.instance.document_filename|default:"Report" }}{% else %}New report{% endif %} · PAUT Report Automation{% endblock %}
 
 {% block content %}
-
-<body>
-
-{% if messages %}
-{% for message in messages %}
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-    {{ message }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<a href="{% url 'report-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Reports</a>
+<div class="page-header">
+    <h1>{% if form.instance.pk %}{{ form.instance.document_filename|default:"Untitled report" }}{% else %}New report{% endif %}</h1>
 </div>
-{% endfor %}
-{% endif %}
+{% include 'reports/components/job_folder_bar.html' with report=form.instance %}
 
-<form method="post">
+<!-- Shared by every setup block's wave mode field -->
+<datalist id="wave_propagation_options">
+    <option value="Shear">
+    <option value="Longitudinal">
+</datalist>
+
+<form method="post" enctype="multipart/form-data" id="report-form" novalidate data-arrow-nav{% if wizard %} data-wizard="1"{% endif %}>
     {% csrf_token %}
-    <div class="card">
-        <div class="section-title">Load Existing Report</div>
-        <div style="display:flex; gap: 0.75rem; align-items: center;">
-            <select id="report-select" style="flex: 1;">
-            <option value="">-- Select a report --</option>
-            {% for report in reports %}
-            <option value="{{ report.pk }}"
-                data-document_filename="{{ report.document_filename}}"
-                data-document_title="{{ report.document_title }}"
-                data-client="{{ report.client }}"
-                data-location="{{ report.location }}"
-                data-work_order="{{ report.work_order }}"
-                data-project_number="{{ report.project_number }}"
-                data-report_date="{{ report.report_date }}"
-                data-test_date="{{ report.test_date }}"
-                data-project_type="{{ report.project_type }}"
-                data-procedure="{{ report.procedure }}"
-                data-technician_name="{{ report.technician_name }}"
-                data-certification="{{ report.certification }}"
-                data-assistant_name="{{ report.assistant_name }}"
-                data-assistant_certification="{{ report.assistant_certification }}"
-                data-examination_scope="{{ report.examination_scope }}"
-                data-executive_summary="{{ report.executive_summary }}"
-                data-equipment_id="{{ report.equipment_id }}"
-                data-equipment_overview="{{ report.equipment_overview }}"
-                data-work_scope="{{ report.work_scope }}"
-                data-x_axis_reference="{{ report.x_axis_reference }}"
-                data-y_axis_reference="{{ report.y_axis_reference }}"
-                data-ut_method="{{ report.ut_method }}">
-                {{ report }}
-            </option>
+    {% if wizard %}
+    {# Guided mode (wizard.js): one step at a time; Prev / Next save, then go to wizard_goto #}
+    <input type="hidden" name="wizard" value="1">
+    <input type="hidden" name="wizard_step" id="wizard-step" value="{{ wizard_step }}">
+    <section class="panel wizard-head" aria-label="Steps">
+        <ol class="wizard-steps" id="wizard-steps">
+            <li class="is-done"><span class="wizard-dot"><i class="bi bi-check"></i></span> Files</li>
+            <li class="is-done"><span class="wizard-dot"><i class="bi bi-check"></i></span> Welds</li>
+        </ol>
+        <div class="wizard-title">
+            <span class="wizard-count" id="wizard-count"></span>
+            <h2 id="wizard-title"></h2>
+            <span class="wizard-status" id="wizard-status" role="status"></span>
+        </div>
+    </section>
+    {% endif %}
+    <input type="hidden" name="report_id" value="{{ form.instance.pk|default_if_none:'' }}">
+    {% if form.instance.pk %}<input type="hidden" name="selected" value="{{ form.instance.pk }}">{% endif %}
+
+    <!-- Report type + file name -->
+    <section class="panel editor-header">
+        <div class="field-grid cols-3">
+            {% if wizard %}<div hidden>{{ form.report_type }}</div>{% else %}{{ form.report_type.as_field_group }}{% endif %}
+            <div class="span-2">{{ form.document_filename.as_field_group }}</div>
+        </div>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <p class="form-text mb-0"{% if wizard %} hidden{% endif %}>The report type chooses the Word template and which sections are shown. Values in hidden sections are kept.</p>
+            {# The weld form's fill marks (fill_marks.js): what's still empty, by where it comes from #}
+            <p class="fill-legend form-text mb-0">
+                <span class="fill-key fill-key-user"></span> To fill in: <strong id="fill-count-user">0</strong>
+                <span class="fill-key fill-key-auto ms-3"></span> <span title="Usually filled by an .nde import, the scope library or the sensitivity block">Missing input data:</span> <strong id="fill-count-auto">0</strong>
+                <button type="button" class="btn btn-secondary btn-sm ms-3" id="fill-next" title="Go to the next outlined field">
+                    <i class="bi bi-arrow-down-short"></i> Next missing</button>
+            </p>
+            <span class="d-flex align-items-center gap-2">
+                <span class="form-text mb-0" id="reload-defaults-status" role="status"></span>
+                <button type="button" class="btn btn-secondary btn-sm" id="reload-defaults"
+                        data-confirm="Replace this report's values with the defaults in use for its type (Preferences › Defaults)? Fields the defaults leave blank keep what they have."
+                        data-confirm-label="Reload defaults"
+                        title="Fill in the defaults in use for this report type again, over what's there">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reload defaults</button>
+            </span>
+        </div>
+    </section>
+
+    <div class="editor-layout">
+        <nav class="section-nav" id="section-nav" aria-label="Report sections">
+            {% for key, title, fields in form.all_sections %}
+            <a href="#sec-{{ key }}" data-nav-section="{{ key }}">{{ title }}{% if not fields %} <span class="nav-count" id="{{ key }}-count"></span>{% endif %}</a>
             {% endfor %}
-        </select>
-        <button type="button" class="btn btn-secondary clear-btn" data-fields="document_title,client,location,work_order,project_number,report_date,test_date,project_type,procedure,technician_name,certification,assistant_name,assistant_certification,examination_scope,executive_summary,equipment_id,equipment_overview,work_scope,x_axis_reference,y_axis_reference,ut_method">Clear All</button>
-        </div>
-    </div>
+        </nav>
 
-    <div class="card">
-        {{ form.document_filename.label_tag }}
-        <input type="text"
-            name="document_filename"
-            value="{{ form.document_filename.value|default:'-- New Report --' }}"
-            class="form-control form-control-lg fw-bold mt-1">
-        {{ form.document_filename.errors }}
-    </div>
-
-    <!-- Project Information -->
-    <div class="card inline-labels">
-        <div class="section-title">Project Information</div>
-        <div class="grid-1">
-            <div class="field">
-                {{ form.document_title.label_tag }}
-                {{ form.document_title }}
-                {{ form.document_title.errors }}
-            </div>
-        </div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.client.label_tag }}
-                {{ form.client }}
-                {{ form.client.errors }}
-            </div>
-            <div class="field">
-                {{ form.location.label_tag }}
-                {{ form.location }}
-                {{ form.location.errors }}
-            </div>
-            <div class="field">
-                {{ form.work_order.label_tag }}
-                {{ form.work_order }}
-                {{ form.work_order.errors }}
-            </div>
-            <div class="field">
-                {{ form.project_number.label_tag }}
-                {{ form.project_number }}
-                {{ form.project_number.errors }}
-            </div>
-            <div class="field">
-                {{ form.project_type.label_tag }}
-                {{ form.project_type }}
-                {{ form.project_type.errors }}
-            </div>
-            <div class="field">
-                {{ form.report_date.label_tag }}
-                {{ form.report_date }}
-                {{ form.report_date.errors }}
-            </div>
-            <div class="field">
-                {{ form.test_date.label_tag }}
-                {{ form.test_date }}
-                {{ form.test_date.errors }}
-            </div>
-            <div class="field">
-                {{ form.procedure.label_tag }}
-                {{ form.procedure }}
-                {{ form.procedure.errors }}
-            </div>
-        </div>
-    </div>
-
-    <!-- Technician Information -->
-    <div class="card inline-labels">
-        <div class="section-title">Technician Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.technician_name.label_tag }}
-                {{ form.technician_name }}
-                {{ form.technician_name.errors }}
-            </div>
-            <div class="field">
-                {{ form.certification.label_tag }}
-                {{ form.certification }}
-                {{ form.certification.errors }}
-            </div>
-        </div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.assistant_name.label_tag }}
-                {{ form.assistant_name }}
-                {{ form.assistant_name.errors }}
-            </div>
-            <div class="field">
-                {{ form.assistant_certification.label_tag }}
-                {{ form.assistant_certification }}
-                {{ form.assistant_certification.errors }}
-            </div>
-        </div>
-    </div>
-
-    <!-- Executive Summary -->
-    <div class="card">
-        <div class="section-title">Executive Summary</div>
-        <div class="grid-1">
-            <div class="field">
-                {{ form.examination_scope.label_tag }}
-                {{ form.examination_scope }}
-                {{ form.examination_scope.errors }}
-            </div>
-            <div class="field">
-                {{ form.executive_summary.label_tag }}
-                {{ form.executive_summary }}
-                {{ form.executive_summary.errors }}
-            </div>
-        </div>
-    </div>
-
-    <!-- Job Scope, References and Method -->
-    <div class="card inline-labels">
-        <div class="section-title">Job Scope, References &amp; Method</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.equipment_id.label_tag }}
-                {{ form.equipment_id }}
-                {{ form.equipment_id.errors }}
-            </div>
-            <div class="field">
-                {{ form.ut_method.label_tag }}
-                {{ form.ut_method }}
-                {{ form.ut_method.errors }}
-            </div>
-            <div class="field">
-                {{ form.x_axis_reference.label_tag }}
-                {{ form.x_axis_reference }}
-                {{ form.x_axis_reference.errors }}
-            </div>
-            <div class="field">
-                {{ form.y_axis_reference.label_tag }}
-                {{ form.y_axis_reference }}
-                {{ form.y_axis_reference.errors }}
-            </div>
-        </div>
-        <div class="grid-1" style="margin-top: 1rem;">
-            <div class="field">
-                {{ form.equipment_overview.label_tag }}
-                {{ form.equipment_overview }}
-                {{ form.equipment_overview.errors }}
-            </div>
-            <div class="field">
-                {{ form.work_scope.label_tag }}
-                {{ form.work_scope }}
-                {{ form.work_scope.errors }}
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="section-title">Load Existing Setup</div>
-        <div style="display:flex; gap: 0.75rem; align-items: center;">
-            <select id="setup-select" style="flex: 1;">
-            <option value="">-- Select a setup --</option>
-            {% for setup in setups %}
-            <option value="{{ setup.pk }}"
-                data-manufacturer="{{ setup.manufacturer }}"
-                data-scope_model="{{ setup.scope_model }}"
-                data-scope_serial="{{ setup.scope_serial }}"
-                data-transducer_model="{{ setup.transducer_model }}"
-                data-transducer_serial="{{ setup.transducer_serial }}"
-                data-foc_depth="{{ setup.foc_depth }}"
-                data-wave_propagation="{{ setup.wave_propagation }}"
-                data-freq="{{ setup.freq }}"
-                data-elements="{{ setup.elements }}"
-                data-x_res="{{ setup.x_res }}"
-                data-y_res="{{ setup.y_res }}"
-                data-cal_material="{{ setup.cal_material }}"
-                data-material_temp="{{ setup.material_temp }}"
-                data-cal_block_type="{{ setup.cal_block_type }}"
-                data-cal_block_serial="{{ setup.cal_block_serial }}"
-                data-surface_prep="{{ setup.surface_prep }}"
-                data-tr_min="{{ setup.tr_min }}"
-                data-tr_max="{{ setup.tr_max }}">
-                {{ setup }}
-            </option>
+        <div class="editor-sections">
+            {# Sections in REPORT_SECTIONS order; special sections live in reports/editor/<key>.html #}
+            {% for key, title, fields in form.all_sections %}
+            {% if fields %}
+            <section class="panel editor-section" id="sec-{{ key }}" data-section="{{ key }}">
+                <div class="panel-header"><h2 class="panel-title">{{ title }}</h2></div>
+                <div class="{{ key|section_grid }}">
+                    {% for field in fields %}{{ field.as_field_group }}{% endfor %}
+                </div>
+            </section>
+            {% else %}
+            {% with section_template="reports/editor/"|add:key|add:".html" %}{% include section_template %}{% endwith %}
+            {% endif %}
             {% endfor %}
-        </select>
-        <button type="button" class="btn btn-secondary clear-btn" data-fields="manufacturer,scope_model,scope_serial,transducer_model,transducer_serial,foc_depth,wave_propagation,freq,elements,x_res,y_res,cal_material,material_temp,cal_block_type,cal_block_serial,surface_prep,tr_min,tr_max">Clear All</button>
+            {% if wizard %}
+            {# The guided editor's last step before the preview: the scan plan printed on the last page #}
+            <section class="panel editor-section" id="sec-wizard-scanplan" data-wizard-panel="scanplan" data-title="Scan plan">
+                <div class="panel-header"><h2 class="panel-title">Scan plan</h2></div>
+                {% with plan=form.instance.scan_plan %}
+                {% if plan %}
+                <p class="form-text">“{{ plan.name }}” prints on the report's last page. The drawing is as last saved: after editing the plan, reload it here.</p>
+                <div class="wizard-plan">
+                    <img src="{% url 'scan-plan-png' plan.pk %}" alt="Scan plan {{ plan.name }}" id="wizard-plan-img">
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <a href="{% url 'edit-scan-plan' plan.pk %}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
+                        <i class="bi bi-box-arrow-up-right"></i> Edit scan plan</a>
+                    <button type="button" class="btn btn-secondary btn-sm" id="wizard-plan-reload"><i class="bi bi-arrow-clockwise"></i> Reload drawing</button>
+                </div>
+                {% else %}
+                <p class="mb-0">No scan plan is linked to this report. Pick one in the <em>Calibration, scan plan &amp; notes</em> step, or make one under <a href="{% url 'scan-plan-list' %}" target="_blank" rel="noopener">Scan plans</a>.</p>
+                {% endif %}
+                {% endwith %}
+            </section>
+            {% endif %}
         </div>
     </div>
 
-    <!-- Setup Information -->
-    <div class="card setup-card">
-        <div class="section-title">UT Equipment Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ setup_form.manufacturer.label_tag }}
-                {{ setup_form.manufacturer }}
-                {{ setup_form.manufacturer.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.scope_model.label_tag }}
-                {{ setup_form.scope_model }}
-                {{ setup_form.scope_model.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.scope_serial.label_tag }}
-                {{ setup_form.scope_serial }}
-                {{ setup_form.scope_serial.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.transducer_model.label_tag }}
-                {{ setup_form.transducer_model }}
-                {{ setup_form.transducer_model.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.transducer_serial.label_tag }}
-                {{ setup_form.transducer_serial }}
-                {{ setup_form.transducer_serial.errors }}
-            </div>
-        </div>
-
-        <div class="section-title">UT Setup Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ setup_form.foc_depth.label_tag }}
-                {{ setup_form.foc_depth }}
-                {{ setup_form.foc_depth.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.wave_propagation.label_tag }}
-                {{ setup_form.wave_propagation }}
-                {{ setup_form.wave_propagation.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.freq.label_tag }}
-                {{ setup_form.freq }}
-                {{ setup_form.freq.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.elements.label_tag }}
-                {{ setup_form.elements }}
-                {{ setup_form.elements.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.x_res.label_tag }}
-                {{ setup_form.x_res }}
-                {{ setup_form.x_res.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.y_res.label_tag }}
-                {{ setup_form.y_res }}
-                {{ setup_form.y_res.errors }}
-            </div>
-        </div>
-
-        <div class="section-title">Calibration Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ setup_form.cal_material.label_tag }}
-                {{ setup_form.cal_material }}
-                {{ setup_form.cal_material.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.material_temp.label_tag }}
-                {{ setup_form.material_temp }}
-                {{ setup_form.material_temp.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.cal_block_type.label_tag }}
-                {{ setup_form.cal_block_type }}
-                {{ setup_form.cal_block_type.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.cal_block_serial.label_tag }}
-                {{ setup_form.cal_block_serial }}
-                {{ setup_form.cal_block_serial.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.surface_prep.label_tag }}
-                {{ setup_form.surface_prep }}
-                {{ setup_form.surface_prep.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.tr_min.label_tag }}
-                {{ setup_form.tr_min }}
-                {{ setup_form.tr_min.errors }}
-            </div>
-            <div class="field">
-                {{ setup_form.tr_max.label_tag }}
-                {{ setup_form.tr_max }}
-                {{ setup_form.tr_max.errors }}
-            </div>
-        </div>
+    {% if wizard %}
+    <div class="sticky-actions">
+        <span class="status">
+            Report #{{ form.instance.pk }} · saved as you go<span id="unsaved-indicator" hidden> · <strong>unsaved changes</strong></span>
+        </span>
+        <a href="{% url 'create-report' %}?loaded={{ form.instance.pk }}" class="btn btn-secondary" title="All sections on one page, with every button">Open in full editor</a>
+        {# Next first in the DOM so pressing Enter goes on; Prev and the step list submit through wizard-jump #}
+        <button type="submit" name="wizard_goto" value="" class="btn btn-primary order-last" id="wizard-next">Next <i class="bi bi-arrow-right"></i></button>
+        <button type="button" class="btn btn-secondary" id="wizard-prev"><i class="bi bi-arrow-left"></i> Prev</button>
+        <button type="submit" name="wizard_goto" value="" id="wizard-jump" hidden></button>
     </div>
-
-    <div class="actions">
-        <a href="{% url 'report-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
-        <button type="submit" class="btn btn-primary">Save Report</button>
-        <button type="submit" name="generate" class="btn btn-success">Generate Report</button>
+    {% else %}
+    <div class="sticky-actions">
+        <span class="status">
+            {% if form.instance.pk %}
+            Report #{{ form.instance.pk }}{% if form.instance.updated_at %} · saved {{ form.instance.updated_at|timesince }} ago{% endif %}
+            {% else %}
+            New report, not saved yet
+            {% endif %}
+            <span id="unsaved-indicator" hidden> · <strong>unsaved changes</strong></span>
+        </span>
+        {# Save first in the DOM so pressing Enter saves #}
+        <button type="submit" class="btn btn-secondary"><i class="bi bi-check-lg"></i> Save</button>
+        {% if has_equipment %}
+        {% with app=excel|yesno:"Excel,Word" %}
+        <a href="{% url 'generate-report' form.instance.pk %}" class="btn btn-secondary" id="download-link" download
+           title="Download the {{ app }} report as last saved"{% if excel %} data-busy="Preparing workbook…"{% endif %}{% if request.GET.download %} data-auto-download{% endif %}>
+            <i class="bi bi-download"></i> Download {% if excel %}.xlsx{% else %}.docx{% endif %}
+        </a>
+        {% if pdf_available %}
+        <a href="{% url 'report-pdf' form.instance.pk %}?download=1" class="btn btn-secondary" id="pdf-link" download
+           data-busy="Preparing PDF…" title="PDF made by {{ app }} from the report as last saved">
+            <i class="bi bi-file-earmark-pdf"></i> PDF
+        </a>
+        {% endif %}
+        {% endwith %}
+        {% endif %}
+        <button type="submit" name="preview" class="btn btn-secondary"><i class="bi bi-eye"></i> Save &amp; preview</button>
+        <button type="submit" name="generate" class="btn btn-primary"><i class="bi bi-file-earmark-arrow-down"></i> Save &amp; download</button>
+        {% if form.instance.pk %}
+        <button type="submit" name="delete" formaction="{% url 'report-list' %}" formnovalidate
+                class="btn btn-ghost-danger order-first" data-confirm="Delete this report? This can't be undone.">
+            <i class="bi bi-trash"></i> Delete
+        </button>
+        {% endif %}
     </div>
+    {% endif %}
 </form>
 
-<script>
-    document.getElementById('report-select').addEventListener('change', function() {
-        const selected = this.options[this.selectedIndex];
-        if (!selected.value) return;
-        const fields = [
-            'document_title', 'client', 'location', 'work_order', 'project_number',
-            'report_date', 'test_date', 'project_type', 'procedure', 'technician_name',
-            'certification', 'assistant_name', 'assistant_certification',
-            'examination_scope', 'executive_summary', 'equipment_id',
-            'equipment_overview', 'work_scope', 'x_axis_reference',
-            'y_axis_reference', 'ut_method'
-        ];
-        fields.forEach(field => {
-            const el = document.getElementById('id_' + field);
-            if (el) el.value = selected.dataset[field] || '';
-        });
-    });
+{{ results_data|json_script:"results-initial-data" }}
+{{ report_types|json_script:"report-types" }}
+{{ saved_setup_values|json_script:"saved-setup-values" }}
+{{ report_defaults|json_script:"report-defaults" }}
+{% endblock %}
 
-    document.getElementById('setup-select').addEventListener('change', function() {
-        const selected = this.options[this.selectedIndex];
-        if (!selected.value) return;
-        const fields = [
-            'manufacturer', 'scope_model', 'scope_serial', 'transducer_model',
-            'transducer_serial', 'foc_depth', 'wave_propagation', 'freq',
-            'elements', 'x_res', 'y_res', 'cal_material', 'material_temp',
-            'cal_block_type', 'cal_block_serial', 'surface_prep', 'tr_min', 'tr_max'
-        ];
-        fields.forEach(field => {
-            const el = document.getElementById('id_' + field);
-            if (el) el.value = selected.dataset[field] || '';
-        });
-    });
-
-    document.querySelectorAll('.clear-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            this.dataset.fields.split(',').forEach(field => {
-                const el = document.getElementById('id_' + field);
-                if (el) el.value = '';
-            });
-        });
-    });
-</script>
-</body>
-
+{% block scripts %}
+<script src="{% static_v 'reports/js/section_nav.js' %}"></script>
+<script src="{% static_v 'reports/js/create_report.js' %}"></script>
+<script src="{% static_v 'reports/js/weld_grid.js' %}"></script>
+<script src="{% static_v 'reports/js/weld_results.js' %}"></script>
+<script src="{% static_v 'reports/js/materials.js' %}"></script>
+<script src="{% static_v 'reports/js/fill_marks.js' %}"></script>
+{% if wizard %}<script src="{% static_v 'reports/js/wizard.js' %}"></script>{% endif %}
 {% endblock %}

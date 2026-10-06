@@ -1,0 +1,154 @@
+{% extends 'reports/base.html' %}
+{% load static ui %}
+
+{% block title %}Guided Creation · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<a href="{% url 'report-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Reports</a>
+<div class="page-header">
+    <h1>Guided Creation</h1>
+    <p class="page-subtitle">Pick the report type and the job's folder (or make one). The app reads its .nde files: the instrument, probes and groups, the part, the welds and their offsets, the calibration times and the scan plan. The folder name gives the report name and client, and the report is saved back into the folder when you download it.</p>
+</div>
+
+{# The report type: what's built, and whose working folders are listed #}
+<form method="get" class="job-type" id="type-form">
+    <label for="report-type">Report type</label>
+    <select class="form-select" id="report-type" name="type" onchange="this.form.submit()">
+        {% for item, guided in report_types %}
+        <option value="{{ item.key }}"{% if item.key == rtype.key %} selected{% endif %}>{{ item.label }}{% if not guided %} (guided workflow coming later){% endif %}</option>
+        {% endfor %}
+    </select>
+</form>
+
+{# The report type's default working folder: job folders are listed from and made in it (set in Preferences) #}
+<div class="job-root">
+    <i class="bi bi-folder2"></i>
+    <span>Working folder</span>
+    {% if root %}
+    <span class="mono">{{ root.path }}</span>
+    {% if not root_exists %}<span class="text-danger">not found</span>{% endif %}
+    {% else %}
+    <span class="text-body-secondary">none set for {{ rtype.label }} reports</span>
+    {% endif %}
+    <a href="{% url 'working-folder-list' %}" class="small">Change in Preferences › Working folders</a>
+</div>
+
+{% if not rtype.guided %}
+<section class="panel">
+    <p class="mb-2"><i class="bi bi-cone-striped"></i> The guided workflow for <strong>{{ rtype.label }}</strong> reports isn't built yet.</p>
+    <p class="text-body-secondary mb-0">Use <a href="{% url 'create-report' %}">New report</a> for now. You can already set up its working folders in Preferences.</p>
+</section>
+{% else %}
+<form method="post" enctype="multipart/form-data" id="start-form">
+    {% csrf_token %}
+    <input type="hidden" name="type" value="{{ rtype.key }}">
+    <section class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Job folder</h2>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Job folder">
+                <input type="radio" class="btn-check" name="folder_mode" id="mode-existing" value="existing"{% if mode == 'existing' %} checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="mode-existing"><i class="bi bi-folder2-open"></i> Existing folder</label>
+                <input type="radio" class="btn-check" name="folder_mode" id="mode-new" value="new"{% if mode == 'new' %} checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="mode-new"><i class="bi bi-folder-plus"></i> New folder</label>
+                <input type="radio" class="btn-check" name="folder_mode" id="mode-none" value="none"{% if mode == 'none' %} checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="mode-none"><i class="bi bi-files"></i> Files only</label>
+            </div>
+        </div>
+
+        {# Existing: the root's folders, job folders first (newest first) #}
+        <div data-mode="existing">
+            {% if folders %}
+            <div class="search-input w-100 mb-2">
+                <i class="bi bi-search"></i>
+                <input type="search" class="form-control" id="folder-search" placeholder="Search folders (line, weld, client…)" aria-label="Search folders">
+            </div>
+            <div class="job-folders" id="job-folders">
+                {% for folder in folders %}
+                <label class="job-folder{% if not folder.job %} not-job{% endif %}">
+                    <input type="radio" class="form-check-input" name="job_folder" value="{{ folder.name }}"{% if posted.job_folder == folder.name %} checked{% endif %}>
+                    <span class="job-folder-main">
+                        <span class="job-folder-name mono">{{ folder.name }}</span>
+                        <span class="job-folder-chips">
+                            {% with info=folder.info %}
+                            {% if info.client_code %}<span class="job-chip" title="{% if folder.client %}{{ folder.client.client }}{% else %}Not in Preferences › Client codes{% endif %}">{{ info.client_code }}{% if folder.client %} · {{ folder.client.client }}{% endif %}</span>{% endif %}
+                            {% if info.line %}<span class="job-chip">Line {% if info.unit %}{{ info.unit }}-{% endif %}{{ info.line }}</span>{% endif %}
+                            {% if info.welds %}<span class="job-chip">{{ info.welds|join:", " }}</span>{% endif %}
+                            {% if info.nps %}<span class="job-chip job-chip-accent">{{ info.nps }}in</span>{% elif folder.job %}<span class="job-chip job-chip-warn" title="The name gives no pipe size">no size</span>{% endif %}
+                            {% endwith %}
+                        </span>
+                    </span>
+                    <span class="job-folder-aside">
+                        <span>{{ folder.nde }} .nde</span>
+                        {% if folder.reports %}<span class="text-success" title="{{ folder.reports|join:', ' }}"><i class="bi bi-file-earmark-check"></i> report</span>{% endif %}
+                        <span class="text-body-secondary">{{ folder.modified|date:'Y-m-d' }}</span>
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+            <p class="form-text mb-0 mt-2" id="folder-no-matches" hidden>No folders match.</p>
+            {% else %}
+            <p class="text-body-secondary mb-0">{% if root %}No folders in {{ root.path }} yet. Choose <strong>New folder</strong>, or change the working folder in Preferences.{% else %}Set a working folder for these reports in <a href="{% url 'working-folder-list' %}">Preferences › Working folders</a> first (the folder their job folders are kept in), or choose <strong>Files only</strong>.{% endif %}</p>
+            {% endif %}
+        </div>
+
+        {# New: the whole folder name, which is also the report's name #}
+        <div data-mode="new" hidden>
+            <div class="field">
+                <label for="new-name">Folder name</label>
+                <input type="text" class="form-control mono" id="new-name" name="new_name" value="{{ posted.new_name }}"
+                       placeholder="e.g. PPI-32-27119-FW6-4in" autocomplete="off">
+                <div class="form-text">Made in the working folder above; it's also the report's name. The client code at the start fills the client (Preferences › Client codes).</div>
+            </div>
+        </div>
+
+        <div data-mode="none" hidden>
+            <p class="text-body-secondary mb-0">The report isn't tied to a folder: pick the .nde files below; downloads go to the browser only.</p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="field-grid cols-3">
+            <div class="field span-full">
+                <label for="start-files" id="files-label">The job's .nde files</label>
+                <input type="file" class="form-control" id="start-files" name="nde_files" accept=".nde" multiple>
+                <div class="form-text" id="files-help">Select them all at once (Ctrl+A in the folder). Large files take a moment to read.</div>
+            </div>
+            <div class="field">
+                <label for="start-defaults">Start from defaults</label>
+                <select class="form-select" id="start-defaults" name="defaults">
+                    <option value="">None</option>
+                    {% for item in defaults_sets %}
+                    <option value="{{ item.pk }}"{% if item.in_use %} selected{% endif %}>{{ item.name }}{% if item.in_use %} (in use){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Preferences › Defaults: client, procedure, prefilled probe and group columns…</div>
+            </div>
+            <div class="field">
+                <label for="start-block">NPS / Sch</label>
+                <select class="form-select" id="start-block" name="sensitivity_block">
+                    <option value="">Pick on the next step</option>
+                    {% for block in blocks %}
+                    <option value="{{ block.pk }}">{{ block }}{% if block.serial_number %} · {{ block.serial_number }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Equipment › Sensitivity blocks: fills the pipe size, cal. standard, test material and TCG block.</div>
+            </div>
+            <div class="field">
+                <label for="start-units">Units</label>
+                <select class="form-select" id="start-units" name="units">
+                    <option value="imperial">Imperial (in)</option>
+                    <option value="metric">Metric (mm)</option>
+                </select>
+            </div>
+        </div>
+    </section>
+    <div class="sticky-actions">
+        <button type="submit" class="btn btn-primary" id="start-submit"><i class="bi bi-arrow-right"></i> Read the files</button>
+    </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'reports/js/job_folder.js' %}"></script>
+{% endblock %}

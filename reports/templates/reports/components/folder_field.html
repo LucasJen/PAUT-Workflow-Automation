@@ -1,0 +1,22 @@
+{% comment %}
+A folder path box with Browse… (the Windows folder dialog, folder_browse.js). Pass `field` (a bound
+form field) or `name` / `value` / `id` for a plain input; optional `span`, `label`, `help`, `title`
+(the dialog's title), `placeholder`.
+{% endcomment %}
+{% firstof field.id_for_label id as input_id %}
+{% firstof field.html_name name as input_name %}
+{% firstof field.value value '' as input_value %}
+<div class="field {{ span }}">
+    <label for="{{ input_id }}">{% firstof label field.label 'Folder' %}</label>
+    <div class="input-group">
+        <input type="text" class="form-control mono" id="{{ input_id }}" name="{{ input_name }}"
+               value="{{ input_value }}" autocomplete="off"
+               placeholder="{% firstof placeholder 'Type the full path, or Browse…' %}">
+        <button type="button" class="btn btn-secondary" data-browse-for="{{ input_id }}" data-browse-url="{% url 'browse-folder' %}"
+                data-browse-title="{% firstof title 'Select a folder' %}" title="Pick the folder in the Windows folder dialog">
+            <i class="bi bi-folder2-open"></i> Browse…
+        </button>
+    </div>
+    {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors|join:' ' }}</div>{% endif %}
+    <div class="form-text" data-browse-note="{{ input_id }}">{% firstof help field.help_text %}</div>
+</div>

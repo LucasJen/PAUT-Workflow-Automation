@@ -1,0 +1,36 @@
+{% extends 'reports/components/list_page.html' %}
+
+{% block title %}Wedge catalogue · PAUT Report Automation{% endblock %}
+{% block page_title %}Wedge catalogue{% endblock %}
+{% block item_noun %}wedge model{% endblock %}
+
+{% block new_button %}
+{% include 'equipment/_catalogue_import.html' with next='wedge-model-list' %}
+<a href="{% url 'new-wedge-model' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New wedge model</a>
+{% endblock %}
+
+{% block columns %}
+<th class="sortable">Model<span class="sort-indicator"></span></th>
+<th class="sortable">Probe series<span class="sort-indicator"></span></th>
+<th class="sortable">Angle<span class="sort-indicator"></span></th>
+<th class="sortable">Wave<span class="sort-indicator"></span></th>
+<th class="sortable">L × W × H (mm)<span class="sort-indicator"></span></th>
+<th class="sortable">Scan plan geometry<span class="sort-indicator"></span></th>
+{% endblock %}
+
+{% block rows %}
+{% for item in items %}
+<tr data-href="{% url 'edit-wedge-model' item.pk %}">
+    {% include 'reports/components/row_check.html' with pk=item.pk %}
+    <td class="fw-medium">{{ item.model }}</td>
+    <td>{{ item.probe_series }}</td>
+    <td class="mono">{% if item.refracted_angle is not None %}{{ item.refracted_angle|floatformat }}°{% endif %}</td>
+    <td>{{ item.get_wave_type_display }}</td>
+    <td class="mono">{% if item.length %}{{ item.length|floatformat }} × {{ item.width|floatformat }} × {{ item.height|floatformat }}{% endif %}</td>
+    <td class="text-muted-cell">{% if item.has_geometry %}Complete{% else %}Missing: import an .nde{% endif %}</td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block empty_icon %}triangle{% endblock %}
+{% block empty_text %}No wedge models yet.{% endblock %}

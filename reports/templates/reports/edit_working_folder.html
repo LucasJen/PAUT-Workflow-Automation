@@ -1,0 +1,24 @@
+{% extends 'reports/components/edit_page.html' %}
+{% load static ui %}
+
+{% block title %}{% if folder %}{{ folder.name }}{% else %}Add working folder{% endif %} · Preferences · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'working-folder-list' %}{% endblock %}
+{% block back_label %}Working folders{% endblock %}
+{% block page_title %}{% if folder %}{{ folder.name }}{% else %}Add working folder{% endif %}{% endblock %}
+{% block page_subtitle %}The folder a report type's job folders are kept in. Guided Creation lists the job folders in it and makes new ones there. Removing it here only forgets it; the folder on disk is untouched.{% endblock %}
+{% block item_noun %}working folder{% endblock %}
+
+{% block form_body %}
+<section class="panel">
+    <div class="field-grid cols-3">
+        {% include 'reports/components/folder_field.html' with field=form.path span='span-full' title='Select a working folder' %}
+        {{ form.report_type.as_field_group }}
+        {{ form.is_default.as_field_group }}
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="{% static_v 'reports/js/folder_browse.js' %}"></script>
+{% endblock %}

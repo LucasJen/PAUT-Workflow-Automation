@@ -1,8 +1,106 @@
 {% extends "reports/base.html" %}
+{% load static ui %}
+
+{% block title %}Dashboard · PAUT Report Automation{% endblock %}
+
 {% block content %}
-<h1> Landing Page </h1>
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <div class="header-actions">
+        <a href="{% url 'nde-upload' %}" class="btn btn-secondary"><i class="bi bi-upload"></i> Import from NDE</a>
+        <a href="{% url 'start-from-files' %}" class="btn btn-secondary"><i class="bi bi-folder2-open"></i> Weld report from files</a>
+        <a href="{% url 'create-report' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New report</a>
+    </div>
+</div>
 
-<h2>TODO</h2>
+<div class="stat-grid">
+    <a class="stat-tile" href="{% url 'report-list' %}">
+        <span class="stat-label">Reports</span>
+        <span class="stat-value">{{ stats.reports }}</span>
+    </a>
+    <a class="stat-tile" href="{% url 'setup-list' %}">
+        <span class="stat-label">Saved setups</span>
+        <span class="stat-value">{{ stats.saved_setups }}</span>
+    </a>
+</div>
 
+<div class="dashboard-grid">
+    {# Two stacked columns, so each card sits right under the one above it whatever their heights #}
+    <div class="dashboard-col">
+        <section class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Recent reports</h2>
+                <a href="{% url 'report-list' %}" class="small">View all</a>
+            </div>
+            {% if recent_reports %}
+            <ul class="item-list">
+                {% for report in recent_reports %}
+                <li>
+                    <a href="{% url 'create-report' %}?loaded={{ report.pk }}">
+                        <span class="item-main">
+                            <span class="item-title">{{ report.document_filename|default:"Untitled report" }}</span>
+                            <span class="item-meta">
+                                {% if report.client %}{{ report.client }}{% endif %}{% if report.client and report.location %} · {% endif %}{{ report.location }}
+                            </span>
+                        </span>
+                        <span class="item-aside">
+                            {% if report.updated_at %}{{ report.updated_at|timesince }} ago{% elif report.report_date %}{{ report.report_date|date:'M j, Y' }}{% endif %}
+                        </span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-body-secondary mb-0">No reports yet. <a href="{% url 'create-report' %}">Create the first one.</a></p>
+            {% endif %}
+        </section>
 
+        <section class="panel dashboard-equipment">
+            <div class="panel-header">
+                <h2 class="panel-title">Equipment</h2>
+            </div>
+            <ul class="item-list">
+                {% for label, icon, url_name, count in libraries %}
+                <li>
+                    <a href="{% url url_name %}">
+                        <span class="item-main">
+                            <span class="item-title"><i class="bi bi-{{ icon }} me-2 text-body-secondary"></i>{{ label }}</span>
+                        </span>
+                        <span class="item-aside mono">{{ count }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+    </div>
+
+    <div class="dashboard-col">
+        <section class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Documentation</h2>
+            </div>
+            <form method="get" action="{% url 'home' %}" id="doc-search" class="doc-search mb-3"
+                  data-search-url="{% url 'document-search' %}" role="search">
+                <div class="search-input">
+                    <i class="bi bi-search"></i>
+                    <input type="search" name="q" value="{{ query }}" class="form-control"
+                           placeholder="Search documentation…" aria-label="Search documentation">
+                </div>
+                <select name="type" class="form-select" aria-label="File type">
+                    <option value="">All types</option>
+                    {% for key, label in file_types %}
+                    <option value="{{ key }}"{% if key == file_type %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <div id="doc-results">
+                {% include 'documents/_dashboard_items.html' %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'reports/js/doc_search.js' %}"></script>
 {% endblock %}

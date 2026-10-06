@@ -1,373 +1,102 @@
 {% extends 'reports/base.html' %}
-{% load static %}
+{% load static ui %}
 
-{% block title %}NDE File Parser{% endblock %}
-
-{% block styles %}
-<link rel="stylesheet" href="{% static 'reports/css/create_report_styles.css' %}">
-<style>
-    .json-output {
-        background-color: #1e1e1e;
-        color: #d4d4d4;
-        border-radius: 6px;
-        padding: 1rem;
-        max-height: 400px;
-        overflow-y: auto;
-        font-size: 0.85rem;
-        white-space: pre;
-    }
-</style>
-{% endblock %}
+{% block title %}Import from NDE · PAUT Report Automation{% endblock %}
 
 {% block content %}
-<h2 class="mb-4">NDE File Parser</h2>
-
-<!-- File Upload -->
-<div class="card mb-4" style="max-width: 600px;">
-    <div class="card-body">
-        <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            <div class="mb-3">
-                <label for="nde_file" class="form-label">Select .nde file</label>
-                <input class="form-control" type="file" id="nde_file" name="nde_file" accept=".nde" required>
-            </div>
-            <div class="d-flex gap-2 align-items-center">
-                <button type="submit" class="btn btn-primary">Populate Fields</button>
-                {% if json_output %}
-                <div class="btn-group" role="group" aria-label="Unit system">
-                    <button type="button" class="btn btn-sm btn-primary" id="btn-imperial" onclick="setUnit(true)">Imperial</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-metric" onclick="setUnit(false)">Metric</button>
-                </div>
-                {% endif %}
-            </div>
-        </form>
-    </div>
+<a href="{% url 'setup-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Setups</a>
+<div class="page-header">
+    <h1>Import setup from NDE</h1>
+    <p class="page-subtitle">Read the setup from an .nde file, check the values, then save it as a setup you can load into any report.</p>
 </div>
 
-{% if error %}
-<div class="alert alert-danger">{{ error }}</div>
-{% endif %}
-
-<!-- Setup Form -->
-<form method="post">
+<!-- File upload -->
+<form method="post" enctype="multipart/form-data" id="nde-upload-form" class="mb-3">
     {% csrf_token %}
-
-    <div class="card setup-card">
-        <div class="section-title">UT Equipment Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.manufacturer.label_tag }}
-                {{ form.manufacturer }}
-                {{ form.manufacturer.errors }}
-            </div>
-            <div class="field">
-                {{ form.scope_platform.label_tag }}
-                {{ form.scope_platform }}
-                {{ form.scope_platform.errors }}
-            </div>
-            <div class="field">
-                {{ form.scope_model.label_tag }}
-                {{ form.scope_model }}
-                {{ form.scope_model.errors }}
-            </div>
-            <div class="field">
-                {{ form.scope_serial.label_tag }}
-                {{ form.scope_serial }}
-                {{ form.scope_serial.errors }}
-            </div>
-            <div class="field">
-                {{ form.transducer_model.label_tag }}
-                {{ form.transducer_model }}
-                {{ form.transducer_model.errors }}
-            </div>
-            <div class="field">
-                {{ form.transducer_serial.label_tag }}
-                {{ form.transducer_serial }}
-                {{ form.transducer_serial.errors }}
-            </div>
-            <div class="field">
-                {{ form.probe_diameter.label_tag }}
-                {{ form.probe_diameter }}
-                {{ form.probe_diameter.errors }}
-            </div>
-        </div>
-
-        <div class="section-title">Wedge Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.wedge_model.label_tag }}
-                {{ form.wedge_model }}
-                {{ form.wedge_model.errors }}
-            </div>
-            <div class="field">
-                {{ form.wedge_angle.label_tag }}
-                {{ form.wedge_angle }}
-                {{ form.wedge_angle.errors }}
-            </div>
-        </div>
-
-        <div class="section-title">UT Setup Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.foc_depth.label_tag }}
-                {{ form.foc_depth }}
-                {{ form.foc_depth.errors }}
-            </div>
-            <div class="field">
-                {{ form.wave_propagation.label_tag }}
-                {{ form.wave_propagation }}
-                {{ form.wave_propagation.errors }}
-            </div>
-            <div class="field">
-                {{ form.freq.label_tag }}
-                {{ form.freq }}
-                {{ form.freq.errors }}
-            </div>
-            <div class="field">
-                {{ form.elements.label_tag }}
-                {{ form.elements }}
-                {{ form.elements.errors }}
-            </div>
-            <div class="field">
-                {{ form.x_res.label_tag }}
-                {{ form.x_res }}
-                {{ form.x_res.errors }}
-            </div>
-            <div class="field">
-                {{ form.y_res.label_tag }}
-                {{ form.y_res }}
-                {{ form.y_res.errors }}
-            </div>
-            <div class="field">
-                {{ form.scan_length.label_tag }}
-                {{ form.scan_length }}
-                {{ form.scan_length.errors }}
-            </div>
-            <div class="field">
-                {{ form.scan_width.label_tag }}
-                {{ form.scan_width }}
-                {{ form.scan_width.errors }}
-            </div>
-            <div class="field">
-                {{ form.angle_step.label_tag }}
-                {{ form.angle_step }}
-                {{ form.angle_step.errors }}
-            </div>
-            <div class="field">
-                {{ form.angle_range.label_tag }}
-                {{ form.angle_range }}
-                {{ form.angle_range.errors }}
-            </div>
-            <div class="field">
-                {{ form.sound_velocity.label_tag }}
-                {{ form.sound_velocity }}
-                {{ form.sound_velocity.errors }}
-            </div>
-            <div class="field">
-                {{ form.gain.label_tag }}
-                {{ form.gain }}
-                {{ form.gain.errors }}
-            </div>
-            <div class="field">
-                {{ form.ref_gain.label_tag }}
-                {{ form.ref_gain }}
-                {{ form.ref_gain.errors }}
-            </div>
-            <div class="field">
-                {{ form.voltage.label_tag }}
-                {{ form.voltage }}
-                {{ form.voltage.errors }}
-            </div>
-        </div>
-
-        <div class="section-title">Specimen Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.specimen_od.label_tag }}
-                {{ form.specimen_od }}
-                {{ form.specimen_od.errors }}
-            </div>
-            <div class="field">
-                {{ form.specimen_thickness.label_tag }}
-                {{ form.specimen_thickness }}
-                {{ form.specimen_thickness.errors }}
-            </div>
-        </div>
-
-        <div class="section-title">Calibration Information</div>
-        <div class="grid-2">
-            <div class="field">
-                {{ form.cal_material.label_tag }}
-                {{ form.cal_material }}
-                {{ form.cal_material.errors }}
-            </div>
-            <div class="field">
-                {{ form.material_temp.label_tag }}
-                {{ form.material_temp }}
-                {{ form.material_temp.errors }}
-            </div>
-            <div class="field">
-                {{ form.cal_block_type.label_tag }}
-                {{ form.cal_block_type }}
-                {{ form.cal_block_type.errors }}
-            </div>
-            <div class="field">
-                {{ form.cal_block_serial.label_tag }}
-                {{ form.cal_block_serial }}
-                {{ form.cal_block_serial.errors }}
-            </div>
-            <div class="field">
-                {{ form.surface_prep.label_tag }}
-                {{ form.surface_prep }}
-                {{ form.surface_prep.errors }}
-            </div>
-            <div class="field">
-                {{ form.tr_min.label_tag }}
-                {{ form.tr_min }}
-                {{ form.tr_min.errors }}
-            </div>
-            <div class="field">
-                {{ form.tr_max.label_tag }}
-                {{ form.tr_max }}
-                {{ form.tr_max.errors }}
-            </div>
-        </div>
-    </div>
-
-    <div class="actions mb-4">
-        <a href="{% url 'setup-list' %}"><button type="button" class="btn btn-secondary">Cancel</button></a>
-        <button type="submit" name="save_setup" class="btn btn-primary">Save as New Setup</button>
-    </div>
-
+    <label class="drop-zone" id="drop-zone" for="nde_file">
+        <i class="bi bi-cloud-arrow-up"></i>
+        <span class="drop-title">Choose an .nde file or drag it here</span>
+        <span class="drop-hint" id="drop-hint">The file is read as soon as you choose it. Nothing is saved until you click “Save setup”.</span>
+        <input type="file" id="nde_file" name="nde_file" accept=".nde" required class="visually-hidden">
+    </label>
+    <noscript><button type="submit" class="btn btn-primary mt-2">Read file</button></noscript>
 </form>
 
-<!-- JSON Output -->
-{% if json_output %}
-<h5 class="mb-2">Parsed Setup JSON</h5>
-<pre class="json-output">{{ json_output }}</pre>
+{% if error %}
+<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>
 {% endif %}
 
-{% if json_output %}
-<script>
-    const NDE_DATA = {{ json_output|safe }};
+<!-- Setup form -->
+<form method="post" id="nde-setup-form"{% if form.is_bound %} data-bound="1"{% endif %}>
+    {% csrf_token %}
+    <datalist id="wave_propagation_options">
+        <option value="Shear">
+        <option value="Longitudinal">
+    </datalist>
 
-    // Raw metric values stored once on populate so toggling can reconvert without re-parsing
-    let _rawDiameter = null, _rawXRes = null, _rawYRes = null, _rawFocDepth = null;
-    let _rawOD = null, _rawThickness = null, _rawScanQty = 0, _beams = null, _rawVelocity = null;
-    let unitIsImperial = true;
+    <section class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">
+                {% if nde_groups %}Values read from {{ nde_filename|default:"the file" }}{% else %}Setup values{% endif %}
+            </h2>
+            {% if nde_groups %}
+            <div class="d-flex align-items-center gap-2">
+                {% if nde_groups|length > 1 %}
+                <select class="form-select form-select-sm w-auto" id="nde-group" aria-label="Inspection group">
+                    {% for group in nde_groups %}
+                    <option value="{{ forloop.counter0 }}">{{ group.label }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+                <div class="btn-group btn-group-sm" role="group" aria-label="Units">
+                    <button type="button" class="btn btn-primary" id="btn-imperial" data-unit="imperial">Imperial</button>
+                    <button type="button" class="btn btn-outline-primary" id="btn-metric" data-unit="metric">Metric</button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% if nde_groups %}
+        <p class="form-text mt-0">
+            {% if nde_groups|length > 1 %}This file has {{ nde_groups|length }} inspection groups; pick one above and save it, then pick the next.{% else %}Inspection group: {{ nde_groups.0.label }}.{% endif %}
+            Highlighted fields were filled from the file. Check them, and fill in anything the file doesn't record (calibration block, surface prep, temperature).
+        </p>
+        {% if nde_groups.0.scope %}
+        <p class="form-text">The instrument, {{ nde_groups.0.scope }}, is in the scope library: its cal due date, module, scanner type and analysis software come from there.</p>
+        {% endif %}
+        {% endif %}
+        {% if nde_groups %}
+        {# Filled by nde_upload.js for the chosen group #}
+        <div class="catalogue-match" id="catalogue-match" role="status"
+             data-add-url="{% url 'catalogue-add-from-file' %}" data-file="{{ nde_filename }}"></div>
+        {% endif %}
+        {% for title, fields in form.fieldsets %}
+        <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
+        <div class="field-grid cols-4">
+            {% for field in fields %}{{ field.as_field_group }}{% endfor %}
+        </div>
+        {% endfor %}
+    </section>
 
-    function safeGet(obj, ...keys) {
-        return keys.reduce((acc, key) => acc != null ? acc[key] : undefined, obj);
-    }
+    {% if json_output %}
+    <details class="panel json-details">
+        <summary>Raw setup JSON from the file</summary>
+        <pre class="json-output mt-3">{{ json_output }}</pre>
+    </details>
+    {% endif %}
 
-    // Convert meters to inches (imperial) or mm (metric)
-    function dist(meters, impDec = 3, metDec = 2) {
-        if (meters == null) return undefined;
-        return unitIsImperial
-            ? (meters * 39.3701).toFixed(impDec)
-            : (meters * 1000).toFixed(metDec);
-    }
+    <div class="sticky-actions">
+        {# Save first in the DOM so Enter saves; Clear is shown to its left #}
+        <button type="submit" name="save_setup" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save setup</button>
+        <a href="{% url 'nde-upload' %}" class="btn btn-secondary order-first" id="clear-setup"
+           title="Clear all fields and start over with a new file">
+            <i class="bi bi-arrow-counterclockwise"></i> Clear setup
+        </a>
+    </div>
+</form>
 
-    // Convert m/s to in/μs (imperial) or keep as m/s (metric)
-    function vel(mps) {
-        if (mps == null) return undefined;
-        return unitIsImperial
-            ? (mps / 25400).toFixed(4)
-            : mps.toFixed(0);
-    }
+{% if nde_groups %}{{ nde_groups|json_script:"nde-groups" }}{% endif %}
+{% endblock %}
 
-    function applyUnits() {
-        const yResStr = dist(_rawYRes, 4, 3);
-        const scanLenRaw = (_rawXRes != null && _rawScanQty) ? _rawXRes * _rawScanQty : null;
-        const scanWidthStr = (_beams && yResStr)
-            ? (_beams.length * parseFloat(yResStr)).toFixed(3)
-            : undefined;
-
-        const mappings = {
-            'id_probe_diameter':     dist(_rawDiameter, 4, 3),
-            'id_foc_depth':          dist(_rawFocDepth, 3, 2),
-            'id_x_res':              dist(_rawXRes, 4, 3),
-            'id_y_res':              yResStr,
-            'id_scan_length':        dist(scanLenRaw, 3, 2),
-            'id_scan_width':         scanWidthStr,
-            'id_specimen_od':        _rawOD != null ? dist(_rawOD * 2, 3, 2) : undefined,
-            'id_specimen_thickness': dist(_rawThickness, 4, 3),
-            'id_sound_velocity':     vel(_rawVelocity),
-        };
-
-        for (const [id, value] of Object.entries(mappings)) {
-            if (value != null) {
-                const el = document.getElementById(id);
-                if (el) el.value = value;
-            }
-        }
-    }
-
-    function setUnit(imperial) {
-        unitIsImperial = imperial;
-        document.getElementById('btn-imperial').className = `btn btn-sm ${imperial ? 'btn-primary' : 'btn-outline-primary'}`;
-        document.getElementById('btn-metric').className   = `btn btn-sm ${imperial ? 'btn-outline-primary' : 'btn-primary'}`;
-        applyUnits();
-    }
-
-    function populateFields() {
-        const d = NDE_DATA;
-
-        const probe = safeGet(d, 'probes', 0) || {};
-        const isPA = !!probe.phasedArrayLinear;
-        const probeData = isPA ? probe.phasedArrayLinear : probe.conventionalRound;
-
-        // Store raw metric values for reconversion on unit toggle
-        _rawDiameter  = !isPA ? safeGet(probeData, 'diameter') : null;
-        _rawXRes      = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'resolution');
-        _rawYRes      = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'resolution');
-        _rawFocDepth  = safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'focusing', 'distance');
-        _rawOD        = safeGet(d, 'specimens', 0, 'pipeGeometry', 'outerRadius');
-        _rawThickness = safeGet(d, 'specimens', 0, 'pipeGeometry', 'thickness');
-        _rawScanQty   = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 0, 'quantity') ?? 0;
-        _beams        = safeGet(d, 'groups', 0, 'datasets', 0, 'dimensions', 1, 'beams');
-        _rawVelocity  = safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'velocity');
-
-        let _angleStep, _angleRange;
-        if (_beams && _beams.length >= 2) {
-            const step = _beams[1].refractedAngle - _beams[0].refractedAngle;
-            _angleStep = step.toFixed(1) + '°';
-            _angleRange = `${_beams[0].refractedAngle}°-${_beams[_beams.length - 1].refractedAngle}°`;
-        }
-
-        // Unit-independent fields
-        const rawFreq = safeGet(probeData, 'centralFrequency');
-        const staticMappings = {
-            'id_scope_platform':   safeGet(d, 'acquisitionUnits', 0, 'platform'),
-            'id_scope_model':      safeGet(d, 'acquisitionUnits', 0, 'model'),
-            'id_scope_serial':     safeGet(d, 'acquisitionUnits', 0, 'serialNumber'),
-            'id_transducer_model': safeGet(d, 'probes', 0, 'model'),
-            'id_transducer_serial':safeGet(d, 'probes', 0, 'serialNumber'),
-            'id_wedge_model':      safeGet(d, 'wedges', 0, 'model'),
-            'id_wedge_angle':      safeGet(d, 'wedges', 0, 'angleBeamWedge', 'mountingLocations', 0, 'wedgeAngle'),
-            'id_freq':             rawFreq != null ? (rawFreq / 1_000_000) + 'MHz' : undefined,
-            'id_elements':         isPA ? safeGet(probeData, 'primaryAxis', 'elementQuantity') : '1',
-            'id_wave_propagation': safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'waveMode'),
-            'id_gain':             safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'gain'),
-            'id_ref_gain':         safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'referenceGain'),
-            'id_voltage':          safeGet(d, 'groups', 0, 'processes', 0, 'ultrasonicPhasedArray', 'pulse', 'voltage'),
-            'id_cal_material':     safeGet(d, 'specimens', 0, 'pipeGeometry', 'material', 'name'),
-            'id_angle_step':       _angleStep,
-            'id_angle_range':      _angleRange,
-        };
-
-        for (const [id, value] of Object.entries(staticMappings)) {
-            if (value != null) {
-                const el = document.getElementById(id);
-                if (el) el.value = value;
-            }
-        }
-
-        applyUnits();
-    }
-
-    document.addEventListener('DOMContentLoaded', populateFields);
-</script>
-{% endif %}
-
+{% block scripts %}
+<script src="{% static_v 'reports/js/nde_upload.js' %}"></script>
 {% endblock %}

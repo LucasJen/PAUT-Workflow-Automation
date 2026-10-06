@@ -1,0 +1,26 @@
+<section class="panel editor-section" id="sec-personnel" data-section="personnel">
+    <div class="panel-header">
+        <h2 class="panel-title">Personnel</h2>
+        <button type="button" id="add-person" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add person</button>
+    </div>
+    <p class="form-text">Everyone on the report, with the roles they appear under on the cover. One person can hold several roles.</p>
+
+    <datalist id="known-people">
+        {% for name, certification in known_people %}<option value="{{ name }}" data-certification="{{ certification }}">{% endfor %}
+    </datalist>
+
+    {{ person_formset.management_form }}
+    {% if person_formset.non_form_errors %}<div class="alert alert-danger">{{ person_formset.non_form_errors }}</div>{% endif %}
+    <div class="person-head" aria-hidden="true">
+        <span>Name</span><span>Certification</span><span>Roles</span><span></span>
+    </div>
+    <div id="person-formset-container">
+        {% for pf in person_formset %}
+        {% include 'reports/editor/_person_row.html' %}
+        {% endfor %}
+    </div>
+    <p class="form-text" id="person-empty-hint"{% if person_formset.forms %} hidden{% endif %}>No people yet. Add the technicians, rope access crew and reviewer.</p>
+    <template id="person-empty-form">
+        {% include 'reports/editor/_person_row.html' with pf=person_formset.empty_form %}
+    </template>
+</section>

@@ -1,0 +1,44 @@
+{% extends 'reports/base.html' %}
+{% comment %}
+Shared edit page for a single record. Views pass `form` (a StyledFormMixin form).
+Child templates fill: back_url, back_label, page_title, page_subtitle (optional),
+item_noun (singular, lower case), grid_cols (cols-2 / cols-3 / cols-4).
+Override form_body to lay out fields by hand; the default renders form.fieldsets.
+{% endcomment %}
+
+{% block content %}
+<a href="{% block back_url %}{% endblock %}" class="back-link">
+    <i class="bi bi-arrow-left"></i> {% block back_label %}Back{% endblock %}
+</a>
+<div class="page-header">
+    <h1>{% block page_title %}{% endblock %}</h1>
+    <p class="page-subtitle">{% block page_subtitle %}{% endblock %}</p>
+</div>
+
+<form method="post"{% block form_attrs %}{% endblock %}>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    {% block form_body %}
+    <section class="panel">
+        {% for title, fields in form.fieldsets %}
+        {% if title %}<h2 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h2>{% endif %}
+        <div class="field-grid {% block grid_cols %}cols-3{% endblock %}">
+            {% for field in fields %}{{ field.as_field_group }}{% endfor %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endblock %}
+
+    <div class="sticky-actions">
+        {# Save comes first in the DOM so pressing Enter saves rather than deletes #}
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save changes</button>
+        <button type="submit" name="delete" class="btn btn-ghost-danger order-first me-auto" formnovalidate
+                data-confirm="Delete this {% block item_noun %}item{% endblock %}? This can't be undone.">
+            <i class="bi bi-trash"></i> Delete
+        </button>
+    </div>
+</form>
+{% endblock %}

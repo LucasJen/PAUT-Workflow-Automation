@@ -1,0 +1,81 @@
+{% extends 'reports/base.html' %}
+{% load ui %}
+
+{% block title %}{{ item.name }} · {{ rtype.label }} defaults · Preferences · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<a href="{% url 'defaults-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Defaults</a>
+<div class="page-header">
+    <h1>{{ rtype.label }} defaults: {{ item.name }}</h1>
+    <p class="page-subtitle">Fill in the values new {{ rtype.label }} reports should start with; leave anything that changes per job blank. They can all be changed on each report.</p>
+</div>
+
+<form method="post" data-arrow-nav>
+    {% csrf_token %}
+    {% for error in errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+    {% if has_errors %}
+    <div class="alert alert-danger">Check the highlighted fields.</div>
+    {% endif %}
+    {# Laid out like the report editor (create_report.html): its sections, in its order #}
+    <section class="panel editor-header">
+        <div class="field-grid cols-3">
+            <div class="field">
+                <label for="defaults-name">Name</label>
+                <input type="text" class="form-control" id="defaults-name" name="defaults_name" value="{{ name_value }}"
+                       required maxlength="100" placeholder="e.g. Standard, PPI Pine Bend">
+            </div>
+            <div class="field">
+                <label for="defaults-in-use">Used for new reports</label>
+                <div class="form-check mt-2">
+                    <input type="checkbox" class="form-check-input" id="defaults-in-use" name="in_use" value="1"{% if item.in_use %} checked{% endif %}>
+                    <label class="form-check-label" for="defaults-in-use">New {{ rtype.label }} reports start from these values</label>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="editor-layout">
+        <nav class="section-nav" aria-label="Defaults sections">
+            {% for section in sections %}
+            <a href="#sec-{{ section.key }}" data-nav-section="{{ section.key }}">{{ section.title }}</a>
+            {% endfor %}
+        </nav>
+
+        <div class="editor-sections">
+            {% for section in sections %}
+            <section class="panel editor-section" id="sec-{{ section.key }}" data-section="{{ section.key }}">
+                <div class="panel-header"><h2 class="panel-title">{{ section.title }}</h2></div>
+                {% if section.part == 'equipment' %}
+                <p class="form-text mt-0">The instrument, and the probe and group columns a new report starts with. An imported .nde fills the first column of the same kind that no file has filled yet; your values stay where the file has none.</p>
+                {% include 'reports/editor/_weld_grid.html' with form=report_form %}
+                {% elif section.part == 'materials' %}
+                {% include 'reports/editor/_materials_card.html' with form=report_form auto_detect=False %}
+                {% elif section.part == 'setups' %}
+                {% for title, fields in setup_form.fieldsets %}
+                {% if fields %}
+                <h3 class="panel-subtitle{% if forloop.first %} mt-0{% endif %}">{{ title }}</h3>
+                <div class="field-grid cols-4">
+                    {% for field in fields %}{{ field.as_field_group }}{% endfor %}
+                </div>
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                <div class="{{ section.key|section_grid }}">
+                    {% for field in section.fields %}{{ field.as_field_group }}{% endfor %}
+                </div>
+                {% endif %}
+            </section>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="sticky-actions">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save defaults</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'reports/js/section_nav.js' %}"></script>
+{% if probe_formset %}<script src="{% static_v 'reports/js/weld_grid.js' %}"></script>{% endif %}
+{% if sensitivity_blocks is not None and 'materials' in rtype.sections %}<script src="{% static_v 'reports/js/materials.js' %}"></script>{% endif %}
+{% endblock %}

@@ -1,8 +1,34 @@
+from django.db.models import F
 from django.shortcuts import render
+
+from documents.views import dashboard_context
+from equipment.models import CalibrationBlock, Encoder, Probe, ProbeModel, Scope, SensitivityBlock, WedgeModel
+from ..models import Report, Setup
 
 
 def home(request):
     """
-    Landing page at root url
+    Dashboard: quick actions, recently edited reports, the documentation libraries (most recently
+    used first, searchable with ?q= and filtered by file type with ?type=) and the equipment libraries
     """
-    return render(request, 'reports/home.html')
+    recent_reports = Report.objects.order_by(F('updated_at').desc(nulls_last=True), '-pk')[:8]
+
+    # The equipment libraries, in the sidebar's order: (label, icon, url name, count)
+    libraries = [
+        ('Scopes', 'display', 'scope-list', Scope.objects.count()),
+        ('Probes', 'soundwave', 'probe-list', Probe.objects.count()),
+        ('Probe catalogue', 'journal-text', 'probe-model-list', ProbeModel.objects.count()),
+        ('Wedge catalogue', 'triangle', 'wedge-model-list', WedgeModel.objects.count()),
+        ('Calibration blocks', 'bricks', 'cal-block-list', CalibrationBlock.objects.count()),
+        ('Sensitivity blocks', 'box', 'sensitivity-block-list', SensitivityBlock.objects.count()),
+        ('Encoders', 'record-circle', 'encoder-list', Encoder.objects.count()),
+    ]
+    return render(request, 'reports/home.html', {
+        'recent_reports': recent_reports,
+        **dashboard_context(request),
+        'libraries': libraries,
+        'stats': {
+            'reports': Report.objects.count(),
+            'saved_setups': Setup.objects.filter(report__isnull=True).count(),
+        },
+    })

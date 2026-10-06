@@ -10,22 +10,29 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
+# Local development works with no configuration. On a shared server set:
+#   DJANGO_DEBUG=0
+#   DJANGO_SECRET_KEY=<long random string>
+#   DJANGO_ALLOWED_HOSTS=server-name,192.168.x.x
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-j&8xd68)thexhgbbudn-(^+n&n6spy&k+bwyea2a5_%@f=7zmz'
+DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+_DEV_SECRET_KEY = 'django-insecure-j&8xd68)thexhgbbudn-(^+n&n6spy&k+bwyea2a5_%@f=7zmz'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', _DEV_SECRET_KEY)
+if not DEBUG and SECRET_KEY == _DEV_SECRET_KEY:
+    raise ImproperlyConfigured('Set DJANGO_SECRET_KEY when DJANGO_DEBUG=0.')
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',') if h.strip()]
 
 
 # Application definition
@@ -37,9 +44,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.forms',
     'reports',
     'equipment',
+    'documents',
 ]
+
+# Form fields rendered with {{ form.x.as_field_group }} use reports/components/field.html
+FORM_RENDERER = 'reports.forms.AppFormRenderer'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -117,3 +129,19 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = '/static/'
+
+# User-uploaded files (report images)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Generated reports are downloaded in the browser. A copy is also kept in this folder on
+# the server; set to None to turn the copy off (e.g. on a shared server).
+REPORT_OUTPUT_DIR = BASE_DIR / 'outputs'
+
+# Guided Creation's job folders (one per weld job, holding its .nde files and the report) are
+# listed and created here unless another folder is set in the app (reports.AppSetting 'jobs_root').
+WELD_JOBS_DIR = Path.home() / 'Desktop' / 'Reports' / '001 Welds'
+
+# PDF preview/download made by Microsoft Word (via pywin32) when Word is installed on the machine
+# running the app. 'auto' uses Word when available; 'off' always uses the in-browser preview.
+REPORT_PDF_ENGINE = os.environ.get('REPORT_PDF_ENGINE', 'auto')

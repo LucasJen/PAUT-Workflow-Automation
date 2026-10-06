@@ -1,0 +1,79 @@
+{% extends 'reports/base.html' %}
+{% load static ui %}
+{% comment %}
+Shared list page. Views pass `items`. Child templates fill:
+  page_title, item_noun (singular, lower case), new_button, columns (<th>s), rows (<tr>s),
+  empty_icon, empty_text
+Rows: <tr data-href="..."> with {% include 'reports/components/row_check.html' with pk=obj.pk %} first.
+Sortable headers: <th class="sortable">Label<span class="sort-indicator"></span></th>;
+cells may set data-sort-value (e.g. ISO dates).
+{% endcomment %}
+
+{% block content %}
+{# Sticky: the bulk Delete / Duplicate bar, search and New stay reachable while scrolling #}
+<div class="page-header list-header" id="list-header">
+    <h1>{% block page_title %}{% endblock %}</h1>
+
+    <span class="bulk-bar" id="bulk-bar" aria-live="polite">
+        <span id="bulk-count"></span>
+        <button type="button" class="btn btn-secondary btn-sm" id="clear-selection" title="Untick all rows">
+            <i class="bi bi-x-lg"></i> Clear
+        </button>
+        {% block bulk_duplicate %}
+        <button type="submit" form="list-form" name="duplicate" class="btn btn-secondary btn-sm" id="duplicate-btn">
+            <i class="bi bi-copy"></i> Duplicate
+        </button>
+        {% endblock %}
+        <button type="submit" form="list-form" name="delete" class="btn btn-danger btn-sm"
+                data-confirm="Delete {count} {% block item_noun %}item{% endblock %}{s}? This can't be undone.">
+            <i class="bi bi-trash"></i> Delete
+        </button>
+    </span>
+
+    <div class="header-actions">
+        {% if items %}
+        <div class="search-input">
+            <i class="bi bi-search"></i>
+            <input type="search" id="list-search" class="form-control" placeholder="Search…" aria-label="Search">
+        </div>
+        {% endif %}
+        {% block new_button %}{% endblock %}
+    </div>
+</div>
+{% block page_tabs %}{% endblock %}
+
+{% if items %}
+<form method="post" id="list-form">
+    {% csrf_token %}
+    <div class="table-wrap">
+        <table class="table data-table table-hover" id="list-table">
+            <thead>
+                <tr>
+                    <th class="col-check">
+                        <input type="checkbox" class="form-check-input" id="select-all" aria-label="Select all">
+                    </th>
+                    {% block columns %}{% endblock %}
+                </tr>
+            </thead>
+            <tbody>
+                {% block rows %}{% endblock %}
+            </tbody>
+        </table>
+    </div>
+    <p class="form-text mt-2 mb-0"><i class="bi bi-info-circle"></i> Tip: Shift-click rows or checkboxes to select a range.</p>
+    <div class="empty-state mt-3" id="no-matches" hidden>
+        <i class="bi bi-search"></i>
+        <p class="mb-0">No matches for your search.</p>
+    </div>
+</form>
+{% else %}
+<div class="empty-state">
+    <i class="bi bi-{% block empty_icon %}inbox{% endblock %}"></i>
+    <p class="mb-0">{% block empty_text %}Nothing here yet.{% endblock %}</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'reports/js/list_table.js' %}"></script>
+{% endblock %}

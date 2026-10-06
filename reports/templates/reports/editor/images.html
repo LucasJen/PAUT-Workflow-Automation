@@ -1,0 +1,16 @@
+<section class="panel editor-section" id="sec-images" data-section="images">
+    <div class="panel-header">
+        <h2 class="panel-title">Photo summary</h2>
+        <button type="button" id="add-image" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add scan image</button>
+    </div>
+    <p class="form-text">Data snips for the report's Scan Images section. Pick the Scan ID from the results table; the comments are taken from that row's results, so they only need typing once.</p>
+    {{ image_formset.management_form }}
+    <div id="image-formset-container">
+        {% for img_form in image_formset %}
+        {% include 'reports/_image_block.html' with kind="scan" idx=forloop.counter0 num=forloop.counter %}
+        {% endfor %}
+    </div>
+    <template id="image-empty-form">
+        {% include 'reports/_image_block.html' with kind="scan" img_form=image_formset.empty_form idx="__prefix__" num="" %}
+    </template>
+</section>

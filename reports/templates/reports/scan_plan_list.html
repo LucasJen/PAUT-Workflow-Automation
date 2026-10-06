@@ -1,0 +1,35 @@
+{% extends 'reports/components/list_page.html' %}
+
+{% block title %}Scan plans · PAUT Report Automation{% endblock %}
+{% block page_title %}Scan plans{% endblock %}
+{% block item_noun %}scan plan{% endblock %}
+
+{% block new_button %}
+<a href="{% url 'new-scan-plan' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New scan plan</a>
+{% endblock %}
+
+{% block columns %}
+<th class="sortable">Name<span class="sort-indicator"></span></th>
+<th class="sortable">Pipe size<span class="sort-indicator"></span></th>
+<th class="sortable">Thickness<span class="sort-indicator"></span></th>
+<th class="sortable">Index offset<span class="sort-indicator"></span></th>
+<th class="sortable">Angles<span class="sort-indicator"></span></th>
+<th class="sortable">Reports<span class="sort-indicator"></span></th>
+{% endblock %}
+
+{% block rows %}
+{% for plan in items %}
+<tr data-href="{% url 'edit-scan-plan' plan.pk %}">
+    {% include 'reports/components/row_check.html' with pk=plan.pk %}
+    <td class="fw-medium">{{ plan.name }}</td>
+    <td>{{ plan.pipe_size }}</td>
+    <td class="mono">{{ plan.thickness_text }}</td>
+    <td class="mono">{% if plan.index_offset is not None %}{{ plan.index_offset_text }}{% else %}weld toe{% endif %}</td>
+    <td class="mono">{{ plan.angle_start|floatformat }}°–{{ plan.angle_stop|floatformat }}°</td>
+    <td class="text-muted-cell">{{ plan.reports.count }}</td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block empty_icon %}rulers{% endblock %}
+{% block empty_text %}No scan plans yet. A scan plan draws the weld, probe position and beam coverage for the weld report.{% endblock %}

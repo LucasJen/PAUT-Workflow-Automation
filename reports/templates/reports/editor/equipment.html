@@ -1,0 +1,39 @@
+{% comment %}The report editor's Equipment & parameters section: import toolbar and the grid (_weld_grid.html).{% endcomment %}
+<section class="panel editor-section" id="sec-equipment" data-section="equipment">
+    <div class="panel-header">
+        <h2 class="panel-title">Equipment &amp; parameters</h2>
+    </div>
+
+    {# Fill columns from an .nde file (a group column per inspection group) or a saved setup #}
+    <div class="weld-grid-toolbar" id="weld-grid-toolbar" data-nde-url="{% url 'nde-columns' %}">
+        <input type="file" accept=".nde" id="weld-nde-file" hidden>
+        <div class="input-group input-group-sm w-auto">
+            <button type="button" class="btn btn-secondary" id="weld-nde-import"><i class="bi bi-upload"></i> Import .nde</button>
+            <select class="form-select form-select-sm" id="weld-nde-units" aria-label="Units for the imported values">
+                <option value="imperial">in</option>
+                <option value="metric">mm</option>
+            </select>
+        </div>
+        <select class="form-select form-select-sm w-auto" id="weld-setup-loader" aria-label="Add columns from a saved setup">
+            <option value="">Add from saved setup…</option>
+            {% if saved_setups.saved %}
+            <optgroup label="Saved setups">
+                {% for s in saved_setups.saved %}
+                <option value="{{ s.pk }}">#{{ s.pk }}{% if s.title %} · {{ s.title }}{% endif %} · {{ s.transducer_model|default:"—" }}</option>
+                {% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if saved_setups.in_reports %}
+            <optgroup label="From other reports">
+                {% for s in saved_setups.in_reports %}
+                <option value="{{ s.pk }}">#{{ s.pk }} (report #{{ s.report_id }}){% if s.title %} · {{ s.title }}{% endif %} · {{ s.transducer_model|default:"—" }}</option>
+                {% endfor %}
+            </optgroup>
+            {% endif %}
+        </select>
+        <span class="weld-grid-status" id="weld-grid-status" role="status"></span>
+    </div>
+
+    {% include 'reports/editor/_weld_grid.html' %}
+</section>
+{{ saved_setup_columns|json_script:"saved-setup-columns" }}

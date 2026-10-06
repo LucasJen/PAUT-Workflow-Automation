@@ -1,0 +1,66 @@
+<div class="setup-block" data-form-index="{{ idx }}">
+    {{ form.id }}
+    <div hidden>{{ form.DELETE }}</div>
+
+    <div class="setup-block-header">
+        <span class="setup-block-title">Setup #{{ num }}</span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="form-text mb-0 setup-import-status" role="status"></span>
+            <button type="button" class="btn btn-secondary btn-sm setup-nde-import" data-form-prefix="setups-{{ idx }}"
+                    title="Fill this setup from an .nde file (a file with several groups adds a setup for each)">
+                <i class="bi bi-upload"></i> Import .nde</button>
+            <select class="form-select form-select-sm setup-loader" data-form-prefix="setups-{{ idx }}" aria-label="Fill from a saved setup">
+                <option value="">Fill from saved setup…</option>
+                {% if saved_setups.saved %}
+                <optgroup label="Saved setups">
+                    {% for s in saved_setups.saved %}
+                    <option value="{{ s.pk }}">#{{ s.pk }}{% if s.title %} · {{ s.title }}{% endif %} · {{ s.scope_model|default:"—" }} · {{ s.transducer_model|default:"—" }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endif %}
+                {% if saved_setups.in_reports %}
+                <optgroup label="From other reports">
+                    {% for s in saved_setups.in_reports %}
+                    <option value="{{ s.pk }}">#{{ s.pk }} (report #{{ s.report_id }}){% if s.title %} · {{ s.title }}{% endif %} · {{ s.scope_model|default:"—" }} · {{ s.transducer_model|default:"—" }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endif %}
+            </select>
+            <button type="button" class="btn btn-ghost-danger btn-sm remove-setup" title="Remove this setup">
+                <i class="bi bi-trash"></i> Remove
+            </button>
+        </div>
+    </div>
+
+    {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
+
+    {# Compact label / value cells, like the weld form's testing instrument #}
+    <div class="cell-grid-wrap">
+        {% for title, fields in form.fieldsets %}{% if fields %}
+        <div class="cell-grid-head">{{ title }}</div>
+        <div class="cell-grid">
+            {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
+        </div>
+        {% endif %}{% endfor %}
+    </div>
+
+    {# data-field lets a report type hide this part (report_types.py, hidden_fields) #}
+    <div data-field="cal_images">
+    <h3 class="panel-subtitle">Calibration screenshots</h3>
+    <div class="cal-images">
+        {% if form.instance.pk %}
+        {% for image in form.instance.images.all %}
+        <label class="cal-image" title="Tick to remove this screenshot when saving">
+            <img src="{{ image.image.url }}" alt="Calibration screenshot {{ forloop.counter }}">
+            <span class="cal-image-remove"><input type="checkbox" class="form-check-input" name="remove_setup_image" value="{{ image.pk }}"> Remove</span>
+        </label>
+        {% endfor %}
+        {% endif %}
+        <div class="field cal-image-add">
+            <label for="id_{{ form.prefix }}-cal_images">Add screenshots</label>
+            <input type="file" class="form-control" id="id_{{ form.prefix }}-cal_images" name="{{ form.prefix }}-cal_images" accept="image/*" multiple>
+            <div class="form-text">Shown two per line under this setup's Equipment Details table.</div>
+        </div>
+    </div>
+    </div>
+</div>

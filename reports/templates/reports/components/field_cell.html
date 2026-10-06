@@ -1,0 +1,6 @@
+{# A field as a compact label | value cell of a .cell-grid (help text as the cell's tooltip: over the name or the input) #}
+<div class="field-cell{% if field.widget_type == 'textarea' %} field-cell-wide{% endif %}{% if field.errors %} has-error{% endif %}" data-field="{{ field.name }}"{% if field.help_text %} title="{{ field.help_text|striptags }}"{% endif %}>
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.errors %}<div class="field-cell-error">{{ field.errors|join:" " }}</div>{% endif %}
+</div>

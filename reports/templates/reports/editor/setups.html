@@ -1,0 +1,18 @@
+<section class="panel editor-section" id="sec-setups" data-section="setups">
+    <div class="panel-header">
+        <h2 class="panel-title">UT setups</h2>
+        <button type="button" id="add-setup" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add setup</button>
+    </div>
+    {{ setup_formset.management_form }}
+    {% if setup_formset.non_form_errors %}<div class="alert alert-danger">{{ setup_formset.non_form_errors }}</div>{% endif %}
+    <div id="setup-formset-container">
+        {% for form in setup_formset %}
+        {% include 'reports/_setup_block.html' with idx=forloop.counter0 num=forloop.counter %}
+        {% endfor %}
+    </div>
+    {# Shared by every setup block's Import .nde button (create_report.js) #}
+    <input type="file" accept=".nde" id="setup-nde-file" hidden data-url="{% url 'nde-setup-values' %}">
+    <template id="setup-empty-form">
+        {% include 'reports/_setup_block.html' with form=setup_formset.empty_form idx="__prefix__" num="" %}
+    </template>
+</section>

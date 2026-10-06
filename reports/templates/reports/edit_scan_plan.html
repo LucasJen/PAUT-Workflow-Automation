@@ -1,0 +1,155 @@
+{% extends 'reports/components/edit_page.html' %}
+{% block form_attrs %} data-arrow-nav data-fill-marks class="fill-marks"{% endblock %}
+{% load ui %}
+
+{% block title %}{% if plan %}{{ plan.name }}{% else %}New scan plan{% endif %} · Scan plans · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'scan-plan-list' %}{% endblock %}
+{% block back_label %}Scan plans{% endblock %}
+{% block page_title %}{% if plan %}{{ plan.name }}{% else %}New scan plan{% endif %}{% endblock %}
+{% block page_subtitle %}The weld with the probe at the index offset and the sectorial beam fan, and how much of the weld it covers. Pick it in a weld report's editor to print it on the report's Scan Plan page.{% endblock %}
+{% block item_noun %}scan plan{% endblock %}
+
+{% block form_body %}
+<div class="scan-plan-layout">
+    <section class="panel scan-plan-fields" id="scan-plan-fields" data-mode="{{ form.mode.value|default:'simple' }}">
+        {# Simple: the few inputs a plain butt weld needs; Advanced: every input (scan_plan.js) #}
+        <div class="mode-switch" role="radiogroup" aria-label="Inputs"
+             title="Simple: the fewest inputs for a plain butt weld; root gap, land, cap width, HAZ, legs and the rest keep their values. Advanced: every input.">
+            {% for radio in form.mode %}<label class="mode-switch-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+        </div>
+        {# Fill marks (fill_marks.js): what's still empty, by where it comes from #}
+        <p class="fill-legend scan-plan-fill-legend form-text">
+            <span class="fill-key fill-key-user"></span>
+            <span title="The drawing can't be made without these (and a plan needs a name to save)">To fill in:</span>
+            <strong id="fill-count-user">0</strong>
+            <span class="fill-key fill-key-auto ms-3"></span>
+            <span title="Usually filled by Fill from setup or the sensitivity block">From setup or block:</span>
+            <strong id="fill-count-auto">0</strong>
+            <button type="button" class="btn btn-secondary btn-sm ms-3" id="fill-next" title="Go to the next outlined field">
+                <i class="bi bi-arrow-down-short"></i> Next missing</button>
+        </p>
+        {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+
+        {# Compact label / value cells (help texts show on hover), like the report editor's setup blocks #}
+        <div class="cell-grid-wrap">
+            {% if setup_fill_values or group_fill_values %}
+            <div class="cell-grid-head">Fill from setup</div>
+            <div class="cell-grid cell-grid-2">
+                <div class="field-cell field-cell-wide" data-field="fill_from_setup" title="Fills every field the setup has: its report's sensitivity block (thickness, pipe size, bevel, velocity), the probe and wedge with the wedge geometry its .nde recorded, the angles and aperture, and the weld details and index offset a saved setup holds. The name too, when it's empty.">
+                    <label for="fill-from-setup">Setup</label>
+                    <select class="form-select" id="fill-from-setup">
+                        <option value="">Pick a weld report group or saved setup to fill the fields…</option>
+                        {% if group_fill_values %}
+                        <optgroup label="Weld report groups">
+                            {% for key, item in group_fill_values.items %}<option value="{{ key }}">{{ item.label }}</option>{% endfor %}
+                        </optgroup>
+                        {% endif %}
+                        {% if setup_fill_values %}
+                        <optgroup label="Setups">
+                            {% for pk, item in setup_fill_values.items %}<option value="{{ pk }}">{{ item.label }}</option>{% endfor %}
+                        </optgroup>
+                        {% endif %}
+                    </select>
+                    <div class="field-cell-note" id="fill-status" role="status" hidden></div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% for title, fields in form.fieldsets %}
+            {% if title %}<div class="cell-grid-head">{{ title }}</div>{% endif %}
+            <div class="cell-grid cell-grid-2">
+                {% if title == 'Probe positions' %}
+                {# Each index offset with its 90 / 270 deg skew boxes in one cell (1 to 4 drawings) #}
+                {% include 'reports/components/field_cell.html' with field=form.index_offset %}
+                <div class="field-cell{% if form.skew_90.errors %} has-error{% endif %}" data-field="skews"
+                     title="Which sides of the weld to draw the probe on at the index offset: 90° and / or 270° (the mirror image).">
+                    <span class="field-cell-label">Skews</span>
+                    <div class="cell-checks">
+                        <label class="cell-check">{{ form.skew_90 }} 90°</label>
+                        <label class="cell-check">{{ form.skew_270 }} 270°</label>
+                    </div>
+                    {% if form.skew_90.errors %}<div class="field-cell-error">{{ form.skew_90.errors|join:" " }}</div>{% endif %}
+                </div>
+                {% include 'reports/components/field_cell.html' with field=form.index_offset_2 %}
+                <div class="field-cell" data-field="skews_2" title="Which sides of the weld to draw the probe on at the second index offset.">
+                    <span class="field-cell-label">Skews</span>
+                    <div class="cell-checks">
+                        <label class="cell-check">{{ form.skew_90_2 }} 90°</label>
+                        <label class="cell-check">{{ form.skew_270_2 }} 270°</label>
+                    </div>
+                </div>
+                <div class="cell-grid-actions">
+                    <button type="button" class="btn btn-sm btn-primary" id="suggest-offset" data-url="{% url 'scan-plan-suggest' %}"
+                            title="Finds the index offset that covers the most of the weld + HAZ with the ticked skews, searching from the weld toe outwards.">
+                        <i class="bi bi-magic"></i> Suggest index offset
+                    </button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="toggle-second-offset">
+                        <i class="bi bi-plus-lg"></i> Add a second index offset
+                    </button>
+                    <span class="scan-plan-status" id="suggest-status" role="status" hidden></span>
+                </div>
+                {% elif title == 'Reflectors' %}
+                {# Rows of reflectors to check the beams against: scan_plan_reflectors.js #}
+                <div class="reflector-editor advanced-only" id="reflector-editor" data-field="reflector_table">
+                    <div class="reflector-rows"></div>
+                    <div class="reflector-actions">
+                        <select class="form-select form-select-sm" id="reflector-add" aria-label="Add a reflector"
+                                title="Add a reflector to check the beams against">
+                            <option value="">+ Add a reflector…</option>
+                            {% for kind, label in reflector_kinds.items %}<option value="{{ kind }}">{{ label }}</option>{% endfor %}
+                        </select>
+                        {% if form.reflectors.errors %}<span class="field-cell-error">{{ form.reflectors.errors|join:" " }}</span>{% endif %}
+                    </div>
+                </div>
+                {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
+                {% else %}
+                {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    <section class="panel scan-plan-preview" id="scan-plan-preview" data-scenes-url="{% url 'scan-plan-scenes' %}">
+        <div class="scan-plan-toolbar">
+            <h2 class="panel-subtitle my-0">Drawing</h2>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Beam legs">
+                <button type="button" class="btn btn-secondary" data-legs="1" title="Draw the first leg only">1st leg</button>
+                <button type="button" class="btn btn-secondary" data-legs="2" title="Draw the first leg and the second, after the skip off the back wall">1st + 2nd</button>
+            </div>
+            <button type="button" class="btn btn-sm btn-secondary" id="toggle-gaps" aria-pressed="false"
+                    title="Shade the parts of the weld + HAZ no beam reaches in red">
+                <i class="bi bi-grid-3x3"></i> Gaps
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" id="reset-views" title="Fit every drawing back in its box (or double-click a drawing)">
+                <i class="bi bi-arrows-angle-contract"></i> Fit
+            </button>
+            <i class="bi bi-question-circle scan-plan-help" tabindex="0"
+               title="Scroll over a drawing to zoom at the cursor, drag it to pan, double-click to fit. Hover a beam for its angle, leg, sound path, depth and distances. Drag the wedge left or right to set the index offset."></i>
+        </div>
+        {# One interactive figure per ticked skew per index offset (1 to 4): scan_plan.js / scan_plan_view.js #}
+        <div id="scan-plan-figures"></div>
+        <p class="scan-plan-status" id="scan-plan-status" role="status" hidden></p>
+        {# How much of the weld + HAZ the ticked skews cover (filled by scan_plan.js) #}
+        <div class="coverage-summary" id="coverage-summary" hidden></div>
+        {# Beams round a pipe: refracted angles against nominal, a flat wedge's lift-off (scan_plan.js) #}
+        <div class="coverage-summary" id="pipe-summary" hidden></div>
+        {# Which beams meet each reflector, per drawing (scan_plan.js) #}
+        <div class="reflector-summary" id="reflector-summary" hidden></div>
+        {# The wedge numbers the drawing uses (filled by scan_plan.js) #}
+        <div class="wedge-data" id="wedge-data"></div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ setup_fill_values|json_script:"setup-fill-values" }}
+{{ group_fill_values|json_script:"group-fill-values" }}
+{{ catalogue_fill_values|json_script:"catalogue-fill-values" }}
+{{ advanced_fields|json_script:"advanced-fields" }}
+<script src="{% static_v 'reports/js/fill_marks.js' %}"></script>
+<script src="{% static_v 'reports/js/scan_plan_view.js' %}"></script>
+{{ reflector_kinds|json_script:"reflector-kinds" }}
+{{ reflector_uses|json_script:"reflector-uses" }}
+<script src="{% static_v 'reports/js/scan_plan.js' %}"></script>
+<script src="{% static_v 'reports/js/scan_plan_reflectors.js' %}"></script>
+{% endblock %}
