@@ -129,6 +129,16 @@ def _deg(x):
     return None if x is None else f'{_plain(x, 2)}°'
 
 
+def _drop_empty(value):
+    """The dict / list without None, '' and empty containers (recursively)."""
+    if isinstance(value, dict):
+        value = {k: _drop_empty(v) for k, v in value.items()}
+        return {k: v for k, v in value.items() if v not in (None, '', {}, [])}
+    if isinstance(value, list):
+        return [_drop_empty(v) for v in value]
+    return value
+
+
 def _range(low, high, fmt):
     if low is None or high is None:
         return None
@@ -325,8 +335,156 @@ class _GroupContext:
             # Source
             'source_file': self.filename or None,
             'acquisition_date': self._date(),
+            # Everything the instrument's setup report shows, for the report's setup sheet (setup_sheet.py)
+            'nde_sheet': self._sheet_json(),
         }
         return {k: str(v) for k, v in values.items() if v not in (None, '')}
+
+    # ── Setup sheet ──
+
+    def sheet(self):
+        """
+        The group's setup as the instrument's setup report lists it (instrument, probe and wedge,
+        UT settings, gates, TCG, focal laws) plus what the setup sheet's drawing needs, in the
+        file's own SI units (m, s, Hz, m/s); setup_sheet.py formats it in the setup's units.
+        """
+        ut, beams = self.ut, self.ut.get('beams') or []
+        first_beam = beams[0] if beams else {}
+        primary = _get(self.probe_tech, 'primaryAxis') or {}
+        compression = ut.get('ascanCompressionFactor')
+        digitizing = ut.get('digitizingFrequency')
+        angle_range, angle_step = self._angles()
+        scan_res, _, _, scan_name = self._axis('UCoordinate')
+        index_res, _, _, index_name = self._axis('VCoordinate')
+        sheet = {
+            'v': 1,
+            'group': self.group.get('name') or f"Group {self.group.get('id', 0) + 1}",
+            'technique': self.technique(),
+            'file': self.filename or None,
+            'date': self._date(),
+            'calibrations': self._calibrations(),
+            'instrument': {
+                'platform': self.unit.get('platform'),
+                'model': self.unit.get('model'),
+                'serial': self.unit.get('serialNumber'),
+                'software': ' '.join(str(v) for v in (_get(self.properties, 'file', 'createdByAppName'),
+                                                      _get(self.properties, 'file', 'createdByAppVersion')) if v),
+                'acquisition_rate': self.unit.get('acquisitionRate'),
+            },
+            'probe': {
+                'model': self.probe.get('model'),
+                'serial': self.probe.get('serialNumber') or self.probe.get('serie'),
+                'frequency': self.probe_tech.get('centralFrequency'),
+                'elements': primary.get('elementQuantity') or (1 if self.probe_tech else None),
+                'pitch': (primary['elementLength'] + (primary.get('elementGap') or 0))
+                if primary.get('elementLength') is not None else None,
+                'size': self.probe_tech.get('diameter') or self.probe_tech.get('length'),
+                'skew': _get(self.wedge, 'positioning', 'skewAngle'),
+                'scan_offset': _get(self.wedge, 'positioning', 'uCoordinateOffset'),
+                'index_offset': _get(self.wedge, 'positioning', 'vCoordinateOffset'),
+            },
+            'wedge': {
+                'model': self.wedge.get('model'),
+                'serial': self.wedge.get('serialNumber') or self.wedge.get('serie'),
+                'angle': self.mounting.get('wedgeAngle'),
+                'velocity': _get(self.wedge, 'angleBeamWedge', 'longitudinalVelocity'),
+                'length': _get(self.wedge, 'angleBeamWedge', 'length'),
+                'height': _get(self.wedge, 'angleBeamWedge', 'height'),
+                'primary_offset': self.mounting.get('primaryOffset'),
+                'first_element_height': self.mounting.get('tertiaryOffset'),
+            },
+            'part': {
+                'material': (_get(self.geometry, 'material', 'name') or '').replace('_', ' ') or None,
+                'thickness': self.geometry.get('thickness'),
+                'od': self.geometry['outerRadius'] * 2 if self.geometry.get('outerRadius') is not None else None,
+            },
+            'ut': {
+                'mode': {'pulseEcho': 'PE (Pulse-Echo)', 'pitchCatch': 'PC (Pitch-Catch)', 'tofd': 'TOFD',
+                         'tandem': 'Tandem'}.get(self.pattern_name),
+                'wave_mode': {'TransversalVertical': 'Shear'}.get(ut.get('waveMode'), ut.get('waveMode')),
+                'velocity': ut.get('velocity'),
+                'gain': ut.get('gain'),
+                'reference_gain': ut.get('referenceGain'),
+                'reference_amplitude': ut.get('referenceAmplitude'),
+                'beam_delay': first_beam.get('beamDelay'),
+                'wedge_delay': ut.get('wedgeDelay'),
+                'ascan_start': first_beam.get('ascanStart'),
+                'ascan_length': first_beam.get('ascanLength'),
+                'ultrasound_mode': ut.get('ultrasoundMode'),
+                'digitizing': digitizing,
+                'net_digitizing': digitizing / compression if digitizing and compression else None,
+                'compression': compression,
+                'points': self._points_quantity(),
+                'averaging': ut.get('averagingFactor'),
+                'rectification': ut.get('rectification'),
+                'filter': self._filter(ut.get('digitalBandPassFilter') or {}),
+                'smoothing': self._smoothing(),
+                'pulse_width': _get(ut, 'pulse', 'width'),
+                'voltage': _get(ut, 'pulse', 'voltage'),
+                'polarity': _words(_get(ut, 'pulse', 'polarity')),
+            },
+            'gates': self._sheet_gates(),
+            'tcg': [[p.get('time'), p.get('gain')] for p in _get(first_beam, 'tcg', 'points') or []
+                    if p.get('time') is not None],
+            'law': {
+                'formation': self.technique(),
+                'first_element': self.formation['probeFirstElementId'] + 1
+                if self.formation.get('probeFirstElementId') is not None else None,
+                'last_element': self.formation['probeLastElementId'] + 1
+                if self.formation.get('probeLastElementId') is not None else None,
+                'aperture': self.formation.get('elementAperture'),
+                'element_step': self.formation.get('elementStep'),
+                'angles': angle_range,
+                'angle_step': angle_step,
+                'focus_mode': FOCUS_MODES.get(_get(ut, 'focusing', 'mode'), _get(ut, 'focusing', 'mode')),
+                'focus_distance': _get(ut, 'focusing', 'distance'),
+            },
+            'axes': {
+                'scan': {'name': scan_name or 'Scan', 'resolution': scan_res} if scan_res else None,
+                'index': {'name': index_name or 'Index', 'resolution': index_res} if index_res else None,
+            },
+            'beams': self._sheet_beams(),
+        }
+        sheet = _drop_empty(sheet)
+        # Nothing the instrument recorded (a sparse or unknown layout): no sheet
+        return sheet if any(k in sheet for k in ('instrument', 'probe', 'ut', 'beams')) else None
+
+    def _sheet_json(self):
+        sheet = self.sheet()
+        return json.dumps(sheet, ensure_ascii=False, separators=(',', ':')) if sheet else None
+
+    def _smoothing(self):
+        smoothing = self.ut.get('smoothingFilter')
+        if isinstance(smoothing, dict):
+            return 'On' if smoothing.get('enabled', True) else 'Off'
+        return None if smoothing is None else str(smoothing)
+
+    def _sheet_gates(self):
+        """[{name, start, length (s), threshold %, synchro}] in the file's order."""
+        gates = self.ut.get('gates') or []
+        names = {g.get('id'): re.sub(r'^Gate\s+', '', g.get('name') or '') for g in gates}
+        rows = []
+        for gate in gates:
+            start, length = gate.get('start'), gate.get('length')
+            if start is None and gate.get('starts'):        # per-beam gates: the first beam's
+                start, length = gate['starts'][0], (gate.get('lengths') or [None])[0]
+            sync = gate.get('synchronization') or {}
+            if sync.get('mode') == 'GateRelative':
+                synchro = f"Gate {names.get(sync.get('gateId'), '?')} {_words(sync.get('triggeringEvent')) or ''}".strip()
+            else:
+                synchro = _words(sync.get('mode'))
+            rows.append({'name': names.get(gate.get('id')) or f"#{gate.get('id')}", 'start': start, 'length': length,
+                         'threshold': gate.get('threshold'), 'synchro': synchro})
+        return rows
+
+    def _sheet_beams(self):
+        """[[aperture centre element (0-based), refracted angle]] per focal law, for the sheet's drawing."""
+        out = []
+        for beam in self.ut.get('beams') or []:
+            elements = [p['elementId'] for p in beam.get('pulsers') or [] if p.get('elementId') is not None]
+            if elements and beam.get('refractedAngle') is not None:
+                out.append([round(sum(elements) / len(elements), 2), round(beam['refractedAngle'], 2)])
+        return out
 
     def _amplitude_range(self):
         """The A-scan's full scale, as the weld form writes it: '800%'."""
