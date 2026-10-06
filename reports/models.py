@@ -1,3 +1,5 @@
+import os
+
 from django.db import models
 
 from .weld_form import KIND_CHOICES as WELD_KIND_CHOICES, PAUT as WELD_PAUT, material_fields
@@ -628,19 +630,38 @@ class ClientCode(models.Model):
         super().save(*args, **kwargs)
 
 
-class AppSetting(models.Model):
-    """A remembered app-wide choice, e.g. the jobs root folder ('jobs_root')."""
-    key = models.CharField(max_length=50, unique=True)
-    value = models.TextField(blank=True)
+class WorkingFolder(models.Model):
+    """
+    A parent working directory: the folder a report type's job folders are kept in (e.g.
+    Desktop/Reports/001 Welds for weld reports). Guided Creation lists and makes job folders in
+    them; one per report type is the default.
+    """
+    path = models.CharField(max_length=500, help_text=r'The full path, e.g. C:\Users\…\Desktop\Reports\001 Welds.')
+    report_type = models.CharField(max_length=50, help_text='The reports whose job folders are kept here.')
+    is_default = models.BooleanField('Default', default=False, help_text="Opened first for this report type.")
+
+    class Meta:
+        ordering = ['report_type', '-is_default', 'path']
 
     def __str__(self):
-        return self.key
+        return self.path
 
-    @classmethod
-    def get(cls, key, default=''):
-        item = cls.objects.filter(key=key).first()
-        return item.value if item else default
+    @property
+    def name(self):
+        return os.path.basename(os.path.normpath(self.path)) or self.path
 
-    @classmethod
-    def put(cls, key, value):
-        cls.objects.update_or_create(key=key, defaults={'value': value})
+    @property
+    def report_type_label(self):
+        from .report_types import get_report_type
+        return get_report_type(self.report_type).label
+
+    def save(self, *args, **kwargs):
+        self.path = self.path.strip().strip('"')
+        super().save(*args, **kwargs)
+        # One default per report type; the first one for a type is it
+        others = WorkingFolder.objects.filter(report_type=self.report_type).exclude(pk=self.pk)
+        if self.is_default:
+            others.filter(is_default=True).update(is_default=False)
+        elif not others.filter(is_default=True).exists():
+            WorkingFolder.objects.filter(pk=self.pk).update(is_default=True)
+            self.is_default = True

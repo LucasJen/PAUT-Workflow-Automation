@@ -1,6 +1,6 @@
 from django.forms import (
     CheckboxInput, ChoiceField, ClearableFileInput, DateInput, HiddenInput, ModelForm, NumberInput, RadioSelect, Select,
-    Textarea, TextInput, inlineformset_factory,
+    Textarea, TextInput, ValidationError, inlineformset_factory,
 )
 from django.forms.renderers import TemplatesSetting
 from django.urls import reverse_lazy
@@ -9,12 +9,16 @@ from equipment.compat import BEAMTOOL_SOURCE, wedge_fits_probe, wedges_for_probe
 from equipment.models import ProbeModel
 
 from . import fill_marks, weld_form
-from .models import ClientCode, Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet
+from .models import (
+    ClientCode, Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet, WorkingFolder,
+)
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from .services.scan_plan import reflectors as scan_plan_reflectors
 from .services.scan_plan.geometry import first_number
 from datetime import date
+from pathlib import Path
 import json
+import os
 
 
 class AppFormRenderer(TemplatesSetting):
@@ -386,6 +390,21 @@ class ClientCodeForm(StyledFormMixin, ModelForm):
     class Meta:
         model = ClientCode
         fields = ['code', 'client', 'location']
+
+
+class WorkingFolderForm(StyledFormMixin, ModelForm):
+    report_type = ChoiceField(choices=report_type_choices, label='Report type')
+
+    class Meta:
+        model = WorkingFolder
+        fields = ['path', 'report_type', 'is_default']
+        labels = {'path': 'Folder', 'is_default': 'Default for this report type'}
+
+    def clean_path(self):
+        path = self.cleaned_data['path'].strip().strip('"')
+        if not os.path.isdir(path):
+            raise ValidationError(f'No folder at {path}.')
+        return str(Path(path).resolve())
 
 
 class TextSnippetForm(StyledFormMixin, ModelForm):

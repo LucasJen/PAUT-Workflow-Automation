@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from ..models import Report
-from ..services.job_folder import resolve_job_folder
+from ..services.job_folder import resolve_job_folder, working_folders
 
 
 def _back(request, report):
@@ -29,9 +29,11 @@ def report_job_folder(request, pk):
             messages.error(request, f'The job folder {report.job_folder} isn\'t there.')
     elif action == 'set':
         value = request.POST.get('job_folder', '').strip().strip('"')
-        folder = resolve_job_folder(value) or (value if os.path.isabs(value) and os.path.isdir(value) else None)
+        in_roots = (resolve_job_folder(value, root.path) for root in working_folders(report.report_type))
+        folder = next((f for f in in_roots if f is not None), None) or (
+            value if os.path.isabs(value) and os.path.isdir(value) else None)
         if folder is None:
-            messages.error(request, f'No folder “{value}” (a folder in the jobs folder, or a full path).')
+            messages.error(request, f'No folder “{value}” (a folder in a working folder, or a full path).')
         elif str(folder) != report.job_folder:
             # A new folder: none of its files are the app's yet
             Report.objects.filter(pk=pk).update(job_folder=str(folder), job_folder_files=[])

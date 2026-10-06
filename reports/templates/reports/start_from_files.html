@@ -10,23 +10,42 @@
     <p class="page-subtitle">Pick the job's folder (or make one). The app reads its .nde files: the instrument, probes and groups, the part and its sensitivity block, the welds and their offsets, the calibration times and the scan plan. The folder name gives the report name and client, and the report is saved back into the folder when you download it.</p>
 </div>
 
-{# Where job folders are listed and made; changing it is its own little form #}
-<form method="post" class="job-root" id="root-form">
-    {% csrf_token %}
+{# The working folder (weld reports' parent folder) the job folders are listed from and made in #}
+<div class="job-root">
     <i class="bi bi-folder2"></i>
-    <span>Job folders in <span class="mono">{{ root }}</span>{% if not root_exists %} <span class="text-danger">(not found)</span>{% endif %}</span>
-    <button type="button" class="btn btn-link btn-sm p-0" id="root-change">Change</button>
-    <span class="job-root-edit" id="root-edit" hidden>
-        <input type="text" class="form-control form-control-sm mono" name="jobs_root" value="{{ root }}" aria-label="Jobs folder"
-               placeholder="e.g. C:\Users\…\Desktop\Reports\001 Welds">
-        <button type="submit" name="set_root" value="1" class="btn btn-secondary btn-sm">Use this folder</button>
-        <button type="submit" name="set_root" value="1" class="btn btn-link btn-sm" onclick="this.form.jobs_root.value=''"
-                title="Back to Desktop\Reports\001 Welds">Default</button>
-    </span>
+    <span>Working folder</span>
+    {% if roots %}
+    <form method="get" class="job-root-pick">
+        <select name="root" class="form-select form-select-sm mono" onchange="this.form.submit()" aria-label="Working folder">
+            {% for item in roots %}
+            <option value="{{ item.pk }}"{% if item.pk == root.pk %} selected{% endif %}>{{ item.path }}{% if item.is_default %} (default){% endif %}</option>
+            {% endfor %}
+        </select>
+    </form>
+    {% if not root_exists %}<span class="text-danger">not found</span>{% endif %}
+    {% else %}
+    <span class="text-body-secondary">none for weld reports yet</span>
+    {% endif %}
+    <button type="button" class="btn btn-link btn-sm p-0" id="root-change"{% if not roots %} hidden{% endif %}>Add working folder</button>
+    <a href="{% url 'working-folder-list' %}" class="small">Preferences › Working folders</a>
+</div>
+<form method="post" class="panel job-root-add" id="root-edit"{% if roots %} hidden{% endif %}>
+    {% csrf_token %}
+    <div class="field-grid cols-3">
+        {% include 'reports/components/folder_field.html' with name='root_path' id='root-path' span='span-2' label='Add a working folder for weld reports' help='The folder your weld job folders are kept in, e.g. Desktop › Reports › 001 Welds.' title='Select the working folder for weld reports' %}
+        <div class="field job-root-add-actions">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="root-default" name="root_default" value="1"{% if not roots %} checked{% endif %}>
+                <label class="form-check-label" for="root-default">Make it the default</label>
+            </div>
+            <button type="submit" name="add_root" value="1" class="btn btn-secondary"><i class="bi bi-plus-lg"></i> Add</button>
+        </div>
+    </div>
 </form>
 
 <form method="post" enctype="multipart/form-data" id="start-form">
     {% csrf_token %}
+    {% if root %}<input type="hidden" name="root" value="{{ root.pk }}">{% endif %}
     <section class="panel">
         <div class="panel-header">
             <h2 class="panel-title">Job folder</h2>
@@ -72,7 +91,7 @@
             </div>
             <p class="form-text mb-0 mt-2" id="folder-no-matches" hidden>No folders match.</p>
             {% else %}
-            <p class="text-body-secondary mb-0">No folders in {{ root }} yet. Choose <strong>New folder</strong>, or change where job folders are kept above.</p>
+            <p class="text-body-secondary mb-0">{% if root %}No folders in {{ root.path }} yet. Choose <strong>New folder</strong>, or pick another working folder above.{% else %}Add a working folder above first (the folder your weld job folders are kept in), or choose <strong>Files only</strong>.{% endif %}</p>
             {% endif %}
         </div>
 
@@ -82,7 +101,7 @@
                 <label for="new-name">Folder name</label>
                 <input type="text" class="form-control mono" id="new-name" name="new_name" value="{{ posted.new_name }}"
                        placeholder="e.g. PPI-32-27119-FW6-4in" autocomplete="off">
-                <div class="form-text">Made in the jobs folder above; it's also the report's name. The client code at the start fills the client (Preferences › Client codes).</div>
+                <div class="form-text">Made in the working folder above; it's also the report's name. The client code at the start fills the client (Preferences › Client codes).</div>
             </div>
         </div>
 
@@ -135,4 +154,5 @@
 
 {% block scripts %}
 <script src="{% static_v 'reports/js/job_folder.js' %}"></script>
+<script src="{% static_v 'reports/js/folder_browse.js' %}"></script>
 {% endblock %}

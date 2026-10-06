@@ -6,16 +6,18 @@ the report name and client (reports/services/job_folder.py), and the downloads a
 """
 import os
 import re
+from pathlib import Path
 
 from django.contrib import messages
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from equipment.models import SensitivityBlock
 
 from ..models import ClientCode, ReportDefaults
 from ..services.job_folder import (
-    invalid_name, job_folders, jobs_root, nde_files, parse_folder_name, resolve_job_folder, save_uploads,
-    set_jobs_root,
+    add_working_folder, invalid_name, job_folders, nde_files, parse_folder_name, resolve_job_folder, save_uploads,
+    working_folder, working_folders,
 )
 from ..services.job_import import WELD_TYPE, build_report, read_job_file
 from ..services.nde_parser import UNIT_SYSTEMS
@@ -46,13 +48,15 @@ def _suggested_name(files):
     return '-'.join(parts)
 
 
-def _job_folder(request, mode, uploads):
+def _job_folder(request, mode, uploads, root):
     """
     The job folder the start form picked or asked for (made when new), or None for no folder.
     Raises ValueError with what's wrong.
     """
+    if mode in ('existing', 'new') and root is None:
+        raise ValueError('Add a working folder for weld reports first (at the top of the page), or choose Files only.')
     if mode == 'existing':
-        folder = resolve_job_folder(request.POST.get('job_folder', ''))
+        folder = resolve_job_folder(request.POST.get('job_folder', ''), root.path)
         if folder is None:
             raise ValueError('Pick a job folder from the list (or choose New folder).')
         return folder
@@ -61,12 +65,11 @@ def _job_folder(request, mode, uploads):
         problem = invalid_name(name)
         if problem:
             raise ValueError(problem)
-        root = jobs_root()
-        if not root.is_dir():
-            raise ValueError(f'The jobs folder {root} doesn\'t exist; change it at the top of the page.')
+        if not os.path.isdir(root.path):
+            raise ValueError(f'The working folder {root.path} isn\'t there; pick or add another at the top of the page.')
         if not uploads:
             raise ValueError('Choose the job\'s .nde files to copy into the new folder.')
-        folder = root / name
+        folder = Path(root.path) / name
         if folder.is_dir():
             messages.info(request, f'{name} already existed; the files went into it.')
         folder.mkdir(exist_ok=True)
@@ -75,14 +78,20 @@ def _job_folder(request, mode, uploads):
 
 
 def start_from_files(request):
-    """Step 1: the job folder (or files), the defaults set to start from, optionally the NPS / Sch."""
-    if request.method == 'POST' and 'set_root' in request.POST:
-        problem = set_jobs_root(request.POST.get('jobs_root', ''))
+    """
+    Step 1: the working folder (weld reports' parent folders; ?root=<pk>, else the default) and
+    the job folder in it (or files only), the defaults set to start from, optionally the NPS / Sch.
+    """
+    if request.method == 'POST' and 'add_root' in request.POST:
+        added, problem = add_working_folder(request.POST.get('root_path', ''), WELD_TYPE,
+                                            is_default=bool(request.POST.get('root_default')))
         if problem:
             messages.error(request, problem)
-        else:
-            messages.success(request, f'Job folders are now listed from {jobs_root()}.')
-        return redirect('start-from-files')
+            return redirect('start-from-files')
+        messages.success(request, f'{added.name} added as a working folder for weld reports.')
+        return redirect(f"{reverse('start-from-files')}?root={added.pk}")
+
+    root = working_folder(WELD_TYPE, request.POST.get('root') or request.GET.get('root'))
 
     # The page opens on Existing folder; a post without a mode is files only (as before job folders)
     mode = request.POST.get('folder_mode') if request.POST.get('folder_mode') in FOLDER_MODES else (
@@ -90,7 +99,7 @@ def start_from_files(request):
     if request.method == 'POST':
         uploads = [f for f in request.FILES.getlist('nde_files') if f.name.lower().endswith('.nde')]
         try:
-            folder = _job_folder(request, mode, uploads)
+            folder = _job_folder(request, mode, uploads, root)
             if folder is not None:
                 saved = save_uploads(folder, uploads)
                 if saved:
@@ -116,14 +125,14 @@ def start_from_files(request):
             }
             return redirect('confirm-job')
 
-    root = jobs_root()
     codes = {c.code: c for c in ClientCode.objects.all()}
-    folders = job_folders(root)
+    folders = job_folders(root.path) if root is not None else []
     for item in folders:
         item['client'] = codes.get(item['info']['client_code'])
     return render(request, 'reports/start_from_files.html', {
         'defaults_sets': _weld_defaults(), 'blocks': SensitivityBlock.objects.all(),
-        'root': root, 'root_exists': root.is_dir(), 'folders': folders, 'mode': mode, 'posted': request.POST,
+        'root': root, 'roots': working_folders(WELD_TYPE), 'root_exists': root is not None and os.path.isdir(root.path),
+        'folders': folders, 'mode': mode, 'posted': request.POST,
     })
 
 

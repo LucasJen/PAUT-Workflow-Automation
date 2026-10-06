@@ -6,12 +6,10 @@ parse_folder_name() reads it back (client code, line, welds, NPS) for Guided Cre
 """
 import os
 import re
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
-
-from django.conf import settings
-
-ROOT_SETTING = 'jobs_root'
 
 CLIENT = re.compile(r'^[A-Za-z]{2,6}$')
 NUMBER = re.compile(r'^\d+$')
@@ -78,32 +76,75 @@ def invalid_name(name):
     return ''
 
 
-# ── The jobs root (where job folders are listed and created) ─────────────────
+# ── Working folders (the parent folders job folders are kept in, per report type) ──
 
-def jobs_root():
-    """The folder holding the job folders: the one set in the app, else settings.WELD_JOBS_DIR."""
-    from ..models import AppSetting
-    return Path(AppSetting.get(ROOT_SETTING) or settings.WELD_JOBS_DIR)
+def working_folders(report_type):
+    """The working folders for a report type, the default first."""
+    from ..models import WorkingFolder
+    return list(WorkingFolder.objects.filter(report_type=report_type))
 
 
-def set_jobs_root(path):
-    """Remembers `path` as the jobs root; returns '' or why it can't be used."""
-    from ..models import AppSetting
+def working_folder(report_type, pk=None):
+    """The working folder `pk` if it's one of the type's, else the type's default (None when it has none)."""
+    folders = working_folders(report_type)
+    picked = next((f for f in folders if str(f.pk) == str(pk or '')), None)
+    return picked or next((f for f in folders if f.is_default), None) or (folders[0] if folders else None)
+
+
+def add_working_folder(path, report_type, is_default=False):
+    """(WorkingFolder, '') or (None, why it can't be added); the same path again is the one already there."""
+    from ..models import WorkingFolder
     path = (path or '').strip().strip('"')
     if not path:
-        AppSetting.objects.filter(key=ROOT_SETTING).delete()   # back to the default
-        return ''
+        return None, 'Type or browse to a folder.'
     if not os.path.isdir(path):
-        return f'No folder at {path}.'
-    AppSetting.put(ROOT_SETTING, str(Path(path).resolve()))
-    return ''
+        return None, f'No folder at {path}.'
+    path = str(Path(path).resolve())
+    folder = WorkingFolder.objects.filter(report_type=report_type, path__iexact=path).first()
+    if folder is None:
+        folder = WorkingFolder(path=path, report_type=report_type)
+    if is_default:
+        folder.is_default = True
+    folder.save()
+    return folder, ''
 
 
-def resolve_job_folder(name, root=None):
+# ── Picking a folder in the Windows folder dialog ────────────────────────────
+
+# Run in its own Python process: Tk wants its own main thread, and the server keeps serving.
+# On Windows Tk 8.6 shows the Explorer-style "Select Folder" dialog; it opens on top.
+PICKER = r"""
+import sys, tkinter
+from tkinter import filedialog
+root = tkinter.Tk()
+root.withdraw()
+root.attributes('-topmost', True)
+root.update()
+path = filedialog.askdirectory(parent=root, initialdir=sys.argv[1] or None, title=sys.argv[2], mustexist=True)
+sys.stdout.write(path or '')
+"""
+
+
+def pick_folder(initial='', title='Select a folder'):
+    """
+    Opens the folder dialog on the computer running the app and waits for it: the folder picked
+    (Windows path), or '' when cancelled. Raises OSError when no dialog can be shown.
+    """
+    initial = initial if initial and os.path.isdir(initial) else ''
+    env = {**os.environ, 'PYTHONIOENCODING': 'utf-8'}
+    result = subprocess.run([sys.executable, '-c', PICKER, initial, title], capture_output=True, timeout=900,
+                            env=env, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    if result.returncode != 0:
+        raise OSError(result.stderr.decode('utf-8', 'replace').strip().splitlines()[-1:] or 'The folder dialog failed.')
+    path = result.stdout.decode('utf-8').strip()
+    return os.path.normpath(path) if path else ''
+
+
+def resolve_job_folder(name, root):
     """The job folder `name` (a folder in the root, or a path inside it) as a Path, or None if it isn't one."""
-    root = Path(root or jobs_root()).resolve()
-    if not name:
+    if not name or not root:
         return None
+    root = Path(root).resolve()
     path = (root / name).resolve()
     if path == root or not path.is_relative_to(root) or not path.is_dir():
         return None
@@ -118,12 +159,12 @@ def report_files(folder, name=None):
     return [f'{name}{ext}' for ext in ('.xlsx', '.pdf', '.docx') if (Path(folder) / f'{name}{ext}').is_file()]
 
 
-def job_folders(root=None):
+def job_folders(root):
     """
     The root's folders as [{name, path, info (parse), nde (count), reports, modified}]: job folders
     (a recognised name or .nde files in them) newest first, then the others.
     """
-    root = Path(root or jobs_root())
+    root = Path(root)
     try:
         entries = [e for e in os.scandir(root) if e.is_dir() and not e.name.startswith('.')]
     except OSError:

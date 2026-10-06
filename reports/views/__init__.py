@@ -14,3 +14,6 @@ from .scan_plans import (
 from .materials import detect_sensitivity_block
 from .start import confirm_job, start_from_files
 from .job_folders import report_job_folder
+from .working_folders import (
+    browse_folder, edit_working_folder, new_working_folder, working_folder_list,
+)

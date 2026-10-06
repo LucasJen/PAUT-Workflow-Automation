@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from equipment.models import SensitivityBlock
-from reports.models import Report, Setup
+from reports.models import Report, Setup, WorkingFolder
 from reports.tests.test_nde_upload import FIXTURE, make_nde, sample_setup
 from reports.views.reports import _duplicate_report
 
@@ -27,8 +27,10 @@ class GuidedCreationFolderTests(TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
-        self.override = override_settings(WELD_JOBS_DIR=self.root, REPORT_OUTPUT_DIR=None)
+        self.override = override_settings(REPORT_OUTPUT_DIR=None)
         self.override.enable()
+        WorkingFolder.objects.all().delete()   # the migration's (this PC's 001 Welds)
+        self.working = WorkingFolder.objects.create(path=str(self.root), report_type='paut_weld', is_default=True)
 
     def tearDown(self):
         self.override.disable()
@@ -124,7 +126,8 @@ class GuidedCreationFolderTests(TestCase):
     def test_the_editor_keeps_the_folder_and_the_bar_can_change_or_clear_it(self):
         folder = self.job('PPI-27-66879-W2-8in', [])
         other = self.job('PPI-23-21092-W3&4-24in', [])
-        report = Report.objects.create(document_filename='x', job_folder=str(folder), job_folder_files=['x.xlsx'])
+        report = Report.objects.create(report_type='paut_weld', document_filename='x', job_folder=str(folder),
+                                       job_folder_files=['x.xlsx'])
         page = self.client.get(f"{reverse('create-report')}?loaded={report.pk}")
         self.assertContains(page, 'downloads are saved here too')
         url = reverse('report-job-folder', args=[report.pk])
@@ -142,3 +145,35 @@ class GuidedCreationFolderTests(TestCase):
         report = Report.objects.create(document_filename='x', job_folder=str(self.root), job_folder_files=['x.xlsx'])
         duplicate = _duplicate_report(report)
         self.assertEqual((duplicate.job_folder, duplicate.job_folder_files), ('', []))
+
+    def test_working_folders_are_picked_and_added_from_the_page(self):
+        other_root = self.root / 'Other welds'
+        other_root.mkdir()
+        (other_root / 'PPI-9-9-W9-2in').mkdir()
+        self.job('FHR-1-1-W1-2in', [])
+        page = self.client.get(reverse('start-from-files'))
+        self.assertContains(page, 'FHR-1-1-W1-2in')
+        self.assertNotContains(page, 'PPI-9-9-W9-2in')
+
+        resp = self.client.post(reverse('start-from-files'), {'add_root': '1', 'root_path': str(other_root)})
+        added = WorkingFolder.objects.get(path=str(other_root))
+        self.assertRedirects(resp, f"{reverse('start-from-files')}?root={added.pk}")
+        self.assertEqual((added.report_type, added.is_default), ('paut_weld', False))
+        page = self.client.get(reverse('start-from-files'), {'root': added.pk})
+        self.assertContains(page, 'PPI-9-9-W9-2in')
+        self.assertContains(page, f'<input type="hidden" name="root" value="{added.pk}">')
+        # A job folder only resolves in the working folder the form was on
+        resp = self.client.post(reverse('start-from-files'), {
+            'root': self.working.pk, 'folder_mode': 'existing', 'job_folder': 'PPI-9-9-W9-2in'}, follow=True)
+        self.assertContains(resp, 'Pick a job folder')
+
+        bad = self.client.post(reverse('start-from-files'), {'add_root': '1', 'root_path': str(self.root / 'nope')}, follow=True)
+        self.assertContains(bad, 'No folder at')
+
+    def test_without_a_working_folder_the_page_asks_for_one(self):
+        WorkingFolder.objects.all().delete()
+        page = self.client.get(reverse('start-from-files'))
+        self.assertContains(page, 'none for weld reports yet')
+        self.assertContains(page, 'data-browse-for="root-path"')
+        resp = self.client.post(reverse('start-from-files'), {'folder_mode': 'existing', 'job_folder': 'x'}, follow=True)
+        self.assertContains(resp, 'Add a working folder for weld reports first')
