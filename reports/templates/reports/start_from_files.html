@@ -1,14 +1,24 @@
 {% extends 'reports/base.html' %}
 {% load static ui %}
 
-{% block title %}New weld report from files · PAUT Report Automation{% endblock %}
+{% block title %}Guided Creation · PAUT Report Automation{% endblock %}
 
 {% block content %}
 <a href="{% url 'report-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Reports</a>
 <div class="page-header">
-    <h1>New weld report from files</h1>
-    <p class="page-subtitle">Pick the job's folder (or make one). The app reads its .nde files: the instrument, probes and groups, the part and its sensitivity block, the welds and their offsets, the calibration times and the scan plan. The folder name gives the report name and client, and the report is saved back into the folder when you download it.</p>
+    <h1>Guided Creation</h1>
+    <p class="page-subtitle">Pick the report type and the job's folder (or make one). The app reads its .nde files: the instrument, probes and groups, the part, the welds and their offsets, the calibration times and the scan plan. The folder name gives the report name and client, and the report is saved back into the folder when you download it.</p>
 </div>
+
+{# The report type: what's built, and whose working folders are listed #}
+<form method="get" class="job-type" id="type-form">
+    <label for="report-type">Report type</label>
+    <select class="form-select" id="report-type" name="type" onchange="this.form.submit()">
+        {% for item, guided in report_types %}
+        <option value="{{ item.key }}"{% if item.key == rtype.key %} selected{% endif %}>{{ item.label }}{% if not guided %} (guided workflow coming later){% endif %}</option>
+        {% endfor %}
+    </select>
+</form>
 
 {# The working folder (weld reports' parent folder) the job folders are listed from and made in #}
 <div class="job-root">
@@ -16,6 +26,7 @@
     <span>Working folder</span>
     {% if roots %}
     <form method="get" class="job-root-pick">
+        <input type="hidden" name="type" value="{{ rtype.key }}">
         <select name="root" class="form-select form-select-sm mono" onchange="this.form.submit()" aria-label="Working folder">
             {% for item in roots %}
             <option value="{{ item.pk }}"{% if item.pk == root.pk %} selected{% endif %}>{{ item.path }}{% if item.is_default %} (default){% endif %}</option>
@@ -24,15 +35,16 @@
     </form>
     {% if not root_exists %}<span class="text-danger">not found</span>{% endif %}
     {% else %}
-    <span class="text-body-secondary">none for weld reports yet</span>
+    <span class="text-body-secondary">none for {{ rtype.label }} reports yet</span>
     {% endif %}
     <button type="button" class="btn btn-link btn-sm p-0" id="root-change"{% if not roots %} hidden{% endif %}>Add working folder</button>
     <a href="{% url 'working-folder-list' %}" class="small">Preferences › Working folders</a>
 </div>
 <form method="post" class="panel job-root-add" id="root-edit"{% if roots %} hidden{% endif %}>
     {% csrf_token %}
+    <input type="hidden" name="type" value="{{ rtype.key }}">
     <div class="field-grid cols-3">
-        {% include 'reports/components/folder_field.html' with name='root_path' id='root-path' span='span-2' label='Add a working folder for weld reports' help='The folder your weld job folders are kept in, e.g. Desktop › Reports › 001 Welds.' title='Select the working folder for weld reports' %}
+        {% include 'reports/components/folder_field.html' with name='root_path' id='root-path' span='span-2' label='Add a working folder for these reports' help='The folder this report type\'s job folders are kept in, e.g. Desktop › Reports › 001 Welds.' title='Select a working folder' %}
         <div class="field job-root-add-actions">
             <div class="form-check">
                 <input type="checkbox" class="form-check-input" id="root-default" name="root_default" value="1"{% if not roots %} checked{% endif %}>
@@ -43,8 +55,15 @@
     </div>
 </form>
 
+{% if not rtype.guided %}
+<section class="panel">
+    <p class="mb-2"><i class="bi bi-cone-striped"></i> The guided workflow for <strong>{{ rtype.label }}</strong> reports isn't built yet.</p>
+    <p class="text-body-secondary mb-0">Use <a href="{% url 'create-report' %}">New report</a> for now. You can already set up its working folders above.</p>
+</section>
+{% else %}
 <form method="post" enctype="multipart/form-data" id="start-form">
     {% csrf_token %}
+    <input type="hidden" name="type" value="{{ rtype.key }}">
     {% if root %}<input type="hidden" name="root" value="{{ root.pk }}">{% endif %}
     <section class="panel">
         <div class="panel-header">
@@ -91,7 +110,7 @@
             </div>
             <p class="form-text mb-0 mt-2" id="folder-no-matches" hidden>No folders match.</p>
             {% else %}
-            <p class="text-body-secondary mb-0">{% if root %}No folders in {{ root.path }} yet. Choose <strong>New folder</strong>, or pick another working folder above.{% else %}Add a working folder above first (the folder your weld job folders are kept in), or choose <strong>Files only</strong>.{% endif %}</p>
+            <p class="text-body-secondary mb-0">{% if root %}No folders in {{ root.path }} yet. Choose <strong>New folder</strong>, or pick another working folder above.{% else %}Add a working folder above first (the folder this report type's job folders are kept in), or choose <strong>Files only</strong>.{% endif %}</p>
             {% endif %}
         </div>
 
@@ -150,6 +169,7 @@
         <button type="submit" class="btn btn-primary" id="start-submit"><i class="bi bi-arrow-right"></i> Read the files</button>
     </div>
 </form>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

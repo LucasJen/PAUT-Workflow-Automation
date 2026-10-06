@@ -157,7 +157,7 @@ class GuidedCreationFolderTests(TestCase):
 
         resp = self.client.post(reverse('start-from-files'), {'add_root': '1', 'root_path': str(other_root)})
         added = WorkingFolder.objects.get(path=str(other_root))
-        self.assertRedirects(resp, f"{reverse('start-from-files')}?root={added.pk}")
+        self.assertRedirects(resp, f"{reverse('start-from-files')}?type=paut_weld&root={added.pk}")
         self.assertEqual((added.report_type, added.is_default), ('paut_weld', False))
         page = self.client.get(reverse('start-from-files'), {'root': added.pk})
         self.assertContains(page, 'PPI-9-9-W9-2in')
@@ -173,7 +173,32 @@ class GuidedCreationFolderTests(TestCase):
     def test_without_a_working_folder_the_page_asks_for_one(self):
         WorkingFolder.objects.all().delete()
         page = self.client.get(reverse('start-from-files'))
-        self.assertContains(page, 'none for weld reports yet')
+        self.assertContains(page, 'none for PAUT weld (Excel) reports yet')
         self.assertContains(page, 'data-browse-for="root-path"')
         resp = self.client.post(reverse('start-from-files'), {'folder_mode': 'existing', 'job_folder': 'x'}, follow=True)
         self.assertContains(resp, 'Add a working folder for weld reports first')
+
+    def test_the_report_type_picks_the_working_folders_and_only_guided_types_go_on(self):
+        hic_root = self.root / 'HIC jobs'
+        hic_root.mkdir()
+        WorkingFolder.objects.create(path=str(hic_root), report_type='paut_long')
+        page = self.client.get(reverse('start-from-files'))
+        self.assertContains(page, '<option value="paut_weld" selected>PAUT weld (Excel)</option>', html=True)
+        self.assertContains(page, 'PAUT long form (HIC) (guided workflow coming later)')
+        self.assertContains(page, 'id="start-form"')
+
+        page = self.client.get(reverse('start-from-files'), {'type': 'paut_long'})
+        self.assertContains(page, str(hic_root))
+        self.assertNotContains(page, f'{self.root}</option>')
+        self.assertContains(page, "isn't built yet")
+        self.assertNotContains(page, 'id="start-form"')
+        resp = self.client.post(reverse('start-from-files'), {'type': 'paut_long', 'folder_mode': 'none'}, follow=True)
+        self.assertContains(resp, "can&#x27;t build PAUT long form (HIC) reports yet")
+        self.assertIsNone(self.client.session.get('job_import'))
+
+        # A working folder added on the HIC page is the HIC reports'
+        other = self.root / 'More HIC'
+        other.mkdir()
+        self.client.post(reverse('start-from-files'), {'type': 'paut_long', 'add_root': '1', 'root_path': str(other)})
+        self.assertEqual(WorkingFolder.objects.get(path=str(other)).report_type, 'paut_long')
+        self.assertEqual(self.client.get(reverse('start-from-files'), {'type': 'bogus'}).context['rtype'].key, 'paut_weld')

@@ -11,10 +11,12 @@ from pathlib import Path
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.http import urlencode
 
 from equipment.models import SensitivityBlock
 
 from ..models import ClientCode, ReportDefaults
+from ..report_types import REPORT_TYPES, guided_report_types
 from ..services.job_folder import (
     add_working_folder, invalid_name, job_folders, nde_files, parse_folder_name, resolve_job_folder, save_uploads,
     working_folder, working_folders,
@@ -77,25 +79,37 @@ def _job_folder(request, mode, uploads, root):
     return None
 
 
+def _start_url(rtype, root=None):
+    params = {'type': rtype.key, **({'root': root.pk} if root is not None else {})}
+    return f"{reverse('start-from-files')}?{urlencode(params)}"
+
+
 def start_from_files(request):
     """
-    Step 1: the working folder (weld reports' parent folders; ?root=<pk>, else the default) and
-    the job folder in it (or files only), the defaults set to start from, optionally the NPS / Sch.
+    Step 1: the report type (?type=, weld by default; only types with a guided workflow go on),
+    its working folder (?root=<pk>, else the type's default) and the job folder in it (or files
+    only), the defaults set to start from, optionally the NPS / Sch.
     """
+    key = request.POST.get('type') or request.GET.get('type')
+    rtype = REPORT_TYPES.get(key) or REPORT_TYPES[WELD_TYPE]
+
     if request.method == 'POST' and 'add_root' in request.POST:
-        added, problem = add_working_folder(request.POST.get('root_path', ''), WELD_TYPE,
+        added, problem = add_working_folder(request.POST.get('root_path', ''), rtype.key,
                                             is_default=bool(request.POST.get('root_default')))
         if problem:
             messages.error(request, problem)
-            return redirect('start-from-files')
-        messages.success(request, f'{added.name} added as a working folder for weld reports.')
-        return redirect(f"{reverse('start-from-files')}?root={added.pk}")
+            return redirect(_start_url(rtype))
+        messages.success(request, f'{added.name} added as a working folder for {rtype.label} reports.')
+        return redirect(_start_url(rtype, added))
 
-    root = working_folder(WELD_TYPE, request.POST.get('root') or request.GET.get('root'))
+    root = working_folder(rtype.key, request.POST.get('root') or request.GET.get('root'))
 
     # The page opens on Existing folder; a post without a mode is files only (as before job folders)
     mode = request.POST.get('folder_mode') if request.POST.get('folder_mode') in FOLDER_MODES else (
         'none' if request.method == 'POST' else 'existing')
+    if request.method == 'POST' and not rtype.guided:
+        messages.error(request, f'Guided Creation can\'t build {rtype.label} reports yet; use New report.')
+        return redirect(_start_url(rtype, root))
     if request.method == 'POST':
         uploads = [f for f in request.FILES.getlist('nde_files') if f.name.lower().endswith('.nde')]
         try:
@@ -126,12 +140,13 @@ def start_from_files(request):
             return redirect('confirm-job')
 
     codes = {c.code: c for c in ClientCode.objects.all()}
-    folders = job_folders(root.path) if root is not None else []
+    folders = job_folders(root.path) if root is not None and rtype.guided else []
     for item in folders:
         item['client'] = codes.get(item['info']['client_code'])
     return render(request, 'reports/start_from_files.html', {
         'defaults_sets': _weld_defaults(), 'blocks': SensitivityBlock.objects.all(),
-        'root': root, 'roots': working_folders(WELD_TYPE), 'root_exists': root is not None and os.path.isdir(root.path),
+        'rtype': rtype, 'report_types': guided_report_types(),
+        'root': root, 'roots': working_folders(rtype.key), 'root_exists': root is not None and os.path.isdir(root.path),
         'folders': folders, 'mode': mode, 'posted': request.POST,
     })
 

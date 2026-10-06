@@ -117,6 +117,8 @@ class ReportType:
     output_format: str = 'docx'
     # The editor outlines empty fields by where their value comes from (reports/fill_marks.py)
     fill_marks: bool = False
+    # Guided Creation can build it from a job's files (reports/views/start.py)
+    guided: bool = False
 
     @property
     def results_headings(self):
@@ -150,6 +152,7 @@ _TYPES = [
                                  'cal_images'}),
         results_columns=WELD_RESULTS_COLUMNS,
         fill_marks=True,
+        guided=True,
     ),
 ]
 
@@ -164,3 +167,8 @@ def get_report_type(key):
 
 def report_type_choices():
     return [(t.key, t.label) for t in _TYPES]
+
+
+def guided_report_types():
+    """Every report type for Guided Creation's picker, those it can build first: [(ReportType, guided)]."""
+    return sorted(((t, t.guided) for t in _TYPES), key=lambda pair: not pair[1])

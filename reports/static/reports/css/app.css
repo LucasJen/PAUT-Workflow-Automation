@@ -1643,3 +1643,8 @@ body.drop-target .content { outline: 2px dashed var(--bs-primary); outline-offse
     border-color: var(--accent);
     color: var(--accent-text);
 }
+
+/* Guided Creation: the report type picker above the working folder */
+.job-type { display: flex; align-items: center; gap: 0.75rem; margin: -0.25rem 0 0.75rem; }
+.job-type label { font-weight: 600; white-space: nowrap; }
+.job-type select { width: auto; min-width: 16rem; }
