@@ -8,6 +8,7 @@
 <div class="page-header">
     <h1>{% if form.instance.pk %}{{ form.instance.document_filename|default:"Untitled report" }}{% else %}New report{% endif %}</h1>
 </div>
+{% include 'reports/components/job_folder_bar.html' with report=form.instance %}
 
 <!-- Shared by every setup block's wave mode field -->
 <datalist id="wave_propagation_options">

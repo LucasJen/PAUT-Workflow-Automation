@@ -1,0 +1,31 @@
+{# The report's job folder (Guided Creation): downloads are also saved into it. Needs `report`. #}
+{% if report.pk %}
+<form method="post" action="{% url 'report-job-folder' report.pk %}" class="job-folder-bar" id="job-folder-bar">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <i class="bi bi-folder2{% if report.job_folder %}-open{% endif %}"></i>
+    {% if report.job_folder %}
+    <span class="job-folder-bar-text">
+        Job folder <span class="mono" title="{{ report.job_folder }}">{{ report.job_folder }}</span>
+        <span class="text-body-secondary">· downloads are saved here too</span>
+    </span>
+    <button type="submit" name="action" value="open" class="btn btn-secondary btn-sm" title="Open in File Explorer"><i class="bi bi-box-arrow-up-right"></i> Open folder</button>
+    {% else %}
+    <span class="job-folder-bar-text text-body-secondary">No job folder: downloads go to the browser only.</span>
+    {% endif %}
+    <button type="button" class="btn btn-link btn-sm" id="job-folder-change">{% if report.job_folder %}Change{% else %}Set a folder{% endif %}</button>
+    <span class="job-folder-bar-edit" id="job-folder-edit" hidden>
+        <input type="text" class="form-control form-control-sm mono" name="job_folder" value="{{ report.job_folder }}"
+               placeholder="Folder name in the jobs folder, or a full path" aria-label="Job folder">
+        <button type="submit" name="action" value="set" class="btn btn-secondary btn-sm">Use</button>
+        {% if report.job_folder %}<button type="submit" name="action" value="clear" class="btn btn-link btn-sm text-danger">Clear</button>{% endif %}
+    </span>
+</form>
+<script>
+document.getElementById('job-folder-change').addEventListener('click', e => {
+    document.getElementById('job-folder-edit').hidden = false;
+    e.currentTarget.hidden = true;
+    document.querySelector('#job-folder-edit input').focus();
+});
+</script>
+{% endif %}

@@ -91,6 +91,8 @@ class ReportForm(StyledFormMixin, ModelForm):
     class Meta:
         model = Report
         fields = '__all__'
+        # Set by Guided Creation and the job folder bar (views/job_folders.py), not the editor's form
+        exclude = ['job_folder', 'job_folder_files']
         labels = {
             'document_filename': 'File name',
             'weld_technician': 'Technician',

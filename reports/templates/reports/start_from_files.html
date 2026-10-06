@@ -1,4 +1,5 @@
 {% extends 'reports/base.html' %}
+{% load static ui %}
 
 {% block title %}New weld report from files · PAUT Report Automation{% endblock %}
 
@@ -6,13 +7,128 @@
 <a href="{% url 'report-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Reports</a>
 <div class="page-header">
     <h1>New weld report from files</h1>
-    <p class="page-subtitle">Drop all of the job's .nde files. The app reads the instrument, probes and groups, the part and its sensitivity block, the welds and their offsets, the calibration times and the scan plan; you confirm the welds, then finish the report in the editor.</p>
+    <p class="page-subtitle">Pick the job's folder (or make one). The app reads its .nde files: the instrument, probes and groups, the part and its sensitivity block, the welds and their offsets, the calibration times and the scan plan. The folder name gives the report name, client and pipe size, and the report is saved back into the folder when you download it.</p>
 </div>
 
-<form method="post" enctype="multipart/form-data" id="start-form">
+{# Where job folders are listed and made; changing it is its own little form #}
+<form method="post" class="job-root" id="root-form">
+    {% csrf_token %}
+    <i class="bi bi-folder2"></i>
+    <span>Job folders in <span class="mono">{{ root }}</span>{% if not root_exists %} <span class="text-danger">(not found)</span>{% endif %}</span>
+    <button type="button" class="btn btn-link btn-sm p-0" id="root-change">Change</button>
+    <span class="job-root-edit" id="root-edit" hidden>
+        <input type="text" class="form-control form-control-sm mono" name="jobs_root" value="{{ root }}" aria-label="Jobs folder"
+               placeholder="e.g. C:\Users\…\Desktop\Reports\001 Welds">
+        <button type="submit" name="set_root" value="1" class="btn btn-secondary btn-sm">Use this folder</button>
+        <button type="submit" name="set_root" value="1" class="btn btn-link btn-sm" onclick="this.form.jobs_root.value=''"
+                title="Back to Desktop\Reports\001 Welds">Default</button>
+    </span>
+</form>
+
+<form method="post" enctype="multipart/form-data" id="start-form" data-name-url="{% url 'job-folder-name' %}">
     {% csrf_token %}
     <section class="panel">
+        <div class="panel-header">
+            <h2 class="panel-title">Job folder</h2>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Job folder">
+                <input type="radio" class="btn-check" name="folder_mode" id="mode-existing" value="existing"{% if mode == 'existing' %} checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="mode-existing"><i class="bi bi-folder2-open"></i> Existing folder</label>
+                <input type="radio" class="btn-check" name="folder_mode" id="mode-new" value="new"{% if mode == 'new' %} checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="mode-new"><i class="bi bi-folder-plus"></i> New folder</label>
+                <input type="radio" class="btn-check" name="folder_mode" id="mode-none" value="none"{% if mode == 'none' %} checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="mode-none"><i class="bi bi-files"></i> Files only</label>
+            </div>
+        </div>
+
+        {# Existing: the root's folders, job folders first (newest first) #}
+        <div data-mode="existing">
+            {% if folders %}
+            <div class="search-input w-100 mb-2">
+                <i class="bi bi-search"></i>
+                <input type="search" class="form-control" id="folder-search" placeholder="Search folders (line, weld, client…)" aria-label="Search folders">
+            </div>
+            <div class="job-folders" id="job-folders">
+                {% for folder in folders %}
+                <label class="job-folder{% if not folder.job %} not-job{% endif %}">
+                    <input type="radio" class="form-check-input" name="job_folder" value="{{ folder.name }}"{% if posted.job_folder == folder.name %} checked{% endif %}>
+                    <span class="job-folder-main">
+                        <span class="job-folder-name mono">{{ folder.name }}</span>
+                        <span class="job-folder-chips">
+                            {% with info=folder.info %}
+                            {% if info.client_code %}<span class="job-chip" title="{% if folder.client %}{{ folder.client.client }}{% else %}Not in Library › Client codes{% endif %}">{{ info.client_code }}{% if folder.client %} · {{ folder.client.client }}{% endif %}</span>{% endif %}
+                            {% if info.line %}<span class="job-chip">Line {% if info.unit %}{{ info.unit }}-{% endif %}{{ info.line }}</span>{% endif %}
+                            {% if info.welds %}<span class="job-chip">{{ info.welds|join:", " }}</span>{% endif %}
+                            {% if info.nps %}<span class="job-chip job-chip-accent">{{ info.nps }}in</span>{% elif folder.job %}<span class="job-chip job-chip-warn" title="The name gives no pipe size">no size</span>{% endif %}
+                            {% endwith %}
+                        </span>
+                    </span>
+                    <span class="job-folder-aside">
+                        <span>{{ folder.nde }} .nde</span>
+                        {% if folder.reports %}<span class="text-success" title="{{ folder.reports|join:', ' }}"><i class="bi bi-file-earmark-check"></i> report</span>{% endif %}
+                        <span class="text-body-secondary">{{ folder.modified|date:'Y-m-d' }}</span>
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+            <p class="form-text mb-0 mt-2" id="folder-no-matches" hidden>No folders match.</p>
+            {% else %}
+            <p class="text-body-secondary mb-0">No folders in {{ root }} yet. Choose <strong>New folder</strong>, or change where job folders are kept above.</p>
+            {% endif %}
+        </div>
+
+        {# New: the name is built from these, like the existing folders #}
+        <div data-mode="new" hidden>
+            <div class="field-grid cols-4">
+                <div class="field">
+                    <label for="new-client">Client</label>
+                    <select class="form-select" id="new-client" name="new_client">
+                        {% for code in client_codes %}
+                        <option value="{{ code.code }}"{% if posted.new_client == code.code %} selected{% endif %}>{{ code.code }} · {{ code.client }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text"><a href="{% url 'client-code-list' %}">Library › Client codes</a></div>
+                </div>
+                <div class="field">
+                    <label for="new-unit">Unit</label>
+                    <input type="text" class="form-control mono" id="new-unit" name="new_unit" value="{{ posted.new_unit }}" placeholder="e.g. 32">
+                </div>
+                <div class="field">
+                    <label for="new-line">Line</label>
+                    <input type="text" class="form-control mono" id="new-line" name="new_line" value="{{ posted.new_line }}" placeholder="e.g. 27119">
+                </div>
+                <div class="field">
+                    <label for="new-nps">Pipe size</label>
+                    <select class="form-select" id="new-nps" name="new_nps">
+                        <option value="">Not set</option>
+                        {% for size in pipe_sizes %}
+                        <option value="{{ size }}"{% if posted.new_nps == size %} selected{% endif %}>{{ size }}in</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field span-2">
+                    <label for="new-welds">Welds</label>
+                    <input type="text" class="form-control mono" id="new-welds" name="new_welds" value="{{ posted.new_welds }}" placeholder="e.g. FW6, FW7">
+                </div>
+                <div class="field span-2">
+                    <label>Folder name</label>
+                    <div class="job-name-preview mono" id="new-name" aria-live="polite">—</div>
+                    <div class="form-text" id="new-name-note"></div>
+                </div>
+            </div>
+        </div>
+
+        <div data-mode="none" hidden>
+            <p class="text-body-secondary mb-0">The report isn't tied to a folder: pick the .nde files below; downloads go to the browser only.</p>
+        </div>
+    </section>
+
+    <section class="panel">
         <div class="field-grid cols-3">
+            <div class="field span-full">
+                <label for="start-files" id="files-label">The job's .nde files</label>
+                <input type="file" class="form-control" id="start-files" name="nde_files" accept=".nde" multiple>
+                <div class="form-text" id="files-help">Select them all at once (Ctrl+A in the folder). Large files take a moment to read.</div>
+            </div>
             <div class="field">
                 <label for="start-defaults">Start from defaults</label>
                 <select class="form-select" id="start-defaults" name="defaults">
@@ -26,7 +142,7 @@
             <div class="field">
                 <label for="start-block">NPS / Sch</label>
                 <select class="form-select" id="start-block" name="sensitivity_block">
-                    <option value="">Auto-detect from the files</option>
+                    <option value="">Auto-detect (folder name + files)</option>
                     {% for block in blocks %}
                     <option value="{{ block.pk }}">{{ block }}{% if block.serial_number %} · {{ block.serial_number }}{% endif %}</option>
                     {% endfor %}
@@ -40,11 +156,6 @@
                     <option value="metric">Metric (mm)</option>
                 </select>
             </div>
-            <div class="field span-full">
-                <label for="start-files">The job's .nde files</label>
-                <input type="file" class="form-control" id="start-files" name="nde_files" accept=".nde" multiple required>
-                <div class="form-text">Select them all at once (Ctrl+A in the folder). Large files take a moment to read.</div>
-            </div>
         </div>
     </section>
     <div class="sticky-actions">
@@ -54,11 +165,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-document.getElementById('start-form').addEventListener('submit', () => {
-    const button = document.getElementById('start-submit');
-    button.disabled = true;
-    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Reading the files…';
-});
-</script>
+<script src="{% static_v 'reports/js/job_folder.js' %}"></script>
 {% endblock %}

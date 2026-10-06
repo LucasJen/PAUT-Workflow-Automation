@@ -259,11 +259,13 @@ def job_block(files, pipe_size=''):
 
 
 @transaction.atomic
-def build_report(files, defaults=None, document_filename='', block=None):
+def build_report(files, defaults=None, document_filename='', block=None, job_folder='', pipe_size='', client=None):
     """
     The weld report for these read files (read_job_file, with confirmed 'weld' IDs; files with an
     'error' are left out) starting from a defaults set, with the sensitivity block picked for the
-    job (else the one detected from the files). Returns (report, notes).
+    job (else the one detected from the files and `pipe_size`, e.g. a job folder name's '4in').
+    `job_folder` is where its downloads are saved; `client` a ClientCode, over the defaults'
+    client and location. Returns (report, notes).
     """
     from ..views.scan_plans import add_weld_to_plan
     files = [f for f in files if not f.get('error')]
@@ -274,6 +276,10 @@ def build_report(files, defaults=None, document_filename='', block=None):
     if defaults is not None:
         _set_report_values(report, defaults.report_values)
     report.document_filename = document_filename or report.document_filename
+    report.job_folder = str(job_folder or '')
+    if client is not None:
+        report.client = client.client
+        report.location = client.location or report.location
     # The instrument: the files' (with the scope library's details)
     for name, value in (items[0]['instrument'] if items else {}).items():
         setattr(report, name, value)
@@ -284,7 +290,7 @@ def build_report(files, defaults=None, document_filename='', block=None):
     report.scan_part = part or None
     why = ''
     if block is None:
-        block, why = job_block(files, report.pipe_size)
+        block, why = job_block(files, pipe_size or report.pipe_size)
     if block is not None:
         for name, value in {**block_values(block), **part_values(part, block)}.items():
             setattr(report, 'sensitivity_block_id' if name == 'sensitivity_block' else name, value)

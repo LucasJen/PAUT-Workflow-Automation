@@ -438,6 +438,41 @@ def report_docx(request, pk):
     return response
 
 
+def _save_to_job_folder(request, report, name, content):
+    """
+    Saves a download into the report's job folder as `name`. A file of that name the app didn't
+    write for this report (e.g. a report made before the app) is kept: the copy is 'name (2)'
+    instead. Only the app's own files are replaced.
+    """
+    folder = report.job_folder
+    if not os.path.isdir(folder):
+        messages.warning(request, f'The job folder {folder} is gone; the report was only downloaded.')
+        return
+    target, own = name, set(report.job_folder_files or [])
+    stem, ext = os.path.splitext(name)
+    n = 2
+    while os.path.exists(os.path.join(folder, target)) and target not in own:
+        target, n = f'{stem} ({n}){ext}', n + 1
+    try:
+        with open(os.path.join(folder, target), 'wb') as f:
+            f.write(content)
+    except PermissionError:
+        messages.warning(request, f"Couldn't save {target} into the job folder: is it open in Excel / Word / a PDF viewer? "
+                                  'Close it and download again.')
+        return
+    if target not in own:
+        report.job_folder_files = sorted(own | {target})
+        Report.objects.filter(pk=report.pk).update(job_folder_files=report.job_folder_files)
+
+
+def _save_copy(request, report, name, content):
+    """A downloaded report also goes into its job folder, else (optionally) the server's outputs folder."""
+    if report.job_folder:
+        _save_to_job_folder(request, report, name, content)
+    else:
+        _save_server_copy(name, content)
+
+
 def _save_server_copy(name, content):
     """Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off)."""
     if not settings.REPORT_OUTPUT_DIR:
@@ -479,7 +514,7 @@ def report_pdf(request, pk):
         return render(request, 'reports/pdf_error.html',
                       {'message': str(e), 'report': report, 'excel': _is_excel(report)}, status=503)
     if download:
-        _save_server_copy(name, pdf)
+        _save_copy(request, report, name, pdf)
     response = FileResponse(io.BytesIO(pdf), as_attachment=download, filename=name, content_type='application/pdf')
     response['Cache-Control'] = 'no-store'
     return response
@@ -500,7 +535,7 @@ def generate_report(request, pk):
     output_name = f'{safe_filename(report.document_filename)}.docx'
     content = render_report(report)
 
-    _save_server_copy(output_name, content)
+    _save_copy(request, report, output_name, content)
 
     return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=DOCX_CONTENT_TYPE)
 
@@ -514,7 +549,7 @@ def _excel_download(request, report):
     except ExcelReportError as e:
         messages.error(request, str(e))
         return redirect(f"{reverse('create-report')}?loaded={report.pk}")
-    _save_server_copy(output_name, content)
+    _save_copy(request, report, output_name, content)
     return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=XLSX_CONTENT_TYPE)
 
 
@@ -533,6 +568,8 @@ def _duplicate_report(original):
     report.pk = None
     report.document_filename = f'{original.document_filename or "Untitled"} (copy)'
     report.report_date = report.test_date = report.test_end_date = None
+    # A repeat inspection is a new job: it gets its own folder (if any), never the original's files
+    report.job_folder, report.job_folder_files = '', []
     report.save()
 
     for person in people:
