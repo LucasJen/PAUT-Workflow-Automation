@@ -182,14 +182,35 @@ h1, h2, h3, h4, h5, h6 { color: var(--text); letter-spacing: -0.01em; }
 }
 
 .nav-group-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
     padding: 0.875rem 0.5rem 0.25rem;
+    background: none;
+    border: 0;
+    border-radius: var(--radius);
     font-size: 0.6875rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
+    text-align: left;
     color: var(--text-3);
     white-space: nowrap;
 }
+
+.nav-group-label:hover { color: var(--text); }
+.nav-group-chevron { font-size: 0.75rem; transition: transform 0.15s ease; }
+
+/* A closed group (its name is in <html data-nav-closed>, set before paint) shows only its label */
+html[data-nav-closed~="reports"] .nav-group[data-group="reports"] .nav-group-items { display: none; }
+html[data-nav-closed~="reports"] .nav-group[data-group="reports"] .nav-group-chevron { transform: rotate(-90deg); }
+html[data-nav-closed~="setups"] .nav-group[data-group="setups"] .nav-group-items { display: none; }
+html[data-nav-closed~="setups"] .nav-group[data-group="setups"] .nav-group-chevron { transform: rotate(-90deg); }
+html[data-nav-closed~="equipment"] .nav-group[data-group="equipment"] .nav-group-items { display: none; }
+html[data-nav-closed~="equipment"] .nav-group[data-group="equipment"] .nav-group-chevron { transform: rotate(-90deg); }
+html[data-nav-closed~="documentation"] .nav-group[data-group="documentation"] .nav-group-items { display: none; }
+html[data-nav-closed~="documentation"] .nav-group[data-group="documentation"] .nav-group-chevron { transform: rotate(-90deg); }
 
 .nav-item-link {
     display: flex;
@@ -248,6 +269,12 @@ h1, h2, h3, h4, h5, h6 { color: var(--text); letter-spacing: -0.01em; }
 }
 .sidebar-collapsed .sidebar .nav-item-link { justify-content: center; }
 .sidebar-collapsed .collapse-icon { transform: rotate(180deg); }
+/* The icon rail shows every group's icons; its labels are only dividers */
+@media (min-width: 768px) {
+    .sidebar-collapsed .sidebar .nav-group-items { display: block !important; }
+    .sidebar-collapsed .sidebar .nav-group-label { width: calc(100% - 1rem); pointer-events: none; }
+    .sidebar-collapsed .sidebar .nav-group-label > * { display: none; }
+}
 
 .main {
     flex: 1;

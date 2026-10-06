@@ -19,6 +19,8 @@
             }
             document.documentElement.setAttribute('data-bs-theme', theme);
             if (collapsed) document.documentElement.classList.add('sidebar-collapsed');
+            // Sidebar groups the user closed (space-separated names; app.css hides their links)
+            try { document.documentElement.setAttribute('data-nav-closed', localStorage.getItem('navClosed') || ''); } catch (e) {}
         })();
     </script>
 
@@ -42,64 +44,88 @@
             <i class="bi bi-grid-1x2"></i><span class="nav-label">Dashboard</span>
         </a>
 
-        <div class="nav-group-label">Reports</div>
-        <a class="nav-item-link {% nav_active 'create-report' 'new-report' %}" href="{% url 'create-report' %}" title="New report">
-            <i class="bi bi-file-earmark-plus"></i><span class="nav-label">New report</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'start-from-files' 'confirm-job' %}" href="{% url 'start-from-files' %}" title="New report from scan files">
-            <i class="bi bi-folder2-open"></i><span class="nav-label">Guided Creation</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'report-list' 'edit-report' %}" href="{% url 'report-list' %}" title="All reports">
-            <i class="bi bi-files"></i><span class="nav-label">All reports</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'snippet-list' 'edit-snippet' 'new-snippet' 'defaults-list' 'edit-defaults' %}" href="{% url 'snippet-list' %}" title="Library">
-            <i class="bi bi-card-text"></i><span class="nav-label">Library</span>
-        </a>
+        <div class="nav-group" data-group="reports">
+            <button type="button" class="nav-group-label" aria-expanded="true" title="Show or hide Reports">
+                <span>Reports</span><i class="bi bi-chevron-down nav-group-chevron"></i>
+            </button>
+            <div class="nav-group-items">
+                <a class="nav-item-link {% nav_active 'create-report' 'new-report' %}" href="{% url 'create-report' %}" title="New report">
+                    <i class="bi bi-file-earmark-plus"></i><span class="nav-label">New report</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'start-from-files' 'confirm-job' %}" href="{% url 'start-from-files' %}" title="New report from scan files">
+                    <i class="bi bi-folder2-open"></i><span class="nav-label">Guided Creation</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'report-list' 'edit-report' %}" href="{% url 'report-list' %}" title="All reports">
+                    <i class="bi bi-files"></i><span class="nav-label">All reports</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'snippet-list' 'edit-snippet' 'new-snippet' 'defaults-list' 'edit-defaults' %}" href="{% url 'snippet-list' %}" title="Library">
+                    <i class="bi bi-card-text"></i><span class="nav-label">Library</span>
+                </a>
+            </div>
+        </div>
 
-        <div class="nav-group-label">Setups</div>
-        <a class="nav-item-link {% nav_active 'setup-list' 'edit-setup' 'new-setup' %}" href="{% url 'setup-list' %}" title="Saved setups">
-            <i class="bi bi-sliders"></i><span class="nav-label">Saved setups</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'scan-plan-list' 'edit-scan-plan' 'new-scan-plan' %}" href="{% url 'scan-plan-list' %}" title="Scan plans">
-            <i class="bi bi-rulers"></i><span class="nav-label">Scan plans</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'nde-upload' %}" href="{% url 'nde-upload' %}" title="Import from NDE">
-            <i class="bi bi-upload"></i><span class="nav-label">Import from NDE</span>
-        </a>
+        <div class="nav-group" data-group="setups">
+            <button type="button" class="nav-group-label" aria-expanded="true" title="Show or hide Setups">
+                <span>Setups</span><i class="bi bi-chevron-down nav-group-chevron"></i>
+            </button>
+            <div class="nav-group-items">
+                <a class="nav-item-link {% nav_active 'setup-list' 'edit-setup' 'new-setup' %}" href="{% url 'setup-list' %}" title="Saved setups">
+                    <i class="bi bi-sliders"></i><span class="nav-label">Saved setups</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'scan-plan-list' 'edit-scan-plan' 'new-scan-plan' %}" href="{% url 'scan-plan-list' %}" title="Scan plans">
+                    <i class="bi bi-rulers"></i><span class="nav-label">Scan plans</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'nde-upload' %}" href="{% url 'nde-upload' %}" title="Import from NDE">
+                    <i class="bi bi-upload"></i><span class="nav-label">Import from NDE</span>
+                </a>
+            </div>
+        </div>
 
-        <div class="nav-group-label">Equipment</div>
-        <a class="nav-item-link {% nav_active 'scope-list' 'edit-scope' 'new-scope' %}" href="{% url 'scope-list' %}" title="Scopes">
-            <i class="bi bi-display"></i><span class="nav-label">Scopes</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'probe-list' 'edit-probe' 'new-probe' %}" href="{% url 'probe-list' %}" title="Probes">
-            <i class="bi bi-soundwave"></i><span class="nav-label">Probes</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'probe-model-list' 'edit-probe-model' 'new-probe-model' %}" href="{% url 'probe-model-list' %}" title="Probe catalogue">
-            <i class="bi bi-journal-text"></i><span class="nav-label">Probe catalogue</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'wedge-model-list' 'edit-wedge-model' 'new-wedge-model' %}" href="{% url 'wedge-model-list' %}" title="Wedge catalogue">
-            <i class="bi bi-triangle"></i><span class="nav-label">Wedge catalogue</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'cal-block-list' 'edit-cal-block' 'new-cal-block' %}" href="{% url 'cal-block-list' %}" title="Calibration blocks">
-            <i class="bi bi-bricks"></i><span class="nav-label">Calibration blocks</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'sensitivity-block-list' 'edit-sensitivity-block' 'new-sensitivity-block' %}" href="{% url 'sensitivity-block-list' %}" title="Sensitivity blocks">
-            <i class="bi bi-box"></i><span class="nav-label">Sensitivity blocks</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'encoder-list' 'edit-encoder' 'new-encoder' %}" href="{% url 'encoder-list' %}" title="Encoders">
-            <i class="bi bi-record-circle"></i><span class="nav-label">Encoders</span>
-        </a>
+        <div class="nav-group" data-group="equipment">
+            <button type="button" class="nav-group-label" aria-expanded="true" title="Show or hide Equipment">
+                <span>Equipment</span><i class="bi bi-chevron-down nav-group-chevron"></i>
+            </button>
+            <div class="nav-group-items">
+                <a class="nav-item-link {% nav_active 'scope-list' 'edit-scope' 'new-scope' %}" href="{% url 'scope-list' %}" title="Scopes">
+                    <i class="bi bi-display"></i><span class="nav-label">Scopes</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'probe-list' 'edit-probe' 'new-probe' %}" href="{% url 'probe-list' %}" title="Probes">
+                    <i class="bi bi-soundwave"></i><span class="nav-label">Probes</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'probe-model-list' 'edit-probe-model' 'new-probe-model' %}" href="{% url 'probe-model-list' %}" title="Probe catalogue">
+                    <i class="bi bi-journal-text"></i><span class="nav-label">Probe catalogue</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'wedge-model-list' 'edit-wedge-model' 'new-wedge-model' %}" href="{% url 'wedge-model-list' %}" title="Wedge catalogue">
+                    <i class="bi bi-triangle"></i><span class="nav-label">Wedge catalogue</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'cal-block-list' 'edit-cal-block' 'new-cal-block' %}" href="{% url 'cal-block-list' %}" title="Calibration blocks">
+                    <i class="bi bi-bricks"></i><span class="nav-label">Calibration blocks</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'sensitivity-block-list' 'edit-sensitivity-block' 'new-sensitivity-block' %}" href="{% url 'sensitivity-block-list' %}" title="Sensitivity blocks">
+                    <i class="bi bi-box"></i><span class="nav-label">Sensitivity blocks</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'encoder-list' 'edit-encoder' 'new-encoder' %}" href="{% url 'encoder-list' %}" title="Encoders">
+                    <i class="bi bi-record-circle"></i><span class="nav-label">Encoders</span>
+                </a>
+            </div>
+        </div>
 
-        <div class="nav-group-label">Documentation</div>
-        <a class="nav-item-link {% nav_active 'procedure-list' 'edit-procedure' %}" href="{% url 'procedure-list' %}" title="Procedures">
-            <i class="bi bi-journal-check"></i><span class="nav-label">Procedures</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'code-material-list' 'edit-code-material' %}" href="{% url 'code-material-list' %}" title="Code Material">
-            <i class="bi bi-book"></i><span class="nav-label">Code Material</span>
-        </a>
-        <a class="nav-item-link {% nav_active 'training-material-list' 'edit-training-material' %}" href="{% url 'training-material-list' %}" title="Training Material">
-            <i class="bi bi-mortarboard"></i><span class="nav-label">Training Material</span>
-        </a>
+        <div class="nav-group" data-group="documentation">
+            <button type="button" class="nav-group-label" aria-expanded="true" title="Show or hide Documentation">
+                <span>Documentation</span><i class="bi bi-chevron-down nav-group-chevron"></i>
+            </button>
+            <div class="nav-group-items">
+                <a class="nav-item-link {% nav_active 'procedure-list' 'edit-procedure' %}" href="{% url 'procedure-list' %}" title="Procedures">
+                    <i class="bi bi-journal-check"></i><span class="nav-label">Procedures</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'code-material-list' 'edit-code-material' %}" href="{% url 'code-material-list' %}" title="Code Material">
+                    <i class="bi bi-book"></i><span class="nav-label">Code Material</span>
+                </a>
+                <a class="nav-item-link {% nav_active 'training-material-list' 'edit-training-material' %}" href="{% url 'training-material-list' %}" title="Training Material">
+                    <i class="bi bi-mortarboard"></i><span class="nav-label">Training Material</span>
+                </a>
+            </div>
+        </div>
 
         <div class="sidebar-footer">
             <button type="button" class="nav-item-link" id="theme-toggle" title="Toggle theme">

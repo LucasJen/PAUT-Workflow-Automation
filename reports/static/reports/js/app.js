@@ -43,6 +43,22 @@ document.getElementById('sidebar-collapse').addEventListener('click', () => {
     storageSet('sidebarCollapsed', collapsed);
 });
 
+// Group labels show / hide their links; the closed groups are remembered (see base.html <head>)
+document.querySelectorAll('.nav-group').forEach(group => {
+    const name = group.dataset.group;
+    const label = group.querySelector('.nav-group-label');
+    const closedGroups = () => (root.getAttribute('data-nav-closed') || '').split(' ').filter(Boolean);
+    label.setAttribute('aria-expanded', !closedGroups().includes(name));
+    label.addEventListener('click', () => {
+        let closed = closedGroups();
+        const closing = !closed.includes(name);
+        closed = closing ? closed.concat(name) : closed.filter(g => g !== name);
+        root.setAttribute('data-nav-closed', closed.join(' '));
+        storageSet('navClosed', closed.join(' '));
+        label.setAttribute('aria-expanded', !closing);
+    });
+});
+
 // Mobile: slide-in sidebar, closed by clicking outside it
 document.getElementById('sidebar-open').addEventListener('click', e => {
     e.stopPropagation();
