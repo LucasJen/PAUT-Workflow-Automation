@@ -88,6 +88,10 @@ class Report(models.Model):
     # The part as the .nde imports recorded it, for Auto-detect: {od, thickness (in), material,
     # shear_velocity, long_velocity (in/µs), bevel_angle (°), source}
     scan_part = models.JSONField(null=True, blank=True)
+    # The job folder the report was made from and is saved into (reports/services/job_folder.py),
+    # and the files the app wrote there (only those are ever replaced)
+    job_folder = models.CharField(max_length=500, blank=True)
+    job_folder_files = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return f"{self.pk} | {self.document_filename}"
@@ -602,3 +606,41 @@ class ResultsTablePreset(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ClientCode(models.Model):
+    """
+    A client abbreviation as job folders start with it (PPI-32-27119-FW6-4in): Guided Creation
+    fills the report's client and location from it.
+    """
+    code = models.CharField(max_length=6, unique=True, help_text='As job folder names start, e.g. FHR.')
+    client = models.CharField(max_length=200, help_text="The report's Client, e.g. Flint Hills Resources.")
+    location = models.CharField(max_length=200, blank=True, help_text="The report's Location; blank keeps the defaults'.")
+
+    class Meta:
+        ordering = ['code']
+
+    def __str__(self):
+        return f'{self.code} · {self.client}'
+
+    def save(self, *args, **kwargs):
+        self.code = self.code.strip().upper()
+        super().save(*args, **kwargs)
+
+
+class AppSetting(models.Model):
+    """A remembered app-wide choice, e.g. the jobs root folder ('jobs_root')."""
+    key = models.CharField(max_length=50, unique=True)
+    value = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.key
+
+    @classmethod
+    def get(cls, key, default=''):
+        item = cls.objects.filter(key=key).first()
+        return item.value if item else default
+
+    @classmethod
+    def put(cls, key, value):
+        cls.objects.update_or_create(key=key, defaults={'value': value})

@@ -9,7 +9,7 @@ from equipment.compat import BEAMTOOL_SOURCE, wedge_fits_probe, wedges_for_probe
 from equipment.models import ProbeModel
 
 from . import fill_marks, weld_form
-from .models import Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet
+from .models import ClientCode, Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
 from .services.scan_plan import reflectors as scan_plan_reflectors
 from .services.scan_plan.geometry import first_number
@@ -378,6 +378,12 @@ def scan_image_formset(*args, instance=None, scan_ids=(), **kwargs):
     return ImageFormSet(*args, instance=instance, prefix='images',
                         queryset=ReportImage.objects.filter(kind=ReportImage.SCAN),
                         form_kwargs={'scan_ids': scan_ids}, **kwargs)
+
+
+class ClientCodeForm(StyledFormMixin, ModelForm):
+    class Meta:
+        model = ClientCode
+        fields = ['code', 'client', 'location']
 
 
 class TextSnippetForm(StyledFormMixin, ModelForm):

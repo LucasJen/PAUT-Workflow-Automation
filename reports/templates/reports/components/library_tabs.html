@@ -2,4 +2,5 @@
 <nav class="page-tabs" aria-label="Library">
     <a class="page-tab{% if tab == 'texts' %} active{% endif %}" href="{% url 'snippet-list' %}">Texts</a>
     <a class="page-tab{% if tab == 'defaults' %} active{% endif %}" href="{% url 'defaults-list' %}">Defaults</a>
+    <a class="page-tab{% if tab == 'client-codes' %} active{% endif %}" href="{% url 'client-code-list' %}">Client codes</a>
 </nav>

@@ -138,6 +138,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # the server; set to None to turn the copy off (e.g. on a shared server).
 REPORT_OUTPUT_DIR = BASE_DIR / 'outputs'
 
+# Guided Creation's job folders (one per weld job, holding its .nde files and the report) are
+# listed and created here unless another folder is set in the app (reports.AppSetting 'jobs_root').
+WELD_JOBS_DIR = Path.home() / 'Desktop' / 'Reports' / '001 Welds'
+
 # PDF preview/download made by Microsoft Word (via pywin32) when Word is installed on the machine
 # running the app. 'auto' uses Word when available; 'off' always uses the in-browser preview.
 REPORT_PDF_ENGINE = os.environ.get('REPORT_PDF_ENGINE', 'auto')

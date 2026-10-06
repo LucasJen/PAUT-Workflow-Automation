@@ -1,0 +1,9 @@
+{% extends 'reports/components/edit_page.html' %}
+
+{% block title %}{% if code %}{{ code.code }}{% else %}New client code{% endif %} · Library · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'client-code-list' %}{% endblock %}
+{% block back_label %}Client codes{% endblock %}
+{% block page_title %}{% if code %}{{ code.code }}{% else %}New client code{% endif %}{% endblock %}
+{% block page_subtitle %}Job folders start with the client's code (PPI-32-27119-FW6-4in). Guided Creation fills the report's Client and Location from it.{% endblock %}
+{% block item_noun %}client code{% endblock %}
+{% block grid_cols %}cols-3{% endblock %}

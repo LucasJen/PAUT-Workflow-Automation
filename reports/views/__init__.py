@@ -5,6 +5,7 @@ from .reports import (
 from .setups import setup_list, new_setup, edit_setup
 from .nde import nde_columns, nde_setup_values, nde_upload
 from .snippets import edit_snippet, new_snippet, snippet_list
+from .client_codes import client_code_list, edit_client_code, new_client_code
 from .library import defaults_list, edit_defaults, new_defaults
 from .scan_plans import (
     edit_scan_plan, new_scan_plan, scan_plan_from_weld, scan_plan_list, scan_plan_png, scan_plan_scenes,
