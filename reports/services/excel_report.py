@@ -21,11 +21,14 @@ from .. import weld_form
 from ..models import ReportImage
 from ..report_types import get_report_type
 from ..results import report_results
+from .corrosion_report import corrosion_pages, fill_corrosion
 from .office import lock, office_app_available
 from .report_render import length_unit, velocity_unit, with_unit
 from .scan_plan import render_png
 
 logger = logging.getLogger(__name__)
+
+CORROSION_TYPE = 'paut_corrosion'
 
 XL_OPEN_XML_WORKBOOK = 51
 XL_TYPE_PDF = 0
@@ -605,7 +608,8 @@ def _scan_plan_pictures(plan, workdir):
 
 def build_workbook(report, pdf=False):
     """
-    (xlsx bytes, pdf bytes or None) for a weld report. Raises ExcelReportError on failure.
+    (xlsx bytes, pdf bytes or None) for an Excel report type (the weld form, or the corrosion
+    form: corrosion_report.py). Raises ExcelReportError on failure.
     """
     try:
         import pythoncom
@@ -613,12 +617,21 @@ def build_workbook(report, pdf=False):
     except ImportError as e:
         raise ExcelReportError('Excel output needs the pywin32 package (pip install pywin32).') from e
 
-    pages = weld_pages(report)
     workdir = tempfile.mkdtemp(prefix='report-xlsx-')
     xlsx_path = os.path.join(workdir, 'report.xlsx')
     pdf_path = os.path.join(workdir, 'report.pdf')
     shutil.copyfile(template_path(report), xlsx_path)
-    scan_plan_pictures = _scan_plan_pictures(pages.scan_plan, workdir)
+    if report.report_type == CORROSION_TYPE:
+        corrosion = corrosion_pages(report)
+
+        def fill(wb):
+            fill_corrosion(wb, corrosion, _write, _add_picture_in)
+    else:
+        pages = weld_pages(report)
+        scan_plan_pictures = _scan_plan_pictures(pages.scan_plan, workdir)
+
+        def fill(wb):
+            _fill(wb, pages, scan_plan_pictures)
 
     with lock:
         pythoncom.CoInitialize()  # COM must be initialised on each request thread
@@ -629,13 +642,13 @@ def build_workbook(report, pdf=False):
             excel.DisplayAlerts = False
             excel.ScreenUpdating = False
             wb = excel.Workbooks.Open(xlsx_path, UpdateLinks=0, AddToMru=False)
-            _fill(wb, pages, scan_plan_pictures)
+            fill(wb)
             excel.CalculateFull()
             wb.Save()
             if pdf:
                 wb.ExportAsFixedFormat(XL_TYPE_PDF, pdf_path, XL_QUALITY_STANDARD, True, False)
         except Exception as e:  # COM errors come in many types
-            logger.exception('Excel weld report failed')
+            logger.exception('Excel report failed')
             raise ExcelReportError(f'Excel could not create the report: {e}') from e
         finally:
             try:

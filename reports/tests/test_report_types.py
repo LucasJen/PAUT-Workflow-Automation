@@ -6,13 +6,14 @@ from django.conf import settings
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from reports.models import Report, Setup
+from reports.models import Report, ReportImage, Setup
 from reports.report_types import (
     DEFAULT_REPORT_TYPE, EDITOR_PARTS, REPORT_SECTIONS, REPORT_TYPES, SECTIONS, ReportType, get_report_type,
 )
 
 REPORT_FIELDS = {f.name for f in Report._meta.concrete_fields}
 SETUP_FIELDS = {f.name for f in Setup._meta.concrete_fields}
+IMAGE_FIELDS = {f.name for f in ReportImage._meta.get_fields()}
 
 
 class RegistryTests(SimpleTestCase):
@@ -26,7 +27,8 @@ class RegistryTests(SimpleTestCase):
                 path = os.path.join(settings.BASE_DIR, folder, report_type.template)
                 self.assertTrue(os.path.exists(path), f'missing template {folder}/{report_type.template}')
                 self.assertLessEqual(set(report_type.sections), set(SECTIONS))
-                self.assertLessEqual(set(report_type.hidden_fields), REPORT_FIELDS | SETUP_FIELDS | EDITOR_PARTS)
+                self.assertLessEqual(set(report_type.hidden_fields),
+                                     REPORT_FIELDS | SETUP_FIELDS | IMAGE_FIELDS | EDITOR_PARTS)
 
     def test_sections_reference_real_fields(self):
         for key, _, names in REPORT_SECTIONS:

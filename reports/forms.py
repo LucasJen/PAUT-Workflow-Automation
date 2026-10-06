@@ -226,7 +226,8 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         ('Acquisition', ['beam_formation', 'active_elements', 'element_aperture', 'element_step', 'pcs',
                          'scan_pattern', 'encoder_resolution', 'digitizing_frequency', 'pulse_width',
                          'band_pass_filter', 'calibrations', 'gates']),
-        ('Specimen', ['specimen_od', 'specimen_thickness', 'specimen_dimensions']),
+        ('Specimen', ['specimen_od', 'specimen_thickness', 'specimen_dimensions', 'inspection_material',
+                      'inspection_temp']),
         ('Calibration', ['cal_material', 'material_temp', 'cal_block_type', 'cal_block_serial',
                          'surface_prep', 'tr_min', 'tr_max', 'couplant', 'exam_surface']),
         ('Weld form equipment details', ['scope_cal_due', 'module_model', 'module_serial', 'module_cal_due',
@@ -319,11 +320,12 @@ class ScanImageForm(StyledFormMixin, ModelForm):
 
     class Meta:
         model = ReportImage
-        fields = ['image', 'scan_id', 'caption']  # order comes from position on the page
+        fields = ['image', 'scan_id', 'caption', 'description']  # order comes from position on the page
         labels = {'image': 'Scan image', 'scan_id': 'Scan ID', 'caption': 'Label (if not in results table)'}
         widgets = {
             'image': ClearableFileInput(attrs={'accept': 'image/*'}),
             'scan_id': Select(attrs={'class': 'scan-id-select'}),
+            'description': Textarea(attrs={'rows': 2}),
         }
 
     def __init__(self, *args, scan_ids=(), **kwargs):
