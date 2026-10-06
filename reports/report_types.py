@@ -235,7 +235,7 @@ _TYPES = [
             ('image', 'Image'),
             ('cal_images', 'Setup image'),
             ('cal_images_add', 'Add a setup image'),
-            ('cal_images_help', "The first image fills the picture area of this setup's Setup Information page."),
+            ('cal_images_help', "Only when this setup has no .nde: the first image then fills the Setup Information page's picture area (an imported .nde prints its setup sheet there)."),
             ('section:summary', 'Examination scope, results & notes'),
             ('section:setups', 'Setup information'),
             ('section:drawings', 'Drawings'),

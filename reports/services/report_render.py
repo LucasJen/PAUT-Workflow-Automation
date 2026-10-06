@@ -20,9 +20,12 @@ from PIL import Image as PILImage
 from ..models import ReportImage, TextSnippet
 from ..report_types import SECTIONS, get_report_type
 from ..results import report_results, report_scan_rows
+from .setup_sheet import sheet_png
 
 FULL_WIDTH = Inches(7.0)       # drawings, scan images
 HALF_WIDTH = Inches(3.45)      # calibration screenshots, two per line
+# The setup sheet (setup_sheet.py) fills the page under a setup's Equipment Details table
+SHEET_WIDTH_IN, SHEET_HEIGHT_IN = 7.0, 5.9
 NUMBER = re.compile(r'^-?\d+(\.\d+)?$')
 
 
@@ -82,8 +85,22 @@ def _image(tpl, image_field, width):
     return InlineImage(tpl, path, width=width) if os.path.exists(path) else None
 
 
+def _sheet_image(tpl, png):
+    """The setup sheet at full width, no taller than the space it was laid out for."""
+    with PILImage.open(io.BytesIO(png)) as img:
+        width, height = img.size
+    if height / width > SHEET_HEIGHT_IN / SHEET_WIDTH_IN:   # the tables needed more room: scale it down
+        return InlineImage(tpl, io.BytesIO(png), height=Inches(SHEET_HEIGHT_IN))
+    return InlineImage(tpl, io.BytesIO(png), width=Inches(SHEET_WIDTH_IN))
+
+
 def _setup_context(setup, number, report, tpl):
-    images = [_image(tpl, i.image, HALF_WIDTH) for i in setup.images.all()]
+    # The setup sheet made from the setup's .nde; the uploaded screenshots when there is none
+    sheet = sheet_png(setup, SHEET_WIDTH_IN, SHEET_HEIGHT_IN)
+    if sheet:
+        images = [_sheet_image(tpl, sheet)]
+    else:
+        images = [_image(tpl, i.image, HALF_WIDTH) for i in setup.images.all()]
     return {
         'title': setup.title or setup.beam_formation or setup.transducer_model or f'Setup {number}',
         'equipment_type': setup.scope_platform or setup.manufacturer,

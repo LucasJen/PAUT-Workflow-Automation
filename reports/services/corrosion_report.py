@@ -17,6 +17,7 @@ from PIL import Image
 
 from ..models import ReportImage
 from ..report_types import CORROSION_METHODS
+from .setup_sheet import sheet_png
 
 TITLE = 'Phased Array Ultrasonic Examinations on Selected Areas On'
 
@@ -30,6 +31,7 @@ FORMULAS = 'Formulas'
 TOTAL_PAGES = 'AO6'
 METHOD_DESCRIPTION = 'B5'          # =VLOOKUP(method, Formulas!B1:C9, 2, FALSE)
 SETUP_PICTURE = 'B10:AO44'
+SETUP_SHEET_IN = (7.6, 7.2)        # the setup sheet (setup_sheet.py) laid out for that box
 DRAWING_PICTURE = {HORIZONTAL: 'B5:AT38', VERTICAL: 'B5:AO50'}
 # An Images page: (picture box, caption, description) for its first and second image
 IMAGE_SLOTS = (('B2:AS18', 'B19', 'K19'), ('B26:AS42', 'B43', 'K43'))
@@ -42,7 +44,8 @@ XL_SHEET_HIDDEN = 0
 class SetupPage:
     cells: dict
     method_known: bool        # the Formulas sheet describes it; else the description is left blank
-    picture: str = ''
+    picture: str = ''         # an uploaded screenshot, when the setup has no .nde
+    sheet: bytes = None       # the setup sheet PNG made from the setup's .nde (written to a file for Excel)
 
 
 @dataclass
@@ -130,7 +133,9 @@ def _setup(setup):
         'L9': _serial(' '.join(p for p in (_v(setup.cal_material), _v(setup.cal_block_type)) if p), setup.cal_block_serial),
         'AB9': _serial(setup.transducer_model, setup.transducer_serial),
     }
-    return SetupPage(cells=cells, method_known=bool(method), picture=_path(image.image) if image else '')
+    sheet = sheet_png(setup, *SETUP_SHEET_IN)
+    return SetupPage(cells=cells, method_known=bool(method), sheet=sheet,
+                     picture='' if sheet or not image else _path(image.image))
 
 
 def corrosion_pages(report):
