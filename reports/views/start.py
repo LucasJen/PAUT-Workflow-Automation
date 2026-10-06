@@ -1,25 +1,23 @@
 """
 New weld report from files: pick the job folder (or make one, or just drop files), confirm the
-welds its .nde files are of, and get the report built (reports/services/job_import.py), then
-finish it in the guided editor. A job folder's name gives the report name, client and NPS
-(reports/services/job_folder.py), and the downloads are saved into it.
+welds its .nde files are of and pick the NPS / Sch, and get the report built
+(reports/services/job_import.py), then finish it in the guided editor. A job folder's name gives
+the report name and client (reports/services/job_folder.py), and the downloads are saved into it.
 """
 import os
 import re
 
 from django.contrib import messages
-from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
 from equipment.models import SensitivityBlock
 
-from ..materials import _nps
 from ..models import ClientCode, ReportDefaults
 from ..services.job_folder import (
-    folder_name, invalid_name, job_folders, jobs_root, nde_files, parse_folder_name, resolve_job_folder,
-    save_uploads, set_jobs_root, split_welds,
+    invalid_name, job_folders, jobs_root, nde_files, parse_folder_name, resolve_job_folder, save_uploads,
+    set_jobs_root,
 )
-from ..services.job_import import WELD_TYPE, build_report, job_block, read_job_file
+from ..services.job_import import WELD_TYPE, build_report, read_job_file
 from ..services.nde_parser import UNIT_SYSTEMS
 from .reports import wizard_url
 
@@ -48,26 +46,6 @@ def _suggested_name(files):
     return '-'.join(parts)
 
 
-def _pipe_sizes():
-    """The NPS the sensitivity block library has blocks for, smallest first: ['2', '3', '4', …]."""
-    sizes = {_nps(b.pipe_size) for b in SensitivityBlock.objects.all()} - {''}
-    return sorted(sizes, key=lambda s: float(s) if re.fullmatch(r'\d+(?:\.\d+)?', s) else 999)
-
-
-def _new_folder_name(post):
-    return folder_name(post.get('new_client', ''), post.get('new_unit', ''), post.get('new_line', ''),
-                       split_welds(post.get('new_welds', '')), post.get('new_nps', ''))
-
-
-def job_folder_name(request):
-    """The New folder form's name preview: {name, error, exists}."""
-    name = _new_folder_name(request.GET)
-    error = '' if request.GET.get('new_line', '').strip() else 'Fill in at least the client and line.'
-    error = error or invalid_name(name)
-    root = jobs_root()
-    return JsonResponse({'name': name, 'error': error, 'exists': bool(name) and (root / name).is_dir()})
-
-
 def _job_folder(request, mode, uploads):
     """
     The job folder the start form picked or asked for (made when new), or None for no folder.
@@ -79,9 +57,7 @@ def _job_folder(request, mode, uploads):
             raise ValueError('Pick a job folder from the list (or choose New folder).')
         return folder
     if mode == 'new':
-        if not request.POST.get('new_line', '').strip():
-            raise ValueError('Fill in at least the client and line for the new folder.')
-        name = _new_folder_name(request.POST)
+        name = request.POST.get('new_name', '').strip()
         problem = invalid_name(name)
         if problem:
             raise ValueError(problem)
@@ -99,7 +75,7 @@ def _job_folder(request, mode, uploads):
 
 
 def start_from_files(request):
-    """Step 1: the job folder (or files), the defaults set to start from, the NPS / Sch."""
+    """Step 1: the job folder (or files), the defaults set to start from, optionally the NPS / Sch."""
     if request.method == 'POST' and 'set_root' in request.POST:
         problem = set_jobs_root(request.POST.get('jobs_root', ''))
         if problem:
@@ -147,8 +123,7 @@ def start_from_files(request):
         item['client'] = codes.get(item['info']['client_code'])
     return render(request, 'reports/start_from_files.html', {
         'defaults_sets': _weld_defaults(), 'blocks': SensitivityBlock.objects.all(),
-        'root': root, 'root_exists': root.is_dir(), 'folders': folders, 'client_codes': codes.values(),
-        'pipe_sizes': _pipe_sizes(), 'mode': mode, 'posted': request.POST,
+        'root': root, 'root_exists': root.is_dir(), 'folders': folders, 'mode': mode, 'posted': request.POST,
     })
 
 
@@ -176,9 +151,6 @@ def confirm_job(request):
     defaults = ReportDefaults.objects.filter(pk=job['defaults']).first() if str(job['defaults']).isdigit() else None
     readable = [f for f in files if not f.get('error')]
     folder, info, client = _folder_context(job, files)
-    # The NPS: the folder name's, else the defaults' (Auto-detect then picks the schedule by the wall)
-    folder_nps = f'{info["nps"]}in' if info and info['nps'] else ''
-    pipe_size = folder_nps or ((defaults.report_values or {}).get('pipe_size', '') if defaults else '')
 
     if request.method == 'POST':
         kept = []
@@ -187,12 +159,14 @@ def confirm_job(request):
                 continue
             weld = request.POST.get(f'weld_{i}', '').strip().upper()
             kept.append({**data, 'weld': weld or data.get('weld') or 'W?'})
+        block = _picked_block(request.POST.get('sensitivity_block'))
         if not kept:
             messages.error(request, 'Keep at least one file.')
+        elif block is None:
+            messages.error(request, 'Pick the NPS / Sch.')
         else:
-            report, notes = build_report(kept, defaults, request.POST.get('document_filename', '').strip(),
-                                         _picked_block(request.POST.get('sensitivity_block')),
-                                         job_folder=folder or '', pipe_size=pipe_size, client=client)
+            report, notes = build_report(kept, defaults, request.POST.get('document_filename', '').strip(), block,
+                                         job_folder=folder or '', client=client)
             request.session.pop(SESSION_KEY, None)
             messages.success(request, f'Report made from {len(kept)} file{"s" if len(kept) != 1 else ""}. '
                                       'Go through the steps and fill in what\'s outlined; Next saves as you go.')
@@ -200,12 +174,9 @@ def confirm_job(request):
                 messages.warning(request, note)
             return redirect(wizard_url(report))
 
-    # The block picked on the first page, else the one the files' part (and folder NPS) point to
-    picked = _picked_block(job.get('sensitivity_block'))
-    detected, why = (None, '') if picked else job_block(readable, pipe_size)
-    if detected is not None and not why and folder_nps:
-        walls = sorted({f['thickness'] for f in readable if f.get('thickness') is not None})
-        why = f'From the folder name ({folder_nps})' + (f' and the files\' {walls[0]:.3f}" wall.' if walls else '.')
+    # The NPS / Sch is picked by hand (on the first page or here); the wall the files recorded helps
+    picked = _picked_block(request.POST.get('sensitivity_block') or job.get('sensitivity_block'))
+    walls = sorted({round(f['thickness'], 3) for f in readable if f.get('thickness') is not None})
     # Files whose weld the folder name doesn't list
     folder_welds = set(info['welds']) if info else set()
     for data in readable:
@@ -213,7 +184,7 @@ def confirm_job(request):
     scopes = sorted({item['scope'] for f in readable for item in f['items'] if item.get('scope')})
     return render(request, 'reports/confirm_job.html', {
         'files': files, 'defaults': defaults, 'scopes': scopes, 'blocks': SensitivityBlock.objects.all(),
-        'job_block': picked or detected, 'block_picked': picked is not None, 'block_note': why,
+        'job_block': picked, 'walls': walls,
         'document_filename': os.path.basename(folder) if folder else _suggested_name(readable),
         'folder': folder, 'folder_info': info, 'client': client,
     })

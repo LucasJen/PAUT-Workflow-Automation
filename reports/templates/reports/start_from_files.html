@@ -7,7 +7,7 @@
 <a href="{% url 'report-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Reports</a>
 <div class="page-header">
     <h1>New weld report from files</h1>
-    <p class="page-subtitle">Pick the job's folder (or make one). The app reads its .nde files: the instrument, probes and groups, the part and its sensitivity block, the welds and their offsets, the calibration times and the scan plan. The folder name gives the report name, client and pipe size, and the report is saved back into the folder when you download it.</p>
+    <p class="page-subtitle">Pick the job's folder (or make one). The app reads its .nde files: the instrument, probes and groups, the part and its sensitivity block, the welds and their offsets, the calibration times and the scan plan. The folder name gives the report name and client, and the report is saved back into the folder when you download it.</p>
 </div>
 
 {# Where job folders are listed and made; changing it is its own little form #}
@@ -25,7 +25,7 @@
     </span>
 </form>
 
-<form method="post" enctype="multipart/form-data" id="start-form" data-name-url="{% url 'job-folder-name' %}">
+<form method="post" enctype="multipart/form-data" id="start-form">
     {% csrf_token %}
     <section class="panel">
         <div class="panel-header">
@@ -76,44 +76,13 @@
             {% endif %}
         </div>
 
-        {# New: the name is built from these, like the existing folders #}
+        {# New: the whole folder name, which is also the report's name #}
         <div data-mode="new" hidden>
-            <div class="field-grid cols-4">
-                <div class="field">
-                    <label for="new-client">Client</label>
-                    <select class="form-select" id="new-client" name="new_client">
-                        {% for code in client_codes %}
-                        <option value="{{ code.code }}"{% if posted.new_client == code.code %} selected{% endif %}>{{ code.code }} · {{ code.client }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="form-text"><a href="{% url 'client-code-list' %}">Library › Client codes</a></div>
-                </div>
-                <div class="field">
-                    <label for="new-unit">Unit</label>
-                    <input type="text" class="form-control mono" id="new-unit" name="new_unit" value="{{ posted.new_unit }}" placeholder="e.g. 32">
-                </div>
-                <div class="field">
-                    <label for="new-line">Line</label>
-                    <input type="text" class="form-control mono" id="new-line" name="new_line" value="{{ posted.new_line }}" placeholder="e.g. 27119">
-                </div>
-                <div class="field">
-                    <label for="new-nps">Pipe size</label>
-                    <select class="form-select" id="new-nps" name="new_nps">
-                        <option value="">Not set</option>
-                        {% for size in pipe_sizes %}
-                        <option value="{{ size }}"{% if posted.new_nps == size %} selected{% endif %}>{{ size }}in</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="field span-2">
-                    <label for="new-welds">Welds</label>
-                    <input type="text" class="form-control mono" id="new-welds" name="new_welds" value="{{ posted.new_welds }}" placeholder="e.g. FW6, FW7">
-                </div>
-                <div class="field span-2">
-                    <label>Folder name</label>
-                    <div class="job-name-preview mono" id="new-name" aria-live="polite">—</div>
-                    <div class="form-text" id="new-name-note"></div>
-                </div>
+            <div class="field">
+                <label for="new-name">Folder name</label>
+                <input type="text" class="form-control mono" id="new-name" name="new_name" value="{{ posted.new_name }}"
+                       placeholder="e.g. PPI-32-27119-FW6-4in" autocomplete="off">
+                <div class="form-text">Made in the jobs folder above; it's also the report's name. The client code at the start fills the client (Library › Client codes).</div>
             </div>
         </div>
 
@@ -142,7 +111,7 @@
             <div class="field">
                 <label for="start-block">NPS / Sch</label>
                 <select class="form-select" id="start-block" name="sensitivity_block">
-                    <option value="">Auto-detect (folder name + files)</option>
+                    <option value="">Pick on the next step</option>
                     {% for block in blocks %}
                     <option value="{{ block.pk }}">{{ block }}{% if block.serial_number %} · {{ block.serial_number }}{% endif %}</option>
                     {% endfor %}

@@ -16,7 +16,7 @@ from equipment.inventory import with_library_scope
 from equipment.matching import match_probe, match_wedge
 
 from .. import weld_form
-from ..materials import block_values, detect_block, part_values
+from ..materials import block_values, part_values
 from ..models import Report, ReportGroup, ReportProbe, ResultsRow, ResultsTable
 from ..report_types import get_report_type
 from ..weld_columns import columns_from_setup, probe_key
@@ -252,20 +252,13 @@ def job_part(files):
     return part
 
 
-def job_block(files, pipe_size=''):
-    """(block or None, why): the library sensitivity block for the part the files recorded."""
-    part = job_part(files)
-    return detect_block(part, pipe_size) if part else (None, '')
-
-
 @transaction.atomic
-def build_report(files, defaults=None, document_filename='', block=None, job_folder='', pipe_size='', client=None):
+def build_report(files, defaults=None, document_filename='', block=None, job_folder='', client=None):
     """
     The weld report for these read files (read_job_file, with confirmed 'weld' IDs; files with an
     'error' are left out) starting from a defaults set, with the sensitivity block picked for the
-    job (else the one detected from the files and `pipe_size`, e.g. a job folder name's '4in').
-    `job_folder` is where its downloads are saved; `client` a ClientCode, over the defaults'
-    client and location. Returns (report, notes).
+    job (none: the card is left to fill in). `job_folder` is where its downloads are saved;
+    `client` a ClientCode, over the defaults' client and location. Returns (report, notes).
     """
     from ..views.scan_plans import add_weld_to_plan
     files = [f for f in files if not f.get('error')]
@@ -288,14 +281,9 @@ def build_report(files, defaults=None, document_filename='', block=None, job_fol
     # The part and its sensitivity block
     part = job_part(files)
     report.scan_part = part or None
-    why = ''
-    if block is None:
-        block, why = job_block(files, pipe_size or report.pipe_size)
     if block is not None:
         for name, value in {**block_values(block), **part_values(part, block)}.items():
             setattr(report, 'sensitivity_block_id' if name == 'sensitivity_block' else name, value)
-    if why:
-        notes.append(why)
     report.save()
 
     # Probe and group columns: the defaults' prefilled ones, filled from the files

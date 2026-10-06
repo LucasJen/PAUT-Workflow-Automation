@@ -69,34 +69,10 @@ def parse_folder_name(name):
     return info
 
 
-def _weld_text(welds):
-    """['FW6', 'FW7'] -> 'FW6&7' (the prefix once, like the existing folders); mixed prefixes in full."""
-    welds = [w.strip().upper() for w in welds if w.strip()]
-    if not welds:
-        return ''
-    matches = [WELD.match(w) for w in welds]
-    if all(matches) and len({m.group(1).upper() for m in matches}) == 1:
-        return f'{welds[0]}&' + '&'.join(m.group(2).upper() for m in matches[1:]) if len(welds) > 1 else welds[0]
-    return '&'.join(welds)
-
-
-def folder_name(client_code='', unit='', line='', welds=(), nps=''):
-    """The folder name for a new job: 'PPI', '32', '27119', ['FW6', 'FW7'], '4' -> 'PPI-32-27119-FW6&7-4in'."""
-    nps = str(nps or '').strip()
-    nps = re.sub(r'\s*(?:in(?:ch(?:es)?)?|")$', '', nps, flags=re.I)
-    parts = [client_code.strip().upper(), unit.strip(), line.strip(), _weld_text(welds), f'{nps}in' if nps else '']
-    return '-'.join(p for p in parts if p)
-
-
-def split_welds(text):
-    """The New-folder form's welds box: 'FW6, FW7' / 'FW6&7' / 'W1 W2' -> ['FW6', 'FW7']."""
-    return _welds(re.sub(r'\s+', ',', text.strip().strip(',&'))) if text and text.strip() else []
-
-
 def invalid_name(name):
     """Why `name` can't be a folder name, or ''."""
     if not name.strip():
-        return 'Fill in at least the client and line.'
+        return 'Type the new folder\'s name, e.g. PPI-32-27119-FW6-4in.'
     if INVALID.search(name) or name.strip().endswith('.'):
         return f'“{name}” has characters a folder name can\'t have.'
     return ''

@@ -1611,14 +1611,6 @@ body.drop-target .content { outline: 2px dashed var(--bs-primary); outline-offse
 }
 .job-chip-accent { background: var(--accent-soft); border-color: transparent; color: var(--accent-text); font-weight: 500; }
 .job-chip-warn { background: var(--warning-soft); border-color: transparent; color: var(--warning); }
-.job-name-preview {
-    padding: 0.375rem 0.75rem;
-    border: 1px dashed var(--border-strong);
-    border-radius: var(--radius);
-    background: var(--surface-2);
-    min-height: 2.25rem;
-    overflow-wrap: anywhere;
-}
 
 /* The report's job folder bar (editor and preview) */
 .job-folder-bar {

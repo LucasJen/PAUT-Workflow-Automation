@@ -19,13 +19,13 @@
             </div>
             <div class="field">
                 <label for="job-block">NPS / Sch</label>
-                <select class="form-select" id="job-block" name="sensitivity_block"{% if not job_block %} data-fill="user"{% endif %}>
-                    <option value="">Auto-detect from the files</option>
+                <select class="form-select" id="job-block" name="sensitivity_block" required{% if not job_block %} data-fill="user"{% endif %}>
+                    <option value="">Pick the NPS / Sch…</option>
                     {% for item in blocks %}
                     <option value="{{ item.pk }}"{% if item.pk == job_block.pk %} selected{% endif %}>{{ item }}{% if item.serial_number %} · {{ item.serial_number }}{% endif %}</option>
                     {% endfor %}
                 </select>
-                <div class="form-text">{% if block_note %}{{ block_note }}{% elif job_block and not block_picked %}Detected from the files' pipe diameter and wall.{% else %}Sensitivity block library.{% endif %}</div>
+                <div class="form-text">Sensitivity block library.{% if walls %} The files' wall: {% for wall in walls %}{{ wall|floatformat:3 }}"{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}</div>
             </div>
         </div>
         {% if folder %}

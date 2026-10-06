@@ -8,8 +8,7 @@ from django.urls import reverse
 
 from reports.models import AppSetting, ClientCode
 from reports.services.job_folder import (
-    folder_name, invalid_name, job_folders, jobs_root, nde_files, parse_folder_name, resolve_job_folder,
-    set_jobs_root, split_welds,
+    invalid_name, job_folders, jobs_root, nde_files, parse_folder_name, resolve_job_folder, set_jobs_root,
 )
 
 # Every job folder in Desktop\Reports\001 Welds (2026-10-06): (name, client, unit, line, welds, NPS)
@@ -70,20 +69,6 @@ class FolderNameTests(TestCase):
         for name in NOT_JOBS:
             with self.subTest(name):
                 self.assertFalse(parse_folder_name(name)['recognised'])
-
-    def test_a_built_name_reads_back_the_same(self):
-        for name, *_ in REAL_FOLDERS:
-            info = parse_folder_name(name)
-            built = folder_name(info['client_code'], info['unit'], info['line'], info['welds'], info['nps'])
-            again = parse_folder_name(built)
-            self.assertEqual({k: again[k] for k in ('client_code', 'unit', 'line', 'welds', 'nps')},
-                             {k: info[k] for k in ('client_code', 'unit', 'line', 'welds', 'nps')}, built)
-
-    def test_folder_name_for_a_new_job(self):
-        self.assertEqual(folder_name('ppi', '32', '27119', split_welds('FW6, FW7'), '4'), 'PPI-32-27119-FW6&7-4in')
-        self.assertEqual(folder_name('FHR', '', '6302', ['W11'], '2in'), 'FHR-6302-W11-2in')
-        self.assertEqual(folder_name('FHR', '75', '62816', split_welds('W3&5'), ''), 'FHR-75-62816-W3&5')
-        self.assertEqual(split_welds('W1 W2 W3'), ['W1', 'W2', 'W3'])
 
     def test_invalid_names(self):
         self.assertTrue(invalid_name(''))

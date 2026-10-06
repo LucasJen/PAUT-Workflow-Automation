@@ -1,6 +1,5 @@
 // Guided Creation, step 1 (start_from_files.html): the job folder modes (existing / new / files
-// only), the folder list's search, the new folder's name preview (asked of the server, so it is
-// named exactly as the app will make it), and the jobs root's Change link.
+// only), the folder list's search, and the jobs root's Change link.
 
 (function () {
     const form = document.getElementById('start-form');
@@ -24,7 +23,6 @@
         const current = mode();
         form.querySelectorAll('[data-mode]').forEach(el => { el.hidden = el.dataset.mode !== current; });
         [filesLabel.textContent, filesHelp.textContent] = FILES_TEXT[current];
-        if (current === 'new') preview();
     }
 
     form.querySelectorAll('input[name="folder_mode"]').forEach(r => r.addEventListener('change', showMode));
@@ -45,29 +43,6 @@
             none.hidden = shown > 0;
         });
     }
-
-    // ── New folder: the name the server will make ──────────────────────
-    const nameBox = document.getElementById('new-name');
-    const nameNote = document.getElementById('new-name-note');
-    const fields = ['new_client', 'new_unit', 'new_line', 'new_welds', 'new_nps'];
-    let timer = null, latest = 0;
-
-    async function preview() {
-        const ticket = ++latest;
-        const params = new URLSearchParams(fields.map(name => [name, form.elements[name].value]));
-        try {
-            const data = await (await fetch(`${form.dataset.nameUrl}?${params}`)).json();
-            if (ticket !== latest) return;
-            nameBox.textContent = data.name || '—';
-            nameNote.textContent = data.error || (data.exists ? 'This folder already exists; the files will go into it.' : '');
-            nameNote.classList.toggle('text-danger', !!data.error);
-        } catch (e) { /* keep the last preview */ }
-    }
-
-    fields.forEach(name => form.elements[name].addEventListener('input', () => {
-        clearTimeout(timer);
-        timer = setTimeout(preview, 150);
-    }));
 
     // ── Submit: busy button ────────────────────────────────────────────
     form.addEventListener('submit', () => {

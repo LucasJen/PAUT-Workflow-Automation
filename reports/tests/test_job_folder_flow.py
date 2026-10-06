@@ -41,7 +41,7 @@ class GuidedCreationFolderTests(TestCase):
             (folder / file_name).write_bytes(nde_bytes())
         return folder
 
-    def test_existing_folder_gives_the_name_client_nps_and_reads_files_in_place(self):
+    def test_existing_folder_gives_the_name_and_client_and_reads_files_in_place(self):
         folder = self.job('FHR-32-27119-FW6-4in', ['32-27119 fw6 off1.nde', '32-27119 fw6 off2.nde'])
         page = self.client.get(reverse('start-from-files'))
         self.assertContains(page, 'FHR-32-27119-FW6-4in')
@@ -51,15 +51,19 @@ class GuidedCreationFolderTests(TestCase):
             'folder_mode': 'existing', 'job_folder': 'FHR-32-27119-FW6-4in', 'units': 'imperial'})
         self.assertRedirects(resp, reverse('confirm-job'))
         page = self.client.get(reverse('confirm-job'))
-        block = SensitivityBlock.objects.get(pipe_size='4in Sch 40')   # 0.237" wall: 4in Sch 40, not 6in Sch 40
-        self.assertContains(page, f'<option value="{block.pk}" selected>')
-        self.assertContains(page, 'From the folder name (4in)')
+        # The NPS / Sch isn't picked for you (not from the folder name, not from the files): only the wall is shown
+        self.assertNotContains(page, ' selected>')
+        self.assertContains(page, 'Pick the NPS / Sch…')
+        self.assertContains(page, 'The files\' wall: 0.237"')
         self.assertContains(page, 'value="FHR-32-27119-FW6-4in"')
         self.assertContains(page, 'Client Flint Hills Resources')
 
-        self.client.post(reverse('confirm-job'), {
-            'document_filename': 'FHR-32-27119-FW6-4in', 'sensitivity_block': '', 'include_0': '1', 'include_1': '1',
-            'weld_0': 'FW6', 'weld_1': 'FW6'})
+        data = {'document_filename': 'FHR-32-27119-FW6-4in', 'sensitivity_block': '', 'include_0': '1',
+                'include_1': '1', 'weld_0': 'FW6', 'weld_1': 'FW6'}
+        self.assertContains(self.client.post(reverse('confirm-job'), data), 'Pick the NPS / Sch.')
+        self.assertFalse(Report.objects.exists())
+        block = SensitivityBlock.objects.get(pipe_size='4in Sch 40')
+        self.client.post(reverse('confirm-job'), {**data, 'sensitivity_block': block.pk})
         report = Report.objects.get()
         self.assertEqual((report.document_filename, report.client, report.location, report.sensitivity_block,
                           report.job_folder), ('FHR-32-27119-FW6-4in', 'Flint Hills Resources', 'Rosemount, MN',
@@ -74,19 +78,16 @@ class GuidedCreationFolderTests(TestCase):
         self.assertContains(page, 'Not in the folder name (FW6)')  # fw9
         self.assertContains(page, 'Library › Client codes</a> yet')   # PPI has no client code yet
 
-    def test_new_folder_is_made_from_the_fields_and_gets_the_uploads(self):
-        preview = self.client.get(reverse('job-folder-name'), {
-            'new_client': 'FHR', 'new_unit': '75', 'new_line': '62816', 'new_welds': 'FW3, FW5', 'new_nps': '4'}).json()
-        self.assertEqual(preview, {'name': 'FHR-75-62816-FW3&5-4in', 'error': '', 'exists': False})
+    def test_new_folder_is_made_with_the_typed_name_and_gets_the_uploads(self):
         resp = self.client.post(reverse('start-from-files'), {
-            'folder_mode': 'new', 'new_client': 'FHR', 'new_unit': '75', 'new_line': '62816', 'new_welds': 'FW3, FW5',
-            'new_nps': '4', 'nde_files': [SimpleUploadedFile('FHR 75-62816 FW3 OFF1.nde', nde_bytes()),
+            'folder_mode': 'new', 'new_name': ' FHR-75-62816-FW3&5-4in ', 'nde_files': [SimpleUploadedFile('FHR 75-62816 FW3 OFF1.nde', nde_bytes()),
                                           SimpleUploadedFile('FHR 75-62816 FW5 OFF1.nde', nde_bytes())]})
         self.assertRedirects(resp, reverse('confirm-job'))
         folder = self.root / 'FHR-75-62816-FW3&5-4in'
         self.assertEqual(sorted(os.listdir(folder)), ['FHR 75-62816 FW3 OFF1.nde', 'FHR 75-62816 FW5 OFF1.nde'])
+        block = SensitivityBlock.objects.get(pipe_size='4in Sch 40')
         self.client.post(reverse('confirm-job'), {'document_filename': folder.name, 'include_0': '1', 'include_1': '1',
-                                                  'weld_0': 'FW3', 'weld_1': 'FW5'})
+                                                  'weld_0': 'FW3', 'weld_1': 'FW5', 'sensitivity_block': block.pk})
         self.assertEqual(Report.objects.get().job_folder, str(folder))
 
     def test_problems_stay_on_the_first_page(self):
@@ -94,8 +95,9 @@ class GuidedCreationFolderTests(TestCase):
         cases = [
             ({'folder_mode': 'existing'}, 'Pick a job folder'),
             ({'folder_mode': 'existing', 'job_folder': '..'}, 'Pick a job folder'),
-            ({'folder_mode': 'new', 'new_client': 'FHR'}, 'at least the client and line'),
-            ({'folder_mode': 'new', 'new_client': 'FHR', 'new_line': '1'}, 'files to copy into the new folder'),
+            ({'folder_mode': 'new', 'new_name': ''}, 'Type the new folder'),
+            ({'folder_mode': 'new', 'new_name': 'PPI-32/27119'}, 'characters a folder name can'),
+            ({'folder_mode': 'new', 'new_name': 'PPI-1-3-W1-2in'}, 'files to copy into the new folder'),
             ({'folder_mode': 'existing', 'job_folder': 'PPI-1-2-W1-2in'}, 'has no .nde files yet'),
         ]
         for data, message in cases:

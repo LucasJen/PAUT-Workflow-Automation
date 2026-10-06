@@ -106,10 +106,12 @@ class FromFilesPagesTests(TestCase):
         self.assertContains(page, 'value="PPI-31-37575-W5&amp;W6"')
         self.assertContains(page, 'name="weld_1" value="W6"')
 
-        resp = self.client.post(reverse('confirm-job'), {
-            'document_filename': 'PPI-31-37575-W5&W6', 'sensitivity_block': '', 'include_0': '1', 'include_1': '1',
-            'weld_0': 'w5', 'weld_1': 'W6'})
+        from equipment.models import SensitivityBlock
         from reports.models import Report
+        block = SensitivityBlock.objects.get(pipe_size='6in Sch 40')
+        resp = self.client.post(reverse('confirm-job'), {
+            'document_filename': 'PPI-31-37575-W5&W6', 'sensitivity_block': block.pk, 'include_0': '1',
+            'include_1': '1', 'weld_0': 'w5', 'weld_1': 'W6'})
         report = Report.objects.get()
         self.assertRedirects(resp, f"{reverse('create-report')}?loaded={report.pk}&wizard=1")
         self.assertEqual((report.client, report.document_filename), ('PPI', 'PPI-31-37575-W5&W6'))
