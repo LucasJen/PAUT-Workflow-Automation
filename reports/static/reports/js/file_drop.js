@@ -1,4 +1,5 @@
-// Documentation libraries: PDFs dropped anywhere on the page are uploaded through #upload-form.
+// Documentation libraries: files dropped anywhere on the page are uploaded through #upload-form
+// (the server keeps the PDF, Word and Excel files and lists any it skipped).
 
 (function () {
     const form = document.getElementById('upload-form');

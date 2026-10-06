@@ -57,11 +57,19 @@
         <div class="panel-header">
             <h2 class="panel-title">Documentation</h2>
         </div>
-        <form method="get" action="{% url 'home' %}" id="doc-search" class="search-input w-100 mb-3"
+        <form method="get" action="{% url 'home' %}" id="doc-search" class="doc-search mb-3"
               data-search-url="{% url 'document-search' %}" role="search">
-            <i class="bi bi-search"></i>
-            <input type="search" name="q" value="{{ query }}" class="form-control"
-                   placeholder="Search documentation…" aria-label="Search documentation">
+            <div class="search-input">
+                <i class="bi bi-search"></i>
+                <input type="search" name="q" value="{{ query }}" class="form-control"
+                       placeholder="Search documentation…" aria-label="Search documentation">
+            </div>
+            <select name="type" class="form-select" aria-label="File type">
+                <option value="">All types</option>
+                {% for key, label in file_types %}
+                <option value="{{ key }}"{% if key == file_type %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
         </form>
         <div id="doc-results">
             {% include 'documents/_dashboard_items.html' %}

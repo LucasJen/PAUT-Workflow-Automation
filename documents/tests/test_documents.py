@@ -1,4 +1,4 @@
-"""Documentation libraries: bulk PDF upload, replace and delete."""
+"""Documentation libraries: bulk PDF / Word / Excel upload, open, replace and delete; the dashboard card."""
 import os
 import shutil
 import tempfile
@@ -18,6 +18,10 @@ def pdf(name):
     return SimpleUploadedFile(name, PDF, content_type='application/pdf')
 
 
+def office(name):
+    return SimpleUploadedFile(name, b'PK\x03\x04', content_type='application/octet-stream')
+
+
 class DocumentLibraryTests(TestCase):
     def setUp(self):
         self.media = tempfile.mkdtemp()
@@ -28,14 +32,28 @@ class DocumentLibraryTests(TestCase):
         self.override.disable()
         shutil.rmtree(self.media, ignore_errors=True)
 
-    def test_bulk_upload_titles_after_file_names_and_skips_non_pdfs(self):
+    def test_bulk_upload_takes_pdf_word_and_excel_and_skips_anything_else(self):
         txt = SimpleUploadedFile('notes.txt', b'hi', content_type='text/plain')
-        response = self.client.post(reverse('procedure-list'), {
-            'upload': '1', 'files': [pdf('PAUT-001 Rev 3.pdf'), pdf('PAUT-002.PDF'), txt]}, follow=True)
-        titles = list(Document.objects.values_list('category', 'title'))
-        self.assertEqual(titles, [('procedure', 'PAUT-001 Rev 3'), ('procedure', 'PAUT-002')])
-        self.assertContains(response, 'Uploaded 2 PDFs.')
-        self.assertContains(response, 'Skipped (not a PDF): notes.txt.')
+        response = self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [
+            pdf('PAUT-001 Rev 3.pdf'), pdf('PAUT-002.PDF'), office('Checklist.docx'), office('Old.doc'),
+            office('Log.xlsx'), office('Macro sheet.xlsm'), txt]}, follow=True)
+        docs = {d.title: d.file_type for d in Document.objects.filter(category=Document.PROCEDURE)}
+        self.assertEqual(docs, {'PAUT-001 Rev 3': 'pdf', 'PAUT-002': 'pdf', 'Checklist': 'word', 'Old': 'word',
+                                'Log': 'excel', 'Macro sheet': 'excel'})
+        self.assertContains(response, 'Uploaded 6 files.')
+        self.assertContains(response, 'Skipped (not a PDF, Word or Excel file): notes.txt.')
+        self.assertContains(response, 'file-earmark-word')
+
+    def test_pdfs_open_in_the_browser_and_office_files_download(self):
+        self.client.post(reverse('report-form-list'), {'upload': '1', 'files': [pdf('a.pdf'), office('b.xlsx')]})
+        opened = {}
+        for doc in Document.objects.all():
+            response = self.client.get(reverse('open-document', args=[doc.pk]))
+            opened[doc.title] = (response['Content-Type'], response['Content-Disposition'].split(';')[0])
+            response.close()
+        self.assertEqual(opened, {
+            'a': ('application/pdf', 'inline'),
+            'b': ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'attachment')})
 
     def test_each_library_lists_only_its_own_documents(self):
         self.client.post(reverse('code-material-list'), {'upload': '1', 'files': [pdf('ASME V.pdf')]})
@@ -67,12 +85,15 @@ class DocumentLibraryTests(TestCase):
         self.assertFalse(Document.objects.exists())
         self.assertFalse(os.path.exists(new_path))
 
-    def test_replacement_must_be_a_pdf(self):
+    def test_replacement_must_be_pdf_word_or_excel(self):
         self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('a.pdf')]})
         doc = Document.objects.get()
         response = self.client.post(reverse('edit-procedure', args=[doc.pk]), {
-            'title': 'a', 'replace_file': SimpleUploadedFile('a.docx', b'x')})
-        self.assertContains(response, 'a.docx is not a PDF.')
+            'title': 'a', 'replace_file': SimpleUploadedFile('a.txt', b'x')})
+        self.assertContains(response, 'a.txt is not a PDF, Word or Excel file.')
+        self.client.post(reverse('edit-procedure', args=[doc.pk]), {'title': 'a', 'replace_file': office('a.docx')})
+        doc.refresh_from_db()
+        self.assertEqual(doc.file_type, 'word')
 
 
 class DashboardDocumentsTests(TestCase):
@@ -87,9 +108,9 @@ class DashboardDocumentsTests(TestCase):
         self.override.disable()
         shutil.rmtree(self.media, ignore_errors=True)
 
-    def make(self, title, category=Document.PROCEDURE, hours_ago=0, opened_hours_ago=None, notes=''):
+    def make(self, title, category=Document.PROCEDURE, hours_ago=0, opened_hours_ago=None, notes='', ext='.pdf'):
         now = timezone.now()
-        doc = Document.objects.create(category=category, title=title, file=pdf(f'{title}.pdf'), notes=notes)
+        doc = Document.objects.create(category=category, title=title, file=pdf(f'{title}{ext}'), notes=notes)
         Document.objects.filter(pk=doc.pk).update(
             uploaded_at=now - timedelta(hours=hours_ago),
             last_opened_at=None if opened_hours_ago is None else now - timedelta(hours=opened_hours_ago))
@@ -134,3 +155,20 @@ class DashboardDocumentsTests(TestCase):
         self.assertEqual(b''.join(response.streaming_content), PDF)
         response.close()
         self.assertEqual(self.titles(self.client.get(reverse('home'))), ['Old', 'New'])
+
+    def test_file_type_filter_alone_or_with_a_search(self):
+        for n in range(12):
+            self.make(f'Form {n:02}', Document.FORM, hours_ago=n, ext='.xlsx')
+        self.make('Weld procedure', hours_ago=20, ext='.docx')
+        self.make('Weld scan plan', hours_ago=21)
+        filtered = lambda **params: [d.title for d in
+                                     self.client.get(reverse('document-search'), params).context['documents']]
+        self.assertEqual(len(filtered(type='excel')), 12)          # a filter returns every match, not 10
+        self.assertEqual(filtered(type='word'), ['Weld procedure'])
+        self.assertEqual(filtered(q='weld', type='pdf'), ['Weld scan plan'])
+        self.assertEqual(filtered(q='weld'), ['Weld procedure', 'Weld scan plan'])
+        self.assertEqual(filtered(q='word'), ['Weld procedure'])   # the type name is searchable too
+        self.assertEqual(len(filtered(type='bogus')), 10)          # an unknown type is ignored
+        home = self.client.get(reverse('home'), {'type': 'word'})
+        self.assertEqual(self.titles(home), ['Weld procedure'])
+        self.assertContains(home, '<option value="word" selected>')

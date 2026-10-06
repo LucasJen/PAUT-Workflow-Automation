@@ -3,20 +3,21 @@
 <ul class="item-list">
     {% for document in documents %}
     <li>
-        <a href="{% url 'open-document' document.pk %}" target="_blank" rel="noopener" title="Open {{ document.filename }} in a new tab">
+        <a href="{% url 'open-document' document.pk %}" {% if document.file_type == 'pdf' %}target="_blank" rel="noopener"{% endif %}
+           title="{% if document.file_type == 'pdf' %}Open {{ document.filename }} in a new tab{% else %}Download {{ document.filename }} to open in {{ document.file_type_label }}{% endif %}">
             <span class="item-main">
-                <span class="item-title"><i class="bi bi-{{ document.icon }} me-2 text-body-secondary"></i>{{ document.title }}</span>
-                <span class="item-meta">{{ document.get_category_display }}</span>
+                <span class="item-title"><i class="bi bi-{{ document.file_type_icon }} me-2 text-body-secondary"></i>{{ document.title }}</span>
+                <span class="item-meta"><i class="bi bi-{{ document.icon }} me-1"></i>{{ document.get_category_display }} · {{ document.file_type_label }}</span>
             </span>
             <span class="item-aside">{{ document.last_used_at|timesince }} ago</span>
         </a>
     </li>
     {% endfor %}
 </ul>
-{% elif query %}
-<p class="text-body-secondary mb-0">No documents match “{{ query }}”.</p>
+{% elif query or file_type %}
+<p class="text-body-secondary mb-0">{% if query %}No documents match “{{ query }}”{% if file_type %} with that file type{% endif %}.{% else %}No documents of that file type.{% endif %}</p>
 {% else %}
-<p class="text-body-secondary mb-0">No documents yet. Upload PDFs to
+<p class="text-body-secondary mb-0">No documents yet. Upload PDF, Word or Excel files to
     <a href="{% url 'procedure-list' %}">Procedures</a>, <a href="{% url 'code-material-list' %}">Code Material</a>,
     <a href="{% url 'training-material-list' %}">Training Material</a> or <a href="{% url 'report-form-list' %}">Report Forms</a>.</p>
 {% endif %}

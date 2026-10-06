@@ -1543,5 +1543,10 @@ form[data-wizard] .section-nav { display: none; }
 .page-tab:hover { color: var(--text); }
 .page-tab.active { color: var(--text); border-bottom-color: var(--accent, #0f766e); }
 
-/* Documentation libraries: PDFs being dragged over the page */
+/* Documentation libraries: files being dragged over the page */
 body.drop-target .content { outline: 2px dashed var(--bs-primary); outline-offset: -0.5rem; }
+
+/* Dashboard Documentation card: the search box with its file-type filter */
+.doc-search { display: flex; gap: 0.5rem; }
+.doc-search .search-input { flex: 1; width: auto; min-width: 0; }
+.doc-search .form-select { width: auto; flex-shrink: 0; }

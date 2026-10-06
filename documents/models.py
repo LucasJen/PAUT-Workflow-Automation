@@ -4,24 +4,57 @@ from django.db import models
 from django.db.models.functions import Coalesce
 
 
+# The file types a library takes: key -> (label, icon, extensions)
+FILE_TYPES = {
+    'pdf': ('PDF', 'file-earmark-pdf', ('.pdf',)),
+    'word': ('Word', 'file-earmark-word', ('.doc', '.docx', '.docm')),
+    'excel': ('Excel', 'file-earmark-excel', ('.xls', '.xlsx', '.xlsm')),
+}
+EXTENSIONS = {ext: key for key, (_, _, exts) in FILE_TYPES.items() for ext in exts}
+
+
+def file_type_of(name):
+    """'pdf', 'word' or 'excel' for a file name, or None for any other file."""
+    return EXTENSIONS.get(os.path.splitext(name)[1].lower())
+
+
+def file_type_q(key):
+    """Matches documents whose file is of type `key`."""
+    q = models.Q(pk__in=[])
+    for ext in FILE_TYPES[key][2]:
+        q |= models.Q(file__iendswith=ext)
+    return q
+
+
 class DocumentQuerySet(models.QuerySet):
     def recently_used(self):
         """Most recently opened first; a document never opened counts from its upload."""
         return self.order_by(Coalesce('last_opened_at', 'uploaded_at').desc(), '-pk')
 
     def search(self, query):
-        """Documents whose title, file name, notes or library name contain every word of `query`."""
+        """
+        Documents whose title, file name, notes, library or file type (PDF / Word / Excel) contain
+        every word of `query`.
+        """
         labels = dict(Document.CATEGORY_CHOICES)
         result = self
         for word in query.split():
             in_label = [key for key, label in labels.items() if word.lower() in label.lower()]
-            result = result.filter(models.Q(title__icontains=word) | models.Q(file__icontains=word)
-                                   | models.Q(notes__icontains=word) | models.Q(category__in=in_label))
+            match = (models.Q(title__icontains=word) | models.Q(file__icontains=word)
+                     | models.Q(notes__icontains=word) | models.Q(category__in=in_label))
+            for key, (label, _, _) in FILE_TYPES.items():
+                if word.lower() in label.lower():
+                    match |= file_type_q(key)
+            result = result.filter(match)
         return result
+
+    def of_type(self, key):
+        """Only `key` ('pdf', 'word', 'excel') files; any other key keeps every document."""
+        return self.filter(file_type_q(key)) if key in FILE_TYPES else self
 
 
 class Document(models.Model):
-    """A PDF kept in one of the documentation libraries (procedures, code / training material, report forms)."""
+    """A PDF, Word or Excel file kept in one of the documentation libraries (procedures, code / training material, report forms)."""
     PROCEDURE = 'procedure'
     CODE = 'code'
     TRAINING = 'training'
@@ -53,6 +86,18 @@ class Document(models.Model):
     @property
     def icon(self):
         return self.ICONS[self.category]
+
+    @property
+    def file_type(self):
+        return file_type_of(self.file.name)
+
+    @property
+    def file_type_label(self):
+        return FILE_TYPES[self.file_type][0] if self.file_type else ''
+
+    @property
+    def file_type_icon(self):
+        return FILE_TYPES[self.file_type][1] if self.file_type else 'file-earmark'
 
     @property
     def last_used_at(self):

@@ -1,23 +1,21 @@
-import os
-
 from django import forms
 
 from reports.forms import StyledFormMixin
-from .models import Document
+from .models import EXTENSIONS, Document, file_type_of
 
 
-def is_pdf(name):
-    return os.path.splitext(name)[1].lower() == '.pdf'
+# For <input accept>: every extension a library takes
+ACCEPT = ','.join(EXTENSIONS)
 
 
-def check_pdf(uploaded):
-    if not is_pdf(uploaded.name):
-        raise forms.ValidationError(f'{uploaded.name} is not a PDF.')
+def check_file_type(uploaded):
+    if not file_type_of(uploaded.name):
+        raise forms.ValidationError(f'{uploaded.name} is not a PDF, Word or Excel file.')
 
 
 class DocumentForm(StyledFormMixin, forms.ModelForm):
-    replace_file = forms.FileField(label='Replace PDF', required=False, validators=[check_pdf],
-                                   widget=forms.FileInput(attrs={'accept': '.pdf,application/pdf'}),
+    replace_file = forms.FileField(label='Replace file', required=False, validators=[check_file_type],
+                                   widget=forms.FileInput(attrs={'accept': ACCEPT}),
                                    help_text='Leave empty to keep the current file.')
 
     class Meta:

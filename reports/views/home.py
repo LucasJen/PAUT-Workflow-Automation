@@ -1,7 +1,7 @@
 from django.db.models import F
 from django.shortcuts import render
 
-from documents.views import dashboard_documents
+from documents.views import dashboard_context
 from equipment.models import CalibrationBlock, Encoder, Probe, ProbeModel, Scope, SensitivityBlock, WedgeModel
 from ..models import Report, Setup
 
@@ -9,10 +9,9 @@ from ..models import Report, Setup
 def home(request):
     """
     Dashboard: quick actions, recently edited reports, the documentation libraries (most recently
-    used first, searchable with ?q=) and the equipment libraries
+    used first, searchable with ?q= and filtered by file type with ?type=) and the equipment libraries
     """
     recent_reports = Report.objects.order_by(F('updated_at').desc(nulls_last=True), '-pk')[:8]
-    doc_query = request.GET.get('q', '')
 
     # The equipment libraries, in the sidebar's order: (label, icon, url name, count)
     libraries = [
@@ -26,8 +25,7 @@ def home(request):
     ]
     return render(request, 'reports/home.html', {
         'recent_reports': recent_reports,
-        'documents': dashboard_documents(doc_query),
-        'query': doc_query,
+        **dashboard_context(request),
         'libraries': libraries,
         'stats': {
             'reports': Report.objects.count(),

@@ -1,3 +1,4 @@
+import mimetypes
 import os
 
 from django.contrib import messages
@@ -5,8 +6,8 @@ from django.http import FileResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
-from .forms import DocumentForm, is_pdf
-from .models import Document
+from .forms import ACCEPT, DocumentForm
+from .models import FILE_TYPES, Document, file_type_of
 
 # Per library: its list and edit URL names, page title, the noun for one document and the empty-state icon
 LIBRARIES = {
@@ -35,26 +36,27 @@ def document_list(request, category):
             return redirect(library['list'])
         if 'edit' in request.POST and len(selected_pks) == 1:
             return redirect(library['edit'], pk=selected_pks[0])
-    return render(request, 'documents/document_list.html', {'items': documents, 'library': library})
+    return render(request, 'documents/document_list.html',
+                  {'items': documents, 'library': library, 'accept': ACCEPT})
 
 
 def upload(request, category):
-    """Saves each uploaded PDF as a document titled after its file name; anything else is skipped."""
+    """Saves each PDF, Word or Excel file as a document titled after its file name; anything else is skipped."""
     files = request.FILES.getlist('files')
     if not files:
-        messages.error(request, 'Choose one or more PDFs to upload.')
+        messages.error(request, 'Choose one or more files to upload.')
         return
     added, skipped = 0, []
     for uploaded in files:
-        if not is_pdf(uploaded.name):
+        if not file_type_of(uploaded.name):
             skipped.append(uploaded.name)
             continue
         Document.objects.create(category=category, title=os.path.splitext(uploaded.name)[0], file=uploaded)
         added += 1
     if added:
-        messages.success(request, f'Uploaded {added} PDF{"" if added == 1 else "s"}.')
+        messages.success(request, f'Uploaded {added} file{"" if added == 1 else "s"}.')
     if skipped:
-        messages.warning(request, f'Skipped (not a PDF): {", ".join(skipped)}.')
+        messages.warning(request, f'Skipped (not a PDF, Word or Excel file): {", ".join(skipped)}.')
 
 
 def edit_document(request, category, pk):
@@ -78,25 +80,38 @@ def edit_document(request, category, pk):
 
 
 def open_document(request, pk):
-    """Shows the PDF in the browser and records it as just used (the dashboard lists by last use)."""
+    """
+    Shows a PDF in the browser, or downloads a Word / Excel file for Office to open, and records
+    it as just used (the dashboard lists by last use).
+    """
     document = get_object_or_404(Document, pk=pk)
     Document.objects.filter(pk=pk).update(last_opened_at=timezone.now())
-    return FileResponse(document.file.open('rb'), filename=document.filename, content_type='application/pdf')
+    content_type = mimetypes.guess_type(document.filename)[0] or 'application/octet-stream'
+    return FileResponse(document.file.open('rb'), filename=document.filename, content_type=content_type,
+                        as_attachment=document.file_type != 'pdf')
 
 
 DASHBOARD_COUNT = 10
 
 
-def dashboard_documents(query=''):
-    """The dashboard's Documentation card: every match for `query`, or the 10 most recently used."""
+def dashboard_documents(query='', file_type=''):
+    """
+    The dashboard's Documentation card: every match for `query` and / or `file_type` ('pdf',
+    'word', 'excel'), or with neither the 10 most recently used.
+    """
     documents = Document.objects.recently_used()
-    if query.strip():
-        return documents.search(query)
-    return documents[:DASHBOARD_COUNT]
+    if not query.strip() and file_type not in FILE_TYPES:
+        return documents[:DASHBOARD_COUNT]
+    return documents.search(query).of_type(file_type)
+
+
+def dashboard_context(request):
+    """The Documentation card's template context, from its ?q= search and ?type= filter."""
+    query, file_type = request.GET.get('q', ''), request.GET.get('type', '')
+    return {'documents': dashboard_documents(query, file_type), 'query': query, 'file_type': file_type,
+            'file_types': [(key, label) for key, (label, _, _) in FILE_TYPES.items()]}
 
 
 def document_search(request):
-    """The Documentation card's list for the search box (an HTML fragment)."""
-    query = request.GET.get('q', '')
-    return render(request, 'documents/_dashboard_items.html',
-                  {'documents': dashboard_documents(query), 'query': query})
+    """The Documentation card's list for the search box and type filter (an HTML fragment)."""
+    return render(request, 'documents/_dashboard_items.html', dashboard_context(request))
