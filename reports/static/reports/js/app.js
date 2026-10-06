@@ -43,16 +43,19 @@ document.getElementById('sidebar-collapse').addEventListener('click', () => {
     storageSet('sidebarCollapsed', collapsed);
 });
 
-// Group labels show / hide their links; the closed groups are remembered (see base.html <head>)
+// Group labels show / hide their links; the closed groups are remembered (see base.html <head>).
+// The current page's group starts open even if closed (app.css); its first click goes back to the stored state.
 document.querySelectorAll('.nav-group').forEach(group => {
     const name = group.dataset.group;
     const label = group.querySelector('.nav-group-label');
     const closedGroups = () => (root.getAttribute('data-nav-closed') || '').split(' ').filter(Boolean);
-    label.setAttribute('aria-expanded', !closedGroups().includes(name));
+    const current = !!group.querySelector('.nav-item-link.active');
+    label.setAttribute('aria-expanded', current || !closedGroups().includes(name));
     label.addEventListener('click', () => {
-        let closed = closedGroups();
-        const closing = !closed.includes(name);
-        closed = closing ? closed.concat(name) : closed.filter(g => g !== name);
+        const closing = label.getAttribute('aria-expanded') === 'true';
+        let closed = closedGroups().filter(g => g !== name);
+        if (closing) closed.push(name);
+        group.classList.add('toggled');
         root.setAttribute('data-nav-closed', closed.join(' '));
         storageSet('navClosed', closed.join(' '));
         label.setAttribute('aria-expanded', !closing);

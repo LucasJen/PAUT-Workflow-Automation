@@ -211,6 +211,9 @@ html[data-nav-closed~="equipment"] .nav-group[data-group="equipment"] .nav-group
 html[data-nav-closed~="equipment"] .nav-group[data-group="equipment"] .nav-group-chevron { transform: rotate(-90deg); }
 html[data-nav-closed~="documentation"] .nav-group[data-group="documentation"] .nav-group-items { display: none; }
 html[data-nav-closed~="documentation"] .nav-group[data-group="documentation"] .nav-group-chevron { transform: rotate(-90deg); }
+/* ...except the current page's group, which opens on load until its label is clicked (.toggled) */
+.nav-group:has(.nav-item-link.active):not(.toggled) .nav-group-items { display: block; }
+.nav-group:has(.nav-item-link.active):not(.toggled) .nav-group-chevron { transform: none; }
 
 .nav-item-link {
     display: flex;
