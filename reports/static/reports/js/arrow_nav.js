@@ -1,5 +1,5 @@
 // Arrow keys move between fields, like Excel, in any form marked data-arrow-nav (the report
-// editor, Library › Defaults, the setup and scan plan editors). The next field is the nearest
+// editor, Preferences › Defaults, the setup and scan plan editors). The next field is the nearest
 // one on screen in the arrow's direction, so it works for every layout: field grids, the weld
 // grids, tables and blocks. Arrows keep their own job inside a field: Left / Right leave a text
 // field only from its start / end, Up / Down leave a text box only from its first / last line,

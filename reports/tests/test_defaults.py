@@ -1,4 +1,4 @@
-"""Library › Defaults: per report type starting values for new reports and setups."""
+"""Preferences › Defaults: per report type starting values for new reports and setups."""
 from django.test import TestCase
 from django.urls import reverse
 

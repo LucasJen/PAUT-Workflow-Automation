@@ -257,6 +257,12 @@ html[data-nav-closed~="documentation"] .nav-group[data-group="documentation"] .n
     margin-top: auto;
     padding-top: 0.5rem;
     border-top: 1px solid var(--border);
+    /* Preferences, theme and Collapse stay in view while a long sidebar scrolls */
+    position: sticky;
+    bottom: -0.75rem;          /* flush with the sidebar's bottom edge (its padding) */
+    padding-bottom: 0.75rem;
+    margin-bottom: -0.75rem;
+    background: var(--surface);
 }
 
 /* Collapsed icon rail (class set on <html> before paint) */

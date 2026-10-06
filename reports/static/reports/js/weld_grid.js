@@ -1,5 +1,5 @@
 // The weld form's equipment grid (reports/editor/_weld_grid.html, in the report editor and in
-// Library › Defaults): probe and group columns are Django formset forms laid out column-wise. Adds, removes and duplicates columns, numbers them,
+// Preferences › Defaults): probe and group columns are Django formset forms laid out column-wise. Adds, removes and duplicates columns, numbers them,
 // lists the probe columns in each group's Probe select and greys the rows a probe kind leaves N/A.
 
 (function () {
@@ -240,7 +240,7 @@
         }
     }
 
-    // ── A new report starts with its type's prefilled columns (Library › Defaults) ─────
+    // ── A new report starts with its type's prefilled columns (Preferences › Defaults) ─────
     // Columns made from defaults and not yet edited are swapped when the report type changes.
 
     const typeSelect = document.getElementById('id_report_type');

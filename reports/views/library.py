@@ -1,4 +1,4 @@
-"""Library › Defaults: named sets of starting values per report type, one in use per type."""
+"""Preferences › Defaults: named sets of starting values per report type, one in use per type."""
 from django.contrib import messages
 from django.db import IntegrityError, transaction
 from django.http import Http404

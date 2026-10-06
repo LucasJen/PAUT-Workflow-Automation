@@ -1,6 +1,6 @@
 {% extends 'reports/components/edit_page.html' %}
 
-{% block title %}{% if code %}{{ code.code }}{% else %}New client code{% endif %} · Library · PAUT Report Automation{% endblock %}
+{% block title %}{% if code %}{{ code.code }}{% else %}New client code{% endif %} · Preferences · PAUT Report Automation{% endblock %}
 {% block back_url %}{% url 'client-code-list' %}{% endblock %}
 {% block back_label %}Client codes{% endblock %}
 {% block page_title %}{% if code %}{{ code.code }}{% else %}New client code{% endif %}{% endblock %}

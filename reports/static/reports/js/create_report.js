@@ -502,7 +502,7 @@ function applyReportType() {
 
 reportTypeSelect.addEventListener('change', applyReportType);
 
-// ── Report defaults (Library › Defaults) ─────────────────────────────────
+// ── Report defaults (Preferences › Defaults) ─────────────────────────────────
 // A new report opens with its type's defaults (filled by the server). Switching the type swaps
 // in the new type's defaults, but only where a field is still empty or still holds the old
 // type's default; anything typed or filled from elsewhere stays.
@@ -572,7 +572,7 @@ const reloadStatus = document.getElementById('reload-defaults-status');
 function updateReloadButton() {
     reloadButton.disabled = !hasDefaults(reportTypeSelect.value);
     reloadButton.title = reloadButton.disabled
-        ? 'No defaults in use for this report type (Library › Defaults)'
+        ? 'No defaults in use for this report type (Preferences › Defaults)'
         : "Fill in the defaults in use for this report type again, over what's there";
 }
 
@@ -608,7 +608,7 @@ reloadButton.addEventListener('click', async event => {
 reportTypeSelect.addEventListener('change', updateReloadButton);
 updateReloadButton();
 
-// Section nav: section_nav.js (shared with Library › Defaults) highlights the section in view
+// Section nav: section_nav.js (shared with Preferences › Defaults) highlights the section in view
 
 // ── Unsaved changes guard ─────────────────────────────────────────────────
 

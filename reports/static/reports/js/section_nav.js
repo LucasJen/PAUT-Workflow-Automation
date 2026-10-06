@@ -1,4 +1,4 @@
-// The section menu beside the report editor and Library › Defaults: highlights the section in
+// The section menu beside the report editor and Preferences › Defaults: highlights the section in
 // view. updateActiveSection is global so the editor can call it after showing / hiding sections.
 
 function updateActiveSection() {

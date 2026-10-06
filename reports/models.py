@@ -250,7 +250,7 @@ class ScanPlan(models.Model):
 
 class ReportDefaults(models.Model):
     """
-    Library › Defaults: a named set of values a new report starts with, for its report fields and
+    Preferences › Defaults: a named set of values a new report starts with, for its report fields and
     for each new setup block (or, on the weld form, its prefilled probe and group columns). A report type can have several (e.g. per client); the one marked
     in use is what new reports of that type start from. Kept apart from reports so a defaults set
     is never listed or generated as a report. Values are {field name: value} (FKs as their pk).

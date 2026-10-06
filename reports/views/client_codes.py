@@ -6,7 +6,7 @@ from ..models import ClientCode
 
 
 def client_code_list(request):
-    """Library › Client codes: the abbreviations job folders start with, and the client each means."""
+    """Preferences › Client codes: the abbreviations job folders start with, and the client each means."""
     codes = ClientCode.objects.all()
     if request.method == 'POST':
         selected_pks = request.POST.getlist('selected')

@@ -1,5 +1,5 @@
 """
-Report defaults (Library › Defaults): per report type, values for its report fields and for new
+Report defaults (Preferences › Defaults): per report type, values for its report fields and for new
 setup blocks, or on the weld form for its testing instrument and prefilled probe / group columns. A new report opens with them; anything the user types, or that a client, a loaded
 setup, an NDE import or a scan plan fills in, replaces them.
 """

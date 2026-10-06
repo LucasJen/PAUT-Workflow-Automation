@@ -76,7 +76,7 @@ class GuidedCreationFolderTests(TestCase):
         page = self.client.get(reverse('confirm-job'))
         self.assertContains(page, 'name="weld_1" value="FW6"')    # 'scan a.nde' (sorted after the named one)
         self.assertContains(page, 'Not in the folder name (FW6)')  # fw9
-        self.assertContains(page, 'Library › Client codes</a> yet')   # PPI has no client code yet
+        self.assertContains(page, 'Preferences › Client codes</a> yet')   # PPI has no client code yet
 
     def test_new_folder_is_made_with_the_typed_name_and_gets_the_uploads(self):
         resp = self.client.post(reverse('start-from-files'), {

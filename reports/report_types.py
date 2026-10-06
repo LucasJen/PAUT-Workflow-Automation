@@ -53,7 +53,7 @@ REPORT_SECTIONS = (
 SECTIONS = tuple(key for key, _, _ in REPORT_SECTIONS)
 
 # Report fields a special section shows below its own content (editor/<key>.html renders them);
-# Library › Defaults lists them under that section's title
+# Preferences › Defaults lists them under that section's title
 SECTION_FIELDS = {
     'weld_results': ('notes',),   # the weld form's Notes box sits under its results
 }

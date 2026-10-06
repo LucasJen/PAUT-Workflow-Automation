@@ -55,7 +55,7 @@
                         <span class="job-folder-name mono">{{ folder.name }}</span>
                         <span class="job-folder-chips">
                             {% with info=folder.info %}
-                            {% if info.client_code %}<span class="job-chip" title="{% if folder.client %}{{ folder.client.client }}{% else %}Not in Library › Client codes{% endif %}">{{ info.client_code }}{% if folder.client %} · {{ folder.client.client }}{% endif %}</span>{% endif %}
+                            {% if info.client_code %}<span class="job-chip" title="{% if folder.client %}{{ folder.client.client }}{% else %}Not in Preferences › Client codes{% endif %}">{{ info.client_code }}{% if folder.client %} · {{ folder.client.client }}{% endif %}</span>{% endif %}
                             {% if info.line %}<span class="job-chip">Line {% if info.unit %}{{ info.unit }}-{% endif %}{{ info.line }}</span>{% endif %}
                             {% if info.welds %}<span class="job-chip">{{ info.welds|join:", " }}</span>{% endif %}
                             {% if info.nps %}<span class="job-chip job-chip-accent">{{ info.nps }}in</span>{% elif folder.job %}<span class="job-chip job-chip-warn" title="The name gives no pipe size">no size</span>{% endif %}
@@ -82,7 +82,7 @@
                 <label for="new-name">Folder name</label>
                 <input type="text" class="form-control mono" id="new-name" name="new_name" value="{{ posted.new_name }}"
                        placeholder="e.g. PPI-32-27119-FW6-4in" autocomplete="off">
-                <div class="form-text">Made in the jobs folder above; it's also the report's name. The client code at the start fills the client (Library › Client codes).</div>
+                <div class="form-text">Made in the jobs folder above; it's also the report's name. The client code at the start fills the client (Preferences › Client codes).</div>
             </div>
         </div>
 
@@ -106,7 +106,7 @@
                     <option value="{{ item.pk }}"{% if item.in_use %} selected{% endif %}>{{ item.name }}{% if item.in_use %} (in use){% endif %}</option>
                     {% endfor %}
                 </select>
-                <div class="form-text">Library › Defaults: client, procedure, prefilled probe and group columns…</div>
+                <div class="form-text">Preferences › Defaults: client, procedure, prefilled probe and group columns…</div>
             </div>
             <div class="field">
                 <label for="start-block">NPS / Sch</label>

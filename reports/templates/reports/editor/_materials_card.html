@@ -2,7 +2,7 @@
 {% comment %}
 The weld form's Material Information, Additional Block(s) and TCG Parameters (rows: reports/
 weld_form.py), laid out like the sheet. Used by the report editor (with Auto-detect) and by
-Library › Defaults. Needs `form` (the report fields), `weld_grid`, `sensitivity_blocks` and
+Preferences › Defaults. Needs `form` (the report fields), `weld_grid`, `sensitivity_blocks` and
 `auto_detect`. materials.js fills the card from the picked block and works out the TCG distances.
 {% endcomment %}
 <div class="materials-card" id="materials-card"{% if auto_detect %} data-detect-url="{% url 'detect-sensitivity-block' %}"{% endif %}>
