@@ -777,6 +777,20 @@ class ScanPlanFromWeldTests(TestCase):
         self.assertIn('already has two offsets', data['message'])
         self.assertEqual(len(self.plan().drawings), 4)
 
+    def test_a_plan_other_reports_use_is_copied_before_a_weld_changes_it(self):
+        self.weld(probe1_location='90')
+        shared = self.plan()
+        other = Report.objects.create(report_type='paut_weld', scan_plan=shared)
+        data = self.weld(probe1_location='270')
+        own = self.plan()
+        self.assertTrue(data['ok'])
+        self.assertNotEqual(own.pk, shared.pk)
+        self.assertEqual((own.skew_90, own.skew_270), (True, True))
+        shared.refresh_from_db()
+        self.assertEqual((shared.skew_90, shared.skew_270), (True, False))   # the other report's is unchanged
+        other.refresh_from_db()
+        self.assertEqual(other.scan_plan, shared)
+
     def test_thickness_difference_is_a_warning(self):
         self.weld()
         data = self.weld(probe1_thk='0.300')

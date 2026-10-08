@@ -567,10 +567,14 @@ def _excel_download(request, report):
 def _duplicate_report(original):
     """
     Start a repeat inspection from an earlier report: the copy keeps the report text,
-    personnel, setups (with calibration screenshots) and equipment drawings, but starts with no
-    results, no scan images and no dates. Images are shared with the original, not copied on disk.
+    personnel, setups (with calibration screenshots), the weld form's probe and group columns and
+    equipment drawings, but starts with no results, no scan images and no dates. Images are
+    shared with the original, not copied on disk; so is the scan plan, until a weld added to it
+    makes the copy its own (add_weld_to_plan).
     """
     people = list(original.people.all())
+    probes = list(original.probes.order_by('order', 'pk'))
+    groups = list(original.groups.order_by('order', 'pk'))
     setups = list(original.setups.order_by('order').prefetch_related('images'))
     drawings = list(original.images.filter(kind=ReportImage.DRAWING).order_by('order'))
 
@@ -592,6 +596,16 @@ def _duplicate_report(original):
         for image in images:
             image.pk, image.setup = None, setup
             image.save()
+    new_probes = {}
+    for probe in probes:
+        old_pk = probe.pk
+        probe.pk, probe.report = None, report
+        probe.save()
+        new_probes[old_pk] = probe
+    for group in groups:
+        group.pk, group.report = None, report
+        group.probe = new_probes.get(group.probe_id)
+        group.save()
     for drawing in drawings:
         drawing.pk, drawing.report = None, report
         drawing.save()
