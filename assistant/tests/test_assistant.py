@@ -15,7 +15,7 @@ import anthropic.types as sdk
 from assistant import chat, index, secrets
 from assistant.models import AssistantSettings, Conversation, Turn
 from assistant.providers.anthropic_provider import AnthropicProvider, FALLBACK_BETA
-from assistant.providers.base import Usage
+from assistant.providers.base import TextDelta, Usage
 from assistant.tests.helpers import ScriptedProvider, text_pdf
 from assistant.tools import Lookup
 from documents.models import Document
@@ -187,6 +187,29 @@ class ChatTests(TestCase):
         _, events = self.run_chat(provider, 'Hi')
         self.assertIn('API key', events[0]['text'])
         self.assertEqual(provider.requests, [])
+
+    # Whatever goes wrong while answering is said and saved, never left on "Thinking..."
+    def test_an_index_failure_is_an_error_event_and_a_saved_turn(self):
+        with mock.patch('assistant.chat.index.sync', side_effect=OSError('disk unplugged')):
+            _, events = self.run_chat(ScriptedProvider(('text', 'Never sent.')), 'Hi')
+        self.assertEqual(events[-1], {'type': 'error', 'text': 'Something went wrong while answering: disk unplugged'})
+        self.assertEqual(Turn.objects.get().status, Turn.ERROR)
+
+    def test_a_stream_that_ends_without_its_reply_is_an_error(self):
+        provider = ScriptedProvider(('text', 'Half'))
+        provider.respond = lambda *args: iter([TextDelta('Half ')])
+        _, events = self.run_chat(provider, 'Hi')
+        self.assertEqual(events[-1]['type'], 'error')
+        self.assertIn('stopped before it finished', events[-1]['text'])
+
+    def test_a_new_conversation_stopped_before_asking_isnt_kept(self):
+        settings = AssistantSettings.load()
+        settings.api_key = ''
+        settings.save()
+        response = self.client.post(reverse('assistant-ask'), {'question': 'Hi'})
+        events = [json.loads(line) for line in b''.join(response.streaming_content).decode().splitlines()]
+        self.assertEqual([e['type'] for e in events], ['error'])
+        self.assertFalse(Conversation.objects.exists())
 
 
 def sdk_message(model='claude-haiku-4-5', content=None, stop='end_turn'):

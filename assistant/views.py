@@ -36,11 +36,15 @@ def ask(request):
     if not question:
         return JsonResponse({'error': 'Type a question first.'}, status=400)
     pk = request.POST.get('conversation')
-    conversation = get_object_or_404(Conversation, pk=pk) if pk else Conversation.objects.create()
+    # A new conversation is saved by chat.ask once the question is really asked
+    conversation = get_object_or_404(Conversation, pk=pk) if pk else Conversation()
 
     def events():
-        yield json.dumps({'type': 'conversation', 'id': conversation.pk}) + '\n'
+        announced = False
         for event in chat.ask(conversation, question):
+            if not announced and conversation.pk:
+                announced = True
+                yield json.dumps({'type': 'conversation', 'id': conversation.pk}) + '\n'
             yield json.dumps(event) + '\n'
 
     response = StreamingHttpResponse(events(), content_type='application/x-ndjson')
