@@ -139,7 +139,7 @@ class DuplicateTests(MediaMixin, TestCase):
 
         self.assertEqual(dup.document_filename, '15V3 2026 (copy)')
         self.assertEqual((dup.client, dup.asset_description, dup.discussion), ('FHR', 'Vessel.', 'Disc.'))
-        self.assertEqual((dup.report_date, dup.test_date, dup.test_end_date), (None, None, None))
+        self.assertEqual((dup.report_date, dup.test_date, dup.test_end_date), (datetime.date.today(), None, None))
         self.assertEqual(list(dup.people.values_list('name', 'prepared')), [('Pat', True)])
         dup_setup = dup.setups.get()
         self.assertEqual((dup_setup.title, dup_setup.procedure), ('HydroFORM', 'P-1'))

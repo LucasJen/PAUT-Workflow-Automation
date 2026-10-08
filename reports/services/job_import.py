@@ -8,6 +8,7 @@ columns placed as the grid places imports (place_columns), the sensitivity block
 part, a weld row per weld, the calibration window from the scan times and the scan plan.
 """
 import re
+from datetime import date
 
 from django.db import transaction
 
@@ -265,7 +266,7 @@ def build_report(files, defaults=None, document_filename='', block=None, job_fol
     items = [item for data in files for item in data['items']]
     notes = []
 
-    report = Report(report_type=WELD_TYPE)
+    report = Report(report_type=WELD_TYPE, report_date=date.today())   # as a new report in the editor
     if defaults is not None:
         _set_report_values(report, defaults.report_values)
     report.document_filename = document_filename or report.document_filename

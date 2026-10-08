@@ -5,6 +5,7 @@ and Images pages. read_corrosion_file() reads one .nde; build_corrosion_report()
 """
 import os
 import re
+from datetime import date
 
 from django.core.files import File
 from django.db import transaction
@@ -107,7 +108,7 @@ def build_corrosion_report(files, pictures, defaults=None, document_filename='',
     """
     from .job_import import _set_report_values   # the weld import's way of applying a defaults set
     notes = []
-    report = Report(report_type=CORROSION_TYPE)
+    report = Report(report_type=CORROSION_TYPE, report_date=date.today())   # as a new report in the editor
     if defaults is not None:
         _set_report_values(report, defaults.report_values)
     report.document_filename = document_filename or report.document_filename

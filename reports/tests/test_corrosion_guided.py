@@ -1,4 +1,5 @@
 """Guided Creation for the corrosion form: a job folder's .nde files and pictures to a report."""
+from datetime import date
 import shutil
 import tempfile
 from io import BytesIO
@@ -121,6 +122,7 @@ class CorrosionGuidedTests(TestCase):
         files = [{'filename': 'a.nde', 'setups': [{'label': 'G1', 'values': {
             'title': 'HydroFORM', 'transducer_model': '5L64-A2', 'catalogue_probe': probe.pk, 'catalogue_wedge': ''}}]}]
         report, _ = build_corrosion_report(files, [])
+        self.assertEqual(report.report_date, date.today())   # as a new report in the editor
         setup = report.setups.get()
         self.assertEqual((setup.catalogue_probe, setup.catalogue_wedge), (probe, None))
 

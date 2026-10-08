@@ -28,6 +28,7 @@ from django.forms import ImageField
 from ..report_types import REPORT_TYPES
 import io
 import json
+from datetime import date
 import logging
 import os
 import re
@@ -577,7 +578,7 @@ def _duplicate_report(original):
     """
     Start a repeat inspection from an earlier report: the copy keeps the report text,
     personnel, setups (with calibration screenshots), the weld form's probe and group columns and
-    equipment drawings, but starts with no results, no scan images and no dates. Images are
+    equipment drawings, but starts with no results, no scan images and no test dates. Images are
     shared with the original, not copied on disk; so is the scan plan, until a weld added to it
     makes the copy its own (add_weld_to_plan).
     """
@@ -590,7 +591,8 @@ def _duplicate_report(original):
     report = Report.objects.get(pk=original.pk)
     report.pk = None
     report.document_filename = f'{original.document_filename or "Untitled"} (copy)'
-    report.report_date = report.test_date = report.test_end_date = None
+    report.report_date = date.today()   # as a new report in the editor; the test dates are the new job's
+    report.test_date = report.test_end_date = None
     # A repeat inspection is a new job: it gets its own folder (if any), never the original's files
     report.job_folder, report.job_folder_files = '', []
     report.save()
