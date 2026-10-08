@@ -1,10 +1,10 @@
 {% extends 'reports/components/edit_page.html' %}
 {% block form_attrs %} data-arrow-nav{% endblock %}
 
-{% block title %}Setup #{{ setup.pk }} · PAUT Report Automation{% endblock %}
+{% block title %}{% if setup.pk %}Setup #{{ setup.pk }}{% else %}New setup{% endif %} · PAUT Report Automation{% endblock %}
 {% block back_url %}{% url 'setup-list' %}{% endblock %}
 {% block back_label %}Setups{% endblock %}
-{% block page_title %}Setup #{{ setup.pk }}{% endblock %}
+{% block page_title %}{% if setup.pk %}Setup #{{ setup.pk }}{% else %}New setup{% endif %}{% endblock %}
 {% block page_subtitle %}{% if setup.report_id %}Used in report #{{ setup.report_id }}{% else %}Saved setup. Load it into any report from the report editor.{% endif %}{% endblock %}
 {% block item_noun %}setup{% endblock %}
 {% block grid_cols %}cols-4{% endblock %}
