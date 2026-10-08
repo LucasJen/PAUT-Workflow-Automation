@@ -8,9 +8,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from PIL import Image
 
-from reports.models import Report, ReportImage, Setup, SetupImage
+from reports.models import Report, ReportImage, Setup, SetupImage, TextSnippet
 from reports.report_types import get_report_type
-from reports.services.corrosion_report import HORIZONTAL, VERTICAL, corrosion_pages, method_name
+from reports.services.corrosion_report import HORIZONTAL, VERTICAL, corrosion_pages
 
 
 def picture(name, size=(400, 300)):
@@ -25,7 +25,7 @@ class CorrosionPagesTests(TestCase):
         self.override = override_settings(MEDIA_ROOT=self.media)
         self.override.enable()
         self.report = Report.objects.create(
-            report_type='paut_corrosion', item_description='Ammonia Vaporizer 11V58A', equipment_id='11V58A',
+            report_type='paut_corrosion', item_description='Phased Array Ultrasonic Examinations on Selected Areas On Ammonia Vaporizer 11V58A', equipment_id='11V58A',
             client='Flint Hills Resources', location='Rosemount, MN', work_order='WO5382118',
             test_date=date(2026, 3, 11), procedure='100-UT-031', procedure_rev='1',
             weld_technician='Lucas Jennings', weld_technician_cert='PAUT Level II',
@@ -60,7 +60,9 @@ class CorrosionPagesTests(TestCase):
         self.assertEqual((pages.page_count, s['AO6']), (1, '1'))
 
     def test_a_setup_page_per_setup_with_its_first_image(self):
-        first = Setup.objects.create(report=self.report, order=0, title='hydroform', surface_prep='Wire brushed',
+        hydroform = TextSnippet.objects.create(name='HydroFORM test', title='HydroFORM', body='HydroFORM utilizes a water column.')
+        first = Setup.objects.create(report=self.report, order=0, title='HydroFORM', method_description=hydroform,
+                                     surface_prep='Wire brushed',
                                      material_temp='72 °F', tr_min='0.250', tr_max='0.625', inspection_material='SA-516-70',
                                      inspection_temp='80 °F', scope_model='OmniScan X3', scope_serial='QC-1',
                                      cal_material='Carbon Steel', cal_block_type='10-Step', cal_block_serial='51351',
@@ -71,12 +73,11 @@ class CorrosionPagesTests(TestCase):
         pages = corrosion_pages(self.report)
         one, two = pages.setups
         self.assertEqual(one.cells, {
-            'AG2': 'HydroFORM', 'J7': 'Wire brushed', 'Z7': '72 °F', 'AJ7': '0.250', 'AN7': '0.625',
+            'AG2': 'HydroFORM', 'B5': 'HydroFORM – HydroFORM utilizes a water column.', 'J7': 'Wire brushed', 'Z7': '72 °F', 'AJ7': '0.250', 'AN7': '0.625',
             'J8': 'SA-516-70', 'Z8': '80 °F', 'AH8': 'OmniScan X3\nSN: QC-1', 'L9': 'Carbon Steel 10-Step\nSN: 51351',
             'AB9': 'Olympus D791\nSN: 1009752'})
-        self.assertTrue(one.method_known)
         self.assertTrue(one.picture.endswith('first.png'))
-        self.assertEqual((two.cells['AG2'], two.method_known, two.picture), ('Shear-wave special', False, ''))
+        self.assertEqual((two.cells['AG2'], two.cells['B5'], two.picture), ('Shear-wave special', '', ''))   # none picked
         self.assertEqual(pages.summary['AO6'], '3')
 
     def test_drawings_by_shape_and_images_two_to_a_page(self):
@@ -91,7 +92,7 @@ class CorrosionPagesTests(TestCase):
                          [[('Scan 0', 'Lowest 0.30"'), ('Scan 1', 'Lowest 0.31"')], [('Scan 2', 'Lowest 0.32"')]])
         self.assertEqual(pages.page_count, 1 + 2 + 2)
 
-    def test_method_names_match_the_forms_list(self):
-        self.assertEqual(method_name(' manual ut '), 'Manual UT')
-        self.assertEqual(method_name('fmc / tfm'), 'FMC / TFM')
-        self.assertEqual(method_name('Phased array'), '')
+    def test_the_forms_method_descriptions_are_in_the_text_library(self):
+        names = set(TextSnippet.objects.filter(kind='technique').values_list('name', flat=True))
+        self.assertLessEqual({'PAUT Angle Beam', 'UT Shear Wave', 'AUT', 'Manual UT', 'TOFD', 'PCI', 'FMC / TFM'}, names)
+        self.assertTrue({'HydroFORM', 'HydroFORM (Short Form)'} & names)

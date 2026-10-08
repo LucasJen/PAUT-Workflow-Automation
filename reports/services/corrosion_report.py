@@ -7,7 +7,8 @@ tested); fill_corrosion(wb, pages) writes them: the Summary page, a Setup Inform
 setup, a drawing page per drawing (landscape pictures on Horizontal Drawing, portrait ones on
 Vertical Drawing) and an Images page per two scan images. Pages with nothing on them aren't
 printed: the Thickness Table always goes (the summary is written by the technician), the
-Formulas sheet (the method descriptions the setup pages look up) is hidden.
+Formulas sheet is hidden (a setup page's method description comes from the Text library instead
+of its lookup).
 """
 import os
 from dataclasses import dataclass, field
@@ -16,10 +17,7 @@ from datetime import date
 from PIL import Image
 
 from ..models import ReportImage
-from ..report_types import CORROSION_METHODS
 from .setup_sheet import sheet_png
-
-TITLE = 'Phased Array Ultrasonic Examinations on Selected Areas On'
 
 SUMMARY = 'Summary'
 SETUP = 'Setup Information'
@@ -29,7 +27,7 @@ THICKNESS = 'Thickness Table'
 IMAGES = 'Images'
 FORMULAS = 'Formulas'
 TOTAL_PAGES = 'AO6'
-METHOD_DESCRIPTION = 'B5'          # =VLOOKUP(method, Formulas!B1:C9, 2, FALSE)
+METHOD_DESCRIPTION = 'B5'          # the template's =VLOOKUP(method, Formulas!B1:C9, ...) is written over
 SETUP_PICTURE = 'B10:AO44'
 SETUP_SHEET_IN = (7.6, 7.2)        # the setup sheet (setup_sheet.py) laid out for that box
 DRAWING_PICTURE = {HORIZONTAL: 'B5:AT38', VERTICAL: 'B5:AO50'}
@@ -42,8 +40,7 @@ XL_SHEET_HIDDEN = 0
 
 @dataclass
 class SetupPage:
-    cells: dict
-    method_known: bool        # the Formulas sheet describes it; else the description is left blank
+    cells: dict               # with the method description (B5), blank when none was picked
     picture: str = ''         # an uploaded screenshot, when the setup has no .nde
     sheet: bytes = None       # the setup sheet PNG made from the setup's .nde (written to a file for Excel)
 
@@ -81,10 +78,11 @@ def _serial(model, serial):
     return _lines(model, f'SN: {_v(serial)}' if _v(serial) else '')
 
 
-def method_name(title):
-    """The form's own spelling of a method ('hydroform' -> 'HydroFORM'), or '' when it isn't one of them."""
-    wanted = _v(title).casefold()
-    return next((m for m in CORROSION_METHODS if m.casefold() == wanted), '')
+def method_description(snippet):
+    """A Text library technique description as the setup page prints it: 'HydroFORM – HydroFORM utilizes…'."""
+    if snippet is None:
+        return ''
+    return ' – '.join(p for p in (_v(snippet.title), _v(snippet.body)) if p)
 
 
 def _path(file_field):
@@ -106,9 +104,8 @@ def drawing_sheet(path):
 
 
 def _summary(report):
-    title = f'{TITLE} {_v(report.item_description)}'.strip()
     return {
-        'B2': title,
+        'B2': _v(report.item_description),   # typed out in full by the technician
         'L5': report.client, 'L6': report.location, 'L7': report.work_order,
         'AA5': report.test_date,
         'AJ5': report.report_date or date.today(),     # the template's =TODAY() otherwise moves every day
@@ -123,10 +120,10 @@ def _summary(report):
 
 
 def _setup(setup):
-    method = method_name(setup.title)
     image = setup.images.order_by('order', 'pk').first()
     cells = {
-        'AG2': method or setup.title,
+        'AG2': setup.title,
+        METHOD_DESCRIPTION: method_description(setup.method_description),
         'J7': setup.surface_prep, 'Z7': setup.material_temp, 'AJ7': setup.tr_min, 'AN7': setup.tr_max,
         'J8': setup.inspection_material, 'Z8': setup.inspection_temp,
         'AH8': _serial(setup.scope_model, setup.scope_serial),
@@ -134,14 +131,15 @@ def _setup(setup):
         'AB9': _serial(setup.transducer_model, setup.transducer_serial),
     }
     sheet = sheet_png(setup, *SETUP_SHEET_IN)
-    return SetupPage(cells=cells, method_known=bool(method), sheet=sheet,
+    return SetupPage(cells=cells, sheet=sheet,
                      picture='' if sheet or not image else _path(image.image))
 
 
 def corrosion_pages(report):
     """Everything the corrosion form gets for this report, page by page."""
     pages = CorrosionPages(summary=_summary(report))
-    pages.setups = [_setup(s) for s in report.setups.order_by('order', 'pk').prefetch_related('images')]
+    pages.setups = [_setup(s) for s in report.setups.order_by('order', 'pk')
+                    .select_related('method_description').prefetch_related('images')]
     for drawing in report.images.filter(kind=ReportImage.DRAWING).order_by('order', 'pk'):
         path = _path(drawing.image)
         if path:
@@ -182,8 +180,8 @@ def fill_corrosion(wb, pages, write, add_picture):
     for i, setup in enumerate(pages.setups, start=1):
         ws = copy_after(sheets[SETUP], f'{SETUP} {i}')
         write(ws, setup.cells)
-        if not setup.method_known:
-            ws.Range(METHOD_DESCRIPTION).MergeArea.ClearContents()   # the lookup would show #N/A
+        if not setup.cells[METHOD_DESCRIPTION]:
+            ws.Range(METHOD_DESCRIPTION).MergeArea.ClearContents()   # not the template's lookup
         if setup.picture:
             add_picture(ws, setup.picture, SETUP_PICTURE)
 

@@ -480,6 +480,11 @@ class Setup(models.Model):
     # The corrosion form's Setup Information (598-PAUTFORM-009): the material and temperature inspected
     inspection_material = models.CharField(max_length=200, blank=True)
     inspection_temp = models.CharField('Inspection temperature', max_length=50, blank=True)
+    # ...and the method description printed under its heading, picked from the Text library
+    method_description = models.ForeignKey(
+        TextSnippet, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        limit_choices_to={'kind': TextSnippet.TECHNIQUE},
+        help_text='A Text library technique description; add one there for a method not listed.')
 
     # Source data file (filled by NDE import)
     source_file = models.CharField(max_length=255, blank=True)

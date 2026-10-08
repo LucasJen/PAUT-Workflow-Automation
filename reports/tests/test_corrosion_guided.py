@@ -11,7 +11,7 @@ from PIL import Image
 from equipment.models import ProbeModel
 from reports.models import Report, ReportImage, WorkingFolder
 from reports.services.corrosion_import import (
-    DRAWING, IMAGE, SETUP, build_corrosion_report, caption_for, equipment_from_folder, guess_role, method_of,
+    DRAWING, IMAGE, SETUP, build_corrosion_report, caption_for, equipment_from_folder, guess_role,
 )
 from reports.tests.test_job_folder_flow import nde_bytes
 
@@ -32,11 +32,6 @@ class GuessTests(TestCase):
         self.assertEqual(equipment_from_folder('11V58A Corrosion Scan'), '11V58A')
         self.assertEqual(equipment_from_folder('86TK116 Corrosion Scans'), '86TK116')
 
-    def test_method_from_the_files_hardware(self):
-        self.assertEqual(method_of({'wedge_model': 'HydroFORM'}), 'HydroFORM')
-        self.assertEqual(method_of({'scanner_model': 'HydroFORM', 'wave_propagation': 'Longitudinal'}), 'HydroFORM')
-        self.assertEqual(method_of({'wedge_model': 'SA32-N55S', 'wave_propagation': 'Shear'}), 'PAUT Angle Beam')
-        self.assertEqual(method_of({'wave_propagation': 'Longitudinal'}), '')
 
 
 class CorrosionGuidedTests(TestCase):
@@ -98,7 +93,8 @@ class CorrosionGuidedTests(TestCase):
                          ('paut_corrosion', '2026-10-PAUT-Corrosion-11V58B', '11V58B', str(folder)))
         self.assertIsNotNone(report.test_date)
         setup = report.setups.get()
-        self.assertEqual((setup.title, setup.images.count()), ('HydroFORM', 1))   # the MXU fixture is a HydroFORM scan
+        # No guessed method: the technician picks the description (and so the Method) in the editor
+        self.assertEqual((setup.title, setup.method_description, setup.images.count()), ('', None, 1))
         self.assertTrue(setup.scope_model)
         self.assertEqual(report.images.get(kind=ReportImage.DRAWING).caption, '')
         self.assertEqual(report.images.get(kind=ReportImage.SCAN).caption, 'Shell strip scan')
@@ -122,7 +118,7 @@ class CorrosionGuidedTests(TestCase):
 
     def test_catalogue_matches_link_the_setup(self):
         probe = ProbeModel.objects.create(model='TEST-PROBE-1')
-        files = [{'filename': 'a.nde', 'setups': [{'label': 'G1', 'method': 'HydroFORM', 'values': {
+        files = [{'filename': 'a.nde', 'setups': [{'label': 'G1', 'values': {
             'title': 'HydroFORM', 'transducer_model': '5L64-A2', 'catalogue_probe': probe.pk, 'catalogue_wedge': ''}}]}]
         report, _ = build_corrosion_report(files, [])
         setup = report.setups.get()

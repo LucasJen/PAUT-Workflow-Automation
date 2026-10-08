@@ -21,22 +21,12 @@ CORROSION_TYPE = 'paut_corrosion'
 DRAWING, SETUP, IMAGE, SKIP = 'drawing', 'setup', 'image', 'skip'
 ROLE_CHOICES = [(DRAWING, 'Drawing'), (SETUP, 'Setup image'), (IMAGE, 'Image'), (SKIP, 'Leave out')]
 SETUP_FIELDS = {f.name for f in Setup._meta.concrete_fields} - {'id', 'report', 'order'}
-
-
-def method_of(values):
-    """The corrosion form's method for an .nde group: HydroFORM by its wedge / scanner, else PAUT Angle Beam
-    for an angled beam; '' when it can't tell (e.g. a 0 degree contact scan)."""
-    hardware = f"{values.get('wedge_model', '')} {values.get('scanner_model', '')}".lower()
-    if 'hydroform' in hardware:
-        return 'HydroFORM'
-    if values.get('wave_propagation') == 'Shear':
-        return 'PAUT Angle Beam'
-    return ''
+FK_FIELDS = {f.name for f in Setup._meta.concrete_fields if f.is_relation} - {'report'}
 
 
 def read_corrosion_file(uploaded, system='imperial'):
-    """One .nde of the job: {'filename', 'scan_time', 'setups': [{'label', 'method', 'values'}], 'scope'} or
-    {'filename', 'error'}."""
+    """One .nde of the job: {'filename', 'scan_time', 'setups': [{'label', 'values'}], 'scope'} or
+    {'filename', 'error'}. The method isn't guessed: the technician picks its description in the editor."""
     try:
         setup, properties = read_nde(uploaded)
     except NdeError as e:
@@ -46,9 +36,7 @@ def read_corrosion_file(uploaded, system='imperial'):
         fill, _ = catalogue_match(group.get('hardware', {}))
         values, scope = with_library_scope({**group['values'][system], **fill})
         values = {k: v for k, v in values.items() if k in SETUP_FIELDS and v not in (None, '')}
-        method = method_of(values)
-        values['title'] = method or values.get('title', '')
-        setups.append({'label': group['label'], 'method': method, 'values': values})
+        setups.append({'label': group['label'], 'values': values})
     if not setups:
         return {'filename': uploaded.name, 'error': 'No inspection groups in this file.'}
     first = setups[0]['values']
@@ -57,7 +45,7 @@ def read_corrosion_file(uploaded, system='imperial'):
 
 
 def setup_key(values):
-    """Files scanned with the same technique, probe and instrument share one setup page."""
+    """Files scanned with the same probe, wedge and instrument share one setup page."""
     return tuple(values.get(k, '') for k in ('title', 'transducer_model', 'transducer_serial', 'scope_serial',
                                                'wedge_model'))
 
@@ -139,7 +127,7 @@ def build_corrosion_report(files, pictures, defaults=None, document_filename='',
     for i, values in enumerate(found or [{}]):
         setup = Setup(report=report, order=i)
         for name, value in {**{k: v for k, v in setup_defaults.items() if k in SETUP_FIELDS}, **values}.items():
-            if name in ('catalogue_probe', 'catalogue_wedge'):   # catalogue matches come as primary keys
+            if name in FK_FIELDS:   # catalogue matches and a defaults set's description come as primary keys
                 setattr(setup, f'{name}_id', int(value) if str(value).isdigit() else None)
             else:
                 setattr(setup, name, value)

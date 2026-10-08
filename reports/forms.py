@@ -216,7 +216,7 @@ def catalogue_choices(form, probe_name, wedge_name):
 
 class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     fieldsets_spec = [
-        ('Technique', ['title', 'procedure', 'units']),
+        ('Technique', ['title', 'method_description', 'procedure', 'units']),
         ('UT equipment', ['manufacturer', 'scope_platform', 'scope_model', 'scope_serial',
                           'transducer_model', 'transducer_serial', 'probe_diameter']),
         ('Wedge', ['wedge_model', 'wedge_angle']),
@@ -299,6 +299,12 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             catalogue_choices(self, 'catalogue_probe', 'catalogue_wedge')
         if 'units' in self.fields:
             unit_toggle(self, 'units', SETUP_UNIT_FIELDS)
+        if 'method_description' in self.fields:
+            # Listed by name; picking one fills an empty Method with it (create_report.js)
+            field = self.fields['method_description']
+            field.label_from_instance = lambda snippet: snippet.name
+            field.empty_label = '— Choose —'
+            field.widget.attrs['data-method-description'] = ''
         # The long form editor's fill marks (fill_marks.js; only shown where the report type has them)
         fill_marks.mark_fill(self, fill_marks.SETUP_AUTO_FIELDS, fill_marks.SETUP_USER_FIELDS)
 

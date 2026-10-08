@@ -85,7 +85,7 @@ class RealFileTests(SimpleTestCase):
         self.assertEqual(self.imp['specimen_thickness'], '1.000')
         self.assertEqual(self.met['specimen_thickness'], '25.40')
         self.assertEqual(self.met['specimen_dimensions'], '300.0 × 300.0 mm')
-        self.assertEqual(self.imp['cal_material'], 'Steel Mild')
+        self.assertEqual(self.imp['cal_material'], 'Carbon Steel')   # OmniScan's Steel_Mild
         self.assertNotIn('specimen_od', self.imp)  # plates have no OD
         self.assertEqual(self.imp['tr_min'], '0.250')
         self.assertEqual(self.imp['tr_max'], '0.400')

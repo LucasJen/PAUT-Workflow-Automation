@@ -380,10 +380,11 @@ class FillMarkTests(TestCase):
         self.assertIn('id="fill-count-user"', html)
         self.assertIn('fill_marks.js', html)
 
-    def test_both_report_types_turn_them_on(self):
+    def test_every_report_type_turns_them_on(self):
         from reports.report_types import get_report_type
         self.assertTrue(get_report_type('paut_weld').as_json()['fill_marks'])
         self.assertTrue(get_report_type('paut_long').as_json()['fill_marks'])
+        self.assertTrue(get_report_type('paut_corrosion').as_json()['fill_marks'])
 
     def test_long_form_setups_and_people(self):
         import re
