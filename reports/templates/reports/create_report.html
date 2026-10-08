@@ -38,6 +38,11 @@
     <input type="hidden" name="report_id" value="{{ form.instance.pk|default_if_none:'' }}">
     {% if form.instance.pk %}<input type="hidden" name="selected" value="{{ form.instance.pk }}">{% endif %}
 
+    {# What the Excel form leaves out of this report as last saved (excel_report.output_warnings) #}
+    {% for warning in output_warnings %}
+    <div class="alert alert-warning" role="alert"><i class="bi bi-exclamation-triangle"></i> {{ warning }}</div>
+    {% endfor %}
+
     <!-- Report type + file name -->
     <section class="panel editor-header">
         <div class="field-grid cols-3">

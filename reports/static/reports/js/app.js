@@ -190,6 +190,10 @@ document.addEventListener('click', async e => {
             showMessage(data.error || `The download failed (${response.status} ${response.statusText}).`);
             return;
         }
+        // What the form leaves out of the report (reports/views/reports.py, _with_warnings)
+        let warnings = [];
+        try { warnings = JSON.parse(response.headers.get('X-Report-Warnings') || '[]'); } catch { /* none */ }
+        warnings.forEach(text => showMessage(text, 'warning'));
         const url = URL.createObjectURL(await response.blob());
         const save = document.createElement('a');
         save.href = url;

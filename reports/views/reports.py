@@ -7,7 +7,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
 from ..services.excel_report import (
-    CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available,
+    CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available, output_warnings,
 )
 from ..services.report_render import render_report
 from ..services.word_pdf import WordPdfError, docx_to_pdf, word_available
@@ -290,6 +290,8 @@ def create_report(request):
             report_id=form.instance.pk, kind=ReportImage.INDICATION)} if form.instance.pk else {},
         'weld_results_rows': {'page1': len(REPORT_RESULT_ROWS), 'total': len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)},
         'has_equipment': bool(form.instance.pk) and has_equipment(form.instance),
+        # What the Excel form leaves out of this report (its pages hold so much)
+        'output_warnings': output_warnings(form.instance) if form.instance.pk else [],
         'drawing_formset': drawings,
         'image_formset': image_formset,
         'known_people': _known_people(),
@@ -555,7 +557,7 @@ def report_pdf(request, pk):
         _save_copy(request, report, name, pdf)
     response = FileResponse(io.BytesIO(pdf), as_attachment=download, filename=name, content_type='application/pdf')
     response['Cache-Control'] = 'no-store'
-    return response
+    return _with_warnings(response, report) if download else response
 
 
 def generate_report(request, pk):
@@ -590,7 +592,16 @@ def _excel_download(request, report):
     except ExcelReportError as e:
         return _download_error(request, report.pk, str(e))
     _save_copy(request, report, output_name, content)
-    return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=XLSX_CONTENT_TYPE)
+    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name,
+                                       content_type=XLSX_CONTENT_TYPE), report)
+
+
+def _with_warnings(response, report):
+    """The download with what the form leaves out (output_warnings) in X-Report-Warnings, for app.js to show."""
+    warnings = output_warnings(report)
+    if warnings:
+        response['X-Report-Warnings'] = json.dumps(warnings)   # ASCII (non-ASCII is escaped), as headers must be
+    return response
 
 
 @transaction.atomic

@@ -476,6 +476,38 @@ def _equipment_cells(report, setups):
     return cells
 
 
+def _last(count):
+    return 'the last one is left out' if count == 1 else f'the last {count} are left out'
+
+
+def output_warnings(report):
+    """
+    What the Excel form leaves out of this report, as its pages hold so much: the weld form's
+    results rows, probe and group columns, and a Short Form setup's extra setup images. A list of
+    messages for the editor and the downloads (empty for other report types).
+    """
+    warnings = []
+    if report.pk is None:
+        return warnings
+    if report.report_type == CORROSION_TYPE:
+        for number, setup in enumerate(report.setups.order_by('order', 'pk'), start=1):
+            count = setup.images.count()
+            if count > 1 and not setup.nde_sheet:
+                warnings.append(f'Setup {number} has {count} setup images; only the first prints on its '
+                                f'Setup Information page.')
+    elif get_report_type(report.report_type).output_format == 'xlsx':
+        _, rows = report_results(report)
+        filled = sum(1 for row in rows if any(_v(c) for c in row))
+        room = len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)
+        if filled > room:
+            warnings.append(f'The results have {filled} rows; the form holds {room}, so {_last(filled - room)}.')
+        for kind, count, room in (('probe', report.probes.count(), weld_form.MAX_PROBES),
+                                  ('group', report.groups.count(), weld_form.MAX_GROUPS)):
+            if count > room:
+                warnings.append(f'The report has {count} {kind} columns; the form holds {room}, so {_last(count - room)}.')
+    return warnings
+
+
 def weld_pages(report):
     """Every value of the weld report and where it goes."""
     setups = list(report.setups.order_by('order', 'pk'))
