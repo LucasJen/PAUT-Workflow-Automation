@@ -85,6 +85,18 @@ class DocumentLibraryTests(TestCase):
         self.assertFalse(Document.objects.exists())
         self.assertFalse(os.path.exists(new_path))
 
+    def test_description_column_edited_on_the_edit_page_and_searchable(self):
+        self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('100-UT-001.pdf')]})
+        doc = Document.objects.get()
+        self.assertEqual(doc.description, '')     # not read from the file
+        title = 'Ultrasonic Examination of Welds in Accordance with ASME Section V, Article 4 (Welds)'
+        self.client.post(reverse('edit-procedure', args=[doc.pk]),
+                         {'title': '100-UT-001', 'description': title, 'notes': ''})
+        page = self.client.get(reverse('procedure-list'))
+        self.assertContains(page, '>Description<')
+        self.assertContains(page, title)
+        self.assertEqual(list(Document.objects.search('ASME Article 4')), [doc])
+
     def test_replacement_must_be_pdf_word_or_excel(self):
         self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('a.pdf')]})
         doc = Document.objects.get()

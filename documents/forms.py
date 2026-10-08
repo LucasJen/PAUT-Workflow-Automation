@@ -20,7 +20,7 @@ class DocumentForm(StyledFormMixin, forms.ModelForm):
 
     class Meta:
         model = Document
-        fields = ['title', 'notes']
+        fields = ['title', 'description', 'notes']
 
     def save(self, commit=True):
         document = super().save(commit=False)
