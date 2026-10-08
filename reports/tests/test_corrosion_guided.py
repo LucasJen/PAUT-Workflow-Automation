@@ -110,6 +110,18 @@ class CorrosionGuidedTests(TestCase):
         report = Report.objects.get()
         self.assertEqual((report.setups.count(), report.images.count()), (1, 1))   # the .jpg guessed as the drawing
 
+    def test_a_folder_named_with_a_client_code_gets_that_client(self):
+        from reports.models import ClientCode
+        ClientCode.objects.update_or_create(code='FHR', defaults={'client': 'Flint Hills Resources', 'location': 'Rosemount, MN'})
+        self.job('FHR-86TK116 Corrosion Scans', {'a.png': png()})
+        self.start(folder_mode='existing', job_folder='FHR-86TK116 Corrosion Scans')
+        page = self.client.get(reverse('confirm-job'))
+        self.assertContains(page, 'name="equipment_id" value="86TK116"')
+        self.assertContains(page, 'Client Flint Hills Resources, Rosemount, MN (FHR).')
+        self.client.post(reverse('confirm-job'), {'role_0': 'image', 'equipment_id': '86TK116'})
+        report = Report.objects.get()
+        self.assertEqual((report.client, report.location), ('Flint Hills Resources', 'Rosemount, MN'))
+
     def test_leaving_pictures_out_and_files_only(self):
         self.job('TK86-100 Corrosion Scans', {'a.png': png(), 'b.png': png()})
         self.start(folder_mode='existing', job_folder='TK86-100 Corrosion Scans')

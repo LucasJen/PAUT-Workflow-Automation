@@ -12,7 +12,8 @@ from django.shortcuts import redirect, render
 
 from ..models import ReportDefaults
 from ..services.corrosion_import import (
-    ROLE_CHOICES, SKIP, build_corrosion_report, caption_for, distinct_setups, equipment_from_folder, guess_role,
+    ROLE_CHOICES, SKIP, build_corrosion_report, caption_for, client_for_folder, distinct_setups, equipment_from_folder,
+    guess_role,
 )
 
 SESSION_KEY = 'job_import'
@@ -42,6 +43,7 @@ def confirm_corrosion(request, job):
     folder_name = os.path.basename(folder) if folder else ''
     defaults = ReportDefaults.objects.filter(pk=job['defaults']).first() if str(job['defaults']).isdigit() else None
     readable = [f for f in files if not f.get('error')]
+    client = client_for_folder(folder_name)   # as the weld flow: the folder name's Client code
     roles = {key for key, _ in ROLE_CHOICES}
 
     if request.method == 'POST':
@@ -54,7 +56,7 @@ def confirm_corrosion(request, job):
                 chosen.append((path, role, request.POST.get(f'caption_{i}', '').strip()))
         report, notes = build_corrosion_report(
             kept, chosen, defaults, request.POST.get('document_filename', '').strip(),
-            request.POST.get('equipment_id', '').strip(), job_folder=folder)
+            request.POST.get('equipment_id', '').strip(), job_folder=folder, client=client)
         request.session.pop(SESSION_KEY, None)
         made = [f'{len(kept)} file{"s" if len(kept) != 1 else ""}'] if kept else []
         if chosen:
@@ -71,5 +73,6 @@ def confirm_corrosion(request, job):
     setups = distinct_setups(readable)
     return render(request, 'reports/confirm_corrosion.html', {
         'files': files, 'defaults': defaults, 'folder': folder, 'pictures': picture_rows, 'role_choices': ROLE_CHOICES,
-        'setups': setups, 'document_filename': folder_name, 'equipment_id': equipment_from_folder(folder_name),
+        'setups': setups, 'document_filename': folder_name, 'equipment_id': equipment_from_folder(folder_name, client),
+        'client': client,
     })

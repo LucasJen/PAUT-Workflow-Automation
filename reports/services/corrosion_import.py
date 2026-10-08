@@ -12,7 +12,7 @@ from django.db import transaction
 
 from equipment.inventory import with_library_scope
 
-from ..models import Report, ReportImage, Setup, SetupImage
+from ..models import ClientCode, Report, ReportImage, Setup, SetupImage
 from .job_folder import PICTURE_EXTENSIONS
 from .job_import import catalogue_match, scope_label
 from .nde_parser import NdeError, extract_groups, read_nde
@@ -89,9 +89,20 @@ def caption_for(name):
     return stem[:1].upper() + stem[1:]
 
 
-def equipment_from_folder(name):
-    """'11V58A Corrosion Scan' -> '11V58A'; '86TK116 Corrosion Scans' -> '86TK116'."""
-    return (name or '').strip().split(' ')[0] if name else ''
+def client_for_folder(name):
+    """The Client code a folder name starts with ('FHR-11V58A Corrosion Scan', 'FHR 11V58A ...'), when it's
+    one in Preferences › Client codes; else None (corrosion folders are usually named by equipment only)."""
+    first = re.split(r'[\s_-]+', (name or '').strip(), maxsplit=1)[0]
+    return ClientCode.objects.filter(code__iexact=first).first() if first else None
+
+
+def equipment_from_folder(name, client=None):
+    """'11V58A Corrosion Scan' -> '11V58A'; '86TK116 Corrosion Scans' -> '86TK116'; with its client code
+    first ('FHR-11V58A Corrosion Scan') the code is left out."""
+    word = (name or '').strip().split(' ')[0] if name else ''
+    if client is not None and word.upper().startswith(f'{client.code.upper()}-'):
+        word = word[len(client.code) + 1:]
+    return word
 
 
 def _attach(file_field, path):
