@@ -74,17 +74,17 @@ WELD_ONLY_FIELDS = frozenset({
 })
 
 # Fields only the corrosion form (598-PAUTFORM-009) uses
-CORROSION_ONLY_FIELDS = frozenset({'inspection_material', 'inspection_temp', 'description'})
+CORROSION_ONLY_FIELDS = frozenset({'inspection_material', 'inspection_temp', 'description', 'method_description'})
 
 # A setup on the corrosion form's Setup Information page: everything else is hidden there
 CORROSION_SETUP_FIELDS = frozenset({
-    'title', 'surface_prep', 'material_temp', 'tr_min', 'tr_max', 'inspection_material', 'inspection_temp',
-    'scope_model', 'scope_serial', 'cal_material', 'cal_block_type', 'cal_block_serial', 'transducer_model',
-    'transducer_serial',
+    'title', 'method_description', 'surface_prep', 'material_temp', 'tr_min', 'tr_max', 'inspection_material',
+    'inspection_temp', 'scope_model', 'scope_serial', 'cal_material', 'cal_block_type', 'cal_block_serial',
+    'transducer_model', 'transducer_serial',
 })
 SETUP_FORM_FIELDS = frozenset({
-    'title', 'procedure', 'units', 'manufacturer', 'scope_platform', 'scope_model', 'scope_serial',
-    'transducer_model', 'transducer_serial', 'probe_diameter', 'wedge_model', 'wedge_angle', 'foc_depth',
+    'title', 'method_description', 'procedure', 'units', 'manufacturer', 'scope_platform', 'scope_model',
+    'scope_serial', 'transducer_model', 'transducer_serial', 'probe_diameter', 'wedge_model', 'wedge_angle', 'foc_depth',
     'wave_propagation', 'freq', 'elements', 'x_res', 'y_res', 'scan_length', 'scan_width', 'angle_step',
     'angle_range', 'sound_velocity', 'gain', 'beam_gain', 'ref_gain', 'voltage', 'beam_formation', 'active_elements',
     'element_aperture', 'element_step', 'pcs', 'scan_pattern', 'encoder_resolution', 'digitizing_frequency',
@@ -100,8 +100,8 @@ SETUP_FORM_FIELDS = frozenset({
     'weld_root_face', 'weld_root_gap', 'weld_cap_width',
 })
 
-# The methods the corrosion form's Formulas sheet describes (its Setup Information page looks
-# the description up by this name)
+# The methods the corrosion form's Formulas sheet names: suggestions for a setup's Method (its
+# description is picked from the Text library, Setup.method_description)
 CORROSION_METHODS = ('PAUT Angle Beam', 'HydroFORM', 'UT Shear Wave', 'AUT', 'Manual UT', 'TOFD', 'PCI', 'FMC / TFM')
 
 MASTER_TEMPLATE = 'paut_master.docx'
@@ -227,6 +227,7 @@ _TYPES = [
             ('executive_summary', 'Summary of results'),
             ('notes', 'Notes'),
             ('title', 'Method'),
+            ('method_description', 'Method description'),
             ('material_temp', 'Calibration temperature'),
             ('cal_material', 'Cal. block material'),
             ('tr_min', 'Thickness range from'),

@@ -60,18 +60,17 @@
         {% if files %}
         <div class="weld-grid-wrap">
             <table class="weld-grid job-files">
-                <thead><tr><th scope="col">Use</th><th scope="col">File</th><th scope="col">Scanned</th><th scope="col">Method</th><th scope="col">Probe</th><th scope="col">Instrument</th></tr></thead>
+                <thead><tr><th scope="col">Use</th><th scope="col">File</th><th scope="col">Scanned</th><th scope="col">Probe</th><th scope="col">Instrument</th></tr></thead>
                 <tbody>
                 {% for file in files %}
                 <tr>
                     {% if file.error %}
-                    <td></td><td class="mono">{{ file.filename }}</td><td colspan="4" class="text-danger">Not read: {{ file.error }}</td>
+                    <td></td><td class="mono">{{ file.filename }}</td><td colspan="3" class="text-danger">Not read: {{ file.error }}</td>
                     {% else %}
                     {% with first=file.setups.0 %}
                     <td><input type="checkbox" class="form-check-input" name="include_{{ forloop.counter0 }}" value="1" checked aria-label="Use {{ file.filename }}"></td>
                     <td class="mono">{{ file.filename }}</td>
                     <td>{{ file.scan_time }}</td>
-                    <td>{{ first.method|default:"—" }}</td>
                     <td>{{ first.values.transducer_model }}</td>
                     <td>{{ first.values.scope_model }}</td>
                     {% endwith %}
@@ -81,7 +80,7 @@
                 </tbody>
             </table>
         </div>
-        <p class="form-text mb-0 mt-2">{{ setups|length }} setup page{{ setups|length|pluralize }}: files scanned with the same method, probe and instrument share one.</p>
+        <p class="form-text mb-0 mt-2">{{ setups|length }} setup page{{ setups|length|pluralize }}: files scanned with the same probe, wedge and instrument share one.</p>
         {% else %}
         <p class="text-body-secondary mb-0">No .nde files (e.g. a manual UT job): the report gets one setup page to fill in.</p>
         {% endif %}

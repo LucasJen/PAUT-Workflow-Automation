@@ -245,6 +245,15 @@ reportForm.addEventListener('change', e => {
     if (known && cert && !cert.value.trim()) cert.value = known.dataset.certification || '';
 });
 
+// The Short Form's method description (a Text library entry): an empty Method takes its name,
+// without a "(Short Form)" kept apart from the Long Form's entry of the same name
+reportForm.addEventListener('change', e => {
+    if (!e.target.matches('select[data-method-description]') || !e.target.value) return;
+    const method = e.target.closest('.setup-block')?.querySelector('[name$="-title"]');
+    const name = e.target.selectedOptions[0].text.replace(/\s*\((Short|Long) Form\)$/i, '');
+    if (method && !method.value.trim()) method.value = name;
+});
+
 document.getElementById('add-drawing').addEventListener('click', () => {
     drawings.add();
     markDirty();

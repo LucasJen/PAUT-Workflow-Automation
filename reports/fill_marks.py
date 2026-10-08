@@ -43,6 +43,8 @@ SETUP_AUTO_FIELDS = {
 SETUP_USER_FIELDS = {
     'title', 'transducer_serial', 'cal_block_type', 'cal_block_serial', 'surface_prep', 'material_temp',
     'couplant', 'exam_surface',
+    # The Short Form's setup page
+    'method_description',
 }
 
 # The long form's people
