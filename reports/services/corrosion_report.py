@@ -19,8 +19,6 @@ from ..models import ReportImage
 from ..report_types import CORROSION_METHODS
 from .setup_sheet import sheet_png
 
-TITLE = 'Phased Array Ultrasonic Examinations on Selected Areas On'
-
 SUMMARY = 'Summary'
 SETUP = 'Setup Information'
 HORIZONTAL = 'Horizontal Drawing'
@@ -106,9 +104,8 @@ def drawing_sheet(path):
 
 
 def _summary(report):
-    title = f'{TITLE} {_v(report.item_description)}'.strip()
     return {
-        'B2': title,
+        'B2': _v(report.item_description),   # typed out in full by the technician
         'L5': report.client, 'L6': report.location, 'L7': report.work_order,
         'AA5': report.test_date,
         'AJ5': report.report_date or date.today(),     # the template's =TODAY() otherwise moves every day

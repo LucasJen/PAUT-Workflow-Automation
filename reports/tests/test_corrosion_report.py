@@ -25,7 +25,7 @@ class CorrosionPagesTests(TestCase):
         self.override = override_settings(MEDIA_ROOT=self.media)
         self.override.enable()
         self.report = Report.objects.create(
-            report_type='paut_corrosion', item_description='Ammonia Vaporizer 11V58A', equipment_id='11V58A',
+            report_type='paut_corrosion', item_description='Phased Array Ultrasonic Examinations on Selected Areas On Ammonia Vaporizer 11V58A', equipment_id='11V58A',
             client='Flint Hills Resources', location='Rosemount, MN', work_order='WO5382118',
             test_date=date(2026, 3, 11), procedure='100-UT-031', procedure_rev='1',
             weld_technician='Lucas Jennings', weld_technician_cert='PAUT Level II',

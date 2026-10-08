@@ -222,7 +222,7 @@ _TYPES = [
             'exam_code', 'acceptance_standard', 'scan_id', 'scan_comments',
         }) | {f'setup.{name}' for name in SETUP_FORM_FIELDS - CORROSION_SETUP_FIELDS},
         labels=(
-            ('item_description', 'Title: Examinations on Selected Areas On…'),
+            ('item_description', 'Title'),
             ('equipment_id', 'Unit / equipment'),
             ('executive_summary', 'Summary of results'),
             ('notes', 'Notes'),
