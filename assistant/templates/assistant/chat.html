@@ -42,8 +42,8 @@
             {% endif %}
         </div>
 
-        {% if not settings.has_key %}
-        <div class="alert alert-warning">Add an API key in <a href="{% url 'assistant-settings' %}">Preferences › Assistant</a> to start.</div>
+        {% if not ready %}
+        <div class="alert alert-warning">Add your {{ provider.label }} API key in <a href="{% url 'assistant-settings' %}">Preferences › Assistant</a> to start.</div>
         {% endif %}
 
         <div class="chat-messages" id="chat-messages" aria-live="polite">
@@ -74,8 +74,8 @@
             {% csrf_token %}
             <input type="hidden" name="conversation" value="{{ conversation.pk|default:'' }}">
             <textarea name="question" class="form-control" rows="2" placeholder="Ask a question… (Enter sends, Shift+Enter for a new line)"
-                      {% if not settings.has_key %}disabled{% endif %} required></textarea>
-            <button type="submit" class="btn btn-primary" {% if not settings.has_key %}disabled{% endif %}>
+                      {% if not ready %}disabled{% endif %} required></textarea>
+            <button type="submit" class="btn btn-primary" {% if not ready %}disabled{% endif %}>
                 <i class="bi bi-send"></i> Ask</button>
         </form>
     </section>

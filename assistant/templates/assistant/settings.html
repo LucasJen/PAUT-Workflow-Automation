@@ -17,12 +17,15 @@
         <div class="field-grid cols-2">
             {{ form.provider.as_field_group }}
             {{ form.model.as_field_group }}
-            {{ form.api_key.as_field_group }}
+            {% if form.api_key %}{{ form.api_key.as_field_group }}{% endif %}
             {% if form.remove_key %}{{ form.remove_key.as_field_group }}{% endif %}
+            {% if form.ollama_url %}{{ form.ollama_url.as_field_group }}{% endif %}
+            {% if form.input_price %}{{ form.input_price.as_field_group }}{{ form.output_price.as_field_group }}{% endif %}
         </div>
         <p class="form-text mb-0">
-            {% if settings.has_key %}<i class="bi bi-shield-lock text-success"></i> A key is saved (encrypted for this Windows user).
-            {% else %}<i class="bi bi-exclamation-circle"></i> No key yet: the assistant can't answer until one is saved.{% endif %}
+            {% if not provider.needs_key %}<i class="bi bi-pc-display"></i> Runs on this PC: no key needed. Use “Test &amp; refresh models” to check Ollama is running.
+            {% elif settings.has_key %}<i class="bi bi-shield-lock text-success"></i> A {{ provider.label }} key is saved (encrypted for this Windows user).
+            {% else %}<i class="bi bi-exclamation-circle"></i> No {{ provider.label }} key yet: the assistant can't answer until one is saved.{% endif %}
         </p>
 
         <h2 class="panel-subtitle">Spending</h2>
@@ -36,18 +39,19 @@
 
         <h2 class="panel-subtitle">What is sent</h2>
         <p class="form-text mb-0">
-            Each question, and the parts of your reports, setups and documents the assistant looks up to answer it
-            (client names, locations and findings included), are sent to the provider over an encrypted connection.
-            Anthropic doesn't train its models on API data. Nothing else leaves this PC.
+            {% if provider.needs_key %}Each question, and the parts of your reports, setups and documents the assistant
+            looks up to answer it (client names, locations and findings included), are sent to {{ provider.label }}
+            over an encrypted connection. Nothing else leaves this PC.{% endif %}
+            {{ provider.privacy_note }}
         </p>
     </section>
 
     <div class="sticky-actions">
         <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
-        {% if settings.has_key %}
+        {% if ready %}
         <button type="submit" name="check_key" class="btn btn-secondary"
                 title="Check the key with the provider and refresh the list of models">
-            <i class="bi bi-plug"></i> Test key &amp; refresh models</button>
+            <i class="bi bi-plug"></i> Test &amp; refresh models</button>
         {% endif %}
     </div>
 </form>
@@ -67,4 +71,20 @@
     <p class="form-text mb-0">It updates itself before each question (only what changed is read again), so
         rebuilding is only needed if something looks out of date.</p>
 </section>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+    // Another provider: save the choice and reload with its key, models and note (assistant/views.py)
+    document.getElementById('id_provider')?.addEventListener('change', e => {
+        const form = e.target.form;
+        const flag = document.createElement('input');
+        flag.type = 'hidden';
+        flag.name = 'switch_provider';
+        flag.value = '1';
+        form.appendChild(flag);
+        form.submit();
+    });
+</script>
 {% endblock %}

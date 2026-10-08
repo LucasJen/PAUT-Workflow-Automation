@@ -65,6 +65,9 @@ class Provider:
     key = ''
     label = ''
     default_model = ''
+    needs_key = True          # False for a local server (Ollama)
+    key_help = ''             # where to get a key, for the settings page
+    privacy_note = ''         # what happens to what is sent, for the settings page
 
     def models(self, api_key=None):
         """[ModelInfo] the person can pick from (the live list when the key allows, else the known ones)."""
@@ -88,8 +91,8 @@ class Provider:
     def assistant_text(self, text):
         raise NotImplementedError
 
-    def tool_results_message(self, results):
-        """The message answering tool calls: results [(tool call id, text, is_error)]."""
+    def tool_results_messages(self, results):
+        """The message(s) answering tool calls: results [(tool call id, text, is_error)]."""
         raise NotImplementedError
 
     def cost(self, model, usage):
@@ -97,14 +100,18 @@ class Provider:
         info = next((m for m in self.known_models() if m.id == model), None)
         if info is None or info.input_price is None:
             return None
-        per = Decimal(1_000_000)
-        return (Decimal(usage.input_tokens) * info.input_price
-                + Decimal(usage.cache_write_tokens) * info.input_price * Decimal('1.25')
-                + Decimal(usage.cache_read_tokens) * info.input_price * Decimal('0.1')
-                + Decimal(usage.output_tokens) * info.output_price) / per
+        return price(usage, info.input_price, info.output_price)
 
     def known_models(self):
         return []
+
+
+def price(usage, input_price, output_price):
+    """USD for `usage` at these prices per million tokens (cache writes 1.25x, cache reads 0.1x input)."""
+    return (Decimal(usage.input_tokens) * input_price
+            + Decimal(usage.cache_write_tokens) * input_price * Decimal('1.25')
+            + Decimal(usage.cache_read_tokens) * input_price * Decimal('0.1')
+            + Decimal(usage.output_tokens) * output_price) / Decimal(1_000_000)
 
 
 def plain_history(turns, provider):

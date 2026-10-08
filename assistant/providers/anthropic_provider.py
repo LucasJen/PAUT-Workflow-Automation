@@ -72,6 +72,8 @@ class AnthropicProvider(Provider):
     key = 'anthropic'
     label = 'Anthropic (Claude)'
     default_model = 'claude-haiku-4-5'
+    key_help = 'Create one at console.anthropic.com › API keys.'
+    privacy_note = 'Anthropic doesn\'t train its models on API data.'
 
     def known_models(self):
         return KNOWN_MODELS
@@ -102,10 +104,10 @@ class AnthropicProvider(Provider):
     def assistant_text(self, text):
         return {'role': 'assistant', 'content': [{'type': 'text', 'text': text}]}
 
-    def tool_results_message(self, results):
-        return {'role': 'user', 'content': [
+    def tool_results_messages(self, results):
+        return [{'role': 'user', 'content': [
             {'type': 'tool_result', 'tool_use_id': call_id, 'content': text, **({'is_error': True} if error else {})}
-            for call_id, text, error in results]}
+            for call_id, text, error in results]}]
 
     def respond(self, api_key, model, system, messages, tools):
         client = self._client(api_key)

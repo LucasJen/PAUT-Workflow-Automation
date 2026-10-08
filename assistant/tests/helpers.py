@@ -26,8 +26,8 @@ class ScriptedProvider(Provider):
     def assistant_text(self, text):
         return {'role': 'assistant', 'text': text}
 
-    def tool_results_message(self, results):
-        return {'role': 'tool', 'results': [list(r) for r in results]}
+    def tool_results_messages(self, results):
+        return [{'role': 'tool', 'results': [list(r) for r in results]}]
 
     def respond(self, api_key, model, system, messages, tools):
         self.requests.append(list(messages))

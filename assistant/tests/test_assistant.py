@@ -52,7 +52,7 @@ class SecretsTests(TestCase):
         settings = AssistantSettings.load()
         settings.api_key = 'sk-ant-test-123'
         settings.save()
-        stored = AssistantSettings.objects.get().api_key_encrypted
+        stored = AssistantSettings.objects.get().api_keys['anthropic']
         self.assertNotIn('sk-ant-test-123', stored)
         self.assertTrue(stored.startswith(('dpapi:', 'plain:')))
         self.assertEqual(AssistantSettings.load().api_key, 'sk-ant-test-123')
@@ -124,7 +124,8 @@ class ToolTests(MediaTestCase):
 class ChatTests(TestCase):
     def setUp(self):
         settings = AssistantSettings.load()
-        settings.api_key, settings.model, settings.provider = 'key', 'scripted-1', 'scripted'
+        settings.provider, settings.model = 'scripted', 'scripted-1'
+        settings.api_key = 'key'      # saved for the provider in use
         settings.save()
         self.report = Report.objects.create(equipment_id='11V58B', executive_summary='No corrosion found.')
 
@@ -248,10 +249,10 @@ class AnthropicProviderTests(TestCase):
 
     def test_tool_results_and_cost(self):
         provider = AnthropicProvider()
-        self.assertEqual(provider.tool_results_message([('tu_1', 'found', False), ('tu_2', 'bad', True)]),
-                         {'role': 'user', 'content': [
+        self.assertEqual(provider.tool_results_messages([('tu_1', 'found', False), ('tu_2', 'bad', True)]),
+                         [{'role': 'user', 'content': [
                              {'type': 'tool_result', 'tool_use_id': 'tu_1', 'content': 'found'},
-                             {'type': 'tool_result', 'tool_use_id': 'tu_2', 'content': 'bad', 'is_error': True}]})
+                             {'type': 'tool_result', 'tool_use_id': 'tu_2', 'content': 'bad', 'is_error': True}]}])
         usage = Usage(input_tokens=1_000_000, output_tokens=1_000_000, cache_read_tokens=1_000_000)
         self.assertEqual(provider.cost('claude-haiku-4-5', usage), Decimal('6.1'))
         self.assertIsNone(provider.cost('claude-some-future-model', usage))
@@ -263,7 +264,7 @@ class PageTests(MediaTestCase):
             response = self.client.post(reverse('assistant-settings'), {
                 'provider': 'anthropic', 'model': 'claude-haiku-4-5', 'api_key': 'sk-ant-xyz', 'monthly_cap': '20'},
                 follow=True)
-        self.assertContains(response, 'The key works: 3 models available.')
+        self.assertContains(response, 'Anthropic (Claude) works: 3 models available.')
         settings = AssistantSettings.load()
         self.assertEqual((settings.api_key, settings.monthly_cap), ('sk-ant-xyz', Decimal('20')))
         self.assertNotContains(response, 'sk-ant-xyz')
@@ -278,7 +279,7 @@ class PageTests(MediaTestCase):
         response = self.client.post(reverse('assistant-settings'), {'rebuild_index': '1'}, follow=True)
         self.assertContains(response, '1 reports, 2 setups and 1 documents')
         page = self.client.get(reverse('assistant'))
-        self.assertContains(page, 'Add an API key')
+        self.assertContains(page, 'Add your Anthropic (Claude) API key')
         self.assertContains(self.client.get(reverse('home')), reverse('assistant'))
 
     def test_ask_streams_events_and_opens_the_new_conversation(self):

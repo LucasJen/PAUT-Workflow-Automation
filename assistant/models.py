@@ -10,15 +10,23 @@ from . import secrets
 
 
 class AssistantSettings(models.Model):
-    """Preferences › Assistant (one row): provider, its API key (encrypted), model and monthly spend cap."""
+    """
+    Preferences › Assistant (one row): the provider and model in use, each provider's API key
+    (encrypted) and model list, Ollama's address, prices for models without a known price, and the
+    monthly spend cap.
+    """
     provider = models.CharField(max_length=30, default='anthropic')
     model = models.CharField(max_length=100, default='claude-haiku-4-5')
-    api_key_encrypted = models.TextField(blank=True)
+    api_keys = models.JSONField(default=dict, blank=True)        # {provider: encrypted key}
+    model_lists = models.JSONField(default=dict, blank=True)     # {provider: [{'id', 'label'}]}, fetched with its key
+    ollama_url = models.CharField('Ollama address', max_length=200, default='http://localhost:11434')
+    input_price = models.DecimalField('Input price (USD per million tokens)', max_digits=8, decimal_places=3,
+                                      null=True, blank=True)
+    output_price = models.DecimalField('Output price (USD per million tokens)', max_digits=8, decimal_places=3,
+                                       null=True, blank=True)
     monthly_cap = models.DecimalField('Monthly spending cap (USD)', max_digits=8, decimal_places=2, null=True,
                                       blank=True, help_text='The chat stops for the month when its estimated '
                                                             'spend reaches this. Blank = no cap.')
-    # The provider's model list, fetched with the key: [{'id', 'label'}]
-    model_list = models.JSONField(default=list, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -29,17 +37,42 @@ class AssistantSettings(models.Model):
         settings, _ = cls.objects.get_or_create(pk=1)
         return settings
 
+    def key_for(self, provider):
+        stored = self.api_keys.get(provider)
+        return secrets.decrypt(stored) if stored else ''
+
+    def set_key(self, provider, value):
+        keys = dict(self.api_keys)
+        if value:
+            keys[provider] = secrets.encrypt(value)
+        else:
+            keys.pop(provider, None)
+            self.model_lists = {k: v for k, v in self.model_lists.items() if k != provider}
+        self.api_keys = keys
+
     @property
     def api_key(self):
-        return secrets.decrypt(self.api_key_encrypted) if self.api_key_encrypted else ''
+        """The key of the provider in use ('' when it has none)."""
+        return self.key_for(self.provider)
 
     @api_key.setter
     def api_key(self, value):
-        self.api_key_encrypted = secrets.encrypt(value) if value else ''
+        self.set_key(self.provider, value)
+
+    def has_key_for(self, provider):
+        return bool(self.api_keys.get(provider))
 
     @property
     def has_key(self):
-        return bool(self.api_key_encrypted)
+        return self.has_key_for(self.provider)
+
+    @property
+    def model_list(self):
+        return self.model_lists.get(self.provider, [])
+
+    @model_list.setter
+    def model_list(self, value):
+        self.model_lists = {**self.model_lists, self.provider: value}
 
 
 class Conversation(models.Model):

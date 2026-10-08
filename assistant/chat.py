@@ -18,7 +18,7 @@ from markdown_it import MarkdownIt
 from . import index
 from .models import AssistantSettings, Turn
 from .providers import ProviderError, Reply, TextDelta, Usage, get_provider
-from .providers.base import plain_history
+from .providers.base import plain_history, price
 from .tools import TOOLS, Lookup
 
 MAX_ROUNDS = 10          # model responses per question (each may call tools)
@@ -72,7 +72,7 @@ def _history(conversation, provider):
 def ask(conversation, question, settings=None):
     """Answers `question` in `conversation`, yielding page events; the turn is saved however it ends."""
     settings = settings or AssistantSettings.load()
-    provider = get_provider(settings.provider)
+    provider = get_provider(settings.provider, settings)
     model = settings.model or provider.default_model
     turn = Turn(conversation=conversation, question=question, provider=provider.key, model=model)
 
@@ -85,8 +85,8 @@ def ask(conversation, question, settings=None):
     except Exception as e:  # secrets.SecretError
         yield {'type': 'error', 'text': str(e)}
         return
-    if not api_key:
-        yield {'type': 'error', 'text': 'Add an API key in Preferences › Assistant first.'}
+    if provider.needs_key and not api_key:
+        yield {'type': 'error', 'text': f'Add your {provider.label} API key in Preferences › Assistant first.'}
         return
 
     yield {'type': 'status', 'text': 'Checking for new or changed records…'}
@@ -116,7 +116,7 @@ def ask(conversation, question, settings=None):
                     reply = event
             transcript.append(reply.message)
             usage.add(reply.usage)
-            part = provider.cost(reply.model or model, reply.usage)
+            part = _cost(provider, settings, reply.model or model, reply.usage)
             if part is None:
                 cost_known = False
             else:
@@ -137,7 +137,7 @@ def ask(conversation, question, settings=None):
                 results.append((call.id, text, is_error))
                 if lookup.steps:
                     yield {'type': 'step', 'text': lookup.steps[-1]}
-            transcript.append(provider.tool_results_message(results))
+            transcript.extend(provider.tool_results_messages(results))
             answer.append('\n\n')   # text written before a look-up stays, separated from what follows
         else:
             answer.append('\n\n*(Stopped after too many look-ups; ask a narrower question.)*')
@@ -157,6 +157,14 @@ def ask(conversation, question, settings=None):
            'cost': _money(turn.cost), 'conversation_cost': _money(conversation.cost),
            'tokens': usage.input_tokens + usage.cache_read_tokens + usage.cache_write_tokens + usage.output_tokens,
            'model': model, 'conversation': conversation.pk, 'title': conversation.title}
+
+
+def _cost(provider, settings, model, usage):
+    """The provider's price for the model, else the prices entered in Preferences, else None (unknown)."""
+    cost = provider.cost(model, usage)
+    if cost is None and settings.input_price is not None and settings.output_price is not None:
+        cost = price(usage, settings.input_price, settings.output_price)
+    return cost
 
 
 def _save(turn, usage, cost, lookup):
