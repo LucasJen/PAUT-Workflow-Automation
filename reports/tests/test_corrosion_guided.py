@@ -35,6 +35,18 @@ class GuessTests(TestCase):
 
 
 
+class ScanDateTests(TestCase):
+    def test_scan_dates_in_other_forms_are_left_out(self):
+        from reports.services.corrosion_import import scan_date
+        self.assertEqual(scan_date('2026-03-11 10:09'), date(2026, 3, 11))
+        self.assertIsNone(scan_date('3/11/2026 10:09 AM'))
+        self.assertIsNone(scan_date(''))
+        files = [{'filename': 'a.nde', 'scan_time': '3/11/2026', 'setups': [{'label': 'G1', 'values': {}}]},
+                 {'filename': 'b.nde', 'scan_time': '2026-03-12 08:00', 'setups': [{'label': 'G1', 'values': {}}]}]
+        report, _ = build_corrosion_report(files, [])
+        self.assertEqual(report.test_date, date(2026, 3, 12))
+
+
 class CorrosionGuidedTests(TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

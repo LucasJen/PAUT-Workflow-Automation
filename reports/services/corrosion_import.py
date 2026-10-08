@@ -105,6 +105,15 @@ def equipment_from_folder(name, client=None):
     return word
 
 
+def scan_date(scan_time):
+    """The date of an .nde's scan time ('2026-03-11 10:09' -> date(2026, 3, 11)); None when the file's
+    date isn't in that form (nde_parser keeps such text as it is)."""
+    try:
+        return date.fromisoformat(str(scan_time or '')[:10])
+    except ValueError:
+        return None
+
+
 def _attach(file_field, path):
     with open(path, 'rb') as f:
         file_field.save(os.path.basename(path), File(f), save=False)
@@ -128,7 +137,7 @@ def build_corrosion_report(files, pictures, defaults=None, document_filename='',
     if client is not None:
         report.client = client.client
         report.location = client.location or report.location
-    dates = sorted(d['scan_time'][:10] for d in files if not d.get('error') and d.get('scan_time'))
+    dates = sorted(filter(None, (scan_date(d.get('scan_time')) for d in files if not d.get('error'))))
     if dates:
         report.test_date = dates[0]
     report.save()
