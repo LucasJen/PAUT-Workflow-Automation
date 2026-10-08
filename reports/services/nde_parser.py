@@ -45,6 +45,11 @@ CALIBRATION_NAMES = {
     'tofdWedgeDelayCalibration': 'TOFD wedge delay',
 }
 
+# Material names as the reports call them (OmniScan's library name, lower case, underscores as spaces)
+MATERIAL_NAMES = {
+    'steel mild': 'Carbon Steel',
+}
+
 
 class NdeError(Exception):
     """The file can't be read as an .nde file with setup metadata."""
@@ -127,6 +132,12 @@ def _length_unit(system):
 
 def _deg(x):
     return None if x is None else f'{_plain(x, 2)}°'
+
+
+def _material(geometry):
+    """The specimen's material: 'Steel_Mild' -> 'Carbon Steel', others with underscores as spaces."""
+    name = (_get(geometry, 'material', 'name') or '').replace('_', ' ').strip()
+    return MATERIAL_NAMES.get(name.casefold(), name) or None
 
 
 def _drop_empty(value):
@@ -328,7 +339,7 @@ class _GroupContext:
             **self._weld(system),
             'index_offset': self._index_offset(system),
             'specimen_dimensions': self._specimen_dimensions(system, unit),
-            'cal_material': (_get(geometry, 'material', 'name') or '').replace('_', ' ') or None,
+            'cal_material': _material(geometry),
             'tr_min': _dist(self.thickness.get('min'), system, 3, 2),
             'tr_max': _dist(self.thickness.get('max'), system, 3, 2),
 
@@ -394,7 +405,7 @@ class _GroupContext:
                 'first_element_height': self.mounting.get('tertiaryOffset'),
             },
             'part': {
-                'material': (_get(self.geometry, 'material', 'name') or '').replace('_', ' ') or None,
+                'material': _material(self.geometry),
                 'thickness': self.geometry.get('thickness'),
                 'od': self.geometry['outerRadius'] * 2 if self.geometry.get('outerRadius') is not None else None,
             },
