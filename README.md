@@ -59,9 +59,9 @@ stored encrypted for the current Windows user.
 ## Useful commands
 
 ```
-python manage.py test                                   # run the tests
-python manage.py import_inventory "<weld workbook>.xlsx" # scopes/probes from a weld report workbook
-python manage.py import_catalogue <PATransducers.csv>     # probe/wedge catalogue from Beamtool CSVs
+python manage.py test                                                # run the tests
+python manage.py import_inventory "<weld workbook>.xlsx"              # scopes/probes from a weld report workbook
+python manage.py import_catalogue PATransducers.csv PAWedges.csv      # probe/wedge catalogue from Beamtool exports
 ```
 
 Back up `db.sqlite3` before pulling or switching branches.
