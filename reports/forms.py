@@ -12,7 +12,7 @@ from . import fill_marks, weld_form
 from .models import (
     ClientCode, Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet, WorkingFolder,
 )
-from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, report_type_choices
+from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, get_report_type, report_type_choices
 from .services.scan_plan import reflectors as scan_plan_reflectors
 from .services.scan_plan.geometry import first_number
 from datetime import date
@@ -80,6 +80,15 @@ class ReportForm(StyledFormMixin, ModelForm):
 
     def clean_report_type(self):
         return self.cleaned_data.get('report_type') or DEFAULT_REPORT_TYPE
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get('test_date'), cleaned.get('test_end_date')
+        # Only where the end date is shown: a type that hides it keeps the value, unseen
+        shown = 'test_end_date' not in get_report_type(cleaned.get('report_type')).hidden_fields
+        if start and end and end < start and shown:
+            self.add_error('test_end_date', 'The test end date is before the start date.')
+        return cleaned
 
     def sections(self):
         """Field sections for the editor: [(key, title, [bound fields])], special sections excluded."""

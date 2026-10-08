@@ -102,6 +102,15 @@ class CreateReportTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(Report.objects.exists())
 
+    def test_end_date_before_start_date_is_refused(self):
+        resp = self.client.post(self.url, post_data(test_date='2026-08-25', test_end_date='2026-08-13'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'The test end date is before the start date.')
+        self.assertFalse(Report.objects.exists())
+        # A type that hides the end date doesn't check a value kept from before
+        self.client.post(self.url, post_data(report_type='paut_weld', test_date='2026-08-25', test_end_date='2026-08-13'))
+        self.assertTrue(Report.objects.exists())
+
     def test_loaded_report_renders_hidden_id(self):
         report = Report.objects.create()
         resp = self.client.get(f'{self.url}?loaded={report.pk}')
