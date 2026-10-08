@@ -264,6 +264,8 @@ def create_report(request):
         else:
             form = ReportForm(instance=loaded_report)
             setup_formset = SetupFormSet(instance=loaded_report)
+            if loaded_report.setups.exists():
+                setup_formset.extra = 0   # no blank block (its empty fields would count as still to fill)
         people = PersonFormSet(instance=loaded_report, prefix='people')
         probes, groups = equipment_formsets(instance=loaded_report)
         drawings = drawing_formset(instance=loaded_report)

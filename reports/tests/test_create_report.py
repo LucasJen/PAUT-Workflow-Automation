@@ -107,6 +107,14 @@ class CreateReportTests(TestCase):
         resp = self.client.get(f'{self.url}?loaded={report.pk}')
         self.assertContains(resp, f'name="report_id" value="{report.pk}"')
 
+    def test_loaded_report_with_setups_has_no_blank_setup_block(self):
+        report = Report.objects.create()
+        resp = self.client.get(f'{self.url}?loaded={report.pk}')
+        self.assertContains(resp, 'name="setups-TOTAL_FORMS" value="1"')   # none yet: one to fill in
+        Setup.objects.create(report=report, title='HydroFORM')
+        resp = self.client.get(f'{self.url}?loaded={report.pk}')
+        self.assertContains(resp, 'name="setups-TOTAL_FORMS" value="1"')   # just its own
+
 
 def png_upload(name):
     import io
