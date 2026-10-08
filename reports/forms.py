@@ -303,7 +303,7 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             # Listed by name; picking one fills an empty Method with it (create_report.js)
             field = self.fields['method_description']
             field.label_from_instance = lambda snippet: snippet.name
-            field.empty_label = '— Choose a description —'
+            field.empty_label = '— Choose —'
             field.widget.attrs['data-method-description'] = ''
         # The long form editor's fill marks (fill_marks.js; only shown where the report type has them)
         fill_marks.mark_fill(self, fill_marks.SETUP_AUTO_FIELDS, fill_marks.SETUP_USER_FIELDS)
