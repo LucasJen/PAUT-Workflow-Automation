@@ -81,7 +81,9 @@ class CorrosionGuidedTests(TestCase):
         self.assertContains(page, '1 setup page')   # both files: the same setup
         self.assertContains(page, '<option value="drawing" selected>Drawing</option>', html=True)
         self.assertContains(page, 'value="Strip scan shell"')
-        self.assertEqual(self.client.get(reverse('job-picture', args=[0])).status_code, 200)
+        picture_response = self.client.get(reverse('job-picture', args=[0]))
+        self.assertEqual(picture_response.status_code, 200)
+        picture_response.close()     # releases the file, which Windows otherwise keeps locked for the cleanup
         self.assertEqual(self.client.get(reverse('job-picture', args=[9])).status_code, 404)
 
         names = self.client.session['job_import']['pictures']
