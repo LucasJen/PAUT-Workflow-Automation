@@ -602,7 +602,10 @@ def report_list(request):
     """
     View all report information stored within the database
     """
-    reports = Report.objects.annotate(setup_count=Count('setups')).prefetch_related('people').order_by('-pk')
+    reports = Report.objects.annotate(
+        setup_count=Count('setups', distinct=True), probe_count=Count('probes', distinct=True),
+        group_count=Count('groups', distinct=True),
+    ).prefetch_related('people').order_by('-pk')
     if request.method == 'POST':
         selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:
@@ -621,6 +624,8 @@ def report_list(request):
     for report in reports:
         report.is_excel = _is_excel(report)
         report.pdf_ok = excel_ok if report.is_excel else word_ok
+        # As has_equipment(): a setup, or a probe / group column on the weld form
+        report.can_generate = bool(report.setup_count or report.probe_count or report.group_count)
     return render(request, 'reports/report_list.html', {'items': reports})
 
 

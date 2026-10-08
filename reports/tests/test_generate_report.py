@@ -133,3 +133,11 @@ class SaveAndDownloadTests(TestCase):
         resp = self.client.get(reverse('report-list'))
         self.assertContains(resp, reverse('generate-report', args=[with_setup.pk]))
         self.assertNotContains(resp, reverse('generate-report', args=[without.pk]))
+
+    def test_report_list_download_button_for_weld_columns(self):
+        from reports.models import ReportGroup, ReportProbe
+        weld = Report.objects.create(report_type='paut_weld')
+        ReportProbe.objects.create(report=weld)
+        ReportGroup.objects.create(report=weld)
+        resp = self.client.get(reverse('report-list'))
+        self.assertContains(resp, reverse('generate-report', args=[weld.pk]))
