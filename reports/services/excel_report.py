@@ -606,20 +606,9 @@ def _scan_plan_pictures(plan, workdir):
     return paths
 
 
-def build_workbook(report, pdf=False):
-    """
-    (xlsx bytes, pdf bytes or None) for an Excel report type (the weld form, or the corrosion
-    form: corrosion_report.py). Raises ExcelReportError on failure.
-    """
-    try:
-        import pythoncom  # noqa: F401  (pywin32 installed; office_session uses it)
-        import win32com.client
-    except ImportError as e:
-        raise ExcelReportError('Excel output needs the pywin32 package (pip install pywin32).') from e
-
-    workdir = tempfile.mkdtemp(prefix='report-xlsx-')
-    xlsx_path = os.path.join(workdir, 'report.xlsx')
-    pdf_path = os.path.join(workdir, 'report.pdf')
+def _prepare(report, workdir, xlsx_path):
+    """Copies the template into `workdir` and works out the pages (writing their pictures there);
+    returns fill(wb), which writes them into the opened copy."""
     shutil.copyfile(template_path(report), xlsx_path)
     if report.report_type == CORROSION_TYPE:
         corrosion = corrosion_pages(report)
@@ -637,6 +626,29 @@ def build_workbook(report, pdf=False):
 
         def fill(wb):
             _fill(wb, pages, scan_plan_pictures)
+    return fill
+
+
+def build_workbook(report, pdf=False):
+    """
+    (xlsx bytes, pdf bytes or None) for an Excel report type (the weld form, or the corrosion
+    form: corrosion_report.py). Raises ExcelReportError on failure.
+    """
+    try:
+        import pythoncom  # noqa: F401  (pywin32 installed; office_session uses it)
+        import win32com.client
+    except ImportError as e:
+        raise ExcelReportError('Excel output needs the pywin32 package (pip install pywin32).') from e
+
+    workdir = tempfile.mkdtemp(prefix='report-xlsx-')
+    xlsx_path = os.path.join(workdir, 'report.xlsx')
+    pdf_path = os.path.join(workdir, 'report.pdf')
+    try:
+        fill = _prepare(report, workdir, xlsx_path)
+    except Exception as e:  # a missing template, a drawing that can't be made...
+        logger.exception('Excel report preparation failed')
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise ExcelReportError(f'The report could not be prepared: {e}') from e
 
     with office_session('EXCEL.EXE', 'Excel', ExcelReportError) as watchdog:
         excel = wb = None

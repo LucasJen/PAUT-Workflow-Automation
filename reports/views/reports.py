@@ -446,6 +446,19 @@ def _excel_unavailable_message():
     return 'Excel reports need Microsoft Excel on the computer running this app.'
 
 
+class ReportRenderError(Exception):
+    """The Word report couldn't be made from its template."""
+
+
+def _render_docx(report, **kwargs):
+    """render_report, with any failure (e.g. a broken template) as a ReportRenderError to show."""
+    try:
+        return render_report(report, **kwargs)
+    except Exception as e:
+        logger.exception('Word report render failed')
+        raise ReportRenderError(f'The Word report could not be made: {e}') from e
+
+
 def report_docx(request, pk):
     """The generated .docx served inline for the preview page (no server copy is written)"""
     report, redirect_response = _report_with_setups(request, pk)
@@ -454,7 +467,11 @@ def report_docx(request, pk):
     if _is_excel(report):  # no in-browser fallback for Excel reports
         return render(request, 'reports/pdf_error.html',
                       {'message': _excel_unavailable_message(), 'report': report, 'excel': True}, status=503)
-    response = FileResponse(io.BytesIO(render_report(report)), content_type=DOCX_CONTENT_TYPE,
+    try:
+        content = _render_docx(report)
+    except ReportRenderError as e:
+        return render(request, 'reports/pdf_error.html', {'message': str(e), 'report': report}, status=500)
+    response = FileResponse(io.BytesIO(content), content_type=DOCX_CONTENT_TYPE,
                             filename=f'{safe_filename(report.document_filename)}.docx')
     response['Cache-Control'] = 'no-store'
     return response
@@ -528,8 +545,8 @@ def report_pdf(request, pk):
         else:
             if not word_available():
                 raise WordPdfError('PDF output needs Microsoft Word on the computer running this app.')
-            pdf = docx_to_pdf(render_report(report, update_fields_on_open=False))
-    except (WordPdfError, ExcelReportError) as e:
+            pdf = docx_to_pdf(_render_docx(report, update_fields_on_open=False))
+    except (WordPdfError, ExcelReportError, ReportRenderError) as e:
         if download:
             return _download_error(request, pk, str(e))
         return render(request, 'reports/pdf_error.html',
@@ -554,7 +571,10 @@ def generate_report(request, pk):
         return _excel_download(request, report)
 
     output_name = f'{safe_filename(report.document_filename)}.docx'
-    content = render_report(report)
+    try:
+        content = _render_docx(report)
+    except ReportRenderError as e:
+        return _download_error(request, report.pk, str(e))
 
     _save_copy(request, report, output_name, content)
 
