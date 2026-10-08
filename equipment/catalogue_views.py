@@ -18,6 +18,15 @@ CATALOGUES = {
 }
 
 
+def _copy_name(model, name):
+    """A free name for a copy (model names are unique): 'X (copy)', then 'X (copy 2)', 'X (copy 3)'..."""
+    max_length = model._meta.get_field('model').max_length
+    candidate, n = f'{name} (copy)', 2
+    while model.objects.filter(model=candidate).exists():
+        candidate, n = f'{name} (copy {n})', n + 1
+    return candidate[-max_length:] if len(candidate) > max_length else candidate
+
+
 def _list(request, kind, template):
     spec = CATALOGUES[kind]
     items = spec['model'].objects.all()
@@ -28,7 +37,7 @@ def _list(request, kind, template):
         elif 'duplicate' in request.POST and len(selected) == 1:
             original = get_object_or_404(spec['model'], pk=selected[0])
             original.pk = None
-            original.model = f'{original.model} (copy)'
+            original.model = _copy_name(spec['model'], original.model)
             original.save()
         return redirect(spec['list'])
     return render(request, template, {'items': items})

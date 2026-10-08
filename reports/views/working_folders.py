@@ -5,6 +5,7 @@ the Browse… button's folder dialog (shown on the computer running the app).
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from ..forms import WorkingFolderForm
@@ -56,7 +57,11 @@ def _edit(request, folder):
     if request.method == 'POST' and form.is_valid():
         saved = form.save()
         messages.success(request, f'{saved.name} saved for {saved.report_type_label} reports.')
-        return redirect(request.POST.get('next') or 'working-folder-list')
+        # Back to the page that sent here (e.g. Guided Creation), but only to a page of this app
+        target = request.POST.get('next')
+        if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+            return redirect(target)
+        return redirect('working-folder-list')
     return render(request, 'reports/edit_working_folder.html', {'form': form, 'folder': folder if folder.pk else None})
 
 

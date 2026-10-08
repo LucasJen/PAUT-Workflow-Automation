@@ -206,3 +206,19 @@ class WedgeFitTests(TestCase):
         self.assertTrue(self.fits({'probe_fit': '5L64R Pos2L64', 'probe_series': 'A2'}, '5L64-A2'))
         self.assertFalse(self.fits({'probe_fit': '5L64R Pos2L64', 'probe_series': 'A2'}, '2.25L64-A2'))
         self.assertTrue(self.fits({'probe_fit': 'GroupA', 'probe_series': 'A32'}, '5L32-A32'))  # series only
+
+
+class CatalogueDuplicateTests(TestCase):
+    def test_duplicating_the_same_model_again_gets_a_new_name(self):
+        probe = ProbeModel.objects.create(model='TEST-DUP-1')
+        for _ in range(3):
+            self.client.post(reverse('probe-model-list'), {'selected': [probe.pk], 'duplicate': ''})
+        names = set(ProbeModel.objects.filter(model__startswith='TEST-DUP-1').values_list('model', flat=True))
+        self.assertEqual(names, {'TEST-DUP-1', 'TEST-DUP-1 (copy)', 'TEST-DUP-1 (copy 2)', 'TEST-DUP-1 (copy 3)'})
+
+
+class PageChromeTests(TestCase):
+    def test_tab_icon_and_footer(self):
+        page = self.client.get(reverse('home'))
+        self.assertContains(page, 'reports/favicon.svg')
+        self.assertNotContains(page, 'No touchy')
