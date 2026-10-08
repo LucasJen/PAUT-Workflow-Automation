@@ -46,6 +46,11 @@ def velocity_unit(setup):
     return ' m/s' if getattr(setup, 'units', 'imperial') == 'metric' else ' in/µs'
 
 
+def temperature_unit(setup):
+    """'°F' for imperial setups, '°C' for metric."""
+    return '°C' if getattr(setup, 'units', 'imperial') == 'metric' else '°F'
+
+
 def prose(text):
     """Multi-line text for the template: blank lines start new paragraphs, single newlines break lines."""
     text = (text or '').strip().replace('\r\n', '\n')
@@ -115,7 +120,7 @@ def _setup_context(setup, number, report, tpl):
         'freq': setup.freq,
         'elements': setup.elements,
         'cal_material': setup.cal_material,
-        'material_temp': with_unit(setup.material_temp, '°F'),
+        'material_temp': with_unit(setup.material_temp, temperature_unit(setup)),
         'cal_block': ' S/N: '.join(v for v in (setup.cal_block_type, setup.cal_block_serial) if v),
         'surface_prep': setup.surface_prep,
         'tr_min': with_unit(setup.tr_min, length_unit(setup)),
