@@ -1,7 +1,7 @@
 """
 The equipment inventory from a weld report workbook (the 100-UTFORM-010 reference): its
-"Scope and Encoder" sheet (instruments) and "All Probes 2025" sheet (serial-numbered probes with
-their element checks). Read straight from the .xlsx XML, so no Excel or extra library is needed.
+"Scope and Encoder" sheet (instruments) and "All Probes <year>" sheet (serial-numbered probes with
+their element checks; the latest year when there are several). Read straight from the .xlsx XML, so no Excel or extra library is needed.
 `manage.py import_inventory <workbook>` applies them; a scope or probe already in the inventory
 (same serial number) is updated.
 """
@@ -18,15 +18,18 @@ from .models import Probe, Scope
 NS = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
       'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
 SCOPE_SHEET = 'Scope and Encoder'
-PROBE_SHEET = 'All Probes 2025'
+PROBE_SHEET = 'All Probes'   # 'All Probes 2025', 'All Probes 2026'...: the name starts with this
 
 
 class InventoryError(Exception):
     """The workbook or one of its sheets can't be read."""
 
 
-def read_sheet(path, name):
-    """{row number: {column letters: text}} of one worksheet (cached values, not formulas)."""
+def read_sheet(path, name, prefix=False):
+    """
+    {row number: {column letters: text}} of one worksheet (cached values, not formulas). With
+    `prefix`, the sheet is the last (by name, so the latest year) whose name starts with `name`.
+    """
     try:
         book = zipfile.ZipFile(path)
     except (OSError, zipfile.BadZipFile) as e:
@@ -37,9 +40,14 @@ def read_sheet(path, name):
             for item in ElementTree.fromstring(book.read('xl/sharedStrings.xml')).findall('m:si', NS):
                 strings.append(''.join(t.text or '' for t in item.iter(f"{{{NS['m']}}}t")))
         workbook = ElementTree.fromstring(book.read('xl/workbook.xml'))
-        sheet = next((s for s in workbook.find('m:sheets', NS) if s.get('name') == name), None)
+        sheets = list(workbook.find('m:sheets', NS))
+        if prefix:
+            sheet = max((s for s in sheets if s.get('name', '').startswith(name)), key=lambda s: s.get('name'),
+                        default=None)
+        else:
+            sheet = next((s for s in sheets if s.get('name') == name), None)
         if sheet is None:
-            raise InventoryError(f'The workbook has no "{name}" sheet.')
+            raise InventoryError(f'The workbook has no "{name}{" …" if prefix else ""}" sheet.')
         rels = ElementTree.fromstring(book.read('xl/_rels/workbook.xml.rels'))
         target = next(r.get('Target') for r in rels if r.get('Id') == sheet.get(f"{{{NS['r']}}}id"))
         xml = ElementTree.fromstring(book.read('xl/' + target.lstrip('/').removeprefix('xl/')))
@@ -110,7 +118,7 @@ def read_scopes(path):
 
 def read_probes(path):
     """The probes of the All Probes sheet: make, model, S/N, element checks and calibration."""
-    rows = read_sheet(path, PROBE_SHEET)
+    rows = read_sheet(path, PROBE_SHEET, prefix=True)
     probes = []
     for number in sorted(rows):
         row = rows[number]
@@ -137,17 +145,20 @@ def catalogue_name(model):
 
 @transaction.atomic
 def apply_inventory(scopes, probes):
-    """Adds or updates (by serial number) the scopes and probes; returns counts per kind."""
+    """Adds or updates (by serial number) the scopes and probes; returns counts per kind. One without a
+    serial number is always added: there's nothing to tell it apart from the others with none."""
     counts = {'scopes added': 0, 'scopes updated': 0, 'probes added': 0, 'probes updated': 0, 'probes linked': 0}
     for values in scopes:
-        scope = Scope.objects.filter(serial_number=values['serial_number']).first()
+        serial = values['serial_number'].strip()
+        scope = Scope.objects.filter(serial_number=serial).first() if serial else None
         counts['scopes updated' if scope else 'scopes added'] += 1
         scope = scope or Scope()
         for name, value in values.items():
             setattr(scope, name, value)
         scope.save()
     for values in probes:
-        probe = Probe.objects.filter(serial_number=values['serial_number']).first()
+        serial = values['serial_number'].strip()
+        probe = Probe.objects.filter(serial_number=serial).first() if serial else None
         counts['probes updated' if probe else 'probes added'] += 1
         probe = probe or Probe()
         for name, value in values.items():
