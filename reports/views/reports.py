@@ -1,4 +1,4 @@
-from django.http import FileResponse
+from django.http import FileResponse, JsonResponse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -390,12 +390,23 @@ def _save_equipment(report, probes, groups):
 
 
 def _report_with_setups(request, pk):
-    """(report, None) when the report can be generated, else (report, redirect to the editor)."""
+    """(report, None) when the report can be generated, else (report, the response saying why)."""
     report = get_object_or_404(Report, pk=pk)
     if not has_equipment(report):
-        messages.error(request, NEEDS_SETUP_MESSAGE)
-        return report, redirect(f"{reverse('create-report')}?loaded={pk}")
+        return report, _download_error(request, pk, NEEDS_SETUP_MESSAGE)
     return report, None
+
+
+def _download_error(request, pk, message):
+    """
+    A file that couldn't be made. Download links are fetched by app.js (header X-Download: 1),
+    which shows `message` on the page it was clicked from: answered as JSON, so the browser never
+    saves an error page as the file. Anything else goes back to the editor with the message.
+    """
+    if request.headers.get('X-Download') == '1':
+        return JsonResponse({'error': message}, status=409)
+    messages.error(request, message)
+    return redirect(f"{reverse('create-report')}?loaded={pk}")
 
 
 def preview_report(request, pk):
@@ -519,8 +530,7 @@ def report_pdf(request, pk):
             pdf = docx_to_pdf(render_report(report, update_fields_on_open=False))
     except (WordPdfError, ExcelReportError) as e:
         if download:
-            messages.error(request, str(e))
-            return redirect(f"{reverse('create-report')}?loaded={pk}")
+            return _download_error(request, pk, str(e))
         return render(request, 'reports/pdf_error.html',
                       {'message': str(e), 'report': report, 'excel': _is_excel(report)}, status=503)
     if download:
@@ -557,8 +567,7 @@ def _excel_download(request, report):
             raise ExcelReportError(_excel_unavailable_message())
         content, _ = build_workbook(report)
     except ExcelReportError as e:
-        messages.error(request, str(e))
-        return redirect(f"{reverse('create-report')}?loaded={report.pk}")
+        return _download_error(request, report.pk, str(e))
     _save_copy(request, report, output_name, content)
     return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=XLSX_CONTENT_TYPE)
 
