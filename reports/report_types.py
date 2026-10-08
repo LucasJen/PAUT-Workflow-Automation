@@ -249,6 +249,7 @@ _TYPES = [
         ),
         field_homes=(('equipment_id', 'project'), ('notes', 'summary')),
         field_options=(('title', CORROSION_METHODS), ('procedure', ('100-UT-003', '100-UT-020', '100-UT-021', '100-UT-031'))),
+        fill_marks=True,
         guided=True,
         wizard_done=('Files', 'Pictures'),
         wizard_equipment_step='setups',

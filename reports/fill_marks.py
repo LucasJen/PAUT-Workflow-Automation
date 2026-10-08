@@ -5,7 +5,7 @@ Fill marks: the report editor outlines empty fields by where their value comes f
 'auto' (yellow): an .nde import, the scope library or the sensitivity block usually fills it.
 'user' (red): only the technician can. Fields in neither list aren't marked (optional ones,
 or ones only some techniques have). A field a report type hides isn't marked on it, so one list
-serves both the weld form and the long form.
+serves the weld form, the Long Form and the Short Form.
 """
 from . import weld_form
 
@@ -32,19 +32,19 @@ REPORT_USER_FIELDS = {
     'asset_description', 'equipment_id', 'x_axis_reference', 'y_axis_reference', 'equipment_overview', 'work_scope',
 }
 
-# The long form's UT setup blocks: what the .nde (and scope library) gives, and what's typed.
+# The Long and Short Form's UT setup blocks: what the .nde (and scope library) gives, and what's typed.
 # Values only some techniques have (PCS, element step, beam gain...) aren't marked.
 SETUP_AUTO_FIELDS = {
     'manufacturer', 'scope_platform', 'scope_model', 'scope_serial', 'transducer_model',
     'wedge_model', 'wedge_angle', 'wave_propagation', 'freq', 'elements', 'x_res', 'angle_range',
     'sound_velocity', 'gain', 'voltage', 'beam_formation', 'active_elements', 'band_pass_filter',
-    'specimen_od', 'specimen_thickness', 'tr_min', 'tr_max', 'source_file', 'acquisition_date',
+    'specimen_od', 'specimen_thickness', 'tr_min', 'tr_max', 'source_file', 'acquisition_date', 'cal_material',
 }
 SETUP_USER_FIELDS = {
     'title', 'transducer_serial', 'cal_block_type', 'cal_block_serial', 'surface_prep', 'material_temp',
     'couplant', 'exam_surface',
     # The Short Form's setup page
-    'method_description',
+    'method_description', 'inspection_material', 'inspection_temp',
 }
 
 # The long form's people
