@@ -1,0 +1,70 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}Assistant · Preferences · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Preferences</h1>
+    <p class="page-subtitle">The AI assistant that answers questions from your reports, setups and documents.</p>
+</div>
+{% include 'reports/components/library_tabs.html' with tab='assistant' %}
+
+<form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+    <section class="panel">
+        <h2 class="panel-subtitle mt-0">Provider and model</h2>
+        <div class="field-grid cols-2">
+            {{ form.provider.as_field_group }}
+            {{ form.model.as_field_group }}
+            {{ form.api_key.as_field_group }}
+            {% if form.remove_key %}{{ form.remove_key.as_field_group }}{% endif %}
+        </div>
+        <p class="form-text mb-0">
+            {% if settings.has_key %}<i class="bi bi-shield-lock text-success"></i> A key is saved (encrypted for this Windows user).
+            {% else %}<i class="bi bi-exclamation-circle"></i> No key yet: the assistant can't answer until one is saved.{% endif %}
+        </p>
+
+        <h2 class="panel-subtitle">Spending</h2>
+        <div class="field-grid cols-2">
+            {{ form.monthly_cap.as_field_group }}
+            <div class="field">
+                <label>Spent this month (estimated)</label>
+                <div class="form-control-plaintext">{{ month_spend|default:"$0" }}</div>
+            </div>
+        </div>
+
+        <h2 class="panel-subtitle">What is sent</h2>
+        <p class="form-text mb-0">
+            Each question, and the parts of your reports, setups and documents the assistant looks up to answer it
+            (client names, locations and findings included), are sent to the provider over an encrypted connection.
+            Anthropic doesn't train its models on API data. Nothing else leaves this PC.
+        </p>
+    </section>
+
+    <div class="sticky-actions">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save</button>
+        {% if settings.has_key %}
+        <button type="submit" name="check_key" class="btn btn-secondary"
+                title="Check the key with the provider and refresh the list of models">
+            <i class="bi bi-plug"></i> Test key &amp; refresh models</button>
+        {% endif %}
+    </div>
+</form>
+
+<section class="panel mt-3">
+    <div class="panel-header">
+        <h2 class="panel-title">Search index</h2>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" name="rebuild_index" class="btn btn-secondary btn-sm"
+                    title="Read every report, setup and document again (PDF text included)">
+                <i class="bi bi-arrow-repeat"></i> Rebuild index</button>
+        </form>
+    </div>
+    <p class="mb-1">{{ index.report }} reports, {{ index.setup }} setups and {{ index.document }} documents
+        ({{ index.pages }} PDF pages) are searchable.</p>
+    <p class="form-text mb-0">It updates itself before each question (only what changed is read again), so
+        rebuilding is only needed if something looks out of date.</p>
+</section>
+{% endblock %}
