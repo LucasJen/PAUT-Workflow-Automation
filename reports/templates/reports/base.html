@@ -43,6 +43,9 @@
         <a class="nav-item-link {% nav_active 'home' %}" href="{% url 'home' %}" title="Dashboard">
             <i class="bi bi-grid-1x2"></i><span class="nav-label">Dashboard</span>
         </a>
+        <a class="nav-item-link {% nav_active 'assistant' 'assistant-conversation' %}" href="{% url 'assistant' %}" title="Ask about your reports, setups and procedures">
+            <i class="bi bi-chat-square-text"></i><span class="nav-label">Assistant</span>
+        </a>
 
         <div class="nav-group" data-group="reports">
             <button type="button" class="nav-group-label" aria-expanded="true" title="Show or hide Reports">
@@ -128,7 +131,7 @@
         </div>
 
         <div class="sidebar-footer">
-            <a class="nav-item-link {% nav_active 'snippet-list' 'edit-snippet' 'new-snippet' 'defaults-list' 'edit-defaults' 'client-code-list' 'new-client-code' 'edit-client-code' 'working-folder-list' 'new-working-folder' 'edit-working-folder' %}" href="{% url 'snippet-list' %}" title="Preferences">
+            <a class="nav-item-link {% nav_active 'snippet-list' 'edit-snippet' 'new-snippet' 'defaults-list' 'edit-defaults' 'client-code-list' 'new-client-code' 'edit-client-code' 'working-folder-list' 'new-working-folder' 'edit-working-folder' 'assistant-settings' %}" href="{% url 'snippet-list' %}" title="Preferences">
                 <i class="bi bi-gear"></i><span class="nav-label">Preferences</span>
             </a>
             <button type="button" class="nav-item-link" id="theme-toggle" title="Toggle theme">

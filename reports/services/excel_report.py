@@ -623,6 +623,11 @@ def build_workbook(report, pdf=False):
     shutil.copyfile(template_path(report), xlsx_path)
     if report.report_type == CORROSION_TYPE:
         corrosion = corrosion_pages(report)
+        for i, page in enumerate(corrosion.setups, start=1):
+            if page.sheet:
+                page.picture = os.path.join(workdir, f'setup_sheet_{i}.png')
+                with open(page.picture, 'wb') as f:
+                    f.write(page.sheet)
 
         def fill(wb):
             fill_corrosion(wb, corrosion, _write, _add_picture_in)

@@ -1,0 +1,88 @@
+{% extends 'reports/base.html' %}
+{% load static ui %}
+
+{% block title %}Assistant · PAUT Report Automation{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{% static_v 'assistant/chat.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Assistant</h1>
+    <p class="page-subtitle">Ask about your reports, setups and procedures. Answers list what they were based on.</p>
+</div>
+
+<div class="chat-layout">
+    <aside class="panel chat-list" aria-label="Conversations">
+        <a href="{% url 'assistant' %}" class="btn btn-primary w-100 mb-2"><i class="bi bi-plus-lg"></i> New chat</a>
+        {% for c in conversations %}
+        <a class="chat-list-item{% if conversation and c.pk == conversation.pk %} active{% endif %}"
+           href="{% url 'assistant-conversation' c.pk %}" title="{{ c.title }}">
+            <span class="chat-list-title">{{ c.title|default:"New chat" }}</span>
+            <span class="chat-list-date">{{ c.updated_at|date:"M j" }}</span>
+        </a>
+        {% empty %}
+        <p class="form-text">No conversations yet.</p>
+        {% endfor %}
+    </aside>
+
+    <section class="panel chat-main">
+        <div class="chat-head">
+            <span class="chat-title" id="chat-title">{{ conversation.title|default:"New chat" }}</span>
+            <span class="chat-meta">
+                <i class="bi bi-cpu"></i> {{ model_label }}
+                · this month {{ month_spend|default:"$0" }}
+                {% if conversation %}· this chat <span id="chat-cost">${{ conversation.cost|floatformat:4 }}</span>{% endif %}
+                · <a href="{% url 'assistant-settings' %}">Settings</a>
+            </span>
+            {% if conversation %}
+            <form method="post" action="{% url 'assistant-delete' conversation.pk %}" class="ms-2">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost-danger btn-sm" data-confirm="Delete this conversation?"
+                        title="Delete this conversation"><i class="bi bi-trash"></i></button>
+            </form>
+            {% endif %}
+        </div>
+
+        {% if not ready %}
+        <div class="alert alert-warning">Add your {{ provider.label }} API key in <a href="{% url 'assistant-settings' %}">Preferences › Assistant</a> to start.</div>
+        {% endif %}
+
+        <div class="chat-messages" id="chat-messages" aria-live="polite">
+            {% for turn in turns %}
+            <div class="chat-msg chat-user">{{ turn.question|linebreaksbr }}</div>
+            <div class="chat-msg chat-bot{% if turn.status != 'ok' %} chat-error{% endif %}">
+                {% if turn.steps %}<details class="chat-steps"><summary>{{ turn.steps|length }} look-up{{ turn.steps|length|pluralize }}</summary>
+                    <ul>{% for step in turn.steps %}<li>{{ step }}</li>{% endfor %}</ul></details>{% endif %}
+                <div class="chat-answer">{% if turn.answer_html %}{{ turn.answer_html|safe }}{% else %}{{ turn.answer|linebreaksbr }}{% endif %}</div>
+                {% if turn.sources %}
+                <div class="chat-sources"><span>Sources:</span>
+                    {% for s in turn.sources %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.label }}</a>{% endfor %}
+                </div>
+                {% endif %}
+                <div class="chat-cost">{{ turn.model }}{% if turn.cost is not None %} · ${{ turn.cost|floatformat:4 }}{% endif %}</div>
+            </div>
+            {% empty %}
+            <div class="chat-empty" id="chat-empty">
+                <i class="bi bi-chat-square-text"></i>
+                <p>Try: “Summarize the findings for 11V58B”, “Which reports used the HydroFORM on X3 QC-0030383?”,
+                    or “What does 100-UT-031 say about calibration?”</p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <form id="chat-form" class="chat-form" data-url="{% url 'assistant-ask' %}"
+              data-conversation-url="{% url 'assistant-conversation' 0 %}">
+            {% csrf_token %}
+            <input type="hidden" name="conversation" value="{{ conversation.pk|default:'' }}">
+            <textarea name="question" class="form-control" rows="2" placeholder="Ask a question… (Enter sends, Shift+Enter for a new line)"
+                      {% if not ready %}disabled{% endif %} required></textarea>
+            <button type="submit" class="btn btn-primary" {% if not ready %}disabled{% endif %}>
+                <i class="bi bi-send"></i> Ask</button>
+        </form>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="{% static_v 'assistant/chat.js' %}"></script>
+{% endblock %}

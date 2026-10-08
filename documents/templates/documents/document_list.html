@@ -21,6 +21,7 @@
 
 {% block columns %}
 <th class="sortable">Title<span class="sort-indicator"></span></th>
+<th class="sortable">Description<span class="sort-indicator"></span></th>
 <th class="sortable">Type<span class="sort-indicator"></span></th>
 <th class="sortable">File<span class="sort-indicator"></span></th>
 <th class="sortable">Notes<span class="sort-indicator"></span></th>
@@ -33,6 +34,7 @@
 <tr data-href="{% url library.edit document.pk %}">
     {% include 'reports/components/row_check.html' with pk=document.pk %}
     <td class="fw-medium">{{ document.title }}</td>
+    <td>{{ document.description }}</td>
     <td class="text-nowrap"><i class="bi bi-{{ document.file_type_icon }} me-1 text-body-secondary"></i>{{ document.file_type_label }}</td>
     <td class="mono">{{ document.filename }}</td>
     <td>{{ document.notes|truncatechars:80 }}</td>

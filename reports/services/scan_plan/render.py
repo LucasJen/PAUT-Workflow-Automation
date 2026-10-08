@@ -31,6 +31,8 @@ COLOURS = {
     'reflector': (200, 20, 20),
     'reflector_fill': (255, 205, 205),
     'reflector_beam': (240, 120, 0),
+    'water': (214, 234, 250),
+    'beam_zone': (222, 228, 255),
 }
 
 
@@ -49,10 +51,10 @@ def _colour(name):
 
 
 class _Canvas:
-    def __init__(self, x_min, x_max, y_min, y_max, mirror):
-        self.scale = WIDTH_PX * SUPERSAMPLE / (x_max - x_min)
+    def __init__(self, x_min, x_max, y_min, y_max, mirror, width_px=WIDTH_PX):
+        self.scale = width_px * SUPERSAMPLE / (x_max - x_min)
         self.x_min, self.y_min, self.mirror = x_min, y_min, mirror
-        self.size = (WIDTH_PX * SUPERSAMPLE, int((y_max - y_min) * self.scale))
+        self.size = (width_px * SUPERSAMPLE, int((y_max - y_min) * self.scale))
         self.image = Image.new('RGB', self.size, 'white')
         self.draw = ImageDraw.Draw(self.image)
 
@@ -102,9 +104,9 @@ class _Canvas:
         return buffer.getvalue()
 
 
-def render_scene(scene):
-    """PNG bytes of a scene."""
-    c = _Canvas(scene.x_min, scene.x_max, scene.y_min, scene.y_max, scene.mirror)
+def render_scene(scene, width_px=WIDTH_PX):
+    """PNG bytes of a scene, `width_px` wide."""
+    c = _Canvas(scene.x_min, scene.x_max, scene.y_min, scene.y_max, scene.mirror, width_px)
     for shape in scene.shapes:
         kind, stroke = shape['kind'], _colour(shape.get('stroke'))
         if kind == 'polygon':

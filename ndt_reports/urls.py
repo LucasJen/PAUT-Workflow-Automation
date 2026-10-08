@@ -24,6 +24,7 @@ urlpatterns = [
     path('', include('reports.urls')),
     path('equipment/', include('equipment.urls')),
     path('documents/', include('documents.urls')),
+    path('assistant/', include('assistant.urls')),
 ]
 
 # Serve uploaded images in development (no-op when DEBUG is False)

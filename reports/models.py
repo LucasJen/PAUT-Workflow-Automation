@@ -484,6 +484,9 @@ class Setup(models.Model):
     # Source data file (filled by NDE import)
     source_file = models.CharField(max_length=255, blank=True)
     acquisition_date = models.CharField(max_length=50, blank=True)
+    # The file's whole setup as JSON (nde_parser's sheet(), SI units): printed as the setup sheet
+    # (services/setup_sheet.py) in place of the calibration screenshots
+    nde_sheet = models.TextField(blank=True)
 
     # Unit system of this setup's measured values (lengths, velocity, encoder steps)
     IMPERIAL, METRIC = 'imperial', 'metric'

@@ -139,7 +139,10 @@ def build_corrosion_report(files, pictures, defaults=None, document_filename='',
     for i, values in enumerate(found or [{}]):
         setup = Setup(report=report, order=i)
         for name, value in {**{k: v for k, v in setup_defaults.items() if k in SETUP_FIELDS}, **values}.items():
-            setattr(setup, name, value)
+            if name in ('catalogue_probe', 'catalogue_wedge'):   # catalogue matches come as primary keys
+                setattr(setup, f'{name}_id', int(value) if str(value).isdigit() else None)
+            else:
+                setattr(setup, name, value)
         setup.save()
         setups.append(setup)
     if not found:

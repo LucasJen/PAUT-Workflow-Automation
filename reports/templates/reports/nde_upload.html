@@ -29,6 +29,7 @@
 <!-- Setup form -->
 <form method="post" id="nde-setup-form"{% if form.is_bound %} data-bound="1"{% endif %}>
     {% csrf_token %}
+    {{ form.nde_sheet }}
     <datalist id="wave_propagation_options">
         <option value="Shear">
         <option value="Longitudinal">

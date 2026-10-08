@@ -286,6 +286,7 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'gates': Textarea(attrs={'rows': 2}),
             'title': TextInput(attrs={'placeholder': 'e.g. HydroFORM, Angle Beam, TFM'}),
             'procedure': TextInput(attrs={'placeholder': 'e.g. 100-UT-031 Rev. 1'}),
+            'nde_sheet': HiddenInput(),   # rendered on its own (not in a fieldset) so saving keeps it
         }
         help_texts = {'title': 'Heads this setup\'s "Equipment Details" section. The Introduction\'s technique '
                                'bullet uses the Text library description with this name.',

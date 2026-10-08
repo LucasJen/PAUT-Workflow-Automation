@@ -10,7 +10,8 @@ from reports.models import Setup
 class FieldsetTests(SimpleTestCase):
     def assert_covers_every_field_once(self, form):
         names = [bf.name for _, fields in form.fieldsets() for bf in fields]
-        self.assertCountEqual(names, list(form.fields))
+        # Hidden fields (the setup's .nde sheet) are rendered on their own, outside the fieldsets
+        self.assertCountEqual(names, [name for name, field in form.fields.items() if not field.widget.is_hidden])
 
     def test_setup_fieldsets_cover_every_field(self):
         self.assert_covers_every_field_once(SetupForm())

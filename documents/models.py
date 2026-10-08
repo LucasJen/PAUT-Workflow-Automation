@@ -33,14 +33,15 @@ class DocumentQuerySet(models.QuerySet):
 
     def search(self, query):
         """
-        Documents whose title, file name, notes, library or file type (PDF / Word / Excel) contain
+        Documents whose title, description, file name, notes, library or file type (PDF / Word / Excel) contain
         every word of `query`.
         """
         labels = dict(Document.CATEGORY_CHOICES)
         result = self
         for word in query.split():
             in_label = [key for key, label in labels.items() if word.lower() in label.lower()]
-            match = (models.Q(title__icontains=word) | models.Q(file__icontains=word)
+            match = (models.Q(title__icontains=word) | models.Q(description__icontains=word)
+                     | models.Q(file__icontains=word)
                      | models.Q(notes__icontains=word) | models.Q(category__in=in_label))
             for key, (label, _, _) in FILE_TYPES.items():
                 if word.lower() in label.lower():
@@ -68,6 +69,8 @@ class Document(models.Model):
 
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     title = models.CharField(max_length=255)
+    # What the document is, in full: a procedure's title from its cover (e.g. 'Ultrasonic Examination of Welds ...')
+    description = models.CharField(max_length=300, blank=True)
     file = models.FileField(upload_to='documents/%Y/', max_length=255)
     notes = models.TextField(blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
