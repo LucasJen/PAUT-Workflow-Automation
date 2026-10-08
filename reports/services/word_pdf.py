@@ -14,7 +14,7 @@ import os
 import shutil
 import tempfile
 
-from .office import lock, office_app_available
+from .office import office_app_available, office_session, timed_out_message
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def _update_fields(doc):
 def docx_to_pdf(docx_bytes):
     """Convert .docx bytes to PDF bytes using Word. Raises WordPdfError on failure."""
     try:
-        import pythoncom
+        import pythoncom  # noqa: F401  (pywin32 installed; office_session uses it)
         import win32com.client
     except ImportError as e:
         raise WordPdfError('PDF output needs the pywin32 package (pip install pywin32).') from e
@@ -61,11 +61,11 @@ def docx_to_pdf(docx_bytes):
     with open(docx_path, 'wb') as f:
         f.write(docx_bytes)
 
-    with lock:
-        pythoncom.CoInitialize()  # COM must be initialised on each request thread
+    with office_session('WINWORD.EXE', 'Word', WordPdfError) as watchdog:
         word = doc = None
         try:
             word = win32com.client.DispatchEx('Word.Application')  # separate instance
+            watchdog.started()
             word.Visible = False
             word.DisplayAlerts = WD_ALERTS_NONE
             doc = word.Documents.Open(docx_path, ConfirmConversions=False, ReadOnly=True,
@@ -80,6 +80,8 @@ def docx_to_pdf(docx_bytes):
             )
         except Exception as e:  # COM errors come in many types
             logger.exception('Word PDF export failed')
+            if watchdog.fired:
+                raise WordPdfError(timed_out_message('Word')) from e
             raise WordPdfError(f'Word could not create the PDF: {e}') from e
         finally:
             try:
@@ -89,7 +91,6 @@ def docx_to_pdf(docx_bytes):
                     word.Quit(SaveChanges=WD_DO_NOT_SAVE_CHANGES)
             except Exception:
                 logger.warning('Could not close Word cleanly', exc_info=True)
-            pythoncom.CoUninitialize()
 
     try:
         with open(pdf_path, 'rb') as f:

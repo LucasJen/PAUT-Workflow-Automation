@@ -22,7 +22,7 @@ from ..models import ReportImage
 from ..report_types import get_report_type
 from ..results import report_results
 from .corrosion_report import corrosion_pages, fill_corrosion
-from .office import lock, office_app_available
+from .office import office_app_available, office_session, timed_out_message
 from .report_render import length_unit, velocity_unit, with_unit
 from .scan_plan import render_png
 
@@ -612,7 +612,7 @@ def build_workbook(report, pdf=False):
     form: corrosion_report.py). Raises ExcelReportError on failure.
     """
     try:
-        import pythoncom
+        import pythoncom  # noqa: F401  (pywin32 installed; office_session uses it)
         import win32com.client
     except ImportError as e:
         raise ExcelReportError('Excel output needs the pywin32 package (pip install pywin32).') from e
@@ -638,11 +638,11 @@ def build_workbook(report, pdf=False):
         def fill(wb):
             _fill(wb, pages, scan_plan_pictures)
 
-    with lock:
-        pythoncom.CoInitialize()  # COM must be initialised on each request thread
+    with office_session('EXCEL.EXE', 'Excel', ExcelReportError) as watchdog:
         excel = wb = None
         try:
             excel = win32com.client.DispatchEx('Excel.Application')  # separate instance
+            watchdog.started()
             excel.Visible = False
             excel.DisplayAlerts = False
             excel.ScreenUpdating = False
@@ -654,6 +654,8 @@ def build_workbook(report, pdf=False):
                 wb.ExportAsFixedFormat(XL_TYPE_PDF, pdf_path, XL_QUALITY_STANDARD, True, False)
         except Exception as e:  # COM errors come in many types
             logger.exception('Excel report failed')
+            if watchdog.fired:
+                raise ExcelReportError(timed_out_message('Excel')) from e
             raise ExcelReportError(f'Excel could not create the report: {e}') from e
         finally:
             try:
@@ -663,7 +665,6 @@ def build_workbook(report, pdf=False):
                     excel.Quit()
             except Exception:
                 logger.warning('Could not close Excel cleanly', exc_info=True)
-            pythoncom.CoUninitialize()
 
     try:
         with open(xlsx_path, 'rb') as f:
