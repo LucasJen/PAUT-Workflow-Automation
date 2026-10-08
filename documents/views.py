@@ -85,9 +85,15 @@ def open_document(request, pk):
     it as just used (the dashboard lists by last use).
     """
     document = get_object_or_404(Document, pk=pk)
+    try:
+        handle = document.file.open('rb')
+    except (OSError, ValueError):   # the file is gone from the library folder (or was never saved)
+        messages.error(request, f'The file of “{document.title}” is missing from the library. '
+                                'Upload it again with Replace file.')
+        return redirect(LIBRARIES[document.category]['edit'], pk=document.pk)
     Document.objects.filter(pk=pk).update(last_opened_at=timezone.now())
     content_type = mimetypes.guess_type(document.filename)[0] or 'application/octet-stream'
-    return FileResponse(document.file.open('rb'), filename=document.filename, content_type=content_type,
+    return FileResponse(handle, filename=document.filename, content_type=content_type,
                         as_attachment=document.file_type != 'pdf')
 
 
