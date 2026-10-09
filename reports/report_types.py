@@ -117,6 +117,16 @@ HIC_RESULTS_COLUMNS = (
     ('comments', 'Results'),
 )
 
+# The Short Form's optional Thickness Table (form 598-PAUTFORM-009): one row per scan area
+CORROSION_THICKNESS_COLUMNS = (
+    ('scan_id', 'Scan ID'),
+    ('axial', 'Axial Start / Stop'),
+    ('circ', 'Circ Start / Stop'),
+    ('min_thk', 'Min. Thickness (in.)'),
+    ('avg_thk', 'Avg. Thickness (in.)'),
+    ('comments', 'Results'),
+)
+
 # Results columns of the weld form (100-UTFORM-010). One row per flaw: a row with a blank
 # Weld ID is another flaw on the weld above it; a row with a flaw Type gets an indication page.
 WELD_RESULTS_COLUMNS = (
@@ -215,8 +225,10 @@ _TYPES = [
     ReportType(
         'paut_corrosion', 'Short Form',
         template='paut_corrosion.xlsx', output_format='xlsx',
-        # Form 598-PAUTFORM-009: Summary, a Setup Information page per setup, drawings, images
-        sections=('project', 'weld_personnel', 'summary', 'setups', 'drawings', 'images'),
+        # Form 598-PAUTFORM-009: Summary, a Setup Information page per setup, drawings, the
+        # Thickness Table (only when it has rows), images
+        sections=('project', 'weld_personnel', 'summary', 'setups', 'drawings', 'results', 'images'),
+        results_columns=CORROSION_THICKNESS_COLUMNS,
         hidden_fields=frozenset({
             'document_title', 'project_number', 'project_type', 'test_end_date', 'address', 'contractor',
             'exam_code', 'acceptance_standard', 'scan_id', 'scan_comments',
@@ -240,6 +252,7 @@ _TYPES = [
             ('section:summary', 'Examination scope, results & notes'),
             ('section:setups', 'Setup information'),
             ('section:drawings', 'Drawings'),
+            ('section:results', 'Thickness table'),
             ('section:images', 'Images'),
             ('section:weld_personnel', 'Personnel'),
             ('drawings_intro', 'Each drawing gets its own page: landscape pictures on the Horizontal Drawing '

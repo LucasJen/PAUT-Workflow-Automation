@@ -96,3 +96,25 @@ class CorrosionPagesTests(TestCase):
         names = set(TextSnippet.objects.filter(kind='technique').values_list('name', flat=True))
         self.assertLessEqual({'PAUT Angle Beam', 'UT Shear Wave', 'AUT', 'Manual UT', 'TOFD', 'PCI', 'FMC / TFM'}, names)
         self.assertTrue({'HydroFORM', 'HydroFORM (Short Form)'} & names)
+
+
+class ThicknessTableTests(TestCase):
+    def test_the_thickness_table_page_only_when_it_has_rows(self):
+        from reports.models import ResultsRow, ResultsTable
+        from reports.services.corrosion_report import thickness_number
+        report = Report.objects.create(report_type='paut_corrosion')
+        self.assertEqual(corrosion_pages(report).page_count, 1)
+        self.assertIn('results', get_report_type('paut_corrosion').sections)
+
+        table = ResultsTable.objects.create(report=report, columns=get_report_type('paut_corrosion').results_headings)
+        ResultsRow.objects.create(table=table, order=0, cells=['S1', '0 / 12', '0 / 36', '0.310', '0.355"', 'Acceptable'])
+        ResultsRow.objects.create(table=table, order=1, cells=['', '', '', '', '', ''])   # an empty row isn't printed
+        pages = corrosion_pages(report)
+        self.assertEqual(pages.thickness, [['S1', '0 / 12', '0 / 36', '0.310', '0.355"', 'Acceptable']])
+        self.assertEqual(pages.page_count, 2)
+        self.assertEqual(pages.summary['AO6'], '2')
+
+        self.assertEqual(thickness_number('0.310'), (0.31, '0.000'))
+        self.assertEqual(thickness_number('0.355"'), (0.355, '0.000'))
+        self.assertEqual(thickness_number('1'), (1.0, '0'))
+        self.assertEqual(thickness_number('N/A'), ('N/A', None))
