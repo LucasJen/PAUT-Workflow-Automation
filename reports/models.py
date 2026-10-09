@@ -272,6 +272,73 @@ class ScanPlan(models.Model):
                 for position, offset, skew in self.drawings]
 
 
+class Vessel(models.Model):
+    """
+    A vessel's schematic drawing like the client's FHR sheets: a drum, tower, exchanger or tank
+    made of courses (and cones and flanges) between two heads, with its nozzles, drawn by
+    reports/services/vessel/. Saved on its own so one drawing serves each year's report on the same
+    vessel; a report marks its own scan coverage on it. Lengths are in inches.
+    """
+    HORIZONTAL, VERTICAL, EXCHANGER, TANK = 'horizontal', 'vertical', 'exchanger', 'tank'
+    TYPE_CHOICES = [(HORIZONTAL, 'Horizontal vessel / drum'), (VERTICAL, 'Vertical vessel / tower'),
+                    (EXCHANGER, 'Shell & tube exchanger'), (TANK, 'Storage tank')]
+    HEAD_CHOICES = [('ellipsoidal', '2:1 ellipsoidal'), ('hemispherical', 'Hemispherical'),
+                    ('torispherical', 'F&D (torispherical)'), ('flat', 'Flat / blind cover'), ('cone', 'Cone'),
+                    ('dome', 'Dome roof')]
+    SUPPORT_CHOICES = [('auto', 'Usual for the type'), ('saddles', 'Saddles'), ('skirt', 'Skirt'), ('legs', 'Legs'),
+                       ('none', 'None')]
+    COMPASS_CHOICES = [(d, d) for d in ('N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW')]
+
+    name = models.CharField(max_length=100, help_text='The equipment number, e.g. 11V-9.')
+    service = models.CharField(max_length=200, blank=True, help_text='e.g. Preflash Tower Overhead Accumulator.')
+    vessel_type = models.CharField('Type', max_length=20, choices=TYPE_CHOICES, default=HORIZONTAL)
+    units = models.CharField(max_length=10, choices=[('imperial', 'Imperial (ft-in)'), ('metric', 'Metric (mm)')],
+                             default='imperial')
+    diameter = models.FloatField(help_text="The shell's diameter; a course can have its own (a tower's top section).")
+    diameter_basis = models.CharField('Measured', max_length=2, choices=[('ID', 'ID'), ('OD', 'OD')], default='ID')
+    start_head = models.CharField(max_length=20, choices=HEAD_CHOICES, default='ellipsoidal')
+    end_head = models.CharField(max_length=20, choices=HEAD_CHOICES, default='ellipsoidal')
+    # [{kind: course | cone | flange, length, diameter, label}] from the start end, lengths in inches
+    courses = models.JSONField(default=list, blank=True)
+    # [{tag, size, location: shell | start | end | boot, position, direction}], inches
+    nozzles = models.JSONField(default=list, blank=True)
+    supports = models.CharField(max_length=10, choices=SUPPORT_CHOICES, default='auto')
+    view_from = models.CharField(
+        'Viewed from', max_length=2, choices=COMPASS_CHOICES, default='S',
+        help_text="Where you stand to see the drawing: seen from the S, a horizontal vessel's left end is W and a "
+                  "tower's right-hand side is E.")
+    seam_start = models.PositiveIntegerField(
+        'First seam number', default=1, help_text='Seams are numbered from the start end on, from this number.')
+    # A horizontal vessel's boot: blank diameter = none
+    boot_diameter = models.FloatField(null=True, blank=True)
+    boot_length = models.FloatField(null=True, blank=True)
+    boot_position = models.FloatField(null=True, blank=True,
+                                      help_text="From the left tangent line to the boot's centre.")
+    notes = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.name} – {self.service}' if self.service else self.name
+
+    @property
+    def length(self):
+        """Inches, tangent line to tangent line."""
+        return sum(row.get('length') or 0 for row in self.courses or [] if row.get('kind') != 'flange')
+
+    @property
+    def size_text(self):
+        from .services.vessel import format_diameter, format_length
+        metric = self.units == 'metric'
+        return f'{format_diameter(self.diameter, metric)} {self.diameter_basis} × {format_length(self.length, metric)} T/T'
+
+    @property
+    def course_count(self):
+        return sum(1 for row in self.courses or [] if row.get('kind') == 'course')
+
+
 class ReportDefaults(models.Model):
     """
     Preferences › Defaults: a named set of values a new report starts with, for its report fields and

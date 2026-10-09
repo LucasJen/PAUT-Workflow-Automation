@@ -1,0 +1,70 @@
+{% extends 'reports/components/edit_page.html' %}
+{% block form_attrs %} data-arrow-nav id="vessel-form" data-preview-url="{% url 'vessel-preview' %}"{% if not vessel %} data-new="1"{% endif %}{% endblock %}
+{% load ui %}
+
+{% block title %}{% if vessel %}{{ vessel.name }}{% else %}New vessel{% endif %} · Vessel drawings · PAUT Report Automation{% endblock %}
+{% block back_url %}{% url 'vessel-list' %}{% endblock %}
+{% block back_label %}Vessel drawings{% endblock %}
+{% block page_title %}{% if vessel %}{{ vessel.name }}{% else %}New vessel{% endif %}{% endblock %}
+{% block page_subtitle %}A schematic of the vessel like the client's drawing: its courses, heads and nozzles, with the seams numbered. Pick it in a report's Drawings step to mark that job's scan coverage on it.{% endblock %}
+{% block item_noun %}vessel{% endblock %}
+
+{% block form_body %}
+<div class="scan-plan-layout vessel-layout">
+    <section class="panel vessel-fields" id="vessel-fields" data-type="{{ form.vessel_type.value|default:'horizontal' }}">
+        {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+        <div class="cell-grid-wrap">
+            {% for title, fields in form.fieldsets %}
+            {% if title %}<div class="cell-grid-head{% if title == 'Boot' %} horizontal-only{% endif %}">{{ title }}{% if title == 'Boot' %} <span class="cell-grid-note">(leave blank for none)</span>{% endif %}</div>{% endif %}
+            <div class="cell-grid cell-grid-2{% if title == 'Boot' %} horizontal-only{% endif %}">
+                {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
+            </div>
+            {% endfor %}
+
+            {# Courses, cones and flanges from the start end: vessel.js keeps them in the hidden courses field #}
+            <div class="cell-grid-head">
+                <span data-label-start>Courses from the left end</span>
+            </div>
+            <div class="vessel-rows" id="course-editor">
+                <div class="vessel-row-list" id="course-rows"></div>
+                <div class="vessel-row-actions">
+                    <button type="button" class="btn btn-sm btn-secondary" data-add-row="course"><i class="bi bi-plus-lg"></i> Course</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-add-row="cone" title="A cone between two courses of different diameters"><i class="bi bi-plus-lg"></i> Cone</button>
+                    <button type="button" class="btn btn-sm btn-secondary" data-add-row="flange" title="A bolted flange pair, e.g. between an exchanger's channel and shell"><i class="bi bi-plus-lg"></i> Flange</button>
+                    <span class="vessel-split" title="Replace the courses with this many equal courses over this length (T/T)">
+                        <input type="text" class="form-control form-control-sm mono" id="split-count" inputmode="numeric" placeholder="3" aria-label="Number of courses">
+                        <span>courses over</span>
+                        <input type="text" class="form-control form-control-sm mono" id="split-length" inputmode="decimal" placeholder="T/T" aria-label="Length tangent to tangent">
+                        <button type="button" class="btn btn-sm btn-secondary" id="split-courses">Split evenly</button>
+                    </span>
+                    {% if form.courses.errors %}<span class="field-cell-error">{{ form.courses.errors|join:" " }}</span>{% endif %}
+                </div>
+            </div>
+
+            {# Nozzles: vessel.js keeps them in the hidden nozzles field #}
+            <div class="cell-grid-head">Nozzles</div>
+            <div class="vessel-rows" id="nozzle-editor">
+                <div class="vessel-row-list" id="nozzle-rows"></div>
+                <div class="vessel-row-actions">
+                    <button type="button" class="btn btn-sm btn-secondary" id="add-nozzle"><i class="bi bi-plus-lg"></i> Nozzle</button>
+                    <span class="form-text vessel-hint">Along the shell: from the <span data-label-start-short>left</span> tangent line. On a head: off the centre line (− the other way). On the boot: down from the shell.</span>
+                    {% if form.nozzles.errors %}<div class="field-cell-error">{{ form.nozzles.errors|join:" " }}</div>{% endif %}
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="panel scan-plan-preview">
+        <div class="scan-plan-toolbar">
+            <h2 class="panel-subtitle my-0">Drawing</h2>
+            {% if vessel %}<a class="btn btn-sm btn-secondary" href="{% url 'vessel-png' vessel.pk %}" download="{{ vessel.name }}.png" title="The saved drawing as a PNG"><i class="bi bi-download"></i> PNG</a>{% endif %}
+        </div>
+        <div class="vessel-stage"><img id="vessel-image" alt="Vessel drawing"{% if vessel %} src="{% url 'vessel-png' vessel.pk %}"{% endif %}></div>
+        <p class="scan-plan-status" id="vessel-status" role="status" hidden></p>
+    </section>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ type_starts|json_script:"vessel-type-starts" }}
+{{ directions|json_script:"vessel-directions" }}
+<script src="{% static_v 'reports/js/vessel.js' %}"></script>
+{% endblock %}

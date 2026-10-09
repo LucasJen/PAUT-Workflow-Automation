@@ -10,7 +10,8 @@ from equipment.models import ProbeModel
 
 from . import fill_marks, weld_form
 from .models import (
-    ClientCode, Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet, WorkingFolder,
+    ClientCode, Report, ReportGroup, ReportImage, ReportPerson, ReportProbe, ScanPlan, Setup, TextSnippet, Vessel,
+    WorkingFolder,
 )
 from .report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, get_report_type, report_type_choices
 from .services.scan_plan import reflectors as scan_plan_reflectors
@@ -783,3 +784,164 @@ def equipment_formsets(data=None, instance=None):
     choices = [(str(i), f'P{i + 1}') for i in range(max(count, weld_form.MAX_PROBES))]
     groups = GroupFormSet(data, instance=instance, prefix='groups', form_kwargs={'probe_choices': choices})
     return probes, groups
+
+
+# ── Vessel drawings ──────────────────────────────────────────────────
+
+VESSEL_LENGTHS = ('diameter', 'boot_diameter', 'boot_length', 'boot_position')
+VESSEL_ROW_KINDS = ('course', 'cone', 'flange')
+
+
+def _row_number(value, what):
+    """A number from a course / nozzle row (vessel.js sends inches); ValidationError when it isn't one."""
+    if value in (None, ''):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValidationError(f"{what}: '{value}' isn't a number.")
+
+
+class VesselForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
+    """
+    A vessel drawing. Its lengths are typed as on the client drawing (14'-0", 66", or mm when
+    metric) and stored in inches; the course and nozzle rows are edited by vessel.js in hidden
+    JSON fields, already in inches.
+    """
+    fieldsets_spec = [
+        ('Vessel', ['name', 'service', 'vessel_type', 'units', 'diameter', 'diameter_basis', 'start_head',
+                    'end_head', 'supports', 'view_from', 'seam_start']),
+        ('Boot', ['boot_diameter', 'boot_length', 'boot_position']),
+        (None, ['notes']),
+    ]
+
+    class Meta:
+        model = Vessel
+        fields = ['name', 'service', 'vessel_type', 'units', 'diameter', 'diameter_basis', 'start_head', 'end_head',
+                  'supports', 'view_from', 'seam_start', 'boot_diameter', 'boot_length', 'boot_position', 'courses',
+                  'nozzles', 'notes']
+        labels = {'start_head': 'Left head', 'end_head': 'Right head', 'boot_diameter': 'Boot diameter',
+                  'boot_length': 'Boot length', 'boot_position': 'Boot position'}
+        widgets = {'courses': HiddenInput, 'nozzles': HiddenInput, 'notes': Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from django.forms import CharField
+        from .services.vessel import format_diameter, format_length
+        metric = (self.initial.get('units') or self.instance.units) == 'metric'
+        for name in VESSEL_LENGTHS:
+            model_field = self.fields[name]
+            self.fields[name] = CharField(
+                label=model_field.label, required=name == 'diameter', help_text=model_field.help_text,
+                widget=TextInput(attrs={'class': 'form-control mono', 'inputmode': 'decimal', 'data-length': name}))
+            value = self.initial.get(name)
+            if value not in (None, ''):
+                fmt = format_diameter if name in ('diameter', 'boot_diameter') else format_length
+                self.initial[name] = fmt(float(value), metric)
+        self.fields['diameter'].help_text = (
+            'As the client drawing gives it: 66, 66", 5\'-6" (or mm when metric). A course can have its own.')
+        self.fields['boot_diameter'].help_text = 'A horizontal vessel only; blank = no boot.'
+        self.fields['boot_length'].help_text = "From the shell down to the boot head's tangent line."
+        for name in ('courses', 'nozzles', 'units'):
+            self.fields[name].required = False
+
+    def _metric(self):
+        return (self.data.get(self.add_prefix('units')) or 'imperial') == 'metric'
+
+    def _length(self, name, positive=True):
+        from .services.vessel import parse_length
+        text = self.cleaned_data.get(name)
+        try:
+            value = parse_length(text, self._metric())
+        except (TypeError, ValueError):
+            example = '1676 mm' if self._metric() else '14\'-0", 66" or 66'
+            raise ValidationError(f"Couldn't read '{text}': type it like {example}.")
+        if value is not None and positive and value <= 0:
+            raise ValidationError('Must be more than 0.')
+        return value
+
+    def clean_diameter(self):
+        return self._length('diameter')
+
+    def clean_boot_diameter(self):
+        return self._length('boot_diameter')
+
+    def clean_boot_length(self):
+        return self._length('boot_length')
+
+    def clean_boot_position(self):
+        return self._length('boot_position', positive=False)
+
+    def clean_courses(self):
+        rows = self.cleaned_data.get('courses') or []
+        if not isinstance(rows, list):
+            raise ValidationError("The courses couldn't be read.")
+        cleaned = []
+        for i, row in enumerate(rows, start=1):
+            if not isinstance(row, dict) or row.get('kind') not in VESSEL_ROW_KINDS:
+                raise ValidationError(f'Row {i} has no type.')
+            item = {'kind': row['kind'], 'label': str(row.get('label') or '').strip()[:40]}
+            if row['kind'] != 'flange':
+                length = _row_number(row.get('length'), f'Row {i} length')
+                if not length or length <= 0:
+                    raise ValidationError(f"Row {i} ({row['kind']}) needs a length.")
+                item['length'] = length
+            if row['kind'] == 'course':
+                diameter = _row_number(row.get('diameter'), f'Row {i} diameter')
+                if diameter is not None and diameter <= 0:
+                    raise ValidationError(f'Row {i} diameter must be more than 0.')
+                item['diameter'] = diameter
+            cleaned.append(item)
+        if not any(item['kind'] == 'course' for item in cleaned):
+            raise ValidationError('Add at least one course.')
+        return cleaned
+
+    def clean_nozzles(self):
+        rows = self.cleaned_data.get('nozzles') or []
+        if not isinstance(rows, list):
+            raise ValidationError("The nozzles couldn't be read.")
+        cleaned = []
+        for i, row in enumerate(rows, start=1):
+            if not isinstance(row, dict):
+                continue
+            tag = str(row.get('tag') or '').strip()[:12]
+            if not tag:
+                raise ValidationError(f'Nozzle {i} needs a tag (e.g. N1, A, MH-5).')
+            location = row.get('location') or 'shell'
+            if location not in ('shell', 'start', 'end', 'boot'):
+                raise ValidationError(f'Nozzle {tag}: pick where it is.')
+            cleaned.append({
+                'tag': tag, 'size': str(row.get('size') or '').strip()[:20], 'location': location,
+                'position': _row_number(row.get('position'), f'Nozzle {tag}'),
+                'direction': str(row.get('direction') or ''),
+            })
+        return cleaned
+
+    def clean(self):
+        cleaned = super().clean()
+        from .services.vessel import BOOT, BOTTOM, SHELL, VesselSpec, alpha
+        vessel_type = cleaned.get('vessel_type') or Vessel.HORIZONTAL
+        if vessel_type not in (Vessel.HORIZONTAL, Vessel.EXCHANGER):
+            cleaned['boot_diameter'] = cleaned['boot_length'] = cleaned['boot_position'] = None
+        elif cleaned.get('boot_diameter') and not cleaned.get('boot_length'):
+            self.add_error('boot_length', 'A boot needs its length too.')
+        spec = VesselSpec(vessel_type=vessel_type, view_from=cleaned.get('view_from') or 'S')
+        length = sum(row.get('length') or 0 for row in cleaned.get('courses') or [])
+        problems = []
+        for row in cleaned.get('nozzles') or []:
+            name = f"Nozzle {row['tag']}"
+            if row['location'] == SHELL:
+                if row['position'] is None:
+                    problems.append(f'{name}: how far along the shell is it?')
+                elif length and not 0 <= row['position'] <= length + 1e-6:
+                    problems.append(f"{name} is off the shell (0 to the vessel's length).")
+                if alpha(spec, row['direction'], SHELL) is None:
+                    problems.append(f'{name}: pick which way it points.')
+            elif row['location'] == BOOT:
+                if not cleaned.get('boot_diameter'):
+                    problems.append(f'{name} is on the boot, but the vessel has no boot.')
+                elif row['direction'] != BOTTOM and alpha(spec, row['direction'], BOOT) is None:
+                    problems.append(f'{name}: pick which way it points.')
+        if problems:
+            self.add_error('nozzles', problems)
+        return cleaned
