@@ -120,10 +120,12 @@ class Turn(models.Model):
 
 
 class IndexedItem(models.Model):
-    """What the search index (assistant/index.py) holds for one report, setup or document, by fingerprint."""
+    """What the search index (assistant/index.py) holds for one report, setup or document, by stamp and fingerprint."""
     kind = models.CharField(max_length=20)
     object_id = models.PositiveIntegerField()
     fingerprint = models.CharField(max_length=64)
+    # A cheap sign of change (index._stamps): the item is only read again when it differs
+    stamp = models.CharField(max_length=64, blank=True, default='')
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['kind', 'object_id'], name='assistant_indexed_item_unique')]
