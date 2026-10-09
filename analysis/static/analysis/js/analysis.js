@@ -864,6 +864,19 @@
         $('size-over').replaceChildren(...options.map(([v, t]) => new Option(t, v)));
     }
 
+    /** Starts the whole-file build (whatever the layout) and waits for it; true when it's done. */
+    async function waitForBuild() {
+        for (let i = 0; i < 600; i++) {
+            let job;
+            try { job = await NdeClient.projections(urls, projectionParams()); } catch { return false; }
+            if (job.state === 'done') return true;
+            if (job.state === 'error') return false;
+            $('size-note').textContent = `Reading the whole file… ${Math.round((job.progress || 0) * 100)}%`;
+            await new Promise(r => setTimeout(r, 400));
+        }
+        return false;
+    }
+
     async function sizeNow() {
         if (!state.info) return;
         const [axis, lines] = $('size-over').value.split(':');
@@ -878,7 +891,12 @@
             note.textContent = "Couldn't size: is the server running?";
             return;
         }
-        if (response.status === 409) { note.textContent = 'The C-scan data is still being built - try again in a moment.'; scheduleProjections(); return; }
+        if (response.status === 409) {   // the whole-file data isn't built (e.g. the A-S layout): build it, then size
+            note.textContent = 'Reading the whole file first…';
+            if (await waitForBuild()) return sizeNow();
+            note.textContent = "Couldn't read the whole file.";
+            return;
+        }
         if (!response.ok) { note.textContent = data.error || "Couldn't size here."; return; }
         state.sizing = data;
         note.textContent = '';

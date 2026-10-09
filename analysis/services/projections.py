@@ -36,9 +36,17 @@ VOLUME_FULL = 200.0       # % at uint8 255
 CACHE_VERSION = 2         # bump when the rules change, so old C-scans are rebuilt
 BLOCK_SAMPLES = 4_000_000 # samples worked on at a time (~16 MB as float32; a few arrays of that)
 KEEP_CACHES = 12          # files whose caches are kept (most recently used)
+KEEP_CSCANS = 6           # C-scans kept per group (one per gate / gain setting tried)
 
-_jobs = {}                # build key -> {'state', 'progress', 'error', 'started'}
+_jobs = {}                # build key -> {'state', 'progress', 'error', 'started', 'cancel'}
 _lock = threading.Lock()
+_one_build = threading.Semaphore(1)   # one whole-file read at a time: the PC's memory and disk
+_loaded = {}              # C-scan file -> (mtime, arrays): the last few C-scans read, kept in memory
+LOADED_MAX = 4
+
+
+class Cancelled(Exception):
+    """A newer build for the same file and group replaced this one."""
 
 
 # ── where things go ──────────────────────────────────────────────────────
@@ -151,7 +159,7 @@ def volume_info(path, group):
         return json.load(f)
 
 
-def build(path, group, gates, gain=0.0, progress=None):
+def build(path, group, gates, gain=0.0, progress=None, cancelled=None):
     """
     Builds whatever isn't cached yet for this group: the volume (once per file) and the C-scan for
     these gates and gain. `progress(fraction)` is called as it goes.
@@ -198,6 +206,14 @@ def build(path, group, gates, gain=0.0, progress=None):
                         out[name][first:first + k] = np.where(has_data, r[name], np.nan).reshape(k, lines)
             if progress:
                 progress(min(1.0, (first + block_scans) / scans))
+            if cancelled and cancelled():
+                if need_volume:
+                    del volume
+                    try:
+                        os.remove(data_path + '.tmp.npy')
+                    except OSError:
+                        pass
+                raise Cancelled()
     if need_volume:
         volume.flush()
         del volume
@@ -209,7 +225,20 @@ def build(path, group, gates, gain=0.0, progress=None):
         tmp = cscan_path + '.tmp.npz'
         np.savez(tmp, **arrays)
         os.replace(tmp, cscan_path)
+        _prune_cscans(folder, group.id)
     prune()
+
+
+def _prune_cscans(folder, group_id, keep=KEEP_CSCANS):
+    """Keeps a group's newest C-scans (each gate / gain setting tried makes one)."""
+    prefix = f'g{group_id}_cscan_'
+    files = sorted((os.path.join(folder, f) for f in os.listdir(folder) if f.startswith(prefix) and f.endswith('.npz')
+                    and '.tmp' not in f), key=os.path.getmtime, reverse=True)
+    for old in files[keep:]:
+        try:
+            os.remove(old)
+        except OSError:
+            pass
 
 
 def read_volume_line(path, group, line):
@@ -227,8 +256,17 @@ def read_cscan(path, group, gates, gain=0.0):
     cscan_path = _cscan_path(cache_dir(path), group.id, gates_key(gates, gain))
     if not os.path.exists(cscan_path):
         return None
+    mtime = os.path.getmtime(cscan_path)
+    hit = _loaded.get(cscan_path)
+    if hit and hit[0] == mtime:
+        _loaded[cscan_path] = _loaded.pop(cscan_path)   # most recently used last
+        return hit[1]
     with np.load(cscan_path) as data:
-        return {name: data[name] for name in data.files}
+        arrays = {name: data[name] for name in data.files}
+    _loaded[cscan_path] = (mtime, arrays)
+    while len(_loaded) > LOADED_MAX:
+        _loaded.pop(next(iter(_loaded)))
+    return arrays
 
 
 # ── background jobs ──────────────────────────────────────────────────────
@@ -253,19 +291,29 @@ def ensure(path, group, gates, gain=0.0, background=True):
     if is_built(path, group, gates, gain):
         return {'state': 'done', 'progress': 1.0, 'error': ''}
     key = job_key(path, group, gates, gain)
+    same_group = key.rsplit('|', 1)[0] + '|'
     with _lock:
         job = _jobs.get(key)
-        if job and job['state'] in ('running', 'done'):
-            return dict(job)
-        job = _jobs[key] = {'state': 'running', 'progress': 0.0, 'error': '', 'started': time.time()}
+        if job and job['state'] in ('running', 'done') and not job.get('cancel'):
+            return _public(job)
+        # A newer setting for the same file and group: the older builds stop
+        for other_key, other in _jobs.items():
+            if other_key.startswith(same_group) and other['state'] == 'running':
+                other['cancel'] = True
+        job = _jobs[key] = {'state': 'running', 'progress': 0.0, 'error': '', 'started': time.time(), 'cancel': False}
 
     def report(fraction):
         job['progress'] = round(fraction, 3)
 
     def run():
         try:
-            build(path, group, gates, gain, progress=report)
+            with _one_build:
+                if job['cancel']:
+                    raise Cancelled()
+                build(path, group, gates, gain, progress=report, cancelled=lambda: job['cancel'])
             job['state'], job['progress'] = 'done', 1.0
+        except Cancelled:
+            job['state'] = 'cancelled'
         except Exception as e:   # shown on the page; the next request may try again
             job['state'], job['error'] = 'error', f'{type(e).__name__}: {e}'
 
@@ -273,7 +321,11 @@ def ensure(path, group, gates, gain=0.0, background=True):
         threading.Thread(target=run, daemon=True, name=f'analysis-build-{key}').start()
     else:
         run()
-    return dict(job)
+    return _public(job)
+
+
+def _public(job):
+    return {'state': job['state'], 'progress': job['progress'], 'error': job['error']}
 
 
 def open_group(path, group_id):

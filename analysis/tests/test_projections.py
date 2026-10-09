@@ -112,3 +112,30 @@ class HydroformThicknessMapTests(SimpleTestCase):
                     response = client.get(reverse('analysis-cscan'), {'path': path, 'gate': gate, 'kind': 'thickness', 'from': frm})
                     values = np.frombuffer(response.content, dtype='<f4').reshape(306, 306)
                     self.assertAlmostEqual(values[118, 29] / 0.0254, expected, delta=0.0006, msg=f'{gate}-{frm}')
+
+
+
+class BuildJobTests(SimpleTestCase):
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        override = override_settings(ANALYSIS_CACHE_DIR=os.path.join(self.folder, 'cache'))
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def test_a_cancelled_build_leaves_nothing_and_old_cscans_are_pruned(self):
+        path = builders.weld_file(self.folder, scans=6)
+        group = open_file(path).group(0)
+        with self.assertRaises(projections.Cancelled):
+            projections.build(path, group, group.gates, cancelled=lambda: True)
+        folder = projections.cache_dir(path)
+        self.assertEqual([f for f in os.listdir(folder) if f.endswith('.npz') or f.endswith('.npy')], [])
+        for gain in range(projections.KEEP_CSCANS + 2):
+            projections.build(path, group, group.gates, gain=float(gain))
+        cscans = [f for f in os.listdir(folder) if '_cscan_' in f]
+        self.assertEqual(len(cscans), projections.KEEP_CSCANS)
+        self.assertIsNotNone(projections.read_cscan(path, group, group.gates, gain=float(projections.KEEP_CSCANS + 1)))
+        # Read again: served from memory, the same arrays
+        a = projections.read_cscan(path, group, group.gates, gain=float(projections.KEEP_CSCANS + 1))
+        b = projections.read_cscan(path, group, group.gates, gain=float(projections.KEEP_CSCANS + 1))
+        self.assertIs(a, b)
