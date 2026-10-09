@@ -1,19 +1,74 @@
 {% extends 'reports/base.html' %}
+{% load ui %}
 
 {% block title %}Analysis · PAUT Report Automation{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{% static_v 'analysis/css/analysis.css' %}">{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Analysis</h1>
-    <p class="page-subtitle">Open an .nde file and look through its A-scans like OmniPC. Files are read where they are, in your working folders.</p>
+<div class="analysis-page" id="analysis"
+     data-files-url="{% url 'analysis-files' %}" data-file-url="{% url 'analysis-file' %}"
+     data-frame-url="{% url 'analysis-frame' %}" data-readings-url="{% url 'analysis-readings' %}">
+    <div class="analysis-toolbar panel">
+        <div class="analysis-tool analysis-file">
+            <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
+            <select class="form-select form-select-sm" id="file-select" aria-label=".nde file"><option value="">Loading files…</option></select>
+            <select class="form-select form-select-sm" id="group-select" aria-label="Group"></select>
+        </div>
+        <div class="analysis-tool" title="Scan line (Left / Right, Shift for 10, PageUp / PageDown)">
+            <span class="analysis-tool-label">Scan line</span>
+            <button type="button" class="btn btn-sm btn-secondary" id="scan-prev" aria-label="Previous scan line"><i class="bi bi-chevron-left"></i></button>
+            <input type="range" class="form-range analysis-slider" id="scan-slider" min="0" max="0" value="0" aria-label="Scan line">
+            <button type="button" class="btn btn-sm btn-secondary" id="scan-next" aria-label="Next scan line"><i class="bi bi-chevron-right"></i></button>
+            <input type="number" class="form-control form-control-sm mono analysis-number" id="scan-number" min="0" value="0" aria-label="Scan line number">
+            <span class="analysis-tool-note" id="scan-count"></span>
+        </div>
+        <div class="analysis-tool" title="Soft gain added to the data, like OmniPC's Gain (+ / - keys)">
+            <span class="analysis-tool-label">Gain</span>
+            <button type="button" class="btn btn-sm btn-secondary" id="gain-down" aria-label="1 dB less">−</button>
+            <input type="number" class="form-control form-control-sm mono analysis-number" id="gain" value="0.0" step="0.5" aria-label="Soft gain in dB">
+            <button type="button" class="btn btn-sm btn-secondary" id="gain-up" aria-label="1 dB more">+</button>
+            <span class="analysis-tool-note">dB</span>
+        </div>
+        <div class="analysis-tool">
+            <select class="form-select form-select-sm" id="units" aria-label="Units"><option value="in">in</option><option value="mm">mm</option></select>
+            <select class="form-select form-select-sm" id="axis" aria-label="A-scan axis" title="A-scan horizontal axis">
+                <option value="depth">True depth</option><option value="path">Sound path</option>
+            </select>
+        </div>
+    </div>
+    <p class="analysis-status" id="analysis-status" role="status" hidden></p>
+    {% if not roots %}<div class="alert alert-info">Add a working folder under Preferences › Working folders to open .nde files from it.</div>{% endif %}
+
+    <div class="analysis-grid">
+        <section class="analysis-panel analysis-panel-sscan">
+            <header class="analysis-panel-head">
+                <span>S-scan</span><span class="analysis-panel-note" id="sscan-label"></span>
+                <label class="analysis-check ms-auto" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry</label>
+                <button type="button" class="btn btn-sm btn-secondary" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
+                <i class="bi bi-question-circle analysis-help" tabindex="0"
+                   title="Click or drag to move the beam cursor (Up / Down keys too). Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>
+            </header>
+            <div class="analysis-stage" id="sscan-stage"></div>
+            <div class="analysis-readout mono" id="sscan-readout"></div>
+        </section>
+        <section class="analysis-panel analysis-panel-ascan">
+            <header class="analysis-panel-head"><span>A-scan</span><span class="analysis-panel-note" id="ascan-label"></span></header>
+            <div class="analysis-stage" id="ascan-stage"></div>
+            <div class="analysis-readout mono" id="ascan-readout"></div>
+        </section>
+        <aside class="analysis-panel analysis-readings">
+            <header class="analysis-panel-head"><span>Readings</span></header>
+            <dl class="analysis-reading-list" id="readings"></dl>
+            <p class="analysis-file-details" id="file-details"></p>
+        </aside>
+    </div>
 </div>
-<section class="panel">
-    <p class="mb-2">Coming next: the A-scan and S-scan viewer.</p>
-    {% if roots %}
-    <p class="form-text mb-1">Files can be opened from:</p>
-    <ul class="mb-0">{% for root in roots %}<li class="mono">{{ root }}</li>{% endfor %}</ul>
-    {% else %}
-    <p class="form-text mb-0">Add a working folder under Preferences › Working folders to open files from it.</p>
-    {% endif %}
-</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'analysis/js/palette.js' %}"></script>
+<script src="{% static_v 'analysis/js/nde_client.js' %}"></script>
+<script src="{% static_v 'analysis/js/sscan_view.js' %}"></script>
+<script src="{% static_v 'analysis/js/ascan_view.js' %}"></script>
+<script src="{% static_v 'analysis/js/analysis.js' %}"></script>
 {% endblock %}

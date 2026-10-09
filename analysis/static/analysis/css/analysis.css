@@ -1,0 +1,53 @@
+/* Analysis page (an in-app OmniPC): toolbar, S-scan / A-scan panels and readings. The plot areas
+   are always dark like OmniPC's; everything around them follows the app theme (app.css tokens). */
+
+.analysis-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem;
+    padding: 0.5rem 0.75rem; margin-bottom: 0.5rem;
+}
+.analysis-tool { display: flex; align-items: center; gap: 0.35rem; }
+.analysis-tool .form-select, .analysis-tool .form-control { width: auto; }
+.analysis-file { flex: 1 1 30rem; min-width: 0; }
+.analysis-file #file-filter { width: 9rem; }
+.analysis-file #file-select { flex: 1 1 16rem; min-width: 0; }
+.analysis-file #group-select { flex: 0 1 18rem; min-width: 0; }
+.analysis-tool-label { font-size: 0.8125rem; font-weight: 600; color: var(--text-2); }
+.analysis-tool-note { font-size: 0.75rem; color: var(--text-3); white-space: nowrap; }
+.analysis-slider { width: 14rem; }
+.analysis-number { width: 5rem !important; }
+.analysis-status { margin: 0 0 0.5rem; font-size: 0.8125rem; color: var(--danger, #dc3545); }
+
+.analysis-grid {
+    display: grid; gap: 0.5rem;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 13rem;
+    grid-template-rows: minmax(22rem, calc(100vh - 15rem));
+}
+@media (max-width: 1100px) {
+    .analysis-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+    .analysis-panel-sscan, .analysis-panel-ascan { height: 26rem; }
+}
+.analysis-panel {
+    display: flex; flex-direction: column; min-height: 0; min-width: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+}
+.analysis-panel-head {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.6rem;
+    font-size: 0.8125rem; font-weight: 600; border-bottom: 1px solid var(--border); background: var(--surface-2);
+}
+.analysis-panel-head .btn { padding: 0.05rem 0.35rem; }
+.analysis-panel-note { font-weight: 400; color: var(--text-3); }
+.analysis-help { color: var(--text-3); cursor: help; }
+.analysis-stage { position: relative; flex: 1 1 auto; min-height: 0; background: #0b0d11; }
+.analysis-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.analysis-overlay { cursor: crosshair; touch-action: none; }
+.analysis-readout { min-height: 1.4rem; padding: 0.15rem 0.6rem; font-size: 0.75rem; color: var(--text-3); border-top: 1px solid var(--border); }
+
+.analysis-readings { padding-bottom: 0.5rem; }
+.analysis-reading-list {
+    display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.75rem; margin: 0; padding: 0.5rem 0.6rem;
+    font-size: 0.875rem;
+}
+.analysis-reading-list dt { font-weight: 600; color: var(--text-2); cursor: help; }
+.analysis-reading-list dd { margin: 0; text-align: right; }
+.analysis-file-details { margin: auto 0 0; padding: 0 0.6rem; font-size: 0.75rem; color: var(--text-3); }
+.analysis-check { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0; font-weight: 400; color: var(--text-2); cursor: pointer; }

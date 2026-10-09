@@ -7,7 +7,7 @@ from django.shortcuts import render
 
 from .paths import PathNotAllowed, allowed_roots, checked_path
 from .services import geometry
-from .services.nde_data import UNSUPPORTED, NdeDataError, open_file, read_ascan, read_frame
+from .services.nde_data import RASTER, UNSUPPORTED, NdeDataError, open_file, read_ascan, read_frame
 from .services.readings import evaluate_gates, omnipc_reading
 
 MAX_FILES = 5000
@@ -119,7 +119,11 @@ def readings(request):
     beam = group.beams[lateral]
     results = evaluate_gates(group, beam, raw)
     values = {}
+    # On a 0 deg raster the peak's index position is just the line's: OmniPC doesn't list PA^ / ViA^
+    skipped = ('PA^', 'ViA^', 'PB^', 'ViB^') if group.layout == RASTER else ()
     for name in READINGS:
+        if name in skipped:
+            continue
         try:
             value = omnipc_reading(name, results, beam, info)
         except KeyError:
