@@ -181,6 +181,17 @@ class DashboardDocumentsTests(TestCase):
         self.assertEqual(search('report forms'), ['Weld inspection form'])
         self.assertContains(self.client.get(reverse('document-search'), {'q': 'zzz'}), 'No documents match')
 
+    def test_search_ignores_the_upload_folder(self):
+        self.make('PAUT-001')
+        self.make('Report form 2026 rev', Document.FORM)
+        doc = self.make('Old cert')
+        Document.objects.filter(pk=doc.pk).update(file='documents/2026/cert_scan-2026.pdf')
+        search = lambda q: sorted(d.title for d in self.client.get(reverse('document-search'), {'q': q}).context['documents'])
+        # Every file is under documents/<year>/: only names and titles with the year match it
+        self.assertEqual(search('2026'), ['Old cert', 'Report form 2026 rev'])
+        self.assertEqual(search('documents'), [])
+        self.assertEqual(search('scan-2026'), ['Old cert'])   # the file name still matches
+
     def test_opening_a_document_serves_the_pdf_and_moves_it_to_the_top(self):
         old = self.make('Old', hours_ago=10)
         self.make('New', hours_ago=1)

@@ -1,4 +1,5 @@
 import os
+import re
 
 from django.db import models
 from django.db.models.functions import Coalesce
@@ -26,6 +27,11 @@ def file_type_q(key):
     return q
 
 
+def file_name_q(word):
+    """Matches documents whose file name (not its upload folder, 'documents/2026/') contains `word`."""
+    return models.Q(file__iregex=rf'[^/]*{re.escape(word)}[^/]*$')
+
+
 class DocumentQuerySet(models.QuerySet):
     def recently_used(self):
         """Most recently opened first; a document never opened counts from its upload."""
@@ -41,7 +47,7 @@ class DocumentQuerySet(models.QuerySet):
         for word in query.split():
             in_label = [key for key, label in labels.items() if word.lower() in label.lower()]
             match = (models.Q(title__icontains=word) | models.Q(description__icontains=word)
-                     | models.Q(file__icontains=word)
+                     | file_name_q(word)
                      | models.Q(notes__icontains=word) | models.Q(category__in=in_label))
             for key, (label, _, _) in FILE_TYPES.items():
                 if word.lower() in label.lower():
