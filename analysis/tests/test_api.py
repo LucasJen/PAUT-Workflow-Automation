@@ -100,3 +100,38 @@ class ApiTests(TestCase):
             self.assertEqual(len(b.content), 4 * 50)
             self.assertEqual(self.client.get(reverse('analysis-projections'), args).json()['state'], 'done')
             self.assertEqual(self.client.get(reverse('analysis-cscan'), {**args, 'gate': 'Z'}).status_code, 400)
+
+    def test_indications_saved_numbered_edited_exported_and_deleted(self):
+        url = reverse('analysis-indications')
+        body = {'path': self.weld, 'group': 0, 'scan': 2, 'lateral': 1, 'scan_position': 0.002, 'index_position': -0.0127,
+                'angle': 55.0, 'readings': {'A%': 44.0, 'DA^': 0.00739, 'Length': 0.0254, 'U(m-r)': 0.002},
+                'cursors': {'u_ref': 0.01}, 'sizing': {'method': '6'}}
+        first = self.client.post(url, json.dumps(body), content_type='application/json').json()
+        second = self.client.post(url, json.dumps({**body, 'scan': 3}), content_type='application/json').json()
+        self.assertEqual((first['number'], second['number']), (1, 2))
+        listed = self.client.get(url, {'path': self.weld}).json()['indications']
+        self.assertEqual([i['scan'] for i in listed], [2, 3])
+        edit = reverse('analysis-indication', args=[first['id']])
+        changed = self.client.post(edit, json.dumps({'comment': 'Root lack of fusion'}), content_type='application/json')
+        self.assertEqual(changed.json()['comment'], 'Root lack of fusion')
+        csv_text = self.client.get(reverse('analysis-indications-csv'), {'path': self.weld}).content.decode('utf-8-sig')
+        header, row = csv_text.splitlines()[:2]
+        self.assertTrue(header.startswith('#,Group,Scan,Index,Angle,A%,DA^'))
+        self.assertIn('44.000 %', row)
+        self.assertIn('0.291 in', row)
+        self.assertIn('1.000 in', row)
+        self.assertIn('Root lack of fusion', row)
+        self.client.delete(edit)
+        self.assertEqual(len(self.client.get(url, {'path': self.weld}).json()['indications']), 1)
+        outside = self.client.post(url, json.dumps({**body, 'path': 'C:/elsewhere/x.nde'}), content_type='application/json')
+        self.assertEqual(outside.status_code, 400)
+
+    def test_size_endpoint(self):
+        with override_settings(ANALYSIS_CACHE_DIR=os.path.join(self.folder, '.cache')):
+            from analysis.services import projections
+            from analysis.services.nde_data import open_file
+            group = open_file(self.weld).group(0)
+            projections.ensure(self.weld, group, group.gates, background=False)
+            data = self.client.get(reverse('analysis-size'), {'path': self.weld, 'scan': 2, 'lateral': 1, 'lines': 'all'}).json()
+            self.assertIn('length', data)
+            self.assertGreaterEqual(data['end'], data['start'])

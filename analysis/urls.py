@@ -11,4 +11,8 @@ urlpatterns = [
     path('projections.json', views.projections_status, name='analysis-projections'),
     path('cscan.bin', views.cscan, name='analysis-cscan'),
     path('bscan.bin', views.bscan, name='analysis-bscan'),
+    path('size.json', views.size_indication, name='analysis-size'),
+    path('indications.json', views.indications, name='analysis-indications'),
+    path('indication/<int:pk>.json', views.indication, name='analysis-indication'),
+    path('indications.csv', views.indications_csv, name='analysis-indications-csv'),
 ]

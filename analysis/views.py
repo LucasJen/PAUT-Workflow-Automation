@@ -1,23 +1,29 @@
+import csv
 import json
 import os
 from dataclasses import asdict
 
 import numpy as np
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.db.models import Max
+from django.shortcuts import get_object_or_404, render
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.http import require_http_methods
 
+from .models import Indication
 from .paths import PathNotAllowed, allowed_roots, checked_path
-from .services import geometry, projections
+from .services import geometry, projections, sizing
 from .services.nde_data import (
     RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame, read_status, usable,
 )
-from .services.readings import evaluate_gates, omnipc_reading
+from .services.readings import evaluate_gates, gate_letter, omnipc_reading
 
 MAX_FILES = 5000
 # Readings the panel shows, when the gates they need exist (OmniPC names)
 READINGS = ('A%', 'SA^', 'DA^', 'PA^', 'ViA^', 'B%', 'SB^', 'DB^', 'A/-I/', 'T(B/-A/)')
 
 
+@ensure_csrf_cookie
 def analysis(request):
     """The Analysis page: open an .nde file and look through its data, like OmniPC."""
     return render(request, 'analysis/analysis.html', {'roots': allowed_roots()})
@@ -254,3 +260,126 @@ def bscan(request):
     if values is None:
         return JsonResponse({'error': 'Not built yet.', **projections.ensure(path, group, gates, gain)}, status=409)
     return _binary(values, scans=meta['scans'], bins=meta['bins'], factor=meta['factor'], full=meta['full'])
+
+
+def size_indication(request):
+    """
+    Length (along the scan) or width (along a raster's index axis) of the indication at the cursor,
+    by an amplitude drop (?method=6 / 12 / 20 dB) or down to the gate threshold (?method=threshold),
+    on the cached gate map; ?lines=all sizes the most of every line at each scan position.
+    """
+    try:
+        path, info, group, gates, gain = _whole_file(request)
+        scan, line = _int(request, 'scan'), _int(request, 'lateral')
+    except (PathNotAllowed, NdeDataError) as e:
+        return _error(str(e))
+    data = projections.read_cscan(path, group, gates, gain)
+    if data is None:
+        return JsonResponse({'error': 'Not built yet.', **projections.ensure(path, group, gates, gain)}, status=409)
+    letter = request.GET.get('gate', 'A').upper()
+    gate = next((g for g in gates if gate_letter(g.name) == letter), None)
+    try:
+        result = sizing.size_length(
+            data, group, letter, scan, line, axis=request.GET.get('axis', 'scan'),
+            lines=request.GET.get('lines', 'current'), method=request.GET.get('method', '6'),
+            threshold=gate.threshold if gate else None)
+    except sizing.SizingError as e:
+        return _error(str(e))
+    return JsonResponse(result)
+
+
+# ── Indications (like OmniPC's indication table) ─────────────────────────
+
+def _float_or_none(value):
+    try:
+        return None if value in (None, '') else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+@require_http_methods(['GET', 'POST'])
+def indications(request):
+    """
+    GET ?path=: the file's indications. POST (JSON: path, group, scan, lateral, positions, readings,
+    cursors, sizing, gain, comment): saves one, numbered after the file's last.
+    """
+    if request.method == 'GET':
+        try:
+            path = checked_path(request.GET.get('path', ''))
+        except PathNotAllowed as e:
+            return _error(str(e))
+        return JsonResponse({'indications': [i.as_dict() for i in Indication.objects.filter(file_path=path)]})
+    try:
+        data = json.loads(request.body or b'{}')
+        path = checked_path(data.get('path', ''))
+        scan, lateral = int(data['scan']), int(data['lateral'])
+    except (ValueError, KeyError, TypeError, PathNotAllowed) as e:
+        return _error(str(e) or "The indication couldn't be read.")
+    last = Indication.objects.filter(file_path=path).aggregate(m=Max('number'))['m'] or 0
+    dicts = {name: data.get(name) if isinstance(data.get(name), dict) else {} for name in ('readings', 'cursors', 'sizing')}
+    item = Indication.objects.create(
+        file_path=path, file_name=os.path.basename(path), group=int(data.get('group') or 0), number=last + 1,
+        scan=scan, lateral=lateral, scan_position=_float_or_none(data.get('scan_position')),
+        index_position=_float_or_none(data.get('index_position')), angle=_float_or_none(data.get('angle')),
+        gain=_float_or_none(data.get('gain')) or 0, comment=str(data.get('comment') or '')[:2000], **dicts)
+    return JsonResponse(item.as_dict(), status=201)
+
+
+@require_http_methods(['POST', 'DELETE'])
+def indication(request, pk):
+    """POST (JSON {comment}): edits an indication's comment; DELETE removes it."""
+    item = get_object_or_404(Indication, pk=pk)
+    if request.method == 'DELETE':
+        item.delete()
+        return JsonResponse({'deleted': pk})
+    try:
+        data = json.loads(request.body or b'{}')
+    except ValueError:
+        return _error("The change couldn't be read.")
+    if 'comment' in data:
+        item.comment = str(data['comment'] or '')[:2000]
+        item.save(update_fields=['comment', 'updated_at'])
+    return JsonResponse(item.as_dict())
+
+
+# OmniPC's indication table columns, then any other readings the indications carry
+CSV_READINGS = ('A%', 'DA^', 'PA^', 'SA^', 'ViA^', 'B%', 'A/-I/', 'T(B/-A/)', 'U(m-r)', 'I(m-r)', 'S(m-r)',
+                'Length', 'TminZ')
+
+
+def indications_csv(request):
+    """The file's indications as a CSV like OmniPC's indications.csv (?units=in or mm)."""
+    try:
+        path = checked_path(request.GET.get('path', ''))
+    except PathNotAllowed as e:
+        return _error(str(e))
+    unit, scale = ('mm', 1000.0) if request.GET.get('units') == 'mm' else ('in', 1 / 0.0254)
+    items = list(Indication.objects.filter(file_path=path))
+    extra = sorted({name for i in items for name in i.readings} - set(CSV_READINGS))
+    columns = list(CSV_READINGS) + extra
+
+    def length(v):
+        return '' if v is None else f'{v * scale:.3f} {unit}'
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    stem = os.path.splitext(os.path.basename(path))[0]
+    response['Content-Disposition'] = f'attachment; filename="{stem} indications.csv"'
+    response.write('﻿')
+    writer = csv.writer(response)
+    writer.writerow(['#', 'Group', 'Scan', 'Index', 'Angle', *columns, 'Comment'])
+    for i in items:
+        row = [i.number, f'GR-{i.group + 1}', length(i.scan_position), length(i.index_position),
+               '' if i.angle is None else f'{i.angle:.3f}']
+        for name in columns:
+            value = i.readings.get(name)
+            if value is None:
+                row.append('')
+            elif '%' in name:
+                row.append(f'{value:.3f} %')
+            elif 'dB' in name:
+                row.append(f'{value:.1f} dB')
+            else:
+                row.append(length(value))
+        row.append(i.comment)
+        writer.writerow(row)
+    return response
