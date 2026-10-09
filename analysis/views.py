@@ -1,3 +1,4 @@
+import json
 import os
 from dataclasses import asdict
 
@@ -7,7 +8,7 @@ from django.shortcuts import render
 
 from .paths import PathNotAllowed, allowed_roots, checked_path
 from .services import geometry
-from .services.nde_data import RASTER, UNSUPPORTED, NdeDataError, open_file, read_ascan, read_frame
+from .services.nde_data import RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame
 from .services.readings import evaluate_gates, omnipc_reading
 
 MAX_FILES = 5000
@@ -101,6 +102,32 @@ def frame(request):
     return response
 
 
+def _gates(request, group):
+    """The file's gates, or the editor's own (?gates= JSON list, SI: start / length in s from the
+    pulse or from the sync gate's crossing, threshold in %)."""
+    text = request.GET.get('gates')
+    if not text:
+        return group.gates
+    try:
+        items = json.loads(text)
+        gates = []
+        for item in items:
+            sync = item.get('sync_gate')
+            gate = Gate(
+                id=int(item['id']), name=str(item.get('name') or '')[:20], start=float(item['start']),
+                length=float(item['length']), threshold=float(item['threshold']),
+                sync_mode='GateRelative' if sync is not None else 'Pulse',
+                sync_gate=int(sync) if sync is not None else None,
+                trigger='MaxPeak' if item.get('trigger') == 'MaxPeak' else 'Crossing',
+            )
+            if gate.length <= 0 or not 0 <= gate.threshold <= 1000:
+                raise ValueError
+            gates.append(gate)
+    except (ValueError, TypeError, KeyError):
+        raise NdeDataError("The gates couldn't be read.")
+    return gates
+
+
 def readings(request):
     """
     Gates and OmniPC readings on one A-scan (services/readings.py, checked against OmniPC), with soft
@@ -112,12 +139,13 @@ def readings(request):
         lateral = _int(request, 'lateral')
         raw = read_ascan(path, group, _int(request, 'scan'), lateral)
         gain = float(request.GET.get('gain') or 0)
+        gates = _gates(request, group)
     except (PathNotAllowed, NdeDataError, ValueError) as e:
         return _error(str(e))
     if gain:
         raw = np.clip(np.round(raw.astype(np.float64) * 10 ** (gain / 20)), -32768, 32767).astype(np.int16)
     beam = group.beams[lateral]
-    results = evaluate_gates(group, beam, raw)
+    results = evaluate_gates(group, beam, raw, gates)
     values = {}
     # On a 0 deg raster the peak's index position is just the line's: OmniPC doesn't list PA^ / ViA^
     skipped = ('PA^', 'ViA^', 'PB^', 'ViB^') if group.layout == RASTER else ()

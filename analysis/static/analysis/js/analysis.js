@@ -2,8 +2,13 @@
 // lines, and look at each one's S-scan (true geometry) and the A-scan under the beam cursor with
 // OmniPC's gate readings. Scan lines are stepped by number for now (encoder positions come later).
 //
+// Gates start as the file's and can be edited (the Gates panel, or dragging them on the A-scan);
+// readings always come from the server's checked code with the gates as edited. Reference / measure
+// cursors (red / green) in depth (U) and index (I) give the cursor readings. Gates, cursors and the
+// reference level are remembered per file and group in this browser.
+//
 // Keys: Left / Right a scan line (Shift: 10), PageUp / PageDown 10 lines, Up / Down the beam
-// cursor, + / - soft gain by 1 dB. The state is kept in the URL so a reload comes back to it.
+// cursor, + / - soft gain by 1 dB.
 
 (function () {
     const page = document.getElementById('analysis');
@@ -13,7 +18,7 @@
     const $ = id => document.getElementById(id);
     const fileSelect = $('file-select'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const slider = $('scan-slider'), scanNumber = $('scan-number'), gainInput = $('gain');
-    const unitsSelect = $('units'), axisSelect = $('axis');
+    const unitsSelect = $('units'), axisSelect = $('axis'), refInput = $('ref-level');
     const status = $('analysis-status');
 
     const READING_NAMES = {
@@ -21,9 +26,14 @@
         'PA^': 'Gate A peak from the probe', 'ViA^': 'Index position of the gate A peak',
         'B%': 'Peak amplitude in gate B', 'SB^': 'Sound path to the gate B peak', 'DB^': 'Depth of the gate B peak',
         'A/-I/': 'Gate A crossing from the interface (gate I crossing)', 'T(B/-A/)': 'Thickness: gate A crossing to gate B crossing',
+        'A dB(r)': 'Gate A peak against the reference level, in dB',
+        'U(r)': 'Reference cursor depth', 'U(m)': 'Measure cursor depth', 'U(m-r)': 'Depth between the cursors',
+        'I(r)': 'Reference cursor index position', 'I(m)': 'Measure cursor index position', 'I(m-r)': 'Index distance between the cursors',
     };
+    const NO_CURSORS = { u_ref: null, u_meas: null, i_ref: null, i_meas: null };
 
-    const state = { path: '', group: 0, scan: 0, lateral: 0, gain: 0, info: null, frame: null, values: null };
+    const state = { path: '', group: 0, scan: 0, lateral: 0, gain: 0, info: null, frame: null, values: null,
+                    gates: [], gatesEdited: false, cursors: { ...NO_CURSORS }, refLevel: 80, readings: {} };
     const params = new URLSearchParams(location.search);
     let units = localStorage.getItem('analysisUnits') || 'in';
     unitsSelect.value = units;
@@ -39,12 +49,60 @@
     const sscan = new SScanView($('sscan-stage'), {
         format, unitLength,
         onCursor: lateral => setLateral(lateral),
+        onCursors: partial => setCursors(partial),
         onHover: (x, y) => { $('sscan-readout').textContent = x === null ? '' : `Index ${format(x)} · depth ${format(y)}`; },
     });
+    let gateSnapshot = null;
     const ascan = new AScanView($('ascan-stage'), {
         format, unitLength,
         onHover: text => { $('ascan-readout').textContent = text || ''; },
+        onCursor: (which, depth) => setCursors({ [`u_${which}`]: depth }),
+        onGateDragStart: letter => { gateSnapshot = { ...gateByLetter(letter) }; },
+        onGateDrag: (letter, { part, dt, threshold }) => {
+            const gate = gateByLetter(letter);
+            if (!gate || !gateSnapshot) return;
+            const minimum = currentGroup().axes[2].resolution;
+            if (part === 'move') {
+                gate.start = gateSnapshot.start + dt;
+                if (threshold !== undefined) gate.threshold = Math.round(threshold);
+            } else if (part === 'start') {
+                const dtMax = gateSnapshot.length - minimum;
+                const d = Math.min(dt, dtMax);
+                gate.start = gateSnapshot.start + d;
+                gate.length = gateSnapshot.length - d;
+            } else {
+                gate.length = Math.max(minimum, gateSnapshot.length + dt);
+            }
+            gatesChanged(20);
+        },
+        onGateDragEnd: () => { gateSnapshot = null; },
     });
+
+    // ── per file / group memory ──
+    const memoryKey = () => `analysis:${state.path}:${state.group}`;
+    function save() {
+        try {
+            localStorage.setItem(memoryKey(), JSON.stringify({
+                gates: state.gatesEdited ? state.gates : null, cursors: state.cursors, refLevel: state.refLevel,
+            }));
+        } catch { /* storage full or blocked: nothing to keep */ }
+    }
+    function restore() {
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(memoryKey()) || 'null'); } catch { saved = null; }
+        const g = currentGroup();
+        state.gates = saved?.gates || fileGates(g);
+        state.gatesEdited = !!saved?.gates;
+        state.cursors = { ...NO_CURSORS, ...(saved?.cursors || {}) };
+        state.refLevel = saved?.refLevel || 80;
+        refInput.value = state.refLevel;
+    }
+    const fileGates = g => g.gates.map(x => ({
+        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold,
+        sync_gate: x.sync_mode === 'GateRelative' ? x.sync_gate : null, trigger: x.trigger || 'Crossing',
+    }));
+    const letterOf = name => (name || '').trim().split(/\s+/).pop().toUpperCase();
+    const gateByLetter = letter => state.gates.find(x => letterOf(x.name) === letter);
 
     function remember() {
         const q = new URLSearchParams({ path: state.path, group: state.group, scan: state.scan, lateral: state.lateral });
@@ -93,6 +151,12 @@
         return `${g.name} · ${g.formation || 'linear'} 0° raster · ${g.shape[0]} × ${g.shape[1]}`;
     }
 
+    function showDetails() {
+        const s = state.info?.specimen || {};
+        $('file-details').textContent = [`NDE ${state.info.version}`, s.thickness ? `part ${format(s.thickness)} thick` : '',
+                                         s.material || '', state.info.scan_pattern || ''].filter(Boolean).join(' · ');
+    }
+
     async function openFile(path, group = 0, scan = 0, lateral = 0) {
         show('Opening…');
         try {
@@ -114,11 +178,7 @@
         }
         const chosen = usable.find(g => g.id === group) || usable[0];
         groupSelect.value = chosen.id;
-        const s = state.info.specimen || {};
-        $('file-details').textContent = [
-            `NDE ${state.info.version}`, s.thickness ? `part ${format(s.thickness)} thick` : '',
-            s.material || '', state.info.scan_pattern || '',
-        ].filter(Boolean).join(' · ');
+        showDetails();
         show('');
         await setGroup(chosen.id, scan, lateral);
     }
@@ -126,8 +186,10 @@
     async function setGroup(id, scan = 0, lateral = 0) {
         state.group = id;
         const g = currentGroup();
-        const samples = g.shape[2];
-        sscan.setGeometry(g.rays, samples, state.info.specimen?.thickness);
+        restore();
+        renderGates();
+        sscan.setGeometry(g.rays, g.shape[2], state.info.specimen?.thickness);
+        sscan.setCursors(state.cursors);
         $('true-geometry').checked = sscan.trueGeometry;
         slider.max = scanNumber.max = g.shape[0] - 1;
         $('scan-count').textContent = `of ${g.shape[0]}`;
@@ -137,7 +199,7 @@
 
     const currentGroup = () => state.info.groups.find(g => g.id === state.group);
 
-    // ── scan line, beam cursor, readings ──
+    // ── scan line, beam cursor ──
     let frameRequest = 0;
     async function setScan(scan) {
         const g = currentGroup();
@@ -167,8 +229,7 @@
         sscan.setFrame(values, frame.lateral, frame.samples);
         setLateral(state.lateral, true);
         remember();
-        // Read the neighbouring lines ahead so stepping stays smooth
-        for (const next of [state.scan + 1, state.scan - 1]) {
+        for (const next of [state.scan + 1, state.scan - 1]) {   // read the neighbours ahead
             if (next >= 0 && next < g.shape[0]) NdeClient.frame(urls, state.path, state.group, next).catch(() => {});
         }
     }
@@ -182,44 +243,150 @@
         sscan.setCursor(lateral);
         const n = state.frame.samples;
         ascan.set({ values: state.values.subarray(lateral * n, (lateral + 1) * n), ray: g.rays[lateral],
-                    period: g.axes[2].resolution, gates: null });
+                    period: g.axes[2].resolution, gates: null, cursors: ascanCursors() });
         const beam = g.beams[lateral];
         $('ascan-label').textContent = g.layout === 'beams'
             ? `Beam ${lateral + 1} of ${g.shape[1]} · ${beam.refracted_angle}°`
             : `Index line ${lateral + 1} of ${g.shape[1]} · ${format(beam.v_offset)}`;
         $('sscan-label').textContent = `Scan line ${state.scan + 1}`;
+        renderGates();   // its lengths use this beam's velocity
         remember();
         scheduleReadings();
     }
 
+    // ── cursors ──
+    const ascanCursors = () => ({ ref: state.cursors.u_ref, meas: state.cursors.u_meas });
+    function setCursors(partial) {
+        Object.assign(state.cursors, partial);
+        sscan.setCursors(state.cursors);
+        ascan.set({ cursors: ascanCursors() });
+        renderReadings();
+        save();
+    }
+    $('clear-cursors').addEventListener('click', () => setCursors({ ...NO_CURSORS }));
+
+    // ── gates ──
+    const halfVelocity = () => (currentGroup()?.beams[state.lateral]?.velocity || 0) / 2;   // sound path per s
+    const gateLength = t => format(t * halfVelocity(), true);
+
+    function renderGates() {
+        const g = currentGroup();
+        const box = $('gate-rows');
+        if (!g) return;
+        if (!state.gates.length) {
+            box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: 'This group has no gates.' }));
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'analysis-gates';
+        const head = table.createTHead().insertRow();
+        for (const [label, help] of [['', ''], ['Start', 'Sound path from the pulse, or after the sync gate\'s crossing'],
+            ['Width', 'Sound path'], ['Thr %', 'Threshold, % of full screen'], ['Sync', 'What the gate starts from']]) {
+            head.append(Object.assign(document.createElement('th'), { textContent: label, title: help }));
+        }
+        const body = table.createTBody();
+        for (const gate of state.gates) {
+            const letter = letterOf(gate.name);
+            const tr = body.insertRow();
+            tr.insertCell().append(Object.assign(document.createElement('span'), { className: `gate-letter gate-${letter}`, textContent: letter }));
+            const number = (value, onChange) => {
+                const input = Object.assign(document.createElement('input'), { type: 'text', inputMode: 'decimal', value,
+                                                                              className: 'form-control form-control-sm mono' });
+                input.addEventListener('change', () => {
+                    const v = parseFloat(input.value);
+                    if (Number.isFinite(v)) onChange(v);
+                    gatesChanged();
+                });
+                return input;
+            };
+            tr.insertCell().append(number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); }));
+            tr.insertCell().append(number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); }));
+            tr.insertCell().append(number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); }));
+            const sync = Object.assign(document.createElement('select'), { className: 'form-select form-select-sm' });
+            sync.add(new Option('Pulse', ''));
+            for (const other of state.gates) {
+                if (other !== gate) sync.add(new Option(letterOf(other.name), other.id, false, gate.sync_gate === other.id));
+            }
+            if (gate.sync_gate === null) sync.value = '';
+            sync.addEventListener('change', () => { gate.sync_gate = sync.value === '' ? null : +sync.value; gatesChanged(); });
+            tr.insertCell().append(sync);
+        }
+        box.replaceChildren(table);
+        $('gates-edited').hidden = !state.gatesEdited;
+    }
+
+    function gatesChanged(delay = 60) {
+        state.gatesEdited = true;
+        save();
+        if (!document.activeElement?.closest('#gate-rows')) renderGates();
+        $('gates-edited').hidden = false;
+        scheduleReadings(delay);
+    }
+
+    $('reset-gates').addEventListener('click', () => {
+        state.gates = fileGates(currentGroup());
+        state.gatesEdited = false;
+        save();
+        renderGates();
+        scheduleReadings();
+    });
+
+    // ── readings ──
     let readingsTimer = null, readingsRequest = 0;
-    function scheduleReadings() {
+    function scheduleReadings(delay = 60) {
         clearTimeout(readingsTimer);
-        readingsTimer = setTimeout(loadReadings, 60);
+        readingsTimer = setTimeout(loadReadings, delay);
     }
 
     async function loadReadings() {
         const mine = ++readingsRequest;
+        const query = { path: state.path, group: state.group, scan: state.scan, lateral: state.lateral, gain: state.gain };
+        if (state.gatesEdited) query.gates = JSON.stringify(state.gates);
         let data;
         try {
-            data = await NdeClient.readings(urls, { path: state.path, group: state.group, scan: state.scan,
-                                                    lateral: state.lateral, gain: state.gain });
+            data = await NdeClient.readings(urls, query);
         } catch (e) {
             show(e.message);
             return;
         }
         if (mine !== readingsRequest) return;
+        show('');
         ascan.set({ gates: data.gates });
+        state.readings = data.readings;
+        renderReadings();
+    }
+
+    function renderReadings() {
         const list = $('readings');
-        const rows = Object.entries(data.readings).map(([name, value]) => {
-            const dt = Object.assign(document.createElement('dt'), { textContent: name, title: READING_NAMES[name] || '' });
-            const dd = Object.assign(document.createElement('dd'), {
-                className: 'mono', textContent: name.includes('%') ? `${value.toFixed(1)} %` : format(value),
-            });
-            return [dt, dd];
-        }).flat();
-        list.replaceChildren(...(rows.length ? rows : [Object.assign(document.createElement('dd'), {
-            className: 'text-muted-cell', textContent: 'No gate signal on this line.' })]));
+        const rows = [];
+        const add = (name, text, section = false) => {
+            if (section) rows.push(Object.assign(document.createElement('div'), { className: 'analysis-reading-section', textContent: name }));
+            else {
+                rows.push(Object.assign(document.createElement('dt'), { textContent: name, title: READING_NAMES[name] || '' }));
+                rows.push(Object.assign(document.createElement('dd'), { className: 'mono', textContent: text }));
+            }
+        };
+        const values = state.readings || {};
+        for (const [name, value] of Object.entries(values)) {
+            add(name, name.includes('%') ? `${value.toFixed(1)} %` : format(value));
+            if (name === 'A%' && value > 0 && state.refLevel > 0) {
+                const db = 20 * Math.log10(value / state.refLevel);
+                add('A dB(r)', `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB`);
+            }
+        }
+        if (!Object.keys(values).length) rows.push(Object.assign(document.createElement('dd'), { className: 'analysis-note', textContent: 'No gate signal on this line.' }));
+        const c = state.cursors;
+        const has = v => v !== null && v !== undefined;
+        if ([c.u_ref, c.u_meas, c.i_ref, c.i_meas].some(has)) {
+            add('Cursors', '', true);
+            if (has(c.u_ref)) add('U(r)', format(c.u_ref));
+            if (has(c.u_meas)) add('U(m)', format(c.u_meas));
+            if (has(c.u_ref) && has(c.u_meas)) add('U(m-r)', format(c.u_meas - c.u_ref));
+            if (has(c.i_ref)) add('I(r)', format(c.i_ref));
+            if (has(c.i_meas)) add('I(m)', format(c.i_meas));
+            if (has(c.i_ref) && has(c.i_meas)) add('I(m-r)', format(c.i_meas - c.i_ref));
+        }
+        list.replaceChildren(...rows);
     }
 
     // ── controls ──
@@ -240,18 +407,20 @@
     gainInput.addEventListener('change', () => setGain(parseFloat(gainInput.value) || 0));
     $('gain-down').addEventListener('click', () => setGain(state.gain - 1));
     $('gain-up').addEventListener('click', () => setGain(state.gain + 1));
+    refInput.addEventListener('change', () => {
+        const v = parseFloat(refInput.value);
+        state.refLevel = Number.isFinite(v) && v > 0 ? v : 80;
+        refInput.value = state.refLevel;
+        save();
+        renderReadings();
+    });
     unitsSelect.addEventListener('change', () => {
         units = unitsSelect.value;
         localStorage.setItem('analysisUnits', units);
         sscan.drawOverlay();
         ascan.draw();
-        if (state.info) { setLateral(state.lateral, true); openDetails(); }
+        if (state.info) { showDetails(); renderGates(); renderReadings(); setLateral(state.lateral, true); }
     });
-    const openDetails = () => {
-        const s = state.info?.specimen || {};
-        $('file-details').textContent = [`NDE ${state.info.version}`, s.thickness ? `part ${format(s.thickness)} thick` : '',
-                                         s.material || '', state.info.scan_pattern || ''].filter(Boolean).join(' · ');
-    };
     axisSelect.addEventListener('change', () => ascan.setAxis(axisSelect.value));
     $('sscan-fit').addEventListener('click', () => { sscan.view = null; sscan.draw(); });
     $('true-geometry').addEventListener('change', e => sscan.setTrueGeometry(e.target.checked));
@@ -268,5 +437,6 @@
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });
 
+    page.views = { sscan, ascan };   // for checking the page in a test browser
     loadFiles().catch(e => show(e.message));
 })();

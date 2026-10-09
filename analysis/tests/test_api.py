@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import tempfile
@@ -63,3 +64,17 @@ class ApiTests(TestCase):
             response = self.client.get(url, args)
             self.assertEqual(response.status_code, 400, (url, args))
             self.assertIn('error', response.json())
+
+    def test_readings_with_the_editors_gates(self):
+        args = {'path': self.weld, 'group': 0, 'scan': 1, 'lateral': 0}
+        # The builder's samples rise along the A-scan (value = 1000 + sample): a later, shorter gate
+        # ends on a higher sample, and a gate synced to A starts after A's crossing
+        gates = [{'id': 1, 'name': 'Gate A', 'start': 4e-6, 'length': 5e-7, 'threshold': 1.0},
+                 {'id': 2, 'name': 'Gate B', 'start': 2e-7, 'length': 1e-6, 'threshold': 1.0, 'sync_gate': 1}]
+        data = self.client.get(reverse('analysis-readings'), {**args, 'gates': json.dumps(gates)}).json()
+        a, b = data['gates']['A'], data['gates']['B']
+        self.assertAlmostEqual(a['end'], 4.5e-6)
+        self.assertAlmostEqual(b['start'], a['crossing_time'] + 2e-7)
+        self.assertIn('B%', data['readings'])
+        for bad in ('not json', json.dumps([{'id': 1, 'start': 0, 'length': -1, 'threshold': 20}])):
+            self.assertEqual(self.client.get(reverse('analysis-readings'), {**args, 'gates': bad}).status_code, 400)

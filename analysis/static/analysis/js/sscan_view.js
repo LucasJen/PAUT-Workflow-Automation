@@ -8,6 +8,9 @@
 // to move the beam cursor, scroll to zoom at the pointer, right-drag to pan, double-click to fit.
 // True geometry keeps one scale both ways (a sectorial fan); stretched fills the panel (a 0 deg
 // raster's index x depth end view, e.g. 12 in wide and 0.5 in deep).
+// Cursors: reference (red) and measure (green) - depth (U, horizontal lines) and index (I, vertical
+// lines). Ctrl+click puts the reference pair at a point, Shift+click the measure pair; drag a line
+// to move it.
 
 window.SScanView = (function () {
     const VERTEX = `#version 300 es
@@ -72,6 +75,7 @@ void main() {
             this.gain = 1;
             this.view = null;       // [cx, cy, width, height] in world units; null = fit
             this.trueGeometry = true;
+            this.cursors = { u_ref: null, u_meas: null, i_ref: null, i_meas: null };
             this.lateral = 0;
             this.hasFrame = false;
             this.bind();
@@ -156,6 +160,11 @@ void main() {
 
         setCursor(lateral) {
             this.lateral = lateral;
+            this.drawOverlay();
+        }
+
+        setCursors(cursors) {
+            this.cursors = cursors;
             this.drawOverlay();
         }
 
@@ -258,6 +267,21 @@ void main() {
                 ctx.lineWidth = 1.5 * ratio;
                 ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
             }
+            // Reference / measure cursors: depth (U) across, index (I) up and down
+            const colours = { ref: '#f87171', meas: '#4ade80' };
+            for (const which of ['ref', 'meas']) {
+                ctx.strokeStyle = colours[which];
+                ctx.lineWidth = ratio;
+                const u = this.cursors[`u_${which}`], i = this.cursors[`i_${which}`];
+                if (u !== null && u !== undefined) {
+                    const [, y] = this.toScreen(0, u);
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+                }
+                if (i !== null && i !== undefined) {
+                    const [x] = this.toScreen(i, 0);
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+                }
+            }
             // Axes: depth down the left, index position along the bottom
             ctx.fillStyle = '#e2e8f0';
             ctx.lineJoin = 'round';
@@ -309,6 +333,21 @@ void main() {
             return best;
         }
 
+        /** The cursor line within a few pixels of a press: {key: 'u_ref' ...} or null. */
+        grabLine(e) {
+            const box = this.overlay.getBoundingClientRect();
+            const ratio = window.devicePixelRatio || 1;
+            const px = (e.clientX - box.left) * ratio, py = (e.clientY - box.top) * ratio;
+            const reach = 6 * ratio;
+            for (const key of ['u_meas', 'i_meas', 'u_ref', 'i_ref']) {
+                const value = this.cursors[key];
+                if (value === null || value === undefined) continue;
+                const [sx, sy] = key.startsWith('u') ? this.toScreen(0, value) : this.toScreen(value, 0);
+                if (key.startsWith('u') ? Math.abs(py - sy) <= reach : Math.abs(px - sx) <= reach) return key;
+            }
+            return null;
+        }
+
         bind() {
             const el = this.overlay;
             let drag = null;
@@ -319,15 +358,37 @@ void main() {
                 if (e.button === 2 || e.button === 1) {
                     drag = { pan: true, x: e.clientX, y: e.clientY, view: this.currentView() };
                 } else if (e.button === 0) {
-                    drag = { pan: false };
-                    this.options.onCursor(this.pick(this.toWorld(e)));
+                    const [x, y] = this.toWorld(e);
+                    const line = this.grabLine(e);
+                    if (line) {
+                        drag = { line };
+                    } else if (e.shiftKey || e.ctrlKey) {
+                        const which = e.shiftKey ? 'meas' : 'ref';
+                        this.options.onCursors?.({ [`u_${which}`]: y, [`i_${which}`]: x });
+                        drag = { pair: which };
+                    } else {
+                        drag = { pan: false };
+                        this.options.onCursor(this.pick([x, y]));
+                    }
                 }
             });
             el.addEventListener('pointermove', e => {
                 if (!this.rays) return;
                 const [x, y] = this.toWorld(e);
                 this.options.onHover?.(x, y);
-                if (!drag) return;
+                if (!drag) {
+                    const line = this.grabLine(e);
+                    el.style.cursor = line ? (line.startsWith('u') ? 'ns-resize' : 'ew-resize') : '';
+                    return;
+                }
+                if (drag.line) {
+                    this.options.onCursors?.({ [drag.line]: drag.line.startsWith('u') ? y : x });
+                    return;
+                }
+                if (drag.pair) {
+                    this.options.onCursors?.({ [`u_${drag.pair}`]: y, [`i_${drag.pair}`]: x });
+                    return;
+                }
                 if (drag.pan) {
                     const box = el.getBoundingClientRect();
                     const [cx, cy, width, height] = drag.view;

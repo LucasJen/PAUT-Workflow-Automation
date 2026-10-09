@@ -2,47 +2,60 @@
 // soft gain applied, clipped at the top like the instrument) against true depth or sound path along
 // the beam. Gates come from the server's readings (where they really were placed, after synced gates
 // moved them) and are drawn as bars at their thresholds with marks at the crossing and the peak.
+//
+// Editing: drag a gate's bar to move it (and up / down for its threshold), its ends to change its
+// start or width. Reference (red) and measure (green) ultrasound cursors: click to put the reference
+// there, Shift+click the measure; drag either line. Cursors are kept as true depth (m).
 
 window.AScanView = (function () {
     const GATE_COLOURS = { I: '#facc15', A: '#ef4444', B: '#22c55e' };
+    const CURSOR_COLOURS = { ref: '#f87171', meas: '#4ade80' };
+    const GRAB = 6;   // px
 
     class AScanView {
-        /** options: {format(m, short), unitLength(), onHover(text)} */
+        /** options: {format(m, short), unitLength(), onHover(text), onGateDragStart(letter),
+         *  onGateDrag(letter, {part, dt, threshold}), onGateDragEnd(), onCursor(which, depth)} */
         constructor(stage, options) {
             this.options = options;
             this.canvas = Object.assign(document.createElement('canvas'), { className: 'analysis-ascan' });
             stage.append(this.canvas);
             this.gain = 1;
             this.axis = 'depth';     // depth (true depth) or path (sound path)
-            this.canvas.addEventListener('pointermove', e => this.hover(e));
-            this.canvas.addEventListener('pointerleave', () => this.options.onHover?.(null));
+            this.cursors = { ref: null, meas: null };
+            this.bind();
             new ResizeObserver(() => this.draw()).observe(stage);
         }
 
-        /** values: Float32Array percent of one line; ray: its ray (SI); period: s per sample; gates: from the readings */
-        set({ values, ray, gates, period }) {
+        /** values: Float32Array percent of one line; ray: its ray (SI); period: s per sample;
+         *  gates: from the readings; cursors: {ref, meas} true depths (m) */
+        set({ values, ray, gates, period, cursors }) {
             if (period !== undefined) this.period = period;
             if (values !== undefined) this.values = values;
             if (ray !== undefined) this.ray = ray;
             if (gates !== undefined) this.gates = gates;
+            if (cursors !== undefined) this.cursors = cursors;
             this.draw();
         }
 
         setGain(db) { this.gain = Math.pow(10, db / 20); this.draw(); }
         setAxis(axis) { this.axis = axis; this.draw(); }
 
-        /** Horizontal position (m) of a sample index / a time along this beam. */
+        // ── positions along the axis ──
         along(sample) {
             const sp = this.ray.sp_start + sample * this.ray.sp_step;
             return this.axis === 'depth' ? sp * this.ray.dz : sp;
         }
-
+        halfVelocity() { return this.ray.sp_step / this.period; }   // sound path per second of round trip
         timeToAlong(t) {
-            // sp_start = v * t0 / 2 and sp_step = v * period / 2: sound path is linear in time
-            const velocityHalf = this.ray.sp_step / this.period;
-            const sp = t * velocityHalf;
+            const sp = t * this.halfVelocity();
             return this.axis === 'depth' ? sp * this.ray.dz : sp;
         }
+        alongToTime(x) {
+            const sp = this.axis === 'depth' ? x / (this.ray.dz || 1) : x;
+            return sp / this.halfVelocity();
+        }
+        depthToAlong(d) { return this.axis === 'depth' ? d : d / (this.ray.dz || 1); }
+        alongToDepth(x) { return this.axis === 'depth' ? x : x * this.ray.dz; }
 
         resize() {
             const ratio = window.devicePixelRatio || 1;
@@ -62,6 +75,7 @@ window.AScanView = (function () {
                 sx: x => left + (x - x0) / (x1 - x0) * (w - left - right),
                 sy: p => h - bottom - Math.min(p, 100) / 100 * (h - bottom - top),
                 fromX: px => x0 + (px - left) / (w - left - right) * (x1 - x0),
+                fromY: py => (h - bottom - py) / (h - bottom - top) * 100,
             };
         }
 
@@ -74,7 +88,6 @@ window.AScanView = (function () {
             if (!this.values || !this.ray) return;
             const f = this.frame();
             ctx.font = `${11 * ratio}px Inter, Arial, sans-serif`;
-            // Grid: 20 % lines and the length axis
             ctx.strokeStyle = 'rgba(148,163,184,0.18)';
             ctx.fillStyle = '#94a3b8';
             ctx.lineWidth = ratio;
@@ -93,7 +106,18 @@ window.AScanView = (function () {
                 ctx.beginPath(); ctx.moveTo(px, h - f.bottom); ctx.lineTo(px, h - f.bottom + 5 * ratio); ctx.stroke();
                 ctx.fillText(this.options.format(x, true), px + 2 * ratio, h - 5 * ratio);
             }
-            // Gates: a bar at the threshold from start to end, crossing (|) and peak (^) marks
+            // Cursors: full-height lines with their value at the top
+            for (const which of ['ref', 'meas']) {
+                const depth = this.cursors[which];
+                if (depth === null || depth === undefined) continue;
+                const x = f.sx(this.depthToAlong(depth));
+                if (x < f.left || x > w - f.right) continue;
+                ctx.strokeStyle = ctx.fillStyle = CURSOR_COLOURS[which];
+                ctx.lineWidth = ratio;
+                ctx.beginPath(); ctx.moveTo(x, f.top); ctx.lineTo(x, h - f.bottom); ctx.stroke();
+                ctx.fillText(this.options.format(this.depthToAlong(depth), true), x + 3 * ratio, f.top + 10 * ratio);
+            }
+            this.gateBars = [];
             for (const [letter, gate] of Object.entries(this.gates || {})) {
                 if (!gate.found || gate.start === null) continue;
                 const colour = GATE_COLOURS[letter] || '#e2e8f0';
@@ -101,14 +125,21 @@ window.AScanView = (function () {
                 ctx.fillStyle = colour;
                 ctx.lineWidth = 2 * ratio;
                 const y = f.sy(gate.threshold);
-                const a = Math.max(f.left, f.sx(this.timeToAlong(gate.start))), b = Math.min(w - f.right, f.sx(this.timeToAlong(gate.end)));
-                if (b > a) {
-                    ctx.beginPath(); ctx.moveTo(a, y); ctx.lineTo(b, y); ctx.stroke();
-                    ctx.fillText(letter, a + 3 * ratio, y - 4 * ratio);
+                const a = f.sx(this.timeToAlong(gate.start)), b = f.sx(this.timeToAlong(gate.end));
+                this.gateBars.push({ letter, a, b, y });
+                const ca = Math.max(f.left, a), cb = Math.min(w - f.right, b);
+                if (cb > ca) {
+                    ctx.beginPath(); ctx.moveTo(ca, y); ctx.lineTo(cb, y); ctx.stroke();
+                    ctx.fillText(letter, ca + 3 * ratio, y - 4 * ratio);
+                    for (const end of [a, b]) {   // end ticks: grab them to change the start / width
+                        if (end >= f.left && end <= w - f.right) {
+                            ctx.beginPath(); ctx.moveTo(end, y - 4 * ratio); ctx.lineTo(end, y + 4 * ratio); ctx.stroke();
+                        }
+                    }
                 }
                 if (gate.crossing_time !== null) {
                     const x = f.sx(this.timeToAlong(gate.crossing_time));
-                    ctx.beginPath(); ctx.moveTo(x, y - 6 * ratio); ctx.lineTo(x, y + 6 * ratio); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(x, y - 7 * ratio); ctx.lineTo(x, y + 7 * ratio); ctx.stroke();
                 }
                 if (gate.peak_time !== null && gate.amplitude !== null) {
                     const x = f.sx(this.timeToAlong(gate.peak_time)), py = f.sy(gate.amplitude);   // the server applied the gain
@@ -116,7 +147,6 @@ window.AScanView = (function () {
                     ctx.lineTo(x + 5 * ratio, py - 8 * ratio); ctx.stroke();
                 }
             }
-            // The trace
             ctx.strokeStyle = '#fde047';
             ctx.lineWidth = 1.2 * ratio;
             ctx.beginPath();
@@ -129,12 +159,78 @@ window.AScanView = (function () {
             ctx.stroke();
         }
 
-        hover(e) {
-            if (!this.values || !this.ray) return;
+        // ── pointer ──
+        point(e) {
             const box = this.canvas.getBoundingClientRect();
             const ratio = window.devicePixelRatio || 1;
-            const f = this.frame();
-            const x = f.fromX((e.clientX - box.left) * ratio);
+            return [(e.clientX - box.left) * ratio, (e.clientY - box.top) * ratio];
+        }
+
+        /** What a press at (px, py) grabs: a cursor line, a gate end, a gate bar, or nothing. */
+        grab(px, py, f) {
+            const r = f.ratio * GRAB;
+            for (const which of ['meas', 'ref']) {
+                const d = this.cursors[which];
+                if (d !== null && d !== undefined && Math.abs(f.sx(this.depthToAlong(d)) - px) <= r) return { kind: 'cursor', which };
+            }
+            for (const bar of this.gateBars || []) {
+                if (Math.abs(py - bar.y) > r * 1.5) continue;
+                if (Math.abs(px - bar.a) <= r) return { kind: 'gate', letter: bar.letter, part: 'start' };
+                if (Math.abs(px - bar.b) <= r) return { kind: 'gate', letter: bar.letter, part: 'end' };
+                if (px > bar.a && px < bar.b) return { kind: 'gate', letter: bar.letter, part: 'move' };
+            }
+            return null;
+        }
+
+        bind() {
+            const c = this.canvas;
+            let drag = null;
+            c.addEventListener('pointerdown', e => {
+                if (e.button !== 0 || !this.values || !this.ray) return;
+                const f = this.frame();
+                const [px, py] = this.point(e);
+                const hit = this.grab(px, py, f);
+                c.setPointerCapture(e.pointerId);
+                if (hit?.kind === 'gate') {
+                    drag = { ...hit, x: f.fromX(px) };
+                    this.options.onGateDragStart?.(hit.letter);
+                } else if (hit?.kind === 'cursor') {
+                    drag = hit;
+                } else {
+                    const which = e.shiftKey ? 'meas' : 'ref';
+                    this.options.onCursor?.(which, this.alongToDepth(f.fromX(px)));
+                    drag = { kind: 'cursor', which };
+                }
+            });
+            c.addEventListener('pointermove', e => {
+                if (!this.values || !this.ray) return;
+                const f = this.frame();
+                const [px, py] = this.point(e);
+                if (!drag) {
+                    const hit = this.grab(px, py, f);
+                    c.style.cursor = !hit ? 'crosshair' : hit.kind === 'cursor' || hit.part !== 'move' ? 'ew-resize' : 'move';
+                    this.hover(px, f);
+                    return;
+                }
+                if (drag.kind === 'cursor') {
+                    this.options.onCursor?.(drag.which, this.alongToDepth(f.fromX(px)));
+                } else {
+                    const dt = this.alongToTime(f.fromX(px)) - this.alongToTime(drag.x);
+                    const threshold = drag.part === 'move' ? Math.max(0, Math.min(100, f.fromY(py))) : undefined;
+                    this.options.onGateDrag?.(drag.letter, { part: drag.part, dt, threshold });
+                }
+            });
+            const end = () => {
+                if (drag?.kind === 'gate') this.options.onGateDragEnd?.();
+                drag = null;
+            };
+            c.addEventListener('pointerup', end);
+            c.addEventListener('pointercancel', end);
+            c.addEventListener('pointerleave', () => { if (!drag) this.options.onHover?.(null); });
+        }
+
+        hover(px, f) {
+            const x = f.fromX(px);
             const sample = Math.round((x / (this.axis === 'depth' ? this.ray.dz || 1 : 1) - this.ray.sp_start) / this.ray.sp_step);
             const value = this.values[Math.max(0, Math.min(this.values.length - 1, sample))];
             this.options.onHover?.(`${this.axis === 'depth' ? 'Depth' : 'Sound path'} ${this.options.format(x)} · ${value < 0 ? 'no data' : (value * this.gain).toFixed(1) + ' %'}`);

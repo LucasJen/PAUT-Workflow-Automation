@@ -29,6 +29,11 @@
             <button type="button" class="btn btn-sm btn-secondary" id="gain-up" aria-label="1 dB more">+</button>
             <span class="analysis-tool-note">dB</span>
         </div>
+        <div class="analysis-tool" title="The amplitude A dB(r) is measured against, % of full screen (OmniPC's reference level)">
+            <span class="analysis-tool-label">Ref</span>
+            <input type="number" class="form-control form-control-sm mono analysis-number" id="ref-level" value="80" min="1" step="1" aria-label="Reference level in %">
+            <span class="analysis-tool-note">%</span>
+        </div>
         <div class="analysis-tool">
             <select class="form-select form-select-sm" id="units" aria-label="Units"><option value="in">in</option><option value="mm">mm</option></select>
             <select class="form-select form-select-sm" id="axis" aria-label="A-scan axis" title="A-scan horizontal axis">
@@ -46,19 +51,29 @@
                 <label class="analysis-check ms-auto" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry</label>
                 <button type="button" class="btn btn-sm btn-secondary" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
                 <i class="bi bi-question-circle analysis-help" tabindex="0"
-                   title="Click or drag to move the beam cursor (Up / Down keys too). Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>
+                   title="Click or drag to move the beam cursor (Up / Down keys too). Ctrl+click puts the reference cursors (red) at a point, Shift+click the measure cursors (green); drag a cursor line to move it. Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>
             </header>
             <div class="analysis-stage" id="sscan-stage"></div>
             <div class="analysis-readout mono" id="sscan-readout"></div>
         </section>
         <section class="analysis-panel analysis-panel-ascan">
-            <header class="analysis-panel-head"><span>A-scan</span><span class="analysis-panel-note" id="ascan-label"></span></header>
+            <header class="analysis-panel-head"><span>A-scan</span><span class="analysis-panel-note" id="ascan-label"></span>
+                <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                   title="Click to put the reference cursor (red) there, Shift+click the measure cursor (green); drag a cursor to move it. Drag a gate's bar to move it (up / down changes its threshold) and its end ticks to change its start or width."></i>
+            </header>
             <div class="analysis-stage" id="ascan-stage"></div>
             <div class="analysis-readout mono" id="ascan-readout"></div>
         </section>
         <aside class="analysis-panel analysis-readings">
-            <header class="analysis-panel-head"><span>Readings</span></header>
+            <header class="analysis-panel-head"><span>Readings</span>
+                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="clear-cursors" title="Clear the reference and measure cursors"><i class="bi bi-x-lg"></i> Cursors</button>
+            </header>
             <dl class="analysis-reading-list" id="readings"></dl>
+            <header class="analysis-panel-head analysis-panel-subhead"><span>Gates</span>
+                <span class="analysis-panel-note" id="gates-edited" hidden>edited</span>
+                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="reset-gates" title="Back to the file's gates"><i class="bi bi-arrow-counterclockwise"></i> File's</button>
+            </header>
+            <div class="analysis-gate-rows" id="gate-rows"></div>
             <p class="analysis-file-details" id="file-details"></p>
         </aside>
     </div>
