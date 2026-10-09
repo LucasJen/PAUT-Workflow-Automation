@@ -1,10 +1,11 @@
 import json
 import os
 import shutil
+import time
 import tempfile
 
 import numpy as np
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from analysis.tests import builders
@@ -78,3 +79,24 @@ class ApiTests(TestCase):
         self.assertIn('B%', data['readings'])
         for bad in ('not json', json.dumps([{'id': 1, 'start': 0, 'length': -1, 'threshold': 20}])):
             self.assertEqual(self.client.get(reverse('analysis-readings'), {**args, 'gates': bad}).status_code, 400)
+
+    def test_whole_file_views_build_then_serve(self):
+        with override_settings(ANALYSIS_CACHE_DIR=os.path.join(self.folder, '.cache')):
+            args = {'path': self.weld, 'group': 0}
+            response = self.client.get(reverse('analysis-cscan'), {**args, 'gate': 'A'})
+            for _ in range(100):               # 409 while the background build runs
+                if response.status_code != 409:
+                    break
+                time.sleep(0.05)
+                response = self.client.get(reverse('analysis-cscan'), {**args, 'gate': 'A'})
+            self.assertEqual((response['X-Scans'], response['X-Lines']), ('4', '3'))
+            values = np.frombuffer(response.content, dtype='<f4').reshape(4, 3)
+            self.assertTrue(np.isnan(values[0, 0]))          # no data there
+            self.assertGreater(values[2, 1], 0)
+            depth = np.frombuffer(self.client.get(reverse('analysis-cscan'), {**args, 'gate': 'A', 'kind': 'depth'}).content, dtype='<f4')
+            self.assertTrue(np.all(depth[np.isfinite(depth)] <= 0.0125 + 1e-6))   # folded inside the 12.5 mm plate
+            b = self.client.get(reverse('analysis-bscan'), {**args, 'line': 2})
+            self.assertEqual((b['X-Scans'], b['X-Bins'], b['X-Factor']), ('4', '50', '1'))
+            self.assertEqual(len(b.content), 4 * 50)
+            self.assertEqual(self.client.get(reverse('analysis-projections'), args).json()['state'], 'done')
+            self.assertEqual(self.client.get(reverse('analysis-cscan'), {**args, 'gate': 'Z'}).status_code, 400)

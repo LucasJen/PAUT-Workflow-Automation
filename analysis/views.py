@@ -7,7 +7,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from .paths import PathNotAllowed, allowed_roots, checked_path
-from .services import geometry
+from .services import geometry, projections
 from .services.nde_data import RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame
 from .services.readings import evaluate_gates, omnipc_reading
 
@@ -159,3 +159,89 @@ def readings(request):
         if value is not None:
             values[name] = value
     return JsonResponse({'gates': {k: asdict(v) for k, v in results.items()}, 'readings': values})
+
+
+# ── Whole-file views: C-scan and B-scan (services/projections.py) ───────
+
+def _whole_file(request):
+    """(path, info, group, gates, gain) for a projections request."""
+    path, info = _open(request)
+    group = _group(info, request)
+    try:
+        gain = float(request.GET.get('gain') or 0)
+    except ValueError:
+        raise NdeDataError('Bad gain.')
+    return path, info, group, _gates(request, group), gain
+
+
+def projections_status(request):
+    """Starts building the file's C-scan / B-scan data if needed: {'state', 'progress', 'error'}."""
+    try:
+        path, _, group, gates, gain = _whole_file(request)
+    except (PathNotAllowed, NdeDataError) as e:
+        return _error(str(e))
+    return JsonResponse(projections.ensure(path, group, gates, gain))
+
+
+def _binary(array, **headers):
+    response = HttpResponse(np.ascontiguousarray(array).tobytes(), content_type='application/octet-stream')
+    for name, value in headers.items():
+        response[f"X-{name.replace('_', '-').title()}"] = str(value)
+    response['Cache-Control'] = 'private, max-age=600'
+    return response
+
+
+def cscan(request):
+    """
+    A C-scan as little-endian float32 [scans x lines] (NaN = nothing), for ?gate= and ?kind=:
+    amplitude (%), depth (true depth of the gate's peak, folded at the back wall, m), or thickness
+    (?gate=B&from=A: depth between the two gates' crossings, m).
+    """
+    try:
+        path, info, group, gates, gain = _whole_file(request)
+    except (PathNotAllowed, NdeDataError) as e:
+        return _error(str(e))
+    data = projections.read_cscan(path, group, gates, gain)
+    if data is None:
+        return JsonResponse({'error': 'Not built yet.', **projections.ensure(path, group, gates, gain)}, status=409)
+    letter, kind = request.GET.get('gate', 'A').upper(), request.GET.get('kind', 'amplitude')
+    if f'{letter}_amplitude' not in data:
+        return _error(f'There is no gate {letter}.')
+    velocity = np.array([b.velocity for b in group.beams], dtype=np.float64)
+    cos = np.cos(np.radians([b.refracted_angle for b in group.beams]))
+    if kind == 'amplitude':
+        values = data[f'{letter}_amplitude']
+    elif kind == 'depth':
+        depth = velocity * data[f'{letter}_peak_time'] / 2 * cos
+        thickness = info.specimen.get('thickness')
+        if thickness:
+            leg = np.floor(depth / thickness)
+            within = depth - leg * thickness
+            depth = np.where(leg % 2 == 0, within, thickness - within)
+        values = depth
+    elif kind == 'thickness':
+        other = request.GET.get('from', 'A').upper()
+        if f'{other}_crossing_time' not in data:
+            return _error(f'There is no gate {other}.')
+        values = velocity * (data[f'{letter}_crossing_time'] - data[f'{other}_crossing_time']) / 2 * cos
+    else:
+        return _error('Unknown C-scan kind.')
+    values = np.asarray(values, dtype='<f4')
+    finite = values[np.isfinite(values)]
+    return _binary(values, scans=values.shape[0], lines=values.shape[1],
+                   min=float(finite.min()) if finite.size else 0, max=float(finite.max()) if finite.size else 0)
+
+
+def bscan(request):
+    """One line's B-scan from the cached volume: uint8 [scans x bins] (255 = X-Full %)."""
+    try:
+        path, _, group, gates, gain = _whole_file(request)
+        line = _int(request, 'line')
+    except (PathNotAllowed, NdeDataError) as e:
+        return _error(str(e))
+    if not 0 <= line < group.shape[1]:
+        return _error('That line is outside the data.')
+    values, meta = projections.read_volume_line(path, group, line)
+    if values is None:
+        return JsonResponse({'error': 'Not built yet.', **projections.ensure(path, group, gates, gain)}, status=409)
+    return _binary(values, scans=meta['scans'], bins=meta['bins'], factor=meta['factor'], full=meta['full'])
