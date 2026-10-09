@@ -2,7 +2,9 @@
 // indications under it. On save it writes the weld form's rows into the results inputs (the
 // same rows the Excel output reads): a weld's first indication shares the weld's row, each
 // further indication gets a row with a blank Weld ID, and a weld with no indications is one row
-// carrying its own Accept / Reject and notes.
+// carrying its own Accept / Reject and notes. A weld scanned at more than one index offset has an
+// offset row for each further offset (its own C/L Offset … Probe 2 Thickness, started from the
+// weld's first row); the n-th offset row shares the weld's (n+1)-th results row with its indications.
 
 (function () {
     const root = document.getElementById('weld-results');
@@ -32,9 +34,9 @@
     const pageRows = Number(root.dataset.pageRows);
 
     const markDirty = () => form.dispatchEvent(new Event('input', { bubbles: true }));
-    // A weld scanned at more than one index offset: its C/L Offset cell holds each ('0.500 / 0.875')
+    // A further offset of a weld repeats the weld's columns after Weld ID and Welder ID
     const OFFSET = 'cl_offset';
-    const OFFSET_JOIN = ' / ';
+    const OFFSET_KEYS = WELD.slice(WELD.indexOf(OFFSET));   // C/L Offset … Probe 2 Thickness
 
     // ── Cells ─────────────────────────────────────────────────────────────
 
@@ -56,47 +58,7 @@
         return input;
     }
 
-    // The C/L Offset cell: an input per offset, + for another (each extra one with ✕ to drop it)
-    function offsetCell(value = '') {
-        const td = document.createElement('td');
-        const list = document.createElement('div');
-        list.className = 'offset-list';
-        const add = document.createElement('button');
-        add.type = 'button';
-        add.className = 'btn btn-link btn-sm offset-add';
-        add.dataset.addOffset = '';
-        add.title = "Another index offset this weld was scanned at (then press Scan plan to add it to the drawings)";
-        add.innerHTML = '<i class="bi bi-plus-lg"></i> Offset';
-        td.append(list, add);
-        const offsets = value.split('/').map(v => v.trim()).filter(Boolean);
-        (offsets.length ? offsets : ['']).forEach(v => addOffset(td, v));
-        return td;
-    }
-
-    function addOffset(td, value = '') {
-        const list = td.querySelector('.offset-list');
-        const input = textInput(OFFSET, value);
-        if (!list.children.length) {
-            list.append(input);
-            return input;
-        }
-        input.setAttribute('aria-label', `${heading[OFFSET]} ${list.children.length + 1}`);
-        delete input.dataset.fill;   // an extra offset may be left empty
-        const row = document.createElement('div');
-        row.className = 'offset-extra';
-        const drop = document.createElement('button');
-        drop.type = 'button';
-        drop.className = 'btn btn-icon btn-sm';
-        drop.dataset.removeOffset = '';
-        drop.title = 'Remove this offset';
-        drop.innerHTML = '<i class="bi bi-x"></i>';
-        row.append(input, drop);
-        list.append(row);
-        return input;
-    }
-
     function cell(key, value = '') {
-        if (key === OFFSET) return offsetCell(value);
         const td = document.createElement('td');
         let input;
         if (key === 'accept') {
@@ -132,9 +94,7 @@
         return tr;
     }
 
-    const value = (scope, key) => key === OFFSET
-        ? Array.from(scope.querySelectorAll(`[data-key="${OFFSET}"]`), i => i.value.trim()).filter(Boolean).join(OFFSET_JOIN)
-        : scope.querySelector(`[data-key="${key}"]`)?.value.trim() || '';
+    const value = (scope, key) => scope.querySelector(`[data-key="${key}"]`)?.value.trim() || '';
 
     // ── Welds and indications ───────────────────────────────────────────────
 
@@ -153,7 +113,10 @@
             <button type="button" class="btn btn-icon btn-sm" data-remove-weld title="Remove this weld"><i class="bi bi-x-lg"></i></button>`));
         const row = weldTable.querySelector('.weld-row');
         WELD.forEach(key => row.append(cell(key, values[key])));
-        row.append(document.createElement('td'));
+        const actions = document.createElement('td');
+        actions.className = 'results-actions';
+        actions.innerHTML = '<button type="button" class="btn btn-link btn-sm offset-add" data-add-offset title="Another index offset this weld was scanned at: a row with its own C/L offset, width, scan start / direction, probe location and thicknesses (copied from the first row). Then press Scan plan to add it to the drawings."><i class="bi bi-plus-lg"></i> Offset</button>';
+        row.append(actions);
 
         // Accept / Reject and notes of a weld with no indications ("No rejectable indications…")
         const verdict = verdictTable.querySelector('tr');
@@ -173,6 +136,26 @@
         list.append(block);
         refresh();
         return block;
+    }
+
+    // A further offset of the weld: a row under its first, the weld's values copied to change as needed
+    function addOffsetRow(block, values = null) {
+        const first = block.querySelector('.weld-row');
+        values = values || { ...Object.fromEntries(OFFSET_KEYS.map(key => [key, value(first, key)])), [OFFSET]: '' };
+        const tr = document.createElement('tr');
+        tr.className = 'offset-row';
+        const label = document.createElement('td');
+        label.className = 'offset-label';
+        label.colSpan = WELD.indexOf(OFFSET);
+        tr.append(label);
+        OFFSET_KEYS.forEach(key => tr.append(cell(key, values[key])));
+        const actions = document.createElement('td');
+        actions.className = 'results-actions';
+        actions.innerHTML = '<button type="button" class="btn btn-icon btn-sm" data-remove-offset title="Remove this offset"><i class="bi bi-x-lg"></i></button>';
+        tr.append(actions);
+        first.parentElement.append(tr);
+        refresh();
+        return tr;
     }
 
     function addIndication(block, values = {}) {
@@ -266,39 +249,41 @@
 
     // ── Rows: the weld form's results rows, in WELD_RESULTS_COLUMNS order ─────
 
+    // A weld's rows: its first row and offset rows (weld columns) side by side with its
+    // indications (or, with none, its verdict on the first row)
     function rows() {
         const out = [];
         for (const block of list.querySelectorAll('.weld-block')) {
-            const weld = WELD.map(key => value(block.querySelector('.weld-row'), key));
+            const parts = [WELD.map(key => value(block.querySelector('.weld-row'), key))];
+            for (const tr of block.querySelectorAll('.offset-row')) {
+                const part = WELD.map(key => OFFSET_KEYS.includes(key) ? value(tr, key) : '');
+                if (part.some(Boolean)) parts.push(part);
+            }
+            const blank = WELD.map(() => '');
             const indications = Array.from(block.querySelectorAll('.indications tbody tr'));
             if (!indications.length) {
                 const verdict = block.querySelector('.weld-verdict');
-                const row = [...weld, ...INDICATION.map(key => VERDICT.includes(key) ? value(verdict, key) : '')];
-                if (row.some(Boolean)) out.push(row);
+                parts.forEach((part, i) => {
+                    const row = [...part, ...INDICATION.map(key => !i && VERDICT.includes(key) ? value(verdict, key) : '')];
+                    if (row.some(Boolean)) out.push(row);
+                });
                 continue;
             }
-            indications.forEach((tr, i) => {
-                out.push([...(i === 0 ? weld : weld.map(() => '')), ...INDICATION.map(key => value(tr, key)), tr.dataset.key]);
-            });
+            for (let i = 0; i < Math.max(parts.length, indications.length); i++) {
+                const tr = indications[i];
+                out.push([...(parts[i] || blank), ...INDICATION.map(key => tr ? value(tr, key) : ''), ...(tr ? [tr.dataset.key] : [])]);
+            }
         }
         return out;
     }
 
     // The form's rows the results take: as excel_report.results_layout, a blank row before each
     // weld after the first, except at the top of a page
-    // and a weld's offsets one per row (a row added when it has fewer rows than offsets)
     function sheetRows(out) {
-        const welds = [];
-        out.forEach(row => {
-            if (row[0] || !welds.length) welds.push({ rows: 0, offsets: row[keys.indexOf(OFFSET)].split('/').filter(o => o.trim()).length });
-            welds[welds.length - 1].rows += 1;
-        });
         let at = 0;
-        welds.forEach((weld, n) => {
-            for (let i = 0; i < Math.max(weld.rows, weld.offsets); i++) {
-                if (n && !i && at !== 0 && at !== pageRows) at += 1;
-                at += 1;
-            }
+        out.forEach((row, n) => {
+            if (n && row[0] && at !== 0 && at !== pageRows) at += 1;
+            at += 1;
         });
         return at;
     }
@@ -310,6 +295,7 @@
             const count = block.querySelectorAll('.indications tbody tr').length;
             block.querySelector('.indications').hidden = count === 0;
             block.querySelector('.weld-verdict').hidden = count > 0;
+            block.querySelectorAll('.offset-label').forEach((td, i) => { td.textContent = `Offset ${i + 2}`; });
         }
         const used = sheetRows(rows());
         const counter = document.getElementById('weld-results-count');
@@ -332,29 +318,41 @@
             const indication = { ...Object.fromEntries(INDICATION.map(key => [key, values[key]])), key: row[KEY_INDEX] || '' };
             const hasFlaw = INDICATION.some(key => !VERDICT.includes(key) && values[key].trim());
             if (values.weld_id.trim() || !block) {
+                // A C/L Offset of '0.500 / 0.875' (saved for a while): an offset row per further offset
+                const offsets = values[OFFSET].split('/').map(o => o.trim()).filter(Boolean);
+                if (offsets.length > 1) values[OFFSET] = offsets[0];
                 block = addWeld(hasFlaw ? Object.fromEntries(WELD.map(key => [key, values[key]])) : values);
+                offsets.slice(1).forEach(offset => addOffsetRow(block, { ...values, [OFFSET]: offset }));
                 if (hasFlaw) addIndication(block, indication);
             } else {
-                addIndication(block, indication);
+                // A further row of the weld: an offset row, an indication, or both
+                if (OFFSET_KEYS.some(key => values[key].trim())) addOffsetRow(block, values);
+                if (INDICATION.some(key => values[key].trim())) addIndication(block, indication);
             }
         }
     }
 
     // ── Scan plan from a weld: thickness, width, C/L offset and skews into the report's plan ──
 
+    // Each of the weld's offsets in turn (its first row, then its offset rows)
     async function addToScanPlan(block) {
         const status = block.querySelector('.weld-status');
-        const weld = block.querySelector('.weld-row');
-        const body = new FormData();
-        body.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
-        body.append('report_id', form.querySelector('[name=report_id]').value);
-        for (const key of ['cl_offset', 'weld_width', 'probe1_location', 'probe1_thk']) body.append(key, value(weld, key));
+        const parts = [block.querySelector('.weld-row'), ...block.querySelectorAll('.offset-row')];
         status.hidden = false;
         status.classList.remove('text-danger');
         status.textContent = 'Updating the scan plan…';
         try {
-            const response = await fetch(root.dataset.scanPlanUrl, { method: 'POST', body });
-            const data = await response.json();
+            const results = [];
+            for (const part of parts) {
+                const body = new FormData();
+                body.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
+                body.append('report_id', form.querySelector('[name=report_id]').value);
+                for (const key of ['cl_offset', 'weld_width', 'probe1_location', 'probe1_thk']) body.append(key, value(part, key));
+                const response = await fetch(root.dataset.scanPlanUrl, { method: 'POST', body });
+                results.push(await response.json());
+            }
+            const data = { ok: results.every(r => r.ok), message: results.map(r => r.message).join(' '),
+                           plan: results.map(r => r.plan).filter(Boolean).pop() };
             status.textContent = data.message;
             status.classList.toggle('text-danger', !data.ok);
             if (data.plan) {
@@ -396,9 +394,10 @@
             return;   // changes the scan plan, not the report
         }
         if (event.target.closest('[data-add-offset]')) {
-            addOffset(event.target.closest('td')).focus();
+            addOffsetRow(block).querySelector(`[data-key="${OFFSET}"]`).focus();
         } else if (event.target.closest('[data-remove-offset]')) {
-            event.target.closest('.offset-extra').remove();
+            event.target.closest('.offset-row').remove();
+            refresh();
         } else if (event.target.closest('[data-add-indication]')) {
             addIndication(block).querySelector('input, select').focus();
         } else if (event.target.closest('[data-remove-indication]')) {

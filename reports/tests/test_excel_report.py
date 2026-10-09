@@ -135,18 +135,28 @@ class WeldCellMapTests(TestCase):
         self.assertEqual(pages.continuation['C13'], 'Pipe rack')
         self.assertEqual(pages.page_count, 2)
 
-    def test_a_welds_offsets_go_one_per_row(self):
+    def test_an_offset_row_prints_as_saved(self):
         one = weld_row('W5', 'LOF')
-        one[2] = '0.500 / 0.875 / 1.250'
+        one[2], one[3], one[6] = '0.500', '0.6', '90/270'
+        offset = [''] * 18
+        offset[2], offset[3], offset[6], offset[7] = '0.875', '0.6', '90', '0.280'
+        offset[15] = 'Slag'
+        cells = weld_pages(weld_report([one, offset, weld_row('W6')])).report
+        self.assertEqual([(cells.get(f'A{r}', ''), cells.get(f'D{r}', ''), cells.get(f'H{r}', ''), cells.get(f'Q{r}', ''))
+                          for r in range(41, 45)],
+                         [('W5', '0.500', '90/270', 'LOF'), ('', '0.875', '90', 'Slag'), ('', '', '', ''), ('W6', '', '', '')])
+
+    def test_offsets_saved_in_one_cell_print_a_row_each(self):
+        one = weld_row('W5', 'LOF')
+        one[2], one[3] = '0.500 / 0.875 / 1.250', '0.6'
         second = [''] * 18
         second[15] = 'Slag'
-        two = weld_row('W6')
-        two[2] = '0.500 / 0.875'
-        cells = weld_pages(weld_report([one, second, two])).report
-        # W5: two rows, the third offset on a row of its own; W6 after the blank row, one row added
-        self.assertEqual([(cells.get(f'A{r}', ''), cells.get(f'D{r}', ''), cells.get(f'Q{r}', '')) for r in range(41, 47)],
-                         [('W5', '0.500', 'LOF'), ('', '0.875', 'Slag'), ('', '1.250', ''), ('', '', ''),
-                          ('W6', '0.500', ''), ('', '0.875', '')])
+        cells = weld_pages(weld_report([one, second])).report
+        # the weld's columns copied to each offset's row, a row added for the third
+        self.assertEqual([(cells.get(f'A{r}', ''), cells.get(f'D{r}', ''), cells.get(f'E{r}', ''), cells.get(f'I{r}', ''),
+                           cells.get(f'Q{r}', '')) for r in range(41, 44)],
+                         [('W5', '0.500', '0.6', '0.280', 'LOF'), ('', '0.875', '0.6', '0.280', 'Slag'),
+                          ('', '1.250', '0.6', '0.280', '')])
 
     def test_no_continuation_page_when_results_fit(self):
         pages = weld_pages(weld_report([weld_row()]))

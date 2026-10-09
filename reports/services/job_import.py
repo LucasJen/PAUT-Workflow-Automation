@@ -220,19 +220,22 @@ def calibration_window(scan_times):
 
 def welds_from_files(files):
     """
-    {weld ID: {'offsets': [...], 'thickness', 'files'}} in the order the welds first appear, from
-    the files' (confirmed) weld IDs. A weld scanned from both sides (two or more files at one
-    offset) is '90/270'.
+    {weld ID: {'offsets': [...], 'thickness', 'files', 'location', 'locations'}} in the order the
+    welds first appear, from the files' (confirmed) weld IDs. A weld scanned from both sides (two
+    or more files at one offset) is '90/270'; 'locations' is that per offset, in offset order.
     """
     welds = {}
     for data in files:
-        weld = welds.setdefault(data['weld'], {'offsets': [], 'thickness': None, 'files': []})
+        weld = welds.setdefault(data['weld'], {'offsets': [], 'thickness': None, 'files': [], 'per_offset': {}})
         weld['files'].append(data['filename'])
         if data.get('offset') is not None and data['offset'] not in weld['offsets']:
             weld['offsets'].append(data['offset'])
+        weld['per_offset'][data.get('offset')] = weld['per_offset'].get(data.get('offset'), 0) + 1
         weld['thickness'] = weld['thickness'] or data.get('thickness')
     for weld in welds.values():
         weld['location'] = '90/270' if len(weld['files']) > len(weld['offsets'] or [None]) else '90'
+        per_offset = weld.pop('per_offset')
+        weld['locations'] = ['90/270' if per_offset.get(offset, 0) > 1 else '90' for offset in weld['offsets']]
     return welds
 
 
@@ -322,16 +325,20 @@ def build_report(files, defaults=None, document_filename='', block=None, job_fol
     welds = welds_from_files(files)
     headings = get_report_type(WELD_TYPE).results_headings
     table = ResultsTable.objects.create(report=report, columns=headings)
-    for order, (weld_id, weld) in enumerate(welds.items()):
-        # Every offset the weld's files were scanned at ('0.500 / 0.875')
-        cells = {'weld_id': weld_id, 'cl_offset': ' / '.join(f'{offset:.3f}' for offset in weld['offsets']),
-                 'probe1_location': weld['location'],
-                 'probe1_thk': f"{weld['thickness']:.3f}" if weld['thickness'] is not None else ''}
-        row = [cells.get(key, '') for key, _ in get_report_type(WELD_TYPE).results_columns]
-        ResultsRow.objects.create(table=table, cells=row, order=order)
-        skews = {90, 270} if weld['location'] == '90/270' else {90}
-        for weld_offset in weld['offsets'] or [None]:
-            ok, message, _ = add_weld_to_plan(report, weld['thickness'], None, weld_offset, skews)
+    keys = [key for key, _ in get_report_type(WELD_TYPE).results_columns]
+    order = 0
+    for weld_id, weld in welds.items():
+        # A row per offset the weld's files were scanned at: the first with the Weld ID, each
+        # further one the weld's next row (as the editor's offset rows)
+        thickness = f"{weld['thickness']:.3f}" if weld['thickness'] is not None else ''
+        parts = list(zip(weld['offsets'], weld['locations'])) or [(None, weld['location'])]
+        for n, (offset, location) in enumerate(parts):
+            cells = {'weld_id': weld_id if not n else '', 'cl_offset': f'{offset:.3f}' if offset is not None else '',
+                     'probe1_location': location, 'probe1_thk': thickness}
+            ResultsRow.objects.create(table=table, cells=[cells.get(key, '') for key in keys], order=order)
+            order += 1
+            skews = {90, 270} if location == '90/270' else {90}
+            ok, message, _ = add_weld_to_plan(report, weld['thickness'], None, offset, skews)
             if not ok:
                 notes.append(f'{weld_id}: {message}')
     return report, notes

@@ -413,12 +413,14 @@ def plan_drawing_views(report):
     columns, rows = report_results(report) if report.pk else ([], [])
     weld_at, offset_at = (columns.index(headings[key]) if headings[key] in columns else None
                           for key in ('weld_id', 'cl_offset'))
-    welds = []   # [(weld ID, [offsets])]
+    welds = []   # [(weld ID, [offsets])]: a row with no Weld ID may be a further offset of the weld above
     if weld_at is not None and offset_at is not None:
         for cells in rows:
             cells = list(cells) + [''] * len(columns)
             if str(cells[weld_at]).strip():
-                welds.append((str(cells[weld_at]).strip(), weld_offsets(str(cells[offset_at]))))
+                welds.append((str(cells[weld_at]).strip(), []))
+            if welds:
+                welds[-1][1].extend(weld_offsets(str(cells[offset_at])))
     views = []
     for position, side, label in plan.drawing_labels:
         offset = plan.index_offset if position == 1 else plan.index_offset_2

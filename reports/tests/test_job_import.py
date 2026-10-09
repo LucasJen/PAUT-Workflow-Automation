@@ -97,8 +97,10 @@ class BuildReportTests(TestCase):
                  read_job_file(nde_file('PPI 31-37575 w5 n off2.nde'))]
         files[0]['offset'], files[1]['offset'] = 0.5, 0.875
         report, notes = build_report(files, None, 'Job')
-        row = report.results_table.rows.get().cells
-        self.assertEqual(row[2], '0.500 / 0.875')
+        rows = list(report.results_table.rows.order_by('order').values_list('cells', flat=True))
+        # a row per offset: the second with no Weld ID, the weld's location and thickness again
+        self.assertEqual([(r[0], r[2], r[6], r[7]) for r in rows],
+                         [('W5', '0.500', '90', rows[0][7]), ('', '0.875', '90', rows[0][7])])
         plan = report.scan_plan
         self.assertEqual((plan.index_offset, plan.index_offset_2), (0.5, 0.875))
 
@@ -198,8 +200,11 @@ class GuidedEditorTests(TestCase):
         plan.index_offset_2, plan.skew_90_2 = 0.875, True
         plan.save()
         row = self.report.results_table.rows.get()
-        row.cells[2] = '0.500 / 0.875'
+        row.cells[2] = '0.500'
         row.save()
+        offset_row = list(row.cells)
+        offset_row[0], offset_row[2] = '', '0.875'
+        row.table.rows.create(cells=offset_row, order=1)
         views = plan_drawing_views(self.report)
         self.assertEqual([(v['position'], v['side'], v['welds']) for v in views], [(1, 1, ['W5']), (2, 1, ['W5'])])
 

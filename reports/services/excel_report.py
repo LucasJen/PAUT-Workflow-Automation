@@ -420,14 +420,14 @@ def _result_cells(cells, row):
     return out
 
 
-OFFSET_INDEX = 2   # C/L Offset in WELD_RESULTS_COLUMNS
+OFFSET_INDEX, OFFSET_END = 2, 9   # C/L Offset … Probe 2 Thickness in WELD_RESULTS_COLUMNS
 
 
 def _stacked_offsets(rows):
     """
-    A weld scanned at several offsets ('0.500 / 0.875') prints one per row down the C/L Offset
-    column (too narrow for both): its first row gets the first, its next rows the others, and a
-    row with only the offset is added when the weld has fewer rows than offsets.
+    A weld saved with several offsets in one cell ('0.500 / 0.875', as the editor did for a
+    while) prints as the editor now saves it: a row per offset, each with the weld's C/L Offset …
+    Probe 2 Thickness, a row added when the weld has fewer rows than offsets.
     """
     welds = []
     for cells in rows:
@@ -439,11 +439,12 @@ def _stacked_offsets(rows):
         first = weld[0] + [''] * (OFFSET_INDEX + 1 - len(weld[0]))
         offsets = [o.strip() for o in _v(first[OFFSET_INDEX]).split('/') if o.strip()]
         if len(offsets) > 1:
+            first += [''] * (OFFSET_END - len(first))
             weld[0] = first
-            weld += [[''] * (OFFSET_INDEX + 1) for _ in range(len(offsets) - len(weld))]
+            weld += [[''] * OFFSET_END for _ in range(len(offsets) - len(weld))]
             for cells, offset in zip(weld, offsets):
-                cells += [''] * (OFFSET_INDEX + 1 - len(cells))
-                cells[OFFSET_INDEX] = offset
+                cells += [''] * (OFFSET_END - len(cells))
+                cells[OFFSET_INDEX:OFFSET_END] = [offset, *first[OFFSET_INDEX + 1:OFFSET_END]]
         out += weld
     return out
 
