@@ -188,6 +188,27 @@ class ImageSectionTests(TestCase):
             [('drawing', 'FILE DRAWING', ''), ('scan', '', 'CW1 Top')],
         )
 
+    def test_drawings_save_in_the_order_they_were_moved_to(self):
+        from reports.models import ReportImage
+        report = Report.objects.create()
+        a = ReportImage.objects.create(report=report, kind=ReportImage.DRAWING, caption='A', order=0, image='report_images/a.png')
+        b = ReportImage.objects.create(report=report, kind=ReportImage.DRAWING, caption='B', order=1, image='report_images/b.png')
+        # Saved forms first in the formset; the page shows the new one first, then B, then A
+        data = post_data(report=report)
+        data['loaded_version'] = report.updated_at.isoformat()
+        data.update(management('drawings', 3, initial=2))
+        data.update({'drawings-0-id': a.pk, 'drawings-0-caption': 'A', 'drawings-0-position': '2',
+                     'drawings-1-id': b.pk, 'drawings-1-caption': 'B', 'drawings-1-position': '1',
+                     'drawings-2-caption': 'NEW', 'drawings-2-image': png_upload('new.png'), 'drawings-2-position': '0'})
+        self.client.post(self.url, data)
+        self.assertEqual(list(report.images.filter(kind=ReportImage.DRAWING).order_by('order').values_list('caption', flat=True)),
+                         ['NEW', 'B', 'A'])
+
+    def test_editor_shows_reorder_controls_on_drawings(self):
+        html = self.client.get(self.url).content.decode()
+        self.assertIn('class="block-grip"', html)    # in the new-drawing template
+        self.assertIn('-position" class="block-position"', html)
+
     def test_scan_id_options_come_from_results_table(self):
         report = Report.objects.create()
         table = ResultsTable.objects.create(report=report, columns=['Scan ID', 'Results'])

@@ -4,6 +4,40 @@
         <button type="button" id="add-drawing" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add drawing</button>
     </div>
     <p class="form-text" data-label="drawings_intro">Vessel/equipment and isometric drawings, nozzle layouts, scan coverage maps. Each appears under the report's Drawing section with its title as a heading.</p>
+    {# A vessel drawing (Setups › Vessel drawings) with this job's scan coverage: vessel_coverage.js #}
+    <div class="vessel-coverage" id="vessel-coverage" data-parts-url="{% url 'vessel-parts' 0 %}" data-scene-url="{% url 'vessel-coverage-scene' 0 %}">
+        <div class="field-grid cols-2">
+            {{ form.vessel.as_field_group }}
+            {{ form.vessel_caption.as_field_group }}
+        </div>
+        {{ form.vessel_coverage }}
+        {% if form.vessel_coverage.errors %}<div class="field-cell-error">{{ form.vessel_coverage.errors|join:" " }}</div>{% endif %}
+        <div class="vessel-coverage-body" hidden>
+            <div class="vessel-coverage-head">
+                <strong>Scan coverage</strong>
+                <span class="form-text">What this job examined, marked on the drawing. Distances run along the shell from the <span data-coverage-start>left</span> tangent line.</span>
+            </div>
+            <div class="vessel-row-list" id="coverage-rows"></div>
+            <div class="vessel-row-actions">
+                <select class="form-select form-select-sm vessel-coverage-add" id="coverage-add" aria-label="Mark coverage">
+                    <option value="">+ Mark coverage…</option>
+                    <option value="part">Shade a course or head</option>
+                    <option value="seam">Highlight a seam</option>
+                    <option value="nozzle">Highlight a nozzle weld</option>
+                    <option value="band">Band or grid (along the shell, round part of it)</option>
+                    <option value="box">Box with a label (e.g. Examination Area)</option>
+                </select>
+            </div>
+            <div class="scan-plan-toolbar vessel-draw-tools">
+                <button type="button" class="btn btn-sm btn-secondary" data-draw="box" title="Then drag along the drawing to box that range"><i class="bi bi-bounding-box"></i> Draw box</button>
+                <button type="button" class="btn btn-sm btn-secondary" data-draw="band" title="Then drag along the drawing for the band's range (all the way round; pick its directions in its row)"><i class="bi bi-grid-3x3"></i> Draw band</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="coverage-fit" title="Fit the drawing back in its box (or double-click it)"><i class="bi bi-arrows-angle-contract"></i> Fit</button>
+                <i class="bi bi-question-circle scan-plan-help" tabindex="0"
+                   title="Click a course, head, seam or nozzle to shade it (click again to clear). Drag a box by its top or bottom edge, a band by its middle, and either by its ends to resize. Draw box / Draw band, then drag along the vessel. Positions snap to whole inches and course ends (Shift 6&quot;, Alt free). Ctrl+Z undoes. Scroll to zoom, drag the background to pan."></i>
+            </div>
+            <div class="vessel-stage scan-plan-stage vessel-coverage-stage" id="coverage-stage"></div>
+        </div>
+    </div>
     {{ drawing_formset.management_form }}
     <div id="drawing-formset-container">
         {% for img_form in drawing_formset %}

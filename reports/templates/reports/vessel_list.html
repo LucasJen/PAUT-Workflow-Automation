@@ -1,0 +1,35 @@
+{% extends 'reports/components/list_page.html' %}
+
+{% block title %}Vessel drawings · PAUT Report Automation{% endblock %}
+{% block page_title %}Vessel drawings{% endblock %}
+{% block item_noun %}vessel{% endblock %}
+
+{% block new_button %}
+<a href="{% url 'new-vessel' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New vessel</a>
+{% endblock %}
+
+{% block columns %}
+<th class="sortable">Equipment<span class="sort-indicator"></span></th>
+<th class="sortable">Service<span class="sort-indicator"></span></th>
+<th class="sortable">Type<span class="sort-indicator"></span></th>
+<th class="sortable">Size<span class="sort-indicator"></span></th>
+<th class="sortable">Courses<span class="sort-indicator"></span></th>
+<th class="sortable">Nozzles<span class="sort-indicator"></span></th>
+{% endblock %}
+
+{% block rows %}
+{% for vessel in items %}
+<tr data-href="{% url 'edit-vessel' vessel.pk %}">
+    {% include 'reports/components/row_check.html' with pk=vessel.pk %}
+    <td class="fw-medium">{{ vessel.name }}</td>
+    <td>{{ vessel.service }}</td>
+    <td>{{ vessel.get_vessel_type_display }}</td>
+    <td class="mono">{{ vessel.size_text }}</td>
+    <td class="text-muted-cell">{{ vessel.course_count }}</td>
+    <td class="text-muted-cell">{{ vessel.nozzles|length }}</td>
+</tr>
+{% endfor %}
+{% endblock %}
+
+{% block empty_icon %}capsule{% endblock %}
+{% block empty_text %}No vessel drawings yet. A vessel drawing is a schematic of a drum, tower, exchanger or tank, with its seams numbered and nozzles tagged, for a report's Drawings page.{% endblock %}
