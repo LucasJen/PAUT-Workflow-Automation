@@ -186,3 +186,15 @@ class GuidedCreationFolderTests(TestCase):
         self.assertContains(page, 'id="start-form"')
 
         self.assertEqual(self.client.get(reverse('start-from-files'), {'type': 'bogus'}).context['rtype'].key, 'paut_weld')
+
+
+class GuidedIntroTests(TestCase):
+    def test_intro_text_matches_the_chosen_type(self):
+        url = reverse('start-from-files')
+        self.assertContains(self.client.get(url, {'type': 'paut_weld'}), 'the welds and their offsets')
+        short = self.client.get(url, {'type': 'paut_corrosion'})
+        self.assertContains(short, 'Setup Information page')
+        self.assertNotContains(short, 'the welds and their offsets')
+        long_form = self.client.get(url, {'type': 'paut_long'})
+        self.assertContains(long_form, 'calibration screenshots and scan images')
+        self.assertNotContains(long_form, 'the welds and their offsets')

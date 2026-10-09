@@ -7,7 +7,7 @@
 <a href="{% url 'report-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Reports</a>
 <div class="page-header">
     <h1>Guided Creation</h1>
-    <p class="page-subtitle">Pick the report type and the job's folder (or make one). The app reads its .nde files: the instrument, probes and groups, the part, the welds and their offsets, the calibration times and the scan plan. The folder name gives the report name and client, and the report is saved back into the folder when you download it.</p>
+    <p class="page-subtitle">{% if rtype.guided_intro %}{{ rtype.guided_intro }}{% else %}Pick the report type and the job's folder.{% endif %}</p>
 </div>
 
 {# The report type: what's built, and whose working folders are listed #}

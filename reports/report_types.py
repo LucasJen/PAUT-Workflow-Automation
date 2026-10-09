@@ -162,8 +162,9 @@ class ReportType:
     output_format: str = 'docx'
     # The editor outlines empty fields by where their value comes from (reports/fill_marks.py)
     fill_marks: bool = False
-    # Guided Creation can build it from a job's files (reports/views/start.py)
+    # Guided Creation can build it from a job's files (reports/views/start.py), and what its page says
     guided: bool = False
+    guided_intro: str = ''
     # (key, text) pairs the editor shows for this type instead of the usual wording: a field's
     # label (its name), a section's title ('section:<key>') or any [data-label="<key>"] text
     labels: tuple = ()
@@ -212,6 +213,11 @@ _TYPES = [
         fill_marks=True,
         # Guided Creation as the Short Form's: the job folder's .nde files and pictures, then its sections
         guided=True,
+        guided_intro=("Pick the job's folder (or make one). The app reads its .nde files and pictures: each file's "
+                      'setup becomes a UT setup and a results row (Scan ID from the file name), and you say which '
+                      'pictures are equipment drawings, calibration screenshots and scan images. The folder name '
+                      'gives the report name and client, and the report is saved back into the folder when you '
+                      'download it.'),
         wizard_done=('Files', 'Pictures'),
         wizard_equipment_step='setups',
         wizard_last_step='images',
@@ -226,6 +232,10 @@ _TYPES = [
         results_columns=WELD_RESULTS_COLUMNS,
         fill_marks=True,
         guided=True,
+        guided_intro=("Pick the job's folder (or make one). The app reads its .nde files: the instrument, probes "
+                      'and groups, the part, the welds and their offsets, the calibration times and the scan plan. '
+                      'The folder name gives the report name and client, and the report is saved back into the '
+                      'folder when you download it.'),
     ),
     ReportType(
         'paut_corrosion', 'Short Form',
@@ -269,6 +279,10 @@ _TYPES = [
         field_options=(('title', CORROSION_METHODS), ('procedure', ('100-UT-003', '100-UT-020', '100-UT-021', '100-UT-031'))),
         fill_marks=True,
         guided=True,
+        guided_intro=("Pick the job's folder (or make one). The app reads its .nde files, if any (a manual UT job "
+                      'has none): each distinct probe, wedge and instrument gets a Setup Information page. Then you '
+                      "say which of the folder's pictures are drawings, setup images and images. The folder name "
+                      'gives the report name and client, and the report is saved back into the folder when you download it.'),
         wizard_done=('Files', 'Pictures'),
         wizard_equipment_step='setups',
         wizard_last_step='images',
