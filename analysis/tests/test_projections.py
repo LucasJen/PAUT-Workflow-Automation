@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 
 import numpy as np
 from django.test import SimpleTestCase, override_settings
@@ -90,3 +91,24 @@ class NoSynchroTests(SimpleTestCase):
         self.assertEqual(list(usable(group, np.array([1, 5, 0, 3]))), [True, False, False, True])
         group.synced_to_interface = False
         self.assertEqual(list(usable(group, np.array([1, 5, 0]))), [True, True, False])
+
+
+@unittest.skipUnless(os.path.isfile(os.path.join(REPORTS, 'sample data', '31e33a wh 12x12.nde')), 'sample not on this PC')
+class HydroformThicknessMapTests(SimpleTestCase):
+    """The C-scan's thickness maps at the cell the user checked in OmniPC (A/-I/ 0.402, T(B/-A/) 0.385 in)."""
+
+    def test_a_minus_i_and_b_minus_a_at_the_omnipc_cell(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(REPORTS, 'sample data', '31e33a wh 12x12.nde')
+        with override_settings(ANALYSIS_CACHE_DIR=folder):
+            from django.test import Client
+            from django.urls import reverse
+            group = open_file(path).group(0)
+            projections.build(path, group, group.gates)
+            with unittest.mock.patch('analysis.views.checked_path', lambda p: p):
+                client = Client()
+                for gate, frm, expected in (('A', 'I', 0.402), ('B', 'A', 0.385)):
+                    response = client.get(reverse('analysis-cscan'), {'path': path, 'gate': gate, 'kind': 'thickness', 'from': frm})
+                    values = np.frombuffer(response.content, dtype='<f4').reshape(306, 306)
+                    self.assertAlmostEqual(values[118, 29] / 0.0254, expected, delta=0.0006, msg=f'{gate}-{frm}')

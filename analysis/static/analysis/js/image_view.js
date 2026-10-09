@@ -68,6 +68,7 @@ void main() {
             this.buffer = gl.createBuffer();
             this.dataTexture = gl.createTexture();
             this.paletteTextures = {};
+            this.palettes = { amplitude: 'omnipc', range: 'omnipc' };
             this.gain = 1;
             this.mode = 'amplitude';
             this.range = [0, 1];
@@ -77,17 +78,25 @@ void main() {
             new ResizeObserver(() => this.draw()).observe(stage);
         }
 
-        paletteTexture(name) {
+        /** The palette texture for a mode ('amplitude' / 'range'), using the palette chosen for it. */
+        paletteTexture(kind) {
             const gl = this.gl;
-            if (!this.paletteTextures[name]) {
+            const key = `${kind}:${this.palettes[kind]}`;
+            if (!this.paletteTextures[key]) {
                 const t = gl.createTexture();
                 gl.bindTexture(gl.TEXTURE_2D, t);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-                              name === 'range' ? AnalysisPalette.thickness() : AnalysisPalette.amplitude());
+                              AnalysisPalette.get(kind, this.palettes[kind]));
                 this.filter(gl.LINEAR);
-                this.paletteTextures[name] = t;
+                this.paletteTextures[key] = t;
             }
-            return this.paletteTextures[name];
+            return this.paletteTextures[key];
+        }
+
+        /** Palette names by mode, e.g. {amplitude: 'rainbow'} (palette.js). */
+        setPalettes(names) {
+            Object.assign(this.palettes, names);
+            this.draw();
         }
 
         filter(mode) {

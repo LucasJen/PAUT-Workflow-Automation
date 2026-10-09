@@ -28,6 +28,12 @@
     const status = $('analysis-status');
     const grid = $('analysis-grid'), layoutSelect = $('layout'), kindSelect = $('cscan-kind');
     const panels = AnalysisLayout(grid);
+    const ampPalette = $('amplitude-palette'), rangePalette = $('range-palette');
+    for (const [select, kind] of [[ampPalette, 'amplitude'], [rangePalette, 'range']]) {
+        select.replaceChildren(...AnalysisPalette.list(kind).map(([v, t]) => new Option(t, v)));
+        select.value = localStorage.getItem(`analysisPalette:${kind}`) || 'omnipc';
+        if (!select.value) select.value = 'omnipc';
+    }
     panels.refresh();
     $('full-screen').addEventListener('click', () => {
         if (document.fullscreenElement) document.exitFullscreen();
@@ -383,14 +389,16 @@
         const letters = g.gates.map(x => letterOf(x.name));
         const options = [];
         for (const L of letters) {
-            if (L === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files
+            if (L === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files (A−I still works)
             options.push([`${L}:amplitude`, `Gate ${L} amplitude`], [`${L}:depth`, `Gate ${L} peak depth`]);
         }
-        if (letters.includes('A') && letters.includes('B')) options.push(['B:thickness:A', 'Thickness B−A']);
+        if (letters.includes('A') && letters.includes('I')) options.push(['A:thickness:I', 'Thickness A−I (interface to A)']);
+        if (letters.includes('A') && letters.includes('B')) options.push(['B:thickness:A', 'Thickness B−A (peak to peak)']);
         kindSelect.replaceChildren(...options.map(([v, t]) => new Option(t, v)));
         const saved = localStorage.getItem(`analysisKind:${isRaster() ? 'raster' : 'beams'}`);
         const has = v => options.some(o => o[0] === v);
-        const fallback = has('B:thickness:A') && isRaster() ? 'B:thickness:A' : 'A:amplitude';
+        // A 0 deg raster (HydroFORM): interface to A when there's an I gate, else A to B
+        const fallback = !isRaster() ? 'A:amplitude' : has('A:thickness:I') ? 'A:thickness:I' : has('B:thickness:A') ? 'B:thickness:A' : 'A:amplitude';
         kindSelect.value = has(saved) ? saved : (has(fallback) ? fallback : (options[0]?.[0] || ''));
     }
     kindSelect.addEventListener('change', () => {
@@ -675,6 +683,18 @@
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });
 
+    function applyPalettes() {
+        sscan.setPalette(ampPalette.value);
+        bview.setPalettes({ amplitude: ampPalette.value });
+        cview.setPalettes({ amplitude: ampPalette.value, range: rangePalette.value });
+    }
+    for (const [select, kind] of [[ampPalette, 'amplitude'], [rangePalette, 'range']]) {
+        select.addEventListener('change', () => {
+            try { localStorage.setItem(`analysisPalette:${kind}`, select.value); } catch { /* not kept */ }
+            applyPalettes();
+        });
+    }
+    applyPalettes();
     page.views = { sscan, ascan, cview, bview };   // for checking the page in a test browser
     loadFiles().catch(e => show(e.message));
 })();

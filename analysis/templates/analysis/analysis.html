@@ -45,6 +45,7 @@
             <select class="form-select form-select-sm" id="axis" aria-label="A-scan axis" title="A-scan horizontal axis">
                 <option value="depth">True depth</option><option value="path">Sound path</option>
             </select>
+            <select class="form-select form-select-sm" id="amplitude-palette" aria-label="Amplitude palette" title="Amplitude colours (S-scan, B-scan, amplitude C-scans)"></select>
             <button type="button" class="btn btn-sm btn-secondary" id="full-screen" title="Full screen (Esc to leave). Drag the gaps between the panels to resize them; double-click a gap to reset."><i class="bi bi-arrows-fullscreen"></i></button>
         </div>
     </div>
@@ -57,6 +58,7 @@
                 <span>C-scan</span>
                 <select class="form-select form-select-sm analysis-head-select" id="cscan-kind" aria-label="C-scan shows"></select>
                 <span class="analysis-range" id="cscan-range" hidden>
+                    <select class="form-select form-select-sm analysis-head-select" id="range-palette" aria-label="Thickness palette" title="Thickness / depth colours"></select>
                     <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-min" aria-label="Palette from" title="Palette from (red)">
                     –
                     <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-max" aria-label="Palette to" title="Palette to (blue)">

@@ -169,6 +169,14 @@ void main() {
             this.draw();
         }
 
+        /** An amplitude palette by name (palette.js). */
+        setPalette(name) {
+            const gl = this.gl;
+            gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, AnalysisPalette.get('amplitude', name));
+            this.draw();
+        }
+
         setCursor(lateral) {
             this.lateral = lateral;
             this.drawOverlay();
