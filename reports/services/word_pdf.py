@@ -14,6 +14,7 @@ import os
 import shutil
 import tempfile
 
+from . import output_cache
 from .office import office_app_available, office_session, timed_out_message
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,20 @@ def _update_fields(doc):
 
 
 def docx_to_pdf(docx_bytes):
-    """Convert .docx bytes to PDF bytes using Word. Raises WordPdfError on failure."""
+    """
+    Convert .docx bytes to PDF bytes using Word. Raises WordPdfError on failure. The same document
+    again (Preview, then Download PDF) gets the PDF Word made last time (output_cache.py).
+    """
+    key = f'pdf:{output_cache.docx_fingerprint(docx_bytes)}'
+    cached = output_cache.get(key)
+    if cached is not None:
+        return cached
+    pdf = _convert(docx_bytes)
+    output_cache.put(key, pdf)
+    return pdf
+
+
+def _convert(docx_bytes):
     try:
         import pythoncom  # noqa: F401  (pywin32 installed; office_session uses it)
         import win32com.client

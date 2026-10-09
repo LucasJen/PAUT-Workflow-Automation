@@ -21,6 +21,7 @@ from .. import weld_form
 from ..models import ReportImage
 from ..report_types import get_report_type
 from ..results import report_results
+from . import output_cache
 from .corrosion_report import corrosion_pages, fill_corrosion
 from .office import office_app_available, office_session, timed_out_message
 from .report_render import length_unit, velocity_unit, with_unit
@@ -686,7 +687,7 @@ def _scan_plan_pictures(plan, workdir):
 
 def _prepare(report, workdir, xlsx_path):
     """Copies the template into `workdir` and works out the pages (writing their pictures there);
-    returns fill(wb), which writes them into the opened copy."""
+    returns fill(wb), which writes them into the opened copy, and the fingerprint of what it writes."""
     shutil.copyfile(template_path(report), xlsx_path)
     if report.report_type == CORROSION_TYPE:
         corrosion = corrosion_pages(report)
@@ -698,13 +699,16 @@ def _prepare(report, workdir, xlsx_path):
 
         def fill(wb):
             fill_corrosion(wb, corrosion, _write, _add_picture_in)
+        content = corrosion
     else:
         pages = weld_pages(report)
         scan_plan_pictures = _scan_plan_pictures(pages.scan_plan, workdir)
 
         def fill(wb):
             _fill(wb, pages, scan_plan_pictures)
-    return fill
+        content = (pages, sorted(scan_plan_pictures.items()))
+    # Everything Excel is given: the same again is the same workbook (output_cache.py)
+    return fill, output_cache.fingerprint(report.report_type, content, files=[xlsx_path])
 
 
 def build_workbook(report, pdf=False):
@@ -722,11 +726,17 @@ def build_workbook(report, pdf=False):
     xlsx_path = os.path.join(workdir, 'report.xlsx')
     pdf_path = os.path.join(workdir, 'report.pdf')
     try:
-        fill = _prepare(report, workdir, xlsx_path)
+        fill, key = _prepare(report, workdir, xlsx_path)
     except Exception as e:  # a missing template, a drawing that can't be made...
         logger.exception('Excel report preparation failed')
         shutil.rmtree(workdir, ignore_errors=True)
         raise ExcelReportError(f'The report could not be prepared: {e}') from e
+    # Made already (e.g. by the preview) and nothing has changed since: no need for Excel
+    key = f'xlsx:{key}'
+    cached = output_cache.get(key)
+    if cached is not None and (cached[1] is not None or not pdf):
+        shutil.rmtree(workdir, ignore_errors=True)
+        return cached[0], cached[1] if pdf else None
 
     with office_session('EXCEL.EXE', 'Excel', ExcelReportError) as watchdog:
         excel = wb = None
@@ -763,6 +773,7 @@ def build_workbook(report, pdf=False):
         if pdf:
             with open(pdf_path, 'rb') as f:
                 pdf_bytes = f.read()
+        output_cache.put(key, (xlsx, pdf_bytes))
         return xlsx, pdf_bytes
     except OSError as e:
         raise ExcelReportError('Excel finished but the report file was not written.') from e
