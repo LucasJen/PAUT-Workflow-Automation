@@ -210,6 +210,11 @@ _TYPES = [
         hidden_fields=WELD_ONLY_FIELDS | CORROSION_ONLY_FIELDS,
         results_columns=HIC_RESULTS_COLUMNS,
         fill_marks=True,
+        # Guided Creation as the Short Form's: the job folder's .nde files and pictures, then its sections
+        guided=True,
+        wizard_done=('Files', 'Pictures'),
+        wizard_equipment_step='setups',
+        wizard_last_step='images',
     ),
     ReportType(
         'paut_weld', 'PAUT weld (Excel)',

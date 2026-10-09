@@ -177,16 +177,12 @@ class GuidedCreationFolderTests(TestCase):
         WorkingFolder.objects.create(path=str(hic_root), report_type='paut_long')
         page = self.client.get(reverse('start-from-files'))
         self.assertContains(page, '<option value="paut_weld" selected>PAUT weld (Excel)</option>', html=True)
-        self.assertContains(page, 'Long Form (guided workflow coming later)')
+        self.assertNotContains(page, 'guided workflow coming later')   # every type is guided now
         self.assertContains(page, 'id="start-form"')
 
         page = self.client.get(reverse('start-from-files'), {'type': 'paut_long'})
         self.assertContains(page, str(hic_root))
         self.assertNotContains(page, 'FHR-1-1-W1-2in')
-        self.assertContains(page, "isn't built yet")
-        self.assertNotContains(page, 'id="start-form"')
-        resp = self.client.post(reverse('start-from-files'), {'type': 'paut_long', 'folder_mode': 'none'}, follow=True)
-        self.assertContains(resp, "can&#x27;t build Long Form reports yet")
-        self.assertIsNone(self.client.session.get('job_import'))
+        self.assertContains(page, 'id="start-form"')
 
         self.assertEqual(self.client.get(reverse('start-from-files'), {'type': 'bogus'}).context['rtype'].key, 'paut_weld')

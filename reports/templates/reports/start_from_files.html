@@ -39,7 +39,7 @@
     <p class="text-body-secondary mb-0">Use <a href="{% url 'create-report' %}">New report</a> for now. You can already set up its working folders in Preferences.</p>
 </section>
 {% else %}
-<form method="post" enctype="multipart/form-data" id="start-form"{% if corrosion %} data-files-optional="1"{% endif %}>
+<form method="post" enctype="multipart/form-data" id="start-form"{% if picture_flow %} data-files-optional="1"{% endif %}>
     {% csrf_token %}
     <input type="hidden" name="type" value="{{ rtype.key }}">
     <section class="panel">
@@ -60,7 +60,7 @@
             {% if folders %}
             <div class="search-input w-100 mb-2">
                 <i class="bi bi-search"></i>
-                <input type="search" class="form-control" id="folder-search" placeholder="{% if corrosion %}Search folders (equipment, unit…){% else %}Search folders (line, weld, client…){% endif %}" aria-label="Search folders">
+                <input type="search" class="form-control" id="folder-search" placeholder="{% if picture_flow %}Search folders (equipment, unit…){% else %}Search folders (line, weld, client…){% endif %}" aria-label="Search folders">
             </div>
             <div class="job-folders" id="job-folders">
                 {% for folder in folders %}
@@ -69,7 +69,7 @@
                     <span class="job-folder-main">
                         <span class="job-folder-name mono">{{ folder.name }}</span>
                         <span class="job-folder-chips">
-                            {% if corrosion %}
+                            {% if picture_flow %}
                             {% if folder.pictures %}<span class="job-chip">{{ folder.pictures }} picture{{ folder.pictures|pluralize }}</span>{% endif %}
                             {% else %}
                             {% with info=folder.info %}
@@ -127,7 +127,7 @@
                 </select>
                 <div class="form-text">Preferences › Defaults: client, procedure, prefilled probe and group columns…</div>
             </div>
-            {% if not corrosion %}
+            {% if not picture_flow %}
             <div class="field">
                 <label for="start-block">NPS / Sch</label>
                 <select class="form-select" id="start-block" name="sensitivity_block">

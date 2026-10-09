@@ -3,10 +3,14 @@
 {% block title %}Pictures & files · Guided Creation · PAUT Report Automation{% endblock %}
 
 {% block content %}
-<a href="{% url 'start-from-files' %}?type=paut_corrosion" class="back-link"><i class="bi bi-arrow-left"></i> Choose another folder</a>
+<a href="{% url 'start-from-files' %}?type={{ rtype.key }}" class="back-link"><i class="bi bi-arrow-left"></i> Choose another folder</a>
 <div class="page-header">
     <h1>Pictures &amp; files</h1>
+    {% if long_form %}
+    <p class="page-subtitle">Say what each of the folder's pictures is: an equipment drawing, a calibration screenshot (on a UT setup) or a scan image for the photo summary (its caption naming the scan ties it to that row of the results table). Each different setup in the .nde files becomes a UT setup, and each file a row of the results table.</p>
+    {% else %}
     <p class="page-subtitle">Say what each of the folder's pictures is: a drawing (its own page), a setup image (on a Setup Information page) or an image for the Images pages (two to a page, with its caption). Each different setup in the .nde files gets a Setup Information page.</p>
+    {% endif %}
 </div>
 
 <form method="post" data-arrow-nav>
@@ -50,7 +54,7 @@
             </div>
             {% endfor %}
         </div>
-        <p class="form-text mb-0 mt-2">The caption is printed beside an image on the Images pages; a description can be added in the Images step.</p>
+        <p class="form-text mb-0 mt-2">{% if long_form %}A scan image whose caption contains a file's name (e.g. its Scan ID) is tied to that file's results row; the others keep their caption as their label.{% else %}The caption is printed beside an image on the Images pages; a description can be added in the Images step.{% endif %}</p>
         {% else %}
         <p class="text-body-secondary mb-0">{% if folder %}No pictures in the folder.{% else %}No job folder, so no pictures.{% endif %} Drawings and images can be added in the guided steps.</p>
         {% endif %}
@@ -81,9 +85,9 @@
                 </tbody>
             </table>
         </div>
-        <p class="form-text mb-0 mt-2">{{ setups|length }} setup page{{ setups|length|pluralize }}: files scanned with the same probe, wedge and instrument share one.</p>
+        <p class="form-text mb-0 mt-2">{% if long_form %}{{ setups|length }} UT setup{{ setups|length|pluralize }} (files scanned with the same probe, wedge and instrument share one); each file used adds a results row with its name as the Scan ID.{% else %}{{ setups|length }} setup page{{ setups|length|pluralize }}: files scanned with the same probe, wedge and instrument share one.{% endif %}</p>
         {% else %}
-        <p class="text-body-secondary mb-0">No .nde files (e.g. a manual UT job): the report gets one setup page to fill in.</p>
+        <p class="text-body-secondary mb-0">No .nde files (e.g. a manual UT job): the report gets one {% if long_form %}UT setup{% else %}setup page{% endif %} to fill in.</p>
         {% endif %}
     </section>
 
