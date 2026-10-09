@@ -45,6 +45,23 @@ class CreateReportTests(TestCase):
             [('A', 0), ('B', 1)],
         )
 
+    def test_new_report_of_a_chosen_type_starts_from_its_defaults(self):
+        from reports.models import ReportDefaults
+        ReportDefaults.objects.create(report_type='paut_corrosion', in_use=True,
+                                      report_values={'client': 'Short Form Client'})
+        resp = self.client.get(self.url, {'type': 'paut_corrosion'})
+        form = resp.context['form']
+        self.assertEqual(form['report_type'].value(), 'paut_corrosion')
+        self.assertEqual(form['client'].value(), 'Short Form Client')
+        # An unknown type falls back to the default type
+        resp = self.client.get(self.url, {'type': 'nope'})
+        self.assertEqual(resp.context['form']['report_type'].value(), 'paut_long')
+
+    def test_new_report_menu_lists_every_type(self):
+        resp = self.client.get(reverse('report-list'))
+        for key in ('paut_long', 'paut_weld', 'paut_corrosion'):
+            self.assertContains(resp, f'?type={key}')
+
     def test_saving_loaded_report_updates_instead_of_duplicating(self):
         report = Report.objects.create(document_filename='Existing')
         setup = Setup.objects.create(report=report, scope_model='Old')

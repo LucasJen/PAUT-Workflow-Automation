@@ -5,7 +5,7 @@
 {% block item_noun %}report{% endblock %}
 
 {% block new_button %}
-<a href="{% url 'create-report' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New report</a>
+{% include 'reports/components/new_report_button.html' %}
 {% endblock %}
 
 {% block columns %}

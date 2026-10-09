@@ -258,9 +258,13 @@ def create_report(request):
     else:
         loaded_report = _get_report(request.GET.get('loaded'))
         if loaded_report is None:
-            # A new report starts from its type's defaults (Preferences › Defaults)
-            report_values, setup_values = defaults_for(DEFAULT_REPORT_TYPE)
-            form = ReportForm(initial=report_values)
+            # A new report starts from its type's defaults (Preferences › Defaults): the type
+            # picked under New report (?type=), else the default type
+            report_type = request.GET.get('type')
+            if report_type not in REPORT_TYPES:
+                report_type = DEFAULT_REPORT_TYPE
+            report_values, setup_values = defaults_for(report_type)
+            form = ReportForm(initial={**report_values, 'report_type': report_type})
             setup_formset = SetupFormSet(initial=[setup_values])
         else:
             form = ReportForm(instance=loaded_report)

@@ -20,6 +20,13 @@ def static_v(path):
         return f'{url}?v={int(os.path.getmtime(found))}'
     return url
 
+@register.simple_tag
+def report_types():
+    """(key, label) of every report type, for the New report menu."""
+    from ..report_types import report_type_choices
+    return report_type_choices()
+
+
 CAL_DUE_SOON_DAYS = 30
 
 
