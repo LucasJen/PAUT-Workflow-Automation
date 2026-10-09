@@ -135,11 +135,19 @@
         const beam = g.beams[Math.max(0, Math.min(g.beams.length - 1, Math.round(y)))];
         return beam ? `${beam.refracted_angle}°` : '';
     };
+    /** The scan line and beam / index line at a C-scan position (from the file's axes, not the drawn cells). */
+    const cscanCell = (x, y) => {
+        const g = currentGroup();
+        const col = Math.round((x - g.axes[0].offset) / g.axes[0].resolution);
+        const row = isRaster() ? Math.round((y - g.axes[1].offset) / g.axes[1].resolution) : Math.round(y);
+        return [col, row, col >= 0 && col < g.shape[0] && row >= 0 && row < g.shape[1]];
+    };
     const cview = new ImageView($('cscan-stage'), {
         formatX: x => format(x, true), formatY: y => (isRaster() ? format(y, true) : lineText(y)),
         formatRange: v => format(v, true),
         xUnit: unitLength, yUnit: () => (isRaster() ? unitLength() : 1),
-        onPick: ({ column, row, x, y, inside, event }) => {
+        onPick: ({ x, y, event }) => {
+            const [column, row, inside] = cscanCell(x, y);
             if (event.ctrlKey || event.shiftKey) {   // reference / measure: scan (and index on a raster)
                 const which = event.shiftKey ? 'meas' : 'ref';
                 setCursors({ [`s_${which}`]: x, ...(isRaster() ? { [`i_${which}`]: y } : {}) });
@@ -149,9 +157,9 @@
             if (column !== state.scan) setScan(column);
             if (row !== state.lateral) setLateral(row);
         },
-        onHover: (x, y, cell) => {
+        onHover: (x, y) => {
             if (x === null || !state.cscan) { $('cscan-readout').textContent = ''; return; }
-            const [col, row] = cell;
+            const [col, row] = cscanCell(x, y);
             const c = state.cscan;
             const inside = col >= 0 && col < c.scans && row >= 0 && row < c.lines;
             const value = inside ? c.data[col * c.lines + row] : NaN;
@@ -162,7 +170,9 @@
     });
     const bview = new ImageView($('bscan-stage'), {
         formatX: x => format(x, true), formatY: y => format(y, true), xUnit: unitLength, yUnit: unitLength,
-        onPick: ({ column, x, y, event, inside }) => {
+        onPick: ({ x, y, event }) => {
+            const [column] = cscanCell(x, 0);
+            const inside = column >= 0 && column < currentGroup().shape[0];
             if (event.ctrlKey || event.shiftKey) {   // reference / measure: scan and depth
                 const which = event.shiftKey ? 'meas' : 'ref';
                 setCursors({ [`s_${which}`]: x, [`u_${which}`]: y });

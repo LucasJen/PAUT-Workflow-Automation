@@ -114,6 +114,26 @@ void main() {
          */
         setImage(values, outer, inner, { axes, transpose = false, mode = 'amplitude', range = null, keepView = false, smooth = false }) {
             const gl = this.gl;
+            // Bigger than the graphics card's textures: keep the most of each run of cells (peaks stay)
+            const limit = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
+            if (outer > limit || inner > limit) {
+                const fo = Math.ceil(outer / limit), fi = Math.ceil(inner / limit);
+                const o2 = Math.ceil(outer / fo), i2 = Math.ceil(inner / fi);
+                const out = new Float32Array(o2 * i2).fill(NaN);
+                for (let a = 0; a < outer; a++) {
+                    for (let b = 0; b < inner; b++) {
+                        const v = values[a * inner + b];
+                        if (Number.isNaN(v)) continue;
+                        const k = Math.floor(a / fo) * i2 + Math.floor(b / fi);
+                        if (Number.isNaN(out[k]) || v > out[k]) out[k] = v;
+                    }
+                }
+                const scale = (axis, f) => ({ start: axis.start + (f - 1) / 2 * axis.step, step: axis.step * f });
+                const cols = scale({ start: axes.x0, step: axes.dx }, transpose ? fo : fi);
+                const rows = scale({ start: axes.y0, step: axes.dy }, transpose ? fi : fo);
+                axes = { x0: cols.start, dx: cols.step, y0: rows.start, dy: rows.step };
+                values = out; outer = o2; inner = i2;
+            }
             gl.bindTexture(gl.TEXTURE_2D, this.dataTexture);
             gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
             // NaN (no data) becomes a sentinel: shaders can't be trusted to test for NaN (some drivers
