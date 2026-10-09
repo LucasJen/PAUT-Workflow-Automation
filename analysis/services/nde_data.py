@@ -116,6 +116,9 @@ class FileInfo:
     specimen: dict = field(default_factory=dict)   # kind, thickness, outer_radius, velocities (SI)
     weld: dict = field(default_factory=dict)
     scan_pattern: str = ''
+    # Where the probe (its wedge's reference point) is: u / v offsets (m) and skew - OmniPC's Index
+    # column, and what PA^ is measured from
+    probe: dict = field(default_factory=dict)
 
     def group(self, group_id):
         for g in self.groups:
@@ -282,9 +285,14 @@ def open_file(path):
     except (ValueError, KeyError, TypeError) as e:
         raise NdeDataError(f"Couldn't read the file's setup: {e}") from e
     specimen, weld = _specimen(setup)
+    wedges = setup.get('wedges') or []
+    positioning = (wedges[0].get('positioning') or {}) if wedges else {}
+    probe = {'u_offset': positioning.get('uCoordinateOffset', 0.0), 'v_offset': positioning.get('vCoordinateOffset', 0.0),
+             'skew': positioning.get('skewAngle', 90.0)} if positioning else {}
     patterns = [m.get('discreteGrid', {}).get('scanPattern', '') for m in setup.get('dataMappings') or []]
     return FileInfo(path=os.path.abspath(path), size=os.path.getsize(path), version=setup.get('version', ''),
-                    groups=groups, specimen=specimen, weld=weld, scan_pattern=next((p for p in patterns if p), ''))
+                    groups=groups, specimen=specimen, weld=weld, scan_pattern=next((p for p in patterns if p), ''),
+                    probe=probe)
 
 
 # ── Reading samples ───────────────────────────────────────────────────────

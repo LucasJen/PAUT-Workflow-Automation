@@ -1,3 +1,4 @@
+import math
 import glob
 import json
 import os
@@ -73,10 +74,33 @@ class GateTests(SimpleTestCase):
         self.assertEqual(results['I'].crossing_time, 0.0)
         self.assertAlmostEqual(omnipc_reading('A/-I/', results, self.beam), builders.LONGITUDINAL * 4e-6 / 2)
         with self.assertRaises(KeyError):
-            omnipc_reading('ViA^', results, self.beam)
+            omnipc_reading('TminZ', results, self.beam)
 
     def test_gate_letters(self):
         self.assertEqual([gate_letter(n) for n in ('Gate A', 'Gate I', 'B', '')], ['A', 'I', 'B', ''])
+
+
+class PeakReadingTests(SimpleTestCase):
+    """SA^ / DA^ / ViA^ / PA^ on the weld builder (3240 m/s, 45 deg beam, exit point at -20 mm)."""
+
+    def test_peak_sound_path_folded_depth_and_index_positions(self):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, True)
+        info = open_file(builders.weld_file(folder, samples=400, ultrasound_offset=0.0, period=1e-7, thickness=0.01))
+        info.probe = {'v_offset': -0.0127}
+        group = info.group(0)
+        beam = group.beams[0]
+        raw = np.zeros(400, dtype=np.int16)
+        raw[100] = 20000                              # t = 10 us: SP = 16.2 mm
+        gates = [Gate(0, 'Gate A', start=0.0, length=3e-5, threshold=20.0)]
+        results = evaluate_gates(group, beam, raw, gates)
+        sp = 3240 * 1e-5 / 2
+        self.assertAlmostEqual(omnipc_reading('SA^', results, beam, info), sp)
+        unfolded = sp * math.cos(math.radians(45))    # 11.46 mm: 1.46 mm into leg 2 of a 10 mm plate
+        self.assertAlmostEqual(omnipc_reading('DA^', results, beam, info), 0.02 - unfolded)
+        via = -0.02 + sp * math.sin(math.radians(45))
+        self.assertAlmostEqual(omnipc_reading('ViA^', results, beam, info), via)
+        self.assertAlmostEqual(omnipc_reading('PA^', results, beam, info), via + 0.0127)
 
 
 class OmniPCReadingsTests(SimpleTestCase):
@@ -93,14 +117,15 @@ class OmniPCReadingsTests(SimpleTestCase):
             path = spec['file'] if os.path.isabs(spec['file']) else os.path.join(REPORTS, spec['file'])
             if not os.path.isfile(path):
                 continue
-            group = open_file(path).group(spec.get('group', 0))
+            info = open_file(path)
+            group = info.group(spec.get('group', 0))
             to_unit = IN if spec.get('units', 'in') == 'in' else 0.001
             for point in spec['points']:
                 lateral = point.get('index', point.get('beam'))
                 beam = group.beams[lateral]
                 results = evaluate_gates(group, beam, read_ascan(path, group, point['scan'], lateral))
                 for name, expected in point['expected'].items():
-                    value = omnipc_reading(name, results, beam)
+                    value = omnipc_reading(name, results, beam, info)
                     if '%' not in name:
                         value /= to_unit
                     with self.subTest(fixture=os.path.basename(fixture), reading=name):

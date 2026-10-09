@@ -1,0 +1,19 @@
+{
+  "file": "sample data/31e33a wh 12x12.nde",
+  "group": 0,
+  "units": "in",
+  "notes": "Second HydroFORM indication (sample hydroFORM 2.zip / .png, 2026-10-09). Cursor Scan 11.594 / Index 10.538 in = cell U 294, V 268. S(TminZ) 11.535 / I(TminZ) 10.472 = cell 293 / 266, the local thickness minimum (0.3733 in recomputed; TminZ itself wasn't exported). S(m-r) 1.148, I(m-r) 2.753 are the user's cursor spacing. Also here: TminZ 0.383 of the first sample at cell 113 / 36.",
+  "points": [
+    {
+      "scan": 294, "index": 268, "scan_position": 11.594, "index_position": 10.538,
+      "expected": {"A%1": 171.343, "B%1": 99.808, "A/-I/": 0.392, "T(B/-A/)": 0.379},
+      "tolerance": {"A%1": 0.1, "B%1": 0.1, "A/-I/": 0.0006, "T(B/-A/)": 0.0006}
+    },
+    {
+      "scan": 113, "index": 36, "scan_position": 4.449, "index_position": 1.417,
+      "notes": "First sample's TminZ: the minimum T(B/-A/) in its zone",
+      "expected": {"T(B/-A/)": 0.383},
+      "tolerance": {"T(B/-A/)": 0.0006}
+    }
+  ]
+}

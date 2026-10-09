@@ -13,6 +13,16 @@ B%1 125.053 %, T(B/-A/) 0.385 in - analysis/tests/fixtures/omnipc_readings/hydro
                crossing, so gate I's crossing is t = 0 (gate I itself is outside the stored window)
     distance   between two events in true depth: velocity * dt / 2 * cos(refracted angle)
 
+Peak readings, confirmed on the angle-beam sample (ppi 45-19662 fw6 n off1.nde, scan cell 329,
+64 deg beam: A% 44.008, SA^ 1.047, DA^ 0.291, PA^ 0.641, ViA^ 0.141 in):
+    SA^        sound path to the gate's highest sample: velocity * t / 2 (t from the A-scan start)
+    DA^        its depth, folded at the back wall (leg 2 comes back up: 0.459 in -> 0.291 in in a
+               0.375 in plate)
+    ViA^       index position of the peak: the beam's exit point (vCoordinateOffset) + SA^ sin(angle)
+               towards the skew
+    PA^        ViA^ measured from the probe's index position (the wedge positioning offset, OmniPC's
+               Index column, -0.500 in here): 0.141 - (-0.500) = 0.641
+
 Times are seconds on the A-scan's own time axis (geometry.sample_times).
 """
 import math
@@ -21,7 +31,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .geometry import sample_times
+from .geometry import fold_depth, sample_times
 from .nde_data import to_unit
 
 
@@ -111,15 +121,38 @@ def depth_between(beam, t1, t2):
 
 
 _AMPLITUDE = re.compile(r'^([A-Z])%\d*$')               # A%, A%1, B%1
+_PEAK = re.compile(r'^(S|D|P|Vi)([A-Z])\^$')            # SA^, DA^, PA^, ViA^
 _BETWEEN = re.compile(r'^(?:T\()?([A-Z])/-([A-Z])/\)?$')  # A/-I/, T(B/-A/)
 
 
-def omnipc_reading(name, results, beam):
+def peak_position(beam, peak_time, thickness=None):
+    """(sound path, folded depth, leg, index position) of a gate peak at `peak_time` (m)."""
+    sp = beam.velocity * peak_time / 2.0
+    angle = math.radians(beam.refracted_angle)
+    depth, leg = fold_depth(sp * math.cos(angle), thickness)
+    index = beam.v_offset + sp * math.sin(angle) * math.sin(math.radians(beam.skew_angle))
+    return sp, depth, leg, index
+
+
+def omnipc_reading(name, results, beam, info=None):
     """
     The value of an OmniPC reading by its name, from evaluated gates: X% (gate X's amplitude, %),
-    X/-Y/ and T(X/-Y/) (true depth between gate Y's and gate X's crossings, m). None when the gates
-    involved didn't cross; KeyError for a reading not worked out yet.
+    X/-Y/ and T(X/-Y/) (true depth between gate Y's and gate X's crossings, m), SX^ / DX^ / ViX^ /
+    PX^ (gate X's peak: sound path, depth, index position, from the probe; m - DX^ and PX^ need
+    `info`, the FileInfo, for the thickness and probe position). None when the gates involved found
+    nothing; KeyError for a reading not worked out yet.
     """
+    match = _PEAK.match(name)
+    if match:
+        gate = results.get(match.group(2))
+        if not (gate and gate.found and gate.peak_time is not None):
+            return None
+        thickness = (info.specimen.get('thickness') if info else None)
+        sp, depth, _, index = peak_position(beam, gate.peak_time, thickness)
+        kind = match.group(1)
+        if kind == 'P':
+            return index - (info.probe.get('v_offset', 0.0) if info else 0.0)
+        return {'S': sp, 'D': depth, 'Vi': index}[kind]
     match = _AMPLITUDE.match(name)
     if match:
         gate = results.get(match.group(1))

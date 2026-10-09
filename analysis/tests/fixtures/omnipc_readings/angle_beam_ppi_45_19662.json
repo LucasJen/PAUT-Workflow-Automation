@@ -1,0 +1,13 @@
+{
+  "file": "sample data/ppi 45-19662 fw6 n off1.nde",
+  "group": 0,
+  "units": "in",
+  "notes": "Sectorial 43-72 deg shear wave (10L32-A1, SA1-N60S), 0.375 in plate, gate A 0.400 in + 1.800 in sound path, 20 %, Pulse, Highest. OmniPC A-B-C-S layout, soft gain 0 dB (Ref 22.9 dB). sample anglebeam.zip / sample angle beam.png, 2026-10-09. Scan 12.940 in = cell 329; probe Index -0.500 in. Cursors (user-placed, for later): scan reference 11.812 / measure 14.284 (S(m-r) 2.472), ultrasound reference 0.418 / measure 0.494 true depth (U(m-r) 0.076), index reference 0.000 / measure 0.119 (I(m-r) 0.119, I(m) 0.119).",
+  "points": [
+    {
+      "scan": 329, "beam": 21, "angle": 64.0, "scan_position": 12.940,
+      "expected": {"A%": 44.008, "SA^": 1.047, "DA^": 0.291, "PA^": 0.641, "ViA^": 0.141},
+      "tolerance": {"A%": 0.1, "SA^": 0.0006, "DA^": 0.0006, "PA^": 0.0006, "ViA^": 0.0006}
+    }
+  ]
+}
