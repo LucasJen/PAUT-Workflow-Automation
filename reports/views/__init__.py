@@ -1,4 +1,5 @@
 from .home import home
+from .backups import backup_list
 from .reports import (
     create_report, edit_existing_report, generate_report, new_report, preview_report, report_docx, report_list, report_pdf,
 )

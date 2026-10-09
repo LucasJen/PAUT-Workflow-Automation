@@ -30,6 +30,7 @@ urlpatterns = [
     path('library/working-folders/', views.working_folder_list, name='working-folder-list'),
     path('library/working-folders/new/', views.new_working_folder, name='new-working-folder'),
     path('library/working-folder/<int:pk>/', views.edit_working_folder, name='edit-working-folder'),
+    path('library/backups/', views.backup_list, name='backup-list'),
     path('browse-folder/', views.browse_folder, name='browse-folder'),
     path('library/client-codes/new/', views.new_client_code, name='new-client-code'),
     path('library/client-code/<int:pk>/', views.edit_client_code, name='edit-client-code'),
