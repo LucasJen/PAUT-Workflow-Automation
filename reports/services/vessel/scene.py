@@ -6,7 +6,10 @@ seams, nozzles, then the numbered seam callouts, nozzle tags and the caption. Sh
 
 Shape kinds: polygon (points, fill, stroke, width), line (points, stroke, width), dashed (points,
 stroke, width), circle (at, radius, fill, stroke, width), text (at, text, size, colour, anchor,
-bold, halo).
+bold, halo). A shape may carry `item`: what it belongs to for the editors' interactive drawing
+(nozzle:<row>, seam:<number>, boot, part:<start | end | boot | row>, mark:<index>); polygons with
+neither fill nor stroke are only there to be clicked. `meta` holds what the browser needs to turn a
+point on the drawing back into inches (static/reports/js/vessel_view.js).
 
 Coverage marks (a report's, inches along the shell from the start tangent line):
   {'kind': 'part', 'target': 'start' | 'end' | 'boot' | course row number (0 = first)}
@@ -40,9 +43,18 @@ class Scene:
     y_min: float = 0.0
     y_max: float = 0.0
     shapes: list = field(default_factory=list)
+    meta: dict = field(default_factory=dict)
+    item: str = None        # what the shapes being added belong to (the browser drawing's click / drag target)
 
     def add(self, kind, **values):
-        self.shapes.append({'kind': kind, **values})
+        shape = {'kind': kind, **values}
+        if self.item:
+            shape['item'] = self.item
+        self.shapes.append(shape)
+
+    def as_dict(self):
+        return {'x_min': self.x_min, 'x_max': self.x_max, 'y_min': self.y_min, 'y_max': self.y_max,
+                'shapes': self.shapes, 'meta': self.meta}
 
 
 def text_width(text, size=TEXT):
@@ -178,7 +190,9 @@ class _Builder:
         covered = [(s - rb, -lay.radius_at(s)), (s + rb, -lay.radius_at(s))] + profile
         boot = {'s': s, 'rb': rb, 'top': -lay.radius_at(s), 'tl': tl, 'apex': tl - depth, 'polygon': covered,
                 'scale': length / spec.boot_length}
+        self.scene.item = 'boot'
         self.scene.add('polygon', points=self.pts(self.keep(shape)), fill='paper', stroke='outline', width=1.6)
+        self.scene.item = None
         return boot
 
     def flanges(self):
@@ -233,7 +247,8 @@ class _Builder:
             ring = [(base, s - hw - 2), (base, s + hw + 2)]
         for shape in (neck, flange):
             self.scene.add('polygon', points=self.pts(self.keep(shape)), fill='paper', stroke=colour, width=1.4)
-        self.nozzle_marks[tag] = [{'kind': 'line', 'points': self.pts(ring), 'stroke': 'coverage_line', 'width': 4.0}]
+        self.nozzle_marks[tag] = [{'kind': 'line', 'points': self.pts(ring), 'stroke': 'coverage_line', 'width': 4.0,
+                                   'item': self.scene.item}]
         return (s, tip) if along_s else (tip, s)
 
     def face_nozzle(self, tag, s, r, hw, near):
@@ -246,7 +261,7 @@ class _Builder:
             self.scene.add('circle', at=self.p(s, r), radius=radius, fill=None, stroke='hidden', width=1.2,
                            dashed=True)
         self.nozzle_marks[tag] = [{'kind': 'circle', 'at': self.p(s, r), 'radius': radius + 2.5, 'fill': None,
-                                   'stroke': 'coverage_line', 'width': 3.0}]
+                                   'stroke': 'coverage_line', 'width': 3.0, 'item': self.scene.item}]
         return (s, r)
 
     def head_surface(self, seg, r):
@@ -263,62 +278,79 @@ class _Builder:
     def nozzles(self, boot):
         spec, lay = self.spec, self.layout
         heads = {seg.end: seg for seg in lay.segments if seg.kind == 'head'}
-        for nozzle in spec.nozzles:
-            tag = str(nozzle.get('tag') or '').strip()
-            location = nozzle.get('location') or SHELL
-            hw = self.neck(nozzle.get('size'))
-            position = nozzle.get('position')
-            if location in (START_HEAD, END_HEAD):
-                seg = heads[location]
-                offset = max(-0.8, min(0.8, (position or 0) * lay.scale / seg.r0)) * seg.r0
-                sign = -1 if location == START_HEAD else 1
-                base = self.head_surface(seg, offset)
-                tip = self.side_nozzle(tag, offset, base, sign, hw, along_s=False)
-                lane = 's-' if location == START_HEAD else 's+'
-                self.labels.append((tag, lane, tip))
-                continue
-            if location == BOOT:
-                if boot is None:
-                    continue
-                direction = nozzle.get('direction') or BOTTOM
-                if direction == BOTTOM:
-                    tip = self.side_nozzle(tag, boot['s'], boot['apex'] + 1, -1, hw)
-                    self.labels.append((tag, 'r-', tip))
-                    continue
-                a = alpha(spec, direction, BOOT)
-                if a is None:
-                    continue
-                r = boot['top'] - (position or 0) * boot['scale']
-                r = max(boot['tl'] + hw, min(boot['top'] - hw, r))
-                lateral = math.cos(math.radians(a))
-                if abs(lateral) >= 0.38:
-                    sign = 1 if lateral > 0 else -1
-                    tip = self.side_nozzle(tag, r, boot['s'] + sign * boot['rb'], sign, hw, along_s=False)
-                else:
-                    tip = self.face_nozzle(tag, boot['s'] + boot['rb'] * lateral, r, hw,
-                                           math.sin(math.radians(a)) > 0)
-                self.labels.append((tag, 'r-', tip))
-                continue
-            a = alpha(spec, nozzle.get('direction'), SHELL)
+        self.nozzle_meta = []
+        for row, nozzle in enumerate(spec.nozzles):
+            self.scene.item = f'nozzle:{row}'
+            self.row = row
+            self.drawn = None
+            self._nozzle(nozzle, heads, boot)
+            if self.drawn:
+                self.nozzle_meta.append({'row': row, **self.drawn})
+        self.scene.item = None
+
+    def _nozzle(self, nozzle, heads, boot):
+        """Draws one nozzle row, noting in self.drawn where it went (for the browser drawing)."""
+        spec, lay = self.spec, self.layout
+        tag = str(nozzle.get('tag') or '').strip()
+        location = nozzle.get('location') or SHELL
+        hw = self.neck(nozzle.get('size'))
+        position = nozzle.get('position')
+        if location in (START_HEAD, END_HEAD):
+            seg = heads[location]
+            offset = max(-0.8, min(0.8, (position or 0) * lay.scale / seg.r0)) * seg.r0
+            sign = -1 if location == START_HEAD else 1
+            base = self.head_surface(seg, offset)
+            tip = self.side_nozzle(tag, offset, base, sign, hw, along_s=False)
+            self.drawn = {'location': location, 'r': offset}
+            lane = 's-' if location == START_HEAD else 's+'
+            self.labels.append((self.row, tag, lane, tip))
+            return
+        if location == BOOT:
+            if boot is None:
+                return
+            direction = nozzle.get('direction') or BOTTOM
+            if direction == BOTTOM:
+                tip = self.side_nozzle(tag, boot['s'], boot['apex'] + 1, -1, hw)
+                self.drawn = {'location': BOOT, 'r': boot['apex'], 'fixed': True}
+                self.labels.append((self.row, tag, 'r-', tip))
+                return
+            a = alpha(spec, direction, BOOT)
             if a is None:
-                continue
-            s = lay.s_at(position or 0)
-            s = max(lay.tl_start + hw, min(lay.tl_end - hw, s))
-            r = lay.radius_at(s)
+                return
+            r = boot['top'] - (position or 0) * boot['scale']
+            r = max(boot['tl'] + hw, min(boot['top'] - hw, r))
+            self.drawn = {'location': BOOT, 'r': r}
             lateral = math.cos(math.radians(a))
             if abs(lateral) >= 0.38:
                 sign = 1 if lateral > 0 else -1
-                tip = self.side_nozzle(tag, s, sign * r, sign, hw)
-                self.labels.append((tag, 'r+' if sign > 0 else 'r-', tip))
+                tip = self.side_nozzle(tag, r, boot['s'] + sign * boot['rb'], sign, hw, along_s=False)
             else:
-                offset = max(-(r - hw), min(r - hw, r * lateral))
-                tip = self.face_nozzle(tag, s, offset, hw, math.sin(math.radians(a)) > 0)
-                self.labels.append((tag, 'r+' if lateral > 0.05 else 'r-', tip))
+                tip = self.face_nozzle(tag, boot['s'] + boot['rb'] * lateral, r, hw,
+                                       math.sin(math.radians(a)) > 0)
+            self.labels.append((self.row, tag, 'r-', tip))
+            return
+        a = alpha(spec, nozzle.get('direction'), SHELL)
+        if a is None:
+            return
+        s = lay.s_at(position or 0)
+        s = max(lay.tl_start + hw, min(lay.tl_end - hw, s))
+        r = lay.radius_at(s)
+        lateral = math.cos(math.radians(a))
+        self.drawn = {'location': SHELL, 's': s,
+                      'side': 0 if abs(lateral) < 0.38 else (1 if lateral > 0 else -1)}
+        if abs(lateral) >= 0.38:
+            sign = 1 if lateral > 0 else -1
+            tip = self.side_nozzle(tag, s, sign * r, sign, hw)
+            self.labels.append((self.row, tag, 'r+' if sign > 0 else 'r-', tip))
+        else:
+            offset = max(-(r - hw), min(r - hw, r * lateral))
+            tip = self.face_nozzle(tag, s, offset, hw, math.sin(math.radians(a)) > 0)
+            self.labels.append((self.row, tag, 'r+' if lateral > 0.05 else 'r-', tip))
 
     # ── coverage ─────────────────────────────────────────────────────
     def coverage_fills(self, boot):
         lay = self.layout
-        for mark in self.coverage:
+        for index, mark in enumerate(self.coverage):
             kind = mark.get('kind')
             if kind == 'part':
                 target = mark.get('target')
@@ -336,9 +368,13 @@ class _Builder:
                     seg = next((x for x in lay.segments if x.index == index and x.kind != 'flange'), None)
                     polygon = self.part_polygon(seg) if seg else None
                 if polygon:
+                    self.scene.item = f'part:{target}'
                     self.scene.add('polygon', points=self.pts(polygon), fill='coverage', stroke=None, width=0)
+                    self.scene.item = None
             elif kind == 'band':
+                self.scene.item = f'mark:{index}'
                 self.band(mark)
+                self.scene.item = None
 
     def band(self, mark):
         lay = self.layout
@@ -369,8 +405,9 @@ class _Builder:
 
     def coverage_marks(self):
         lay = self.layout
-        for mark in self.coverage:
+        for index, mark in enumerate(self.coverage):
             kind = mark.get('kind')
+            self.scene.item = f'mark:{index}' if kind == 'band' else None
             if kind == 'band' and '_polygon' in mark:
                 s0, s1 = mark['_s']
                 low, high = mark['_lateral']
@@ -397,17 +434,20 @@ class _Builder:
             elif kind == 'seam':
                 for number, (s, r) in self.numbered_seams():
                     if str(number) == str(mark.get('target')).strip():
+                        self.scene.item = f'seam:{number}'
                         self.scene.add('line', points=self.pts([(s, r), (s, -r)]), stroke='coverage_line', width=4.5)
             elif kind == 'nozzle':
                 for shape in self.nozzle_marks.get(str(mark.get('target') or '').strip(), []):
                     self.scene.shapes.append(dict(shape))
+        self.scene.item = None
 
     def boxes(self):
         lay = self.layout
         r = lay.max_radius() + 8
-        for mark in self.coverage:
+        for index, mark in enumerate(self.coverage):
             if mark.get('kind') != 'box':
                 continue
+            self.scene.item = f'mark:{index}'
             s0 = lay.s_at(mark.get('start') or 0)
             s1 = lay.s_at(mark.get('end') if mark.get('end') is not None else lay.length)
             if s1 < s0:
@@ -422,6 +462,7 @@ class _Builder:
                 y = min(y for _, y in corners)
                 self.scene.add('text', at=(x + 2, y - 2), text=label, size=13, colour='box', anchor='ld', bold=True)
                 self.extent.append(self.local((x + 2 + text_width(label, 13), y - 8)))
+        self.scene.item = None
 
     def local(self, point):
         """The local (s, r) of a screen point."""
@@ -437,11 +478,14 @@ class _Builder:
         lay = self.layout
         numbered = self.numbered_seams()
         for number, (s, r) in numbered:
+            self.scene.item = f'seam:{number}'
             self.scene.add('line', points=self.pts([(s, r), (s, -r)]), stroke='outline', width=1.2)
+        self.scene.item = None
         boot_seams = []
         if boot:
             n = (self.spec.seam_start or 1) + len(numbered)
             boot_seams = [(n, (boot['s'], boot['top'] - 4)), (n + 1, (boot['s'], boot['tl']))]
+            self.scene.item = f'seam:{n + 1}'
             self.scene.add('line', points=self.pts([(boot['s'] - boot['rb'], boot['tl']), (boot['s'] + boot['rb'], boot['tl'])]),
                            stroke='outline', width=1.2)
         taken = list(self.faces)
@@ -452,9 +496,12 @@ class _Builder:
                 if all(math.hypot(s - fs, offset - fr) > fradius + SEAM_RADIUS + 1.5 for fs, fr, fradius in taken):
                     break
             taken.append((s, offset, SEAM_RADIUS))
+            self.scene.item = f'seam:{number}'
             self.callout(self.p(s, offset), number, self.seam_covered(number))
         for number, (s, r) in boot_seams:
+            self.scene.item = f'seam:{number}'
             self.callout(self.p(s, r), number, self.seam_covered(number))
+        self.scene.item = None
         # Course labels (e.g. Channel), under the centre line
         for seg in lay.segments:
             if seg.kind == 'course' and seg.label:
@@ -481,13 +528,15 @@ class _Builder:
             's+': max(s_values) + LANE_GAP,
         }
         grouped = {}
-        for tag, lane, tip in self.labels:
-            grouped.setdefault(lane, []).append((tag, tip))
+        for row, tag, lane, tip in self.labels:
+            grouped.setdefault(lane, []).append((tag, tip, row))
         for lane, items in grouped.items():
             along_s = lane in ('r+', 'r-')
             items.sort(key=lambda item: item[1][0] if along_s else item[1][1])
             placed = []
-            for tag, tip in items:
+            rows = {}
+            for tag, tip, row in items:
+                rows[(tag, tip)] = row
                 width = max(TAG_HEIGHT * 1.15, text_width(tag) + 7)
                 size = self.screen_size(width, along_s)
                 want = tip[0] if along_s else tip[1]
@@ -506,7 +555,9 @@ class _Builder:
                 else:
                     edge = lanes[lane]
                     centre = (edge + (-1 if lane == 's-' else 1) * self.axis_half(width), pos)
+                self.scene.item = f'nozzle:{rows[(tag, tip)]}'
                 self.tag(tag, tip, centre, width)
+                self.scene.item = None
 
     def screen_size(self, width, along_s):
         """A tag's extent along its lane: its width when the lane runs across the screen."""
@@ -562,6 +613,64 @@ class _Builder:
             self.scene.shapes.append({'kind': 'bounds', 'points': [(a0 - 3 - text_width(arrow_text, 15), y1 - 8)]})
         self.scene.shapes.append({'kind': 'bounds', 'points': [(note_x + text_width(f'{size}  ·  viewed from {spec.view_from}', 12), y1 + 8)]})
 
+    def click_targets(self, boot):
+        """Invisible polygons over each head, course, cone and the boot: what a click on the shell picks."""
+        for seg in self.layout.segments:
+            if seg.kind == 'head':
+                self.scene.item = f'part:{seg.end}'
+            elif seg.kind in ('course', 'cone') and seg.index >= 0:
+                self.scene.item = f'part:{seg.index}'
+            else:
+                continue
+            self.scene.add('polygon', points=self.pts(self.part_polygon(seg)), fill=None, stroke=None, width=0)
+        if boot:
+            self.scene.item = 'part:boot'
+            self.scene.add('polygon', points=self.pts(boot['polygon']), fill=None, stroke=None, width=0)
+        self.scene.item = None
+
+    def meta(self, boot):
+        """What the browser needs to turn drawing positions back into inches and find what's draggable."""
+        lay = self.layout
+        segs = lay.segments
+
+        def row_near(i, step):
+            # The course / cone row next to joint i (between segments i and i + 1) going `step`;
+            # flanges are passed over, a head stops it
+            j = i if step < 0 else i + 1
+            while 0 <= j < len(segs):
+                if segs[j].kind in ('course', 'cone') and segs[j].index >= 0:
+                    return segs[j].index
+                if segs[j].kind == 'head':
+                    return None
+                j += step
+            return None
+
+        joints = []
+        for i, (a, b) in enumerate(zip(segs, segs[1:])):
+            bolted = (a.kind == 'head' and a.bolted and b.kind == 'flange') or \
+                     (b.kind == 'head' and b.bolted and a.kind == 'flange')
+            if not bolted:
+                joints.append((a.s1, row_near(i, -1), row_near(i, 1)))
+        first = self.spec.seam_start or 1
+        seams = [{'number': first + k, 's': s, 'before': before, 'after': after}
+                 for k, (s, before, after) in enumerate(joints)]
+        marks = []
+        for index, mark in enumerate(self.coverage):
+            if mark.get('kind') in ('band', 'box'):
+                marks.append({'index': index, 'kind': mark['kind'],
+                              's0': lay.s_at(mark.get('start') or 0),
+                              's1': lay.s_at(mark.get('end') if mark.get('end') is not None else lay.length)})
+        return {
+            'horizontal': self.horizontal, 'px_per_unit': PX_PER_UNIT, 'length': lay.length,
+            'tl_start': lay.tl_start, 'tl_end': lay.tl_end, 'max_radius': lay.max_radius(),
+            'segments': [{'kind': seg.kind, 's0': seg.s0, 's1': seg.s1, 'l0': seg.l0, 'l1': seg.l1,
+                          'r0': seg.r0, 'r1': seg.r1, 'index': seg.index, 'end': seg.end} for seg in segs],
+            'seams': seams, 'nozzles': self.nozzle_meta, 'marks': marks,
+            'boot': {'s': boot['s'], 'rb': boot['rb'], 'top': boot['top'], 'tl': boot['tl'],
+                     'scale': boot['scale']} if boot else None,
+            'scale': lay.scale,
+        }
+
     def centre_line(self):
         lay = self.layout
         s0, s1 = lay.segments[0].s0 - 8, lay.segments[-1].s1 + 8
@@ -572,6 +681,7 @@ class _Builder:
         boot = self.boot()
         body = self.keep(self.outline())
         self.scene.add('polygon', points=self.pts(body), fill='paper', stroke=None, width=0)
+        self.click_targets(boot)
         self.coverage_fills(boot)
         self.scene.add('polygon', points=self.pts(body), fill=None, stroke='outline', width=1.8)
         if boot:   # the boot's opening into the shell, drawn over the shell's bottom edge
@@ -586,6 +696,7 @@ class _Builder:
         self.boxes()
         self.tags()
         self.caption()
+        self.scene.meta = self.meta(boot)
         return self.scene
 
 

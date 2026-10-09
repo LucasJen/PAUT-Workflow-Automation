@@ -49,7 +49,9 @@ urlpatterns = [
     path('vessels/', views.vessel_list, name='vessel-list'),
     path('vessels/new/', views.new_vessel, name='new-vessel'),
     path('vessels/preview.png', views.vessel_preview, name='vessel-preview'),
+    path('vessels/scene.json', views.vessel_scene, name='vessel-scene'),
     path('vessel/<int:pk>/edit/', views.edit_vessel, name='edit-vessel'),
     path('vessel/<int:pk>.png', views.vessel_png, name='vessel-png'),
     path('vessel/<int:pk>/parts.json', views.vessel_parts_json, name='vessel-parts'),
+    path('vessel/<int:pk>/scene.json', views.vessel_coverage_scene, name='vessel-coverage-scene'),
 ]

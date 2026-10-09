@@ -227,3 +227,51 @@ class ReportCoverageTests(TestCase):
         self.assertEqual(pages.page_count, 2)
         report.vessel = None
         self.assertEqual(_drawings(report, DocxTemplate(template_path(report))), [])
+
+
+class InteractiveSceneTests(TestCase):
+    """The scene the browser draws: each shape's item and the meta that maps drawing back to inches."""
+
+    def spec(self):
+        return VesselSpec('exchanger', 30, 'flat', 'ellipsoidal',
+                          [{'kind': 'flange'}, course(36), {'kind': 'flange'}, course(96), course(80)],
+                          nozzles=[{'tag': 'N1', 'size': '8"', 'location': 'shell', 'position': 20, 'direction': 'Top'},
+                                   {'tag': 'N2', 'size': '6"', 'location': 'end', 'position': 3, 'direction': ''}])
+
+    def test_shapes_name_their_nozzle_seam_part_and_mark(self):
+        scene = build_scene(self.spec(), [{'kind': 'box', 'start': 10, 'end': 50, 'label': 'Area'},
+                                          {'kind': 'part', 'target': '3'}])
+        items = {shape.get('item') for shape in scene.shapes}
+        for item in ('nozzle:0', 'nozzle:1', 'seam:1', 'part:start', 'part:1', 'part:3', 'part:4', 'part:end', 'mark:0'):
+            self.assertIn(item, items)
+        # The tag's hexagon and text belong to its nozzle too
+        tag_texts = [s for s in scene.shapes if s['kind'] == 'text' and s['text'] == 'N1']
+        self.assertEqual(tag_texts[0]['item'], 'nozzle:0')
+
+    def test_meta_maps_positions_and_finds_the_courses_beside_each_seam(self):
+        meta = build_scene(self.spec()).meta
+        self.assertEqual(meta['length'], 212)
+        body = [seg for seg in meta['segments'] if seg['kind'] in ('course', 'cone')]
+        # inches -> drawing -> inches, as vessel_view.js does it
+        for inches in (0, 20, 36, 100, 212):
+            seg = next(x for x in body if x['l0'] <= inches <= x['l1'])
+            s = seg['s0'] + (seg['s1'] - seg['s0']) * (inches - seg['l0']) / (seg['l1'] - seg['l0'])
+            back = seg['l0'] + (seg['l1'] - seg['l0']) * (s - seg['s0']) / (seg['s1'] - seg['s0'])
+            self.assertAlmostEqual(back, inches)
+        seams = {seam['number']: (seam['before'], seam['after']) for seam in meta['seams']}
+        # flange|channel, channel|flange, flange|shell, shell|shell, shell|head (the cover is bolted)
+        self.assertEqual(seams, {1: (None, 1), 2: (1, 3), 3: (1, 3), 4: (3, 4), 5: (4, None)})
+        self.assertEqual([(n['row'], n['location']) for n in meta['nozzles']], [(0, 'shell'), (1, 'end')])
+        self.assertEqual(meta['nozzles'][0]['side'], 1)
+
+    def test_scene_endpoints(self):
+        response = self.client.post(reverse('vessel-scene'), post_data(name=''))
+        data = response.json()
+        self.assertIn('shapes', data['scene'])
+        self.assertTrue(data['colours']['outline'].startswith('#'))
+        self.assertEqual(self.client.post(reverse('vessel-scene'), post_data(diameter='')).status_code, 400)
+        self.client.post(reverse('new-vessel'), post_data())
+        vessel = Vessel.objects.get()
+        marks = json.dumps([{'kind': 'box', 'start': 0, 'end': 24, 'label': 'X'}])
+        scene = self.client.get(reverse('vessel-coverage-scene', args=[vessel.pk]), {'coverage': marks}).json()['scene']
+        self.assertEqual(scene['meta']['marks'][0]['kind'], 'box')

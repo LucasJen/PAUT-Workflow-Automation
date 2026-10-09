@@ -13,7 +13,10 @@ from .scan_plans import (
     edit_scan_plan, new_scan_plan, scan_plan_from_weld, scan_plan_list, scan_plan_png, scan_plan_scenes,
     scan_plan_suggest, scan_plan_wedges,
 )
-from .vessels import edit_vessel, new_vessel, vessel_list, vessel_parts_json, vessel_png, vessel_preview
+from .vessels import (
+    edit_vessel, new_vessel, vessel_coverage_scene, vessel_list, vessel_parts_json, vessel_png, vessel_preview,
+    vessel_scene,
+)
 from .materials import detect_sensitivity_block
 from .start import confirm_job, start_from_files
 from .start_corrosion import job_picture

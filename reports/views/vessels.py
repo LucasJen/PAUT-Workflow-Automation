@@ -7,7 +7,10 @@ from django.views.decorators.http import require_POST
 
 from ..forms import VesselForm
 from ..models import Vessel
-from ..services.vessel import COMPASS, VesselSpec, clean_coverage, render_png, side_names, spec_from, vessel_parts
+from ..services.vessel import (
+    COMPASS, VesselSpec, build_scene, clean_coverage, render_png, side_names, spec_from, vessel_parts,
+)
+from ..services.vessel.render import COLOURS
 
 # What a new vessel of each type starts as (vessel.js applies it when the type changes on a new
 # vessel): its heads, and its rows from the start end (lengths in inches)
@@ -95,9 +98,8 @@ def _png(content):
     return response
 
 
-@require_POST
-def vessel_preview(request):
-    """The drawing of the editor's current (unsaved) values, or the fields that stop it being drawn."""
+def _posted_vessel(request):
+    """(vessel, None): the editor's current (unsaved) values; or (None, the 400 naming the fields that stop it)."""
     data = request.POST.copy()
     if not data.get('name'):
         data['name'] = 'preview'   # a name is only needed to save
@@ -105,17 +107,55 @@ def vessel_preview(request):
     if not form.is_valid():
         fields = {name: {'label': str(form.fields[name].label) if name in form.fields else '', 'errors': list(errors)}
                   for name, errors in form.errors.items()}
-        return JsonResponse({'error': 'Check the highlighted values.', 'fields': fields}, status=400)
-    return _png(render_png(spec_from(form.save(commit=False))))
+        return None, JsonResponse({'error': 'Check the highlighted values.', 'fields': fields}, status=400)
+    return form.save(commit=False), None
+
+
+@require_POST
+def vessel_preview(request):
+    """The drawing of the editor's current (unsaved) values, or the fields that stop it being drawn."""
+    vessel, errors = _posted_vessel(request)
+    return errors or _png(render_png(spec_from(vessel)))
+
+
+def _rounded(value):
+    if isinstance(value, float):
+        return round(value, 3)
+    if isinstance(value, dict):
+        return {k: _rounded(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_rounded(v) for v in value]
+    return value
+
+
+def _scene_json(spec, coverage=()):
+    """The drawing as shapes for the browser's interactive SVG (vessel_view.js), with its colours."""
+    return JsonResponse({'scene': _rounded(build_scene(spec, coverage).as_dict()),
+                         'colours': {name: '#%02x%02x%02x' % rgb for name, rgb in COLOURS.items()}})
+
+
+@require_POST
+def vessel_scene(request):
+    """The vessel editor's drawing of its current (unsaved) values."""
+    vessel, errors = _posted_vessel(request)
+    return errors or _scene_json(spec_from(vessel))
+
+
+def _coverage(request):
+    try:
+        return clean_coverage(json.loads(request.GET.get('coverage') or '[]'))
+    except ValueError:
+        return []
+
+
+def vessel_coverage_scene(request, pk):
+    """A saved vessel's drawing with a report's coverage (?coverage=<JSON marks>), for the report editor."""
+    return _scene_json(spec_from(get_object_or_404(Vessel, pk=pk)), _coverage(request))
 
 
 def vessel_png(request, pk):
     """The saved vessel's drawing; ?coverage=<JSON marks> draws a report's coverage on it (its editor's preview)."""
-    try:
-        coverage = clean_coverage(json.loads(request.GET.get('coverage') or '[]'))
-    except ValueError:
-        coverage = []
-    return _png(render_png(spec_from(get_object_or_404(Vessel, pk=pk)), coverage))
+    return _png(render_png(spec_from(get_object_or_404(Vessel, pk=pk)), _coverage(request)))
 
 
 def vessel_parts_json(request, pk):

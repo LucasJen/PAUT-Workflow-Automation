@@ -1724,3 +1724,24 @@ body.drop-target .content { outline: 2px dashed var(--bs-primary); outline-offse
 .vessel-coverage-add { width: auto; }
 .vessel-coverage-stage { margin-top: 0.75rem; }
 .vessel-coverage-stage img { max-height: 70vh; }
+/* Interactive vessel drawing (vessel_view.js): always on white, as printed */
+.vessel-svg {
+    display: block; width: 100%; max-height: 80vh; min-height: 8rem; margin: 0 auto;
+    background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+    touch-action: none; user-select: none; cursor: default;
+}
+.vessel-svg [data-item] { cursor: pointer; }
+.vessel-svg .item-nozzle, .vessel-svg .item-seam, .vessel-svg .item-boot { cursor: grab; }
+.vessel-svg.is-dragging, .vessel-svg.is-dragging * { cursor: grabbing !important; }
+.vessel-svg.is-panning { cursor: move; }
+.vessel-svg g.is-selected polygon:not([data-hit]), .vessel-svg g.is-selected circle,
+.vessel-svg g.is-selected polyline { stroke: #f97316 !important; stroke-width: 2.5px; }
+.vessel-svg g.is-selected [data-hit] { fill: rgba(249, 115, 22, 0.12); }
+.vessel-svg [data-item]:hover [data-hit] { fill: rgba(37, 99, 235, 0.06); }
+.vessel-svg .is-faded { opacity: 0.35; }
+.vessel-svg .vessel-handles .handle-move { cursor: move; }
+.vessel-svg .vessel-handles .handle-end { cursor: ew-resize; }
+.vessel-svg .vessel-overlay { pointer-events: none; }
+.vessel-range-preview { fill: rgba(249, 115, 22, 0.12); stroke: #dc2626; stroke-width: 2px; stroke-dasharray: 6 3; vector-effect: non-scaling-stroke; }
+.vessel-table tr.is-selected td { background: var(--accent-soft); }
+.vessel-draw-tools .btn.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }

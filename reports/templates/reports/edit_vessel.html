@@ -1,5 +1,5 @@
 {% extends 'reports/components/edit_page.html' %}
-{% block form_attrs %} data-arrow-nav id="vessel-form" data-preview-url="{% url 'vessel-preview' %}"{% if not vessel %} data-new="1"{% endif %}{% endblock %}
+{% block form_attrs %} data-arrow-nav id="vessel-form" data-scene-url="{% url 'vessel-scene' %}"{% if not vessel %} data-new="1"{% endif %}{% endblock %}
 {% load ui %}
 
 {% block title %}{% if vessel %}{{ vessel.name }}{% else %}New vessel{% endif %} · Vessel drawings · PAUT Report Automation{% endblock %}
@@ -56,9 +56,12 @@
     <section class="panel scan-plan-preview">
         <div class="scan-plan-toolbar">
             <h2 class="panel-subtitle my-0">Drawing</h2>
+            <button type="button" class="btn btn-sm btn-secondary" id="vessel-fit" title="Fit the drawing back in its box (or double-click it)"><i class="bi bi-arrows-angle-contract"></i> Fit</button>
             {% if vessel %}<a class="btn btn-sm btn-secondary" href="{% url 'vessel-png' vessel.pk %}" download="{{ vessel.name }}.png" title="The saved drawing as a PNG"><i class="bi bi-download"></i> PNG</a>{% endif %}
+            <i class="bi bi-question-circle scan-plan-help" tabindex="0"
+               title="Drag a nozzle along the shell (or across it to the other side), a seam between two courses, or the boot. Positions snap to whole inches and course ends; hold Shift for 6&quot; steps, Alt for none. Click a part to find its row. Ctrl+Z undoes. Scroll to zoom, drag the background to pan, double-click to fit."></i>
         </div>
-        <div class="vessel-stage"><img id="vessel-image" alt="Vessel drawing"{% if vessel %} src="{% url 'vessel-png' vessel.pk %}"{% endif %}></div>
+        <div class="vessel-stage scan-plan-stage" id="vessel-stage"></div>
         <p class="scan-plan-status" id="vessel-status" role="status" hidden></p>
     </section>
 </div>
@@ -67,5 +70,6 @@
 {{ type_starts|json_script:"vessel-type-starts" }}
 {{ directions|json_script:"vessel-directions" }}
 <script src="{% static_v 'reports/js/vessel_lengths.js' %}"></script>
+<script src="{% static_v 'reports/js/vessel_view.js' %}"></script>
 <script src="{% static_v 'reports/js/vessel.js' %}"></script>
 {% endblock %}
