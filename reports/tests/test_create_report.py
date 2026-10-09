@@ -242,3 +242,46 @@ class StaleSaveTests(TestCase):
         report = Report.objects.create(document_filename='Existing')
         resp = self.client.post(self.url, post_data(report=report, client='X', loaded_version=report.updated_at.isoformat()))
         self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
+
+
+class KeptUploadTests(TestCase):
+    url = reverse('create-report')
+    setUp = ImageSectionTests.setUp   # a temporary MEDIA_ROOT
+
+    def test_pictures_survive_a_failed_save(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        kept_dir = Path(tempfile.mkdtemp())
+        patch = mock.patch('reports.services.kept_uploads.kept_root', return_value=kept_dir)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+        data = post_data(columns=['Scan ID', 'Results'], rows=[['CW1 Top', 'x']],
+                         test_date='2026-10-09', test_end_date='2026-10-01')   # refused: end before start
+        data.update(management('drawings', 1))
+        data.update({'drawings-0-caption': 'D1', 'drawings-0-image': png_upload('drawing.png')})
+        resp = self.client.post(self.url, data)
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Report.objects.exists())
+        kept = resp.context['kept_uploads']
+        self.assertEqual([(field, name) for field, _, name in kept], [('drawings-0-image', 'drawing.png')])
+        self.assertContains(resp, 'name="kept_upload"')
+
+        # Fixed and saved again without choosing the picture again: it's saved
+        data = post_data(columns=['Scan ID', 'Results'], rows=[['CW1 Top', 'x']], test_date='2026-10-09')
+        data.update(management('drawings', 1))
+        data.update({'drawings-0-caption': 'D1', 'kept_upload': [f'{field}|{ref}' for field, ref, _ in kept]})
+        resp = self.client.post(self.url, data)
+        report = Report.objects.get()
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
+        self.assertEqual(list(report.images.values_list('caption', flat=True)), ['D1'])
+        self.assertEqual(list(kept_dir.iterdir()), [])   # cleared once saved
+
+    def test_bad_references_are_ignored(self):
+        from django.http import QueryDict
+        from django.utils.datastructures import MultiValueDict
+        from reports.services.kept_uploads import with_kept
+        post = QueryDict(mutable=True)
+        post.setlist('kept_upload', ['drawings-0-image|../../etc/passwd', 'x|' + 'a' * 32 + '/../secret'])
+        self.assertEqual(dict(with_kept(post, MultiValueDict())), {})

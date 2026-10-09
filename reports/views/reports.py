@@ -11,6 +11,7 @@ from django.db.models import Count
 from ..services.excel_report import (
     CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available, output_warnings,
 )
+from ..services.kept_uploads import discard as discard_kept, keep as keep_uploads, with_kept
 from ..services.report_render import render_report
 from ..services.word_pdf import WordPdfError, docx_to_pdf, word_available
 from ..forms import (
@@ -111,7 +112,7 @@ def _save_results_table(report, columns, rows):
 INDICATION_KEY = re.compile(r'^ind-[a-z0-9]{4,40}$')
 
 
-def _save_indication_images(request, report, rows):
+def _save_indication_images(request, report, rows, files):
     """
     The weld form's indication images: a file chosen for an indication (indication_image_<key>)
     replaces its image, a ticked remove_indication_image deletes it, and images of indications no
@@ -122,29 +123,28 @@ def _save_indication_images(request, report, rows):
     images.exclude(scan_id__in=keys).delete()
     images.filter(scan_id__in=request.POST.getlist('remove_indication_image')).delete()
     validator = ImageField()
-    for name, files in request.FILES.lists():
+    for name, chosen in files.lists():
         key = name.removeprefix('indication_image_')
-        if not name.startswith('indication_image_') or key not in keys or not files:
+        if not name.startswith('indication_image_') or key not in keys or not chosen:
             continue
         try:
-            upload = validator.clean(files[-1])
+            upload = validator.clean(chosen[-1])
         except ValidationError:
-            messages.error(request, f'{files[-1].name} isn\'t an image; that indication has no image.')
+            messages.error(request, f'{chosen[-1].name} isn\'t an image; that indication has no image.')
             continue
         images.filter(scan_id=key).delete()
         ReportImage.objects.create(report=report, kind=ReportImage.INDICATION, scan_id=key, image=upload)
 
 
-def _setup_image_uploads(request, setup_formset):
+def _setup_image_uploads(files, setup_formset):
     """
     Calibration screenshots uploaded per setup block (file input '<prefix>-cal_images').
     Returns {form: [validated files]}; adds an error to the setup form for non-image files.
     """
     uploads, validator = {}, ImageField()
     for f in setup_formset.forms:
-        files = request.FILES.getlist(f.add_prefix('cal_images'))
         valid = []
-        for file in files:
+        for file in files.getlist(f.add_prefix('cal_images')):
             try:
                 valid.append(validator.clean(file))
             except ValidationError:
@@ -195,6 +195,7 @@ def create_report(request):
     Takes user input to either save the input as report and setup information or to generate a report
     """
     results_data = {}
+    kept_uploads = []
     # Guided mode (wizard.js): one section at a time, saved on each Prev / Next
     wizard = (request.POST if request.method == 'POST' else request.GET).get('wizard') == '1'
     wizard_step = (request.POST.get('wizard_step') if request.method == 'POST' else request.GET.get('step')) or ''
@@ -230,8 +231,10 @@ def create_report(request):
         form = ReportForm(request.POST, instance=instance)
         setup_formset = SetupFormSet(request.POST, instance=form.instance)
         people = PersonFormSet(request.POST, instance=form.instance, prefix='people')
-        drawings = drawing_formset(request.POST, request.FILES, instance=form.instance)
-        image_formset = scan_image_formset(request.POST, request.FILES, instance=form.instance, scan_ids=scan_ids)
+        # Pictures kept from a save that failed come back unless chosen again (services/kept_uploads.py)
+        files = with_kept(request.POST, request.FILES)
+        drawings = drawing_formset(request.POST, files, instance=form.instance)
+        image_formset = scan_image_formset(request.POST, files, instance=form.instance, scan_ids=scan_ids)
         # The weld form's equipment grid (only posted by editors that show it)
         probes, groups = equipment_formsets(request.POST, instance=form.instance) \
             if 'probes-TOTAL_FORMS' in request.POST else (None, None)
@@ -240,7 +243,7 @@ def create_report(request):
         valid = not stale and form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
         if valid:
             # Checked after the formsets so each file's error can be shown on its setup block
-            setup_uploads = _setup_image_uploads(request, setup_formset)
+            setup_uploads = _setup_image_uploads(files, setup_formset)
             valid = not any(f.errors for f in setup_formset.forms)
         if valid:
             with transaction.atomic():
@@ -256,7 +259,8 @@ def create_report(request):
                 _save_ordered_formset(image_formset, kind=ReportImage.SCAN)
                 if results is not None:
                     _save_results_table(report, *results)
-                    _save_indication_images(request, report, results[1])
+                    _save_indication_images(request, report, results[1], files)
+            discard_kept(request.POST)
 
             if wizard:
                 return _wizard_redirect(request, report, request.POST.get('wizard_goto', ''))
@@ -279,6 +283,12 @@ def create_report(request):
                 return redirect(f"{reverse('create-report')}?loaded={report.pk}&download=1")
             messages.success(request, 'Report saved.')
             return redirect(f"{reverse('create-report')}?loaded={report.pk}")
+        # The pictures chosen for this save wait for the next one (a file box can't be refilled)
+        kept_uploads = keep_uploads(files)
+        discard_kept(request.POST)
+        if kept_uploads:
+            messages.info(request, f'The {len(kept_uploads)} picture{"s" if len(kept_uploads) != 1 else ""} you chose '
+                                   'are kept and will be saved with the report.')
         if stale:
             when = timezone.localtime(instance.updated_at).strftime('%H:%M')
             messages.error(request, f'Not saved: this report was saved from another tab or window at {when}, after '
@@ -351,6 +361,7 @@ def create_report(request):
         'issued': form.instance.pk is not None and form.instance.is_issued,
         'wizard_step': wizard_step,
         'loaded_version': version,
+        'kept_uploads': kept_uploads,
         'rtype': get_report_type(form.instance.report_type),
         # The guided editor's Scan plan step: every drawing the plan prints, with the welds at its offset
         'plan_drawings': plan_drawing_views(form.instance) if wizard and form.instance.pk else [],
