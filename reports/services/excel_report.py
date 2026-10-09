@@ -420,17 +420,61 @@ def _result_cells(cells, row):
     return out
 
 
+OFFSET_INDEX = 2   # C/L Offset in WELD_RESULTS_COLUMNS
+
+
+def _stacked_offsets(rows):
+    """
+    A weld scanned at several offsets ('0.500 / 0.875') prints one per row down the C/L Offset
+    column (too narrow for both): its first row gets the first, its next rows the others, and a
+    row with only the offset is added when the weld has fewer rows than offsets.
+    """
+    welds = []
+    for cells in rows:
+        if _v(cells[0]) or not welds:
+            welds.append([])
+        welds[-1].append(list(cells))
+    out = []
+    for weld in welds:
+        first = weld[0] + [''] * (OFFSET_INDEX + 1 - len(weld[0]))
+        offsets = [o.strip() for o in _v(first[OFFSET_INDEX]).split('/') if o.strip()]
+        if len(offsets) > 1:
+            weld[0] = first
+            weld += [[''] * (OFFSET_INDEX + 1) for _ in range(len(offsets) - len(weld))]
+            for cells, offset in zip(weld, offsets):
+                cells += [''] * (OFFSET_INDEX + 1 - len(cells))
+                cells[OFFSET_INDEX] = offset
+        out += weld
+    return out
+
+
+def results_layout(rows):
+    """
+    Where each results row goes: ([(sheet, sheet row, cells)], rows that don't fit, sheet rows
+    needed). Each weld after the first starts after a blank row (easier to read), except at the
+    top of a page; a weld's offsets go one per row.
+    """
+    rows = _stacked_offsets([r for r in rows if any(_v(c) for c in r)])
+    slots = [('report', r) for r in REPORT_RESULT_ROWS] + [('continuation', r) for r in CONTINUATION_ROWS]
+    page_tops = {0, len(REPORT_RESULT_ROWS)}
+    placed, at = [], 0
+    for n, cells in enumerate(rows):
+        if n and _v(cells[0]) and at not in page_tops:
+            at += 1   # the blank row before another weld
+        if at < len(slots):
+            placed.append((*slots[at], cells))
+        at += 1
+    return placed, len(rows) - len(placed), at
+
+
 def _results(rows):
     """(report cells, continuation cells) for the results rows."""
-    rows = [r for r in rows if any(_v(c) for c in r)]
     report_cells, continuation = {}, {}
-    page1 = len(REPORT_RESULT_ROWS)
-    for row, cells in zip(REPORT_RESULT_ROWS, rows[:page1]):
-        report_cells.update(_result_cells(cells, row))
-    for row, cells in zip(CONTINUATION_ROWS, rows[page1:]):
-        continuation.update(_result_cells(cells, row))
-    if len(rows) > page1 + len(CONTINUATION_ROWS):
-        logger.warning('Weld report has %s results rows; only %s fit', len(rows), page1 + len(CONTINUATION_ROWS))
+    placed, left_out, _ = results_layout(rows)
+    for sheet, row, cells in placed:
+        (report_cells if sheet == 'report' else continuation).update(_result_cells(cells, row))
+    if left_out:
+        logger.warning('Weld report results: %s rows left out', left_out)
     return report_cells, continuation
 
 
@@ -497,10 +541,11 @@ def output_warnings(report):
                                 f'Setup Information page.')
     elif get_report_type(report.report_type).output_format == 'xlsx':
         _, rows = report_results(report)
-        filled = sum(1 for row in rows if any(_v(c) for c in row))
+        _, left_out, needed = results_layout(rows)
         room = len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)
-        if filled > room:
-            warnings.append(f'The results have {filled} rows; the form holds {room}, so {_last(filled - room)}.')
+        if left_out:
+            warnings.append(f'The results need {needed} rows (with a blank row between welds); the form holds '
+                            f'{room}, so {_last(left_out)}.')
         for kind, count, room in (('probe', report.probes.count(), weld_form.MAX_PROBES),
                                   ('group', report.groups.count(), weld_form.MAX_GROUPS)):
             if count > room:

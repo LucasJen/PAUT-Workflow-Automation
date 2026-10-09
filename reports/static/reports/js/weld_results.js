@@ -284,6 +284,25 @@
         return out;
     }
 
+    // The form's rows the results take: as excel_report.results_layout, a blank row before each
+    // weld after the first, except at the top of a page
+    // and a weld's offsets one per row (a row added when it has fewer rows than offsets)
+    function sheetRows(out) {
+        const welds = [];
+        out.forEach(row => {
+            if (row[0] || !welds.length) welds.push({ rows: 0, offsets: row[keys.indexOf(OFFSET)].split('/').filter(o => o.trim()).length });
+            welds[welds.length - 1].rows += 1;
+        });
+        let at = 0;
+        welds.forEach((weld, n) => {
+            for (let i = 0; i < Math.max(weld.rows, weld.offsets); i++) {
+                if (n && !i && at !== 0 && at !== pageRows) at += 1;
+                at += 1;
+            }
+        });
+        return at;
+    }
+
     function refresh() {
         const blocks = list.querySelectorAll('.weld-block');
         document.getElementById('weld-results-empty').hidden = blocks.length > 0;
@@ -292,10 +311,10 @@
             block.querySelector('.indications').hidden = count === 0;
             block.querySelector('.weld-verdict').hidden = count > 0;
         }
-        const used = rows().length;
+        const used = sheetRows(rows());
         const counter = document.getElementById('weld-results-count');
         counter.textContent = used
-            ? `${used} of ${maxRows} rows used (${pageRows} fit on page 1, the rest go on the Continuation page).`
+            ? `${used} of ${maxRows} rows used, with a blank row between welds (${pageRows} fit on page 1, the rest go on the Continuation page).`
             : '';
         counter.classList.toggle('text-danger', used > maxRows);
         if (used > maxRows) counter.textContent += ` The form only holds ${maxRows}; the rest won't print.`;
