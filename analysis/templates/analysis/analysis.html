@@ -120,7 +120,7 @@
                 <i class="bi bi-question-circle analysis-help" tabindex="0"
                    title="Click or drag to move the beam cursor (Up / Down keys too). Ctrl+click puts the reference cursors (red) at a point, Shift+click the measure cursors (green); drag a cursor line to move it. Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>
             </header>
-            <div class="analysis-stage" id="sscan-stage"></div>
+            <div class="analysis-stage" id="sscan-stage" data-empty="Pick an .nde file above to start. ? shows the keys."></div>
             <div class="analysis-readout mono" id="sscan-readout"></div>
         </section>
         <section class="analysis-panel analysis-panel-ascan">
@@ -154,6 +154,7 @@
                 <button type="button" class="btn btn-sm btn-secondary ms-auto" id="reset-gates" title="Back to the file's gates"><i class="bi bi-arrow-counterclockwise"></i> File's</button>
             </header>
             <div class="analysis-gate-rows" id="gate-rows"></div>
+            <div class="analysis-add-gates" id="add-gates"></div>
             </div>
             <div class="analysis-tab-body" data-tab-body="indications" hidden>
                 <div class="analysis-indication-actions">

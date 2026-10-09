@@ -237,10 +237,19 @@ void main() {
                 ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
                 ctx.restore();
             }
-            for (const mark of this.cursors.marks || []) {   // e.g. the zone's thinnest point
+            for (const mark of this.cursors.marks || []) {   // the zone's extreme, saved indications
                 const [mx, my] = this.toScreen(mark.x, mark.y);
                 ctx.strokeStyle = mark.colour; ctx.lineWidth = 2 * ratio;
-                ctx.beginPath(); ctx.arc(mx, my, 6 * ratio, 0, Math.PI * 2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(mx, my, (mark.label ? 7 : 6) * ratio, 0, Math.PI * 2); ctx.stroke();
+                if (mark.label) {
+                    ctx.save();
+                    ctx.font = `600 ${10 * ratio}px Inter, Arial, sans-serif`;
+                    ctx.lineWidth = 3 * ratio; ctx.strokeStyle = 'rgba(8,10,14,0.9)';
+                    ctx.strokeText(mark.label, mx + 9 * ratio, my - 6 * ratio);
+                    ctx.fillStyle = mark.colour;
+                    ctx.fillText(mark.label, mx + 9 * ratio, my - 6 * ratio);
+                    ctx.restore();
+                }
             }
             for (const c of this.cursors.x) {
                 if (c.value === null || c.value === undefined) continue;

@@ -79,7 +79,24 @@
         format, unitLength,
         onCursor: lateral => setLateral(lateral),
         onCursors: partial => setCursors(partial),
-        onHover: (x, y) => { $('sscan-readout').textContent = x === null ? '' : `Index ${format(x)} · depth ${format(y)}`; },
+        onHover: (x, y) => {
+            if (x === null) { $('sscan-readout').textContent = ''; return; }
+            let value = '';
+            const g = currentGroup();
+            if (g && state.values) {
+                const line = sscan.pick([x, y]);
+                const r = g.rays[line];
+                const len2 = r.dv * r.dv + r.dz * r.dz || 1;
+                const sp = ((x - r.v0) * r.dv + y * r.dz) / len2;
+                const sample = Math.round((sp - r.sp_start) / r.sp_step);
+                const n = state.frame.samples;
+                if (sample >= 0 && sample < n) {
+                    const v = state.values[line * n + sample];
+                    value = v < 0 ? ' · no data' : ` · ${(v * Math.pow(10, state.gain / 20)).toFixed(1)} %`;
+                }
+            }
+            $('sscan-readout').textContent = `Index ${format(x)} · depth ${format(y)}${value}`;
+        },
     });
     let gateSnapshot = null;
     const ascan = new AScanView($('ascan-stage'), {
@@ -256,6 +273,7 @@
 
     async function openFile(path, group = 0, scan = 0, lateral = 0) {
         show('Opening…');
+        grid.classList.remove('is-empty');
         try {
             state.info = await NdeClient.file(urls, path);
         } catch (e) {
@@ -436,8 +454,10 @@
         const scanLines = [{ value: c.s_ref, colour: '#f87171' }, { value: c.s_meas, colour: '#4ade80' },
                            { value: scanPosition(state.scan), colour: CURSOR }];
         const z = zoneBox();
+        const saved = (state.indications || []).filter(i => i.group === state.group)
+            .map(i => ({ x: scanPosition(i.scan), y: lineY(i.lateral), colour: '#f472b6', label: `#${i.number}` }));
         cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR }, ...index],
-                           box: z ? z.box : null, marks: z?.mark ? [z.mark] : [] });
+                           box: z ? z.box : null, marks: [...(z?.mark ? [z.mark] : []), ...saved] });
         bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171' }, { value: c.u_meas, colour: '#4ade80' }] });
     }
 
@@ -478,7 +498,7 @@
 
     function fillKinds() {
         const g = currentGroup();
-        const letters = g.gates.map(x => letterOf(x.name));
+        const letters = state.gates.map(x => letterOf(x.name));   // the gates as edited (added ones too)
         const options = [];
         for (const L of letters) {
             if (L === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files (A−I still works)
@@ -673,6 +693,37 @@
         }
         box.replaceChildren(table);
         $('gates-edited').hidden = !state.gatesEdited;
+        renderAddGates();
+    }
+
+    /** Buttons to add the gates a file doesn't have (I, A, B), set up the usual way. */
+    function renderAddGates() {
+        const box = $('add-gates');
+        const have = new Set(state.gates.map(x => letterOf(x.name)));
+        const buttons = ['I', 'A', 'B'].filter(L => !have.has(L)).map(L => {
+            const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-secondary',
+                                                                       innerHTML: `<i class="bi bi-plus-lg"></i> Gate ${L}`,
+                                                                       title: `Add gate ${L}` });
+            b.addEventListener('click', () => addGate(L));
+            return b;
+        });
+        box.replaceChildren(...buttons);
+        box.hidden = !buttons.length;
+    }
+
+    function addGate(letter) {
+        const g = currentGroup();
+        const span = g.axes[2].resolution * g.shape[2];
+        const start = g.beams[0]?.ultrasound_offset || 0;
+        const id = Math.max(-1, ...state.gates.map(x => x.id)) + 1;
+        const byLetter = L => state.gates.find(x => letterOf(x.name) === L);
+        const gate = { id, name: `Gate ${letter}`, threshold: letter === 'I' ? 35 : 20, trigger: 'Crossing', sync_gate: null,
+                       start: start + span * 0.25, length: span * 0.5 };
+        if (letter === 'B' && byLetter('A')) Object.assign(gate, { sync_gate: byLetter('A').id, start: span * 0.02, length: span * 0.4 });
+        if (letter === 'A' && byLetter('I')) Object.assign(gate, { sync_gate: byLetter('I').id, start: span * 0.02, length: span * 0.4 });
+        state.gates.push(gate);
+        gatesChanged();
+        fillKinds();
     }
 
     function gatesChanged(delay = 60) {
@@ -689,6 +740,7 @@
         state.gatesEdited = false;
         save();
         renderGates();
+        fillKinds();
         scheduleReadings();
         scheduleProjections();
     });
@@ -855,6 +907,7 @@
             state.indications = [];
         }
         renderIndications();
+        linkCursors();
         $('export-indications').href = `${urls.indicationsCsv}?${new URLSearchParams({ path: state.path, units })}`;
     }
 
@@ -932,6 +985,21 @@
     }
 
     $('add-indication').addEventListener('click', addIndication);
+
+    /** The next (step 1) or previous (-1) saved indication along the scan from here. */
+    function stepIndication(step) {
+        const list = [...(state.indications || [])].sort((a, b) => a.group - b.group || a.scan - b.scan || a.lateral - b.lateral);
+        if (!list.length) return;
+        const here = list.findIndex(i => i.group === state.group && i.scan === state.scan && i.lateral === state.lateral);
+        let at;
+        if (here >= 0) at = (here + step + list.length) % list.length;
+        else if (step > 0) at = Math.max(0, list.findIndex(i => i.group > state.group || (i.group === state.group && i.scan > state.scan)));
+        else {
+            const before = list.filter(i => i.group < state.group || (i.group === state.group && i.scan < state.scan));
+            at = before.length ? list.indexOf(before[before.length - 1]) : list.length - 1;
+        }
+        goTo(list[at]);
+    }
 
     // ── picture of the views ──
     /** The visible views as laid out on screen, their titles, and the readings, saved as a PNG. */
@@ -1055,6 +1123,8 @@
             $('scan-position').textContent = `= ${format(scanPosition(state.scan))}`;
             cview.drawOverlay(); bview.drawOverlay();
             if (state.cscan && state.cscan.mode !== 'amplitude') loadCscan(projectionRequest);
+            renderIndications();
+            if (state.path) $('export-indications').href = `${urls.indicationsCsv}?${new URLSearchParams({ path: state.path, units })}`;
         }
     });
     axisSelect.addEventListener('change', () => ascan.setAxis(axisSelect.value));
@@ -1070,7 +1140,7 @@
             PageUp: () => setScan(state.scan - 10), PageDown: () => setScan(state.scan + 10),
             ArrowUp: () => setLateral(state.lateral - 1), ArrowDown: () => setLateral(state.lateral + 1),
             '+': () => setGain(state.gain + 1), '=': () => setGain(state.gain + 1), '-': () => setGain(state.gain - 1),
-            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, '?': () => toggleHelp(), Escape: () => toggleHelp(false),
+            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, ']': () => stepIndication(1), '[': () => stepIndication(-1), '?': () => toggleHelp(), Escape: () => toggleHelp(false),
         };
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });
@@ -1087,6 +1157,7 @@
         });
     }
     applyPalettes();
+    grid.classList.add('is-empty');
     page.views = { sscan, ascan, cview, bview };   // for checking the page in a test browser
     loadFiles().catch(e => show(e.message));
 })();
