@@ -86,6 +86,13 @@ class Group:
     wedge_delay: float = 0.0
     digitizing_frequency: float = 0.0
     rectification: str = ''
+    # Pulse: A-scan time from the pulse; SynchroGateRelative: each stored A-scan is already re-timed
+    # to its own gate I crossing (t = 0 at the interface, e.g. immersion / HydroFORM)
+    synchro_mode: str = 'Pulse'
+
+    @property
+    def synced_to_interface(self):
+        return self.synchro_mode == 'SynchroGateRelative'
 
     @property
     def scan_axis(self):
@@ -239,7 +246,7 @@ def _group(setup, raw_group, h5):
         unit=value.get('unit', 'Percent'), beams=beams, gates=_gates(process), technique=technique,
         formation=_formation(process), wave_mode=process.get('waveMode', ''), velocity=velocity,
         wedge_delay=process.get('wedgeDelay', 0.0), digitizing_frequency=process.get('digitizingFrequency', 0.0),
-        rectification=process.get('rectification', ''),
+        rectification=process.get('rectification', ''), synchro_mode=process.get('ascanSynchroMode', 'Pulse'),
     )
 
 
