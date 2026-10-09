@@ -132,8 +132,13 @@
         courses.forEach((row, i) => {
             const tr = body.insertRow();
             tr.dataset.item = `part:${i}`;
-            tr.insertCell().textContent = row.kind === 'course' ? `${++courseNumber}` : '';
-            tr.cells[0].className = 'vessel-row-number';
+            const number = tr.insertCell();
+            number.className = 'vessel-row-number';
+            const grip = Object.assign(document.createElement('span'), {
+                className: 'vessel-row-grip', title: 'Drag to move this row', innerHTML: '<i class="bi bi-grip-vertical"></i>',
+            });
+            grip.addEventListener('pointerdown', event => startRowDrag(event, tr, i));
+            number.append(grip, row.kind === 'course' ? `${++courseNumber}` : '');
             tr.insertCell().textContent = KIND_LABEL[row.kind] || row.kind;
             const length = tr.insertCell();
             if (row.kind !== 'flange') length.append(lengthBox(row.length, v => { row.length = v; }));
@@ -157,6 +162,52 @@
             );
         });
         box.replaceChildren(table);
+    }
+
+    // Dragging a course row by its grip: a line shows where it will go, dropping moves it there
+    function startRowDrag(event, tr, from) {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        const body = tr.parentElement;
+        const grip = event.currentTarget;
+        grip.setPointerCapture(event.pointerId);
+        tr.classList.add('is-dragging-row');
+        let to = from;
+        const rows = () => [...body.rows];
+        const mark = () => {
+            rows().forEach(r => r.classList.remove('drop-before', 'drop-after'));
+            if (to === from) return;
+            const list = rows();
+            if (to < list.length) list[to].classList.add(to > from ? 'drop-after' : 'drop-before');
+        };
+        const move = e => {
+            // The row under the pointer is where it lands
+            const list = rows();
+            to = list.length - 1;
+            for (let k = 0; k < list.length; k++) {
+                const box = list[k].getBoundingClientRect();
+                if (e.clientY < box.top + box.height / 2) { to = k > from ? k - 1 : k; break; }
+            }
+            to = Math.max(0, Math.min(list.length - 1, to));
+            mark();
+        };
+        const end = e => {
+            grip.removeEventListener('pointermove', move);
+            grip.removeEventListener('pointerup', end);
+            grip.removeEventListener('pointercancel', end);
+            tr.classList.remove('is-dragging-row');
+            rows().forEach(r => r.classList.remove('drop-before', 'drop-after'));
+            if (e.type !== 'pointerup' || to === from) return;
+            remember();
+            const [row] = courses.splice(from, 1);
+            courses.splice(to, 0, row);
+            renderCourses();
+            save();
+            document.querySelector(`#course-rows tr[data-item="part:${to}"]`)?.classList.add('is-selected');
+        };
+        grip.addEventListener('pointermove', move);
+        grip.addEventListener('pointerup', end);
+        grip.addEventListener('pointercancel', end);
     }
 
     function locations() {
