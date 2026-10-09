@@ -969,7 +969,7 @@
         const table = document.createElement('table');
         table.className = 'analysis-indication-table';
         const head = table.createTHead().insertRow();
-        for (const h of ['#', 'Scan', isRaster() ? 'Index' : 'Angle', 'A%', 'Depth', 'Length', 'Comment', '']) {
+        for (const h of ['#', 'Scan', isRaster() ? 'Index' : 'Angle', 'A%', 'Depth', 'Length', '']) {
             head.append(Object.assign(document.createElement('th'), { textContent: h }));
         }
         const body = table.createTBody();
@@ -989,7 +989,6 @@
             comment.addEventListener('click', e => e.stopPropagation());
             comment.addEventListener('change', () => send(indicationUrl(item.id), 'POST', { comment: comment.value })
                 .then(saved => { item.comment = saved.comment; }).catch(e => show(e.message)));
-            tr.insertCell().append(comment);
             const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-secondary',
                                                                            title: 'Delete this indication', innerHTML: '<i class="bi bi-x-lg"></i>' });
             remove.addEventListener('click', async e => {
@@ -999,6 +998,12 @@
             });
             tr.insertCell().append(remove);
             tr.addEventListener('click', () => goTo(item));
+            // The comment on its own line under the row
+            const note = body.insertRow();
+            note.className = `analysis-indication-note${tr.className ? ' is-current' : ''}`;
+            const cell = note.insertCell();
+            cell.colSpan = 7;
+            cell.append(comment);
         }
         box.replaceChildren(table);
     }

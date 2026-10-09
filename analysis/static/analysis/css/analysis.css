@@ -153,3 +153,7 @@ body.analysis-resizing { user-select: none; }
 .analysis-add-gates .btn { padding: 0.05rem 0.4rem; font-size: 0.75rem; }
 .analysis-file #file-select { min-width: 14rem; }
 .analysis-file #group-select { min-width: 10rem; }
+
+.analysis-indication-table tr:not(.analysis-indication-note) td { border-bottom: 0; padding-bottom: 0; }
+.analysis-indication-table tr.analysis-indication-note td { padding-top: 0.1rem; }
+.analysis-indication-table tr.analysis-indication-note { cursor: default; }
