@@ -2,6 +2,7 @@ from django.http import FileResponse, JsonResponse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib import messages
 from django.conf import settings
 from django.db import transaction
@@ -192,6 +193,9 @@ def create_report(request):
     if request.method == 'POST':
         # Bind to the loaded report (if any) so saving updates it instead of creating a copy
         instance = _get_report(request.POST.get('report_id'))
+        if instance is not None and instance.is_issued:
+            messages.error(request, ISSUED_MESSAGE)
+            return redirect(f"{reverse('create-report')}?loaded={instance.pk}")
 
         results, results_ok = None, True
         try:
@@ -239,6 +243,10 @@ def create_report(request):
 
             if wizard:
                 return _wizard_redirect(request, report, request.POST.get('wizard_goto', ''))
+            if 'issue' in request.POST:
+                _set_status(report, Report.ISSUED)
+                messages.success(request, 'Report saved and issued. It is read-only until reopened.')
+                return redirect(f"{reverse('create-report')}?loaded={report.pk}")
             wants_output = 'generate' in request.POST or 'preview' in request.POST
             if wants_output and not has_equipment(report):
                 messages.success(request, 'Report saved.')
@@ -267,6 +275,8 @@ def create_report(request):
             form = ReportForm(initial={**report_values, 'report_type': report_type})
             setup_formset = SetupFormSet(initial=[setup_values])
         else:
+            if wizard and loaded_report.is_issued:   # nothing to step through: shown read-only
+                return redirect(f"{reverse('create-report')}?loaded={loaded_report.pk}")
             form = ReportForm(instance=loaded_report)
             setup_formset = SetupFormSet(instance=loaded_report)
             if loaded_report.setups.exists():
@@ -311,11 +321,38 @@ def create_report(request):
         'pdf_available': pdf_available(form.instance if form.instance.pk else None),
         'excel': bool(form.instance.pk) and _is_excel(form.instance),
         'wizard': wizard and bool(form.instance.pk),
+        'issued': form.instance.pk is not None and form.instance.is_issued,
         'wizard_step': wizard_step,
         'rtype': get_report_type(form.instance.report_type),
     })
 
 
+
+
+ISSUED_MESSAGE = "This report is issued, so it can't be changed. Reopen it for editing first."
+
+
+def _set_status(report, status):
+    report.status = status
+    if status == Report.ISSUED:
+        report.issued_date = date.today()
+    report.save(update_fields=['status', 'issued_date', 'updated_at'])
+
+
+def report_status(request, pk):
+    """POST action=issue / reopen: marks the report Issued (read-only) or back to Draft."""
+    report = get_object_or_404(Report, pk=pk)
+    action = request.POST.get('action') if request.method == 'POST' else None
+    if action == 'issue':
+        _set_status(report, Report.ISSUED)
+        messages.success(request, 'Report issued. It is read-only until reopened.')
+    elif action == 'reopen':
+        _set_status(report, Report.DRAFT)
+        messages.success(request, 'Report reopened for editing. Issue it again once it is re-sent.')
+    target = request.POST.get('next', '')
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+        return redirect(target)
+    return redirect(f"{reverse('create-report')}?loaded={report.pk}")
 
 
 def _section_titles(report_type):
@@ -628,6 +665,7 @@ def _duplicate_report(original):
     report.document_filename = f'{original.document_filename or "Untitled"} (copy)'
     report.report_date = date.today()   # as a new report in the editor; the test dates are the new job's
     report.test_date = report.test_end_date = None
+    report.status, report.issued_date = Report.DRAFT, None   # a new report: not sent yet
     # A repeat inspection is a new job: it gets its own folder (if any), never the original's files
     report.job_folder, report.job_folder_files = '', []
     report.save()
@@ -669,9 +707,17 @@ def report_list(request):
     if request.method == 'POST':
         selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:
-            count = Report.objects.filter(pk__in=selected_pks).count()
-            Report.objects.filter(pk__in=selected_pks).delete()
-            messages.success(request, f"Deleted {count} report{'s' if count != 1 else ''}.")
+            # Issued reports are kept: they were sent, so deleting one takes reopening it first
+            selected = Report.objects.filter(pk__in=selected_pks)
+            kept = selected.filter(status=Report.ISSUED).count()
+            drafts = selected.exclude(status=Report.ISSUED)
+            count = drafts.count()
+            drafts.delete()
+            if count:
+                messages.success(request, f"Deleted {count} report{'s' if count != 1 else ''}.")
+            if kept:
+                messages.warning(request, f"{kept} issued report{'s were' if kept != 1 else ' was'} kept: "
+                                          'reopen a report in the editor to delete it.')
             return redirect('report-list')
         if 'edit' in request.POST and len(selected_pks) == 1:
             return redirect('edit-report', pk=selected_pks[0])

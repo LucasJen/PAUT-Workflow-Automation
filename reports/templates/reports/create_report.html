@@ -43,6 +43,17 @@
     <div class="alert alert-warning" role="alert"><i class="bi bi-exclamation-triangle"></i> {{ warning }}</div>
     {% endfor %}
 
+    {% if issued %}
+    <div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2" role="status">
+        <span><i class="bi bi-lock"></i> Issued {{ form.instance.issued_date|date:'M j, Y' }}: read-only. Downloads still work.</span>
+        <button type="submit" form="reopen-form" class="btn btn-secondary btn-sm"
+                data-confirm="Reopen this issued report for editing? It goes back to Draft until you issue it again."
+                data-confirm-label="Reopen"><i class="bi bi-unlock"></i> Reopen for editing</button>
+    </div>
+    {% endif %}
+
+    {# An issued report is shown read-only: every field in here is disabled #}
+    <fieldset class="plain-fieldset"{% if issued %} disabled{% endif %}>
     <!-- Report type + file name -->
     <section class="panel editor-header">
         <div class="field-grid cols-3">
@@ -52,13 +63,13 @@
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
             <p class="form-text mb-0"{% if wizard %} hidden{% endif %}>The report type chooses the Word template and which sections are shown. Values in hidden sections are kept.</p>
             {# The weld form's fill marks (fill_marks.js): what's still empty, by where it comes from #}
-            <p class="fill-legend form-text mb-0">
+            <p class="fill-legend form-text mb-0"{% if issued %} hidden{% endif %}>
                 <span class="fill-key fill-key-user"></span> To fill in: <strong id="fill-count-user">0</strong>
                 <span class="fill-key fill-key-auto ms-3"></span> <span title="Usually filled by an .nde import, the scope library or the sensitivity block">Missing input data:</span> <strong id="fill-count-auto">0</strong>
                 <button type="button" class="btn btn-secondary btn-sm ms-3" id="fill-next" title="Go to the next outlined field">
                     <i class="bi bi-arrow-down-short"></i> Next missing</button>
             </p>
-            <span class="d-flex align-items-center gap-2">
+            <span class="{% if issued %}d-none{% else %}d-flex{% endif %} align-items-center gap-2">
                 <span class="form-text mb-0" id="reload-defaults-status" role="status"></span>
                 <button type="button" class="btn btn-secondary btn-sm" id="reload-defaults"
                         data-confirm="Replace this report's values with the defaults in use for its type (Preferences › Defaults)? Fields the defaults leave blank keep what they have."
@@ -113,6 +124,7 @@
             {% endif %}
         </div>
     </div>
+    </fieldset>
 
     {% if wizard %}
     <div class="sticky-actions">
@@ -124,6 +136,20 @@
         <button type="submit" name="wizard_goto" value="" class="btn btn-primary order-last" id="wizard-next">Next <i class="bi bi-arrow-right"></i></button>
         <button type="button" class="btn btn-secondary" id="wizard-prev"><i class="bi bi-arrow-left"></i> Prev</button>
         <button type="submit" name="wizard_goto" value="" id="wizard-jump" hidden></button>
+    </div>
+    {% elif issued %}
+    <div class="sticky-actions">
+        <span class="status">Report #{{ form.instance.pk }} · <span class="badge text-bg-success">Issued</span> {{ form.instance.issued_date|date:'M j, Y' }}</span>
+        {% if has_equipment %}
+        <a href="{% url 'generate-report' form.instance.pk %}" class="btn btn-secondary" id="download-link" download
+           {% if excel %}data-busy="Preparing workbook…"{% endif %}>
+            <i class="bi bi-download"></i> Download {% if excel %}.xlsx{% else %}.docx{% endif %}</a>
+        {% if pdf_available %}
+        <a href="{% url 'report-pdf' form.instance.pk %}?download=1" class="btn btn-secondary" id="pdf-link" download
+           data-busy="Preparing PDF…"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+        {% endif %}
+        <a href="{% url 'preview-report' form.instance.pk %}" class="btn btn-primary"><i class="bi bi-eye"></i> Preview</a>
+        {% endif %}
     </div>
     {% else %}
     <div class="sticky-actions">
@@ -154,6 +180,13 @@
         <button type="submit" name="preview" class="btn btn-secondary"><i class="bi bi-eye"></i> Save &amp; preview</button>
         <button type="submit" name="generate" class="btn btn-primary"><i class="bi bi-file-earmark-arrow-down"></i> Save &amp; download</button>
         {% if form.instance.pk %}
+        <button type="submit" name="issue" class="btn btn-secondary"
+                data-confirm="Save and mark this report as issued (sent)? It becomes read-only until reopened."
+                data-confirm-label="Save &amp; issue"
+                title="Save, then mark the report as sent: it becomes read-only until reopened">
+            <i class="bi bi-send-check"></i> Save &amp; issue</button>
+        {% endif %}
+        {% if form.instance.pk %}
         <button type="submit" name="delete" formaction="{% url 'report-list' %}" formnovalidate
                 class="btn btn-ghost-danger order-first" data-confirm="Delete this report? This can't be undone.">
             <i class="bi bi-trash"></i> Delete
@@ -162,6 +195,11 @@
     </div>
     {% endif %}
 </form>
+{% if issued %}
+<form method="post" action="{% url 'report-status' form.instance.pk %}" id="reopen-form">
+    {% csrf_token %}<input type="hidden" name="action" value="reopen">
+</form>
+{% endif %}
 
 {{ results_data|json_script:"results-initial-data" }}
 {{ report_types|json_script:"report-types" }}

@@ -16,6 +16,7 @@ urlpatterns = [
     path('report/<int:pk>/preview/', views.preview_report, name='preview-report'),
     path('report/<int:pk>/docx/', views.report_docx, name='report-docx'),
     path('report/<int:pk>/pdf/', views.report_pdf, name='report-pdf'),
+    path('report/<int:pk>/status/', views.report_status, name='report-status'),
     path('report/<int:pk>/job-folder/', views.report_job_folder, name='report-job-folder'),
     path('reports/<int:pk>/edit/', views.edit_existing_report, name='edit-report'),
     path('nde/', views.nde_upload, name='nde-upload'),

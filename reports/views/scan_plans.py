@@ -500,6 +500,8 @@ def scan_plan_from_weld(request):
     report = Report.objects.filter(pk=report_id).first() if report_id.isdigit() else None
     if report is None:
         return JsonResponse({'ok': False, 'message': 'Save the report first.'})
+    if report.is_issued:
+        return JsonResponse({'ok': False, 'message': 'The report is issued: reopen it to change its scan plan.'})
     ok, message, plan = add_weld_to_plan(
         report, _first_number(request.POST.get('probe1_thk')), _first_number(request.POST.get('weld_width')),
         _first_number(request.POST.get('cl_offset')), _weld_skews(request.POST.get('probe1_location')))

@@ -16,6 +16,17 @@
         <a href="{{ wizard_prev }}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Prev</a>
         <a href="{% url 'create-report' %}?loaded={{ report.pk }}" class="btn btn-secondary">Open in full editor</a>
         {% endif %}
+        <form method="post" action="{% url 'report-status' report.pk %}" class="display-contents">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            {% if report.is_issued %}
+            <span class="badge text-bg-success align-self-center" title="Issued {{ report.issued_date|date:'M j, Y' }}">Issued</span>
+            {% else %}
+            <button type="submit" name="action" value="issue" class="btn btn-secondary"
+                    data-confirm="Mark this report as issued (sent)? It becomes read-only until reopened."
+                    data-confirm-label="Mark issued" title="Mark the report as sent: read-only until reopened">
+                <i class="bi bi-send-check"></i> Mark issued</button>
+            {% endif %}
+        </form>
         <button type="button" class="btn btn-secondary" id="refresh-preview"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
         {% if excel %}
         <a href="{% url 'generate-report' report.pk %}" class="btn btn-secondary" download data-busy="Preparing workbook…"><i class="bi bi-file-earmark-spreadsheet"></i> Download .xlsx</a>
