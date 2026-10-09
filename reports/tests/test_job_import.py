@@ -31,6 +31,17 @@ class NamesAndTimesTests(SimpleTestCase):
         self.assertEqual(calibration_window(['2026-09-28 08:09', '2026-09-28 07:42', '']), ('0725', '0825'))
         self.assertEqual(calibration_window([]), ('', ''))
 
+    def test_calibration_window_follows_dates(self):
+        from datetime import date
+        from reports.services.job_import import scan_days
+        # Over midnight: from before the first scan to after the last, not 0000 to 2359
+        self.assertEqual(calibration_window(['2026-09-28 23:52', '2026-09-29 00:31']), ('2335', '0050'))
+        # Several days: the first scan's day to the last's (a later day's earlier clock time doesn't win)
+        times = ['2026-09-28 13:10', '2026-09-29 07:05', '2026-09-29 09:40']
+        self.assertEqual(calibration_window(times), ('1255', '0955'))
+        self.assertEqual(scan_days(times), [date(2026, 9, 28), date(2026, 9, 29)])
+        self.assertEqual(scan_days(['08:00']), [])
+
     def test_welds_and_their_sides(self):
         files = [{'filename': 'a', 'weld': 'W5', 'offset': 0.35, 'thickness': 0.28},
                  {'filename': 'b', 'weld': 'W5', 'offset': 0.35, 'thickness': 0.28},
@@ -103,6 +114,14 @@ class BuildReportTests(TestCase):
                          [('W5', '0.500', '90', rows[0][7]), ('', '0.875', '90', rows[0][7])])
         plan = report.scan_plan
         self.assertEqual((plan.index_offset, plan.index_offset_2), (0.5, 0.875))
+
+
+    def test_files_scanned_over_several_days_say_so(self):
+        files = [read_job_file(nde_file('a w5.nde', created='2026-09-28T13:10:00-04:00')),
+                 read_job_file(nde_file('b w5.nde', created='2026-09-29T09:40:00-04:00'))]
+        report, notes = build_report(files, None, 'Job')
+        self.assertEqual((report.cal_time_initial, report.cal_time_out), ('1255', '0955'))
+        self.assertTrue(any('scanned over 2 days (Sep 28 to Sep 29)' in note for note in notes))
 
 
 class FromFilesPagesTests(TestCase):

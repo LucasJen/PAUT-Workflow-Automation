@@ -8,7 +8,7 @@ columns placed as the grid places imports (place_columns), the sensitivity block
 part, a weld row per weld, the calibration window from the scan times and the scan plan.
 """
 import re
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from django.db import transaction
 
@@ -204,18 +204,37 @@ def place_columns(probes, groups, items):
 
 # ── The report ───────────────────────────────────────────────────────────
 
-def calibration_window(scan_times):
-    """('HHMM' initial, 'HHMM' out): 15 min before the earliest scan (down to 5 min), 15 after the latest (up)."""
-    minutes = []
+def _scan_moments(scan_times):
+    """The files' scan times ('2026-09-28 08:09') as datetimes; a time without a date counts as one day."""
+    moments = []
     for text in scan_times:
-        match = re.search(r'(\d{2}):(\d{2})', text or '')
+        match = re.search(r'(?:(\d{4})-(\d{2})-(\d{2})[T ])?(\d{2}):(\d{2})', text or '')
         if match:
-            minutes.append(int(match.group(1)) * 60 + int(match.group(2)))
-    if not minutes:
+            y, mo, d, h, mi = match.groups()
+            day = date(int(y), int(mo), int(d)) if y else date(2000, 1, 1)
+            moments.append(datetime(day.year, day.month, day.day, int(h), int(mi)))
+    return moments
+
+
+def calibration_window(scan_times):
+    """
+    ('HHMM' initial, 'HHMM' out): 15 min before the earliest scan (down to 5 min), 15 after the
+    latest (up), by date and time, so scans over midnight or several days get the first scan's
+    and the last scan's times.
+    """
+    moments = _scan_moments(scan_times)
+    if not moments:
         return '', ''
-    start = max(0, (min(minutes) - 15) // 5 * 5)
-    end = min(24 * 60 - 1, -(-(max(minutes) + 15) // 5) * 5)
-    return f'{start // 60:02d}{start % 60:02d}', f'{end // 60:02d}{end % 60:02d}'
+    start = min(moments) - timedelta(minutes=15)
+    start -= timedelta(minutes=start.minute % 5)
+    end = max(moments) + timedelta(minutes=15)
+    end += timedelta(minutes=-end.minute % 5)
+    return start.strftime('%H%M'), end.strftime('%H%M')
+
+
+def scan_days(scan_times):
+    """The days the files were scanned on, first to last ([] when they don't say)."""
+    return sorted({m.date() for m in _scan_moments(scan_times) if m.year != 2000})
 
 
 def welds_from_files(files):
@@ -280,7 +299,13 @@ def build_report(files, defaults=None, document_filename='', block=None, job_fol
     # The instrument: the files' (with the scope library's details)
     for name, value in (items[0]['instrument'] if items else {}).items():
         setattr(report, name, value)
-    report.cal_time_initial, report.cal_time_out = calibration_window([d.get('scan_time') for d in files])
+    scan_times = [d.get('scan_time') for d in files]
+    report.cal_time_initial, report.cal_time_out = calibration_window(scan_times)
+    days = scan_days(scan_times)
+    if len(days) > 1:
+        notes.append(f'The files were scanned over {len(days)} days ({days[0]:%b %d} to {days[-1]:%b %d}): the '
+                     f'calibration times run from the first scan ({report.cal_time_initial}) to the last '
+                     f"({report.cal_time_out}). Check them against each day's calibration.")
 
     # The part and its sensitivity block
     part = job_part(files)
