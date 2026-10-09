@@ -92,6 +92,17 @@ class BuildReportTests(TestCase):
         self.assertIsNotNone(report.scan_plan)
 
 
+    def test_a_weld_scanned_at_two_offsets_has_both(self):
+        files = [read_job_file(nde_file('PPI 31-37575 w5 n off1.nde')),
+                 read_job_file(nde_file('PPI 31-37575 w5 n off2.nde'))]
+        files[0]['offset'], files[1]['offset'] = 0.5, 0.875
+        report, notes = build_report(files, None, 'Job')
+        row = report.results_table.rows.get().cells
+        self.assertEqual(row[2], '0.500 / 0.875')
+        plan = report.scan_plan
+        self.assertEqual((plan.index_offset, plan.index_offset_2), (0.5, 0.875))
+
+
 class FromFilesPagesTests(TestCase):
     def test_upload_confirm_and_create(self):
         from django.urls import reverse

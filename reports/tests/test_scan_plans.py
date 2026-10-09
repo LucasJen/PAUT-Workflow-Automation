@@ -777,6 +777,21 @@ class ScanPlanFromWeldTests(TestCase):
         self.assertIn('already has two offsets', data['message'])
         self.assertEqual(len(self.plan().drawings), 4)
 
+    def test_a_weld_with_two_offsets_adds_both(self):
+        data = self.weld(cl_offset='0.475 / 0.875')
+        plan = self.plan()
+        self.assertTrue(data['ok'])
+        self.assertEqual(ScanPlan.objects.count(), 1)
+        self.assertEqual((plan.index_offset, plan.index_offset_2), (0.475, 0.875))
+        self.assertEqual(len(plan.drawings), 4)
+        self.assertIn('Added offset 0.875"', data['message'])
+
+    def test_weld_offsets(self):
+        from reports.views.scan_plans import weld_offsets
+        self.assertEqual(weld_offsets('0.500 / 0.875'), [0.5, 0.875])
+        self.assertEqual(weld_offsets('.5'), [0.5])
+        self.assertEqual(weld_offsets(''), [])
+
     def test_a_plan_other_reports_use_is_copied_before_a_weld_changes_it(self):
         self.weld(probe1_location='90')
         shared = self.plan()

@@ -323,8 +323,8 @@ def build_report(files, defaults=None, document_filename='', block=None, job_fol
     headings = get_report_type(WELD_TYPE).results_headings
     table = ResultsTable.objects.create(report=report, columns=headings)
     for order, (weld_id, weld) in enumerate(welds.items()):
-        offset = weld['offsets'][0] if weld['offsets'] else None
-        cells = {'weld_id': weld_id, 'cl_offset': f'{offset:.3f}' if offset is not None else '',
+        # Every offset the weld's files were scanned at ('0.500 / 0.875')
+        cells = {'weld_id': weld_id, 'cl_offset': ' / '.join(f'{offset:.3f}' for offset in weld['offsets']),
                  'probe1_location': weld['location'],
                  'probe1_thk': f"{weld['thickness']:.3f}" if weld['thickness'] is not None else ''}
         row = [cells.get(key, '') for key, _ in get_report_type(WELD_TYPE).results_columns]

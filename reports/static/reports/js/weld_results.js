@@ -32,6 +32,9 @@
     const pageRows = Number(root.dataset.pageRows);
 
     const markDirty = () => form.dispatchEvent(new Event('input', { bubbles: true }));
+    // A weld scanned at more than one index offset: its C/L Offset cell holds each ('0.500 / 0.875')
+    const OFFSET = 'cl_offset';
+    const OFFSET_JOIN = ' / ';
 
     // ── Cells ─────────────────────────────────────────────────────────────
 
@@ -42,7 +45,58 @@
         return value || '';
     }
 
+    function textInput(key, value) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control form-control-sm';
+        input.value = value;
+        input.dataset.key = key;
+        input.dataset.fill = 'user';   // typed in (fill_marks.js outlines it while empty)
+        input.setAttribute('aria-label', heading[key]);
+        return input;
+    }
+
+    // The C/L Offset cell: an input per offset, + for another (each extra one with ✕ to drop it)
+    function offsetCell(value = '') {
+        const td = document.createElement('td');
+        const list = document.createElement('div');
+        list.className = 'offset-list';
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'btn btn-link btn-sm offset-add';
+        add.dataset.addOffset = '';
+        add.title = "Another index offset this weld was scanned at (then press Scan plan to add it to the drawings)";
+        add.innerHTML = '<i class="bi bi-plus-lg"></i> Offset';
+        td.append(list, add);
+        const offsets = value.split('/').map(v => v.trim()).filter(Boolean);
+        (offsets.length ? offsets : ['']).forEach(v => addOffset(td, v));
+        return td;
+    }
+
+    function addOffset(td, value = '') {
+        const list = td.querySelector('.offset-list');
+        const input = textInput(OFFSET, value);
+        if (!list.children.length) {
+            list.append(input);
+            return input;
+        }
+        input.setAttribute('aria-label', `${heading[OFFSET]} ${list.children.length + 1}`);
+        delete input.dataset.fill;   // an extra offset may be left empty
+        const row = document.createElement('div');
+        row.className = 'offset-extra';
+        const drop = document.createElement('button');
+        drop.type = 'button';
+        drop.className = 'btn btn-icon btn-sm';
+        drop.dataset.removeOffset = '';
+        drop.title = 'Remove this offset';
+        drop.innerHTML = '<i class="bi bi-x"></i>';
+        row.append(input, drop);
+        list.append(row);
+        return input;
+    }
+
     function cell(key, value = '') {
+        if (key === OFFSET) return offsetCell(value);
         const td = document.createElement('td');
         let input;
         if (key === 'accept') {
@@ -53,15 +107,12 @@
                 input.add(new Option(option || '—', option));
             }
             input.value = verdict;
+            input.dataset.key = key;
+            input.dataset.fill = 'user';
+            input.setAttribute('aria-label', heading[key]);
         } else {
-            input = document.createElement('input');
-            input.type = 'text';
-            input.className = 'form-control form-control-sm';
-            input.value = value;
+            input = textInput(key, value);
         }
-        input.dataset.key = key;
-        input.dataset.fill = 'user';   // typed in (fill_marks.js outlines it while empty)
-        input.setAttribute('aria-label', heading[key]);
         td.append(input);
         return td;
     }
@@ -81,7 +132,9 @@
         return tr;
     }
 
-    const value = (scope, key) => scope.querySelector(`[data-key="${key}"]`)?.value.trim() || '';
+    const value = (scope, key) => key === OFFSET
+        ? Array.from(scope.querySelectorAll(`[data-key="${OFFSET}"]`), i => i.value.trim()).filter(Boolean).join(OFFSET_JOIN)
+        : scope.querySelector(`[data-key="${key}"]`)?.value.trim() || '';
 
     // ── Welds and indications ───────────────────────────────────────────────
 
@@ -323,7 +376,11 @@
             addToScanPlan(block);
             return;   // changes the scan plan, not the report
         }
-        if (event.target.closest('[data-add-indication]')) {
+        if (event.target.closest('[data-add-offset]')) {
+            addOffset(event.target.closest('td')).focus();
+        } else if (event.target.closest('[data-remove-offset]')) {
+            event.target.closest('.offset-extra').remove();
+        } else if (event.target.closest('[data-add-indication]')) {
             addIndication(block).querySelector('input, select').focus();
         } else if (event.target.closest('[data-remove-indication]')) {
             removeIndication(event.target.closest('tr'));

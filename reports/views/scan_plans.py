@@ -540,7 +540,13 @@ def scan_plan_from_weld(request):
         return JsonResponse({'ok': False, 'message': 'Save the report first.'})
     if report.is_issued:
         return JsonResponse({'ok': False, 'message': 'The report is issued: reopen it to change its scan plan.'})
-    ok, message, plan = add_weld_to_plan(
-        report, _first_number(request.POST.get('probe1_thk')), _first_number(request.POST.get('weld_width')),
-        _first_number(request.POST.get('cl_offset')), _weld_skews(request.POST.get('probe1_location')))
-    return JsonResponse({'ok': ok, 'message': message, **({'plan': _plan_json(plan)} if plan else {})})
+    # Each of the weld's offsets ('0.500 / 0.875'), or the weld toe when none is typed
+    oks, messages_, plan = [], [], None
+    for offset in weld_offsets(request.POST.get('cl_offset')) or [None]:
+        ok, message, plan = add_weld_to_plan(
+            report, _first_number(request.POST.get('probe1_thk')), _first_number(request.POST.get('weld_width')),
+            offset, _weld_skews(request.POST.get('probe1_location')))
+        report.refresh_from_db(fields=['scan_plan'])   # the next offset goes into the plan just made
+        oks.append(ok)
+        messages_.append(message)
+    return JsonResponse({'ok': all(oks), 'message': ' '.join(messages_), **({'plan': _plan_json(plan)} if plan else {})})

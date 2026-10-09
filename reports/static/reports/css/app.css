@@ -1215,6 +1215,12 @@ form[data-wizard] .section-nav { display: none; }
 .results-image-shown img { height: 1.75rem; max-width: 4rem; object-fit: cover; border-radius: 3px; vertical-align: middle; }
 .results-grid.indications thead th { background: var(--surface); }
 .results-grid .weld-row input[data-key="weld_id"] { font-weight: 600; }
+/* A weld's C/L offsets: one input each, + for another */
+.offset-list { display: flex; flex-direction: column; gap: 2px; }
+.offset-extra { display: flex; align-items: center; }
+.offset-extra .form-control-sm { min-width: 0; }
+.offset-extra .btn { padding: 0 2px; color: var(--text-3); }
+.offset-add { padding: 0 0.25rem; font-size: 0.75rem; text-decoration: none; }
 .weld-verdict th { width: 10rem; }
 .weld-verdict td:nth-of-type(1) { width: 9rem; }
 
