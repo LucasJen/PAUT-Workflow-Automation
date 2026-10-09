@@ -22,6 +22,8 @@ Peak readings, confirmed on the angle-beam sample (ppi 45-19662 fw6 n off1.nde, 
                towards the skew
     PA^        ViA^ measured from the probe's index position (the wedge positioning offset, OmniPC's
                Index column, -0.500 in here): 0.141 - (-0.500) = 0.641
+    only when the signal breaks the gate: no crossing of the threshold, no SA^ / DA^ / PA^ / ViA^
+               (the user, 2026-10-09); X% is still the gate's highest sample
 
 Times are seconds on the A-scan's own time axis (geometry.sample_times).
 """
@@ -145,8 +147,8 @@ def omnipc_reading(name, results, beam, info=None):
     match = _PEAK.match(name)
     if match:
         gate = results.get(match.group(2))
-        if not (gate and gate.found and gate.peak_time is not None):
-            return None
+        if not (gate and gate.found and gate.peak_time is not None and gate.crossed):
+            return None   # the peak only counts when the signal breaks the gate
         thickness = (info.specimen.get('thickness') if info else None)
         sp, depth, _, index = peak_position(beam, gate.peak_time, thickness)
         kind = match.group(1)

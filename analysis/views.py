@@ -219,7 +219,9 @@ def cscan(request):
     if kind == 'amplitude':
         values = data[f'{letter}_amplitude']
     elif kind == 'depth':
-        depth = velocity * data[f'{letter}_peak_time'] / 2 * cos
+        # The peak only counts where the signal broke the gate (like SA^ / DA^)
+        peak = np.where(np.isnan(data[f'{letter}_crossing_time']), np.nan, data[f'{letter}_peak_time'])
+        depth = velocity * peak / 2 * cos
         thickness = info.specimen.get('thickness')
         if thickness:
             leg = np.floor(depth / thickness)

@@ -44,11 +44,13 @@ class GateTests(SimpleTestCase):
         self.assertAlmostEqual(a.amplitude, 90.0, places=1)
         self.assertAlmostEqual(a.peak_time, -1e-6 + 120 * 2e-8)
 
-    def test_amplitude_counts_even_without_a_crossing(self):
+    def test_amplitude_counts_without_a_crossing_but_peak_positions_dont(self):
         gates = [Gate(0, 'Gate A', start=0.0, length=6e-6, threshold=50.0)]
-        a = evaluate_gates(self.group, self.beam, self.ascan({150: 30.0}), gates)['A']
-        self.assertFalse(a.crossed)
-        self.assertAlmostEqual(a.amplitude, 30.0, places=1)
+        results = evaluate_gates(self.group, self.beam, self.ascan({150: 30.0}), gates)
+        self.assertFalse(results['A'].crossed)
+        self.assertAlmostEqual(omnipc_reading('A%', results, self.beam), 30.0, places=1)
+        for name in ('SA^', 'DA^', 'PA^', 'ViA^'):
+            self.assertIsNone(omnipc_reading(name, results, self.beam), name)
 
     def test_relative_gates_start_from_their_sync_gates_crossing(self):
         gates = [Gate(1, 'Gate B', start=1e-6, length=5e-6, threshold=20.0, sync_mode='GateRelative', sync_gate=0,
