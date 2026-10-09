@@ -6,7 +6,7 @@
 //
 // Columns run along x and rows along y: x = x0 + column * dx, y = y0 + row * dy (y down). The data
 // array is row-major [outer][inner]; `transpose` says the outer index is the column (a C-scan's
-// [scan][line] with scan across).
+// [scan][line] with scan across). No data (NaN) goes up as a large negative number.
 
 window.ImageView = (function () {
     const VERTEX = `#version 300 es
@@ -29,7 +29,7 @@ uniform vec2 uRange;
 out vec4 outColor;
 void main() {
     float a = texture(uData, vTex).r;
-    if (a < -1e29 || (uMode == 0 && a < -0.5)) {   // no data: white on a range palette (like OmniPC), grey on amplitude
+    if (a < -1000.0 || (uMode == 0 && a < -0.5)) {   // no data: white on a range palette (like OmniPC), grey on amplitude
         outColor = uMode == 0 ? vec4(0.62, 0.64, 0.68, 1.0) : vec4(1.0);
         return;
     }
@@ -103,16 +103,18 @@ void main() {
          * axes: {x0, dx, y0, dy} (column / row centres in world units); transpose: outer = columns;
          * mode: 'amplitude' | 'range'; range: [min, max] for 'range'.
          */
-        setImage(values, outer, inner, { axes, transpose = false, mode = 'amplitude', range = null, keepView = false }) {
+        setImage(values, outer, inner, { axes, transpose = false, mode = 'amplitude', range = null, keepView = false, smooth = false }) {
             const gl = this.gl;
             gl.bindTexture(gl.TEXTURE_2D, this.dataTexture);
             gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
             // NaN (no data) becomes a sentinel: shaders can't be trusted to test for NaN (some drivers
             // optimise it away and it reads as the bottom of the palette)
             const upload = new Float32Array(values.length);
-            for (let i = 0; i < values.length; i++) upload[i] = Number.isNaN(values[i]) ? -1e30 : values[i];
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, inner, outer, 0, gl.RED, gl.FLOAT, upload);
-            this.filter(gl.NEAREST);    // cells, like OmniPC (R32F can't be filtered linearly everywhere)
+            for (let i = 0; i < values.length; i++) upload[i] = Number.isNaN(values[i]) ? -60000 : values[i];
+            // Smooth: blended between rows and columns (half floats can be filtered everywhere) - between
+            // a sectorial scan's beams, like OmniPC; otherwise cells, each a real position
+            gl.texImage2D(gl.TEXTURE_2D, 0, smooth ? gl.R16F : gl.R32F, inner, outer, 0, gl.RED, gl.FLOAT, upload);
+            this.filter(smooth ? gl.LINEAR : gl.NEAREST);
             this.columns = transpose ? outer : inner;
             this.rows = transpose ? inner : outer;
             this.axes = axes;

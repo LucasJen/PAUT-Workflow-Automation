@@ -27,6 +27,12 @@
     const unitsSelect = $('units'), axisSelect = $('axis'), refInput = $('ref-level');
     const status = $('analysis-status');
     const grid = $('analysis-grid'), layoutSelect = $('layout'), kindSelect = $('cscan-kind');
+    const panels = AnalysisLayout(grid);
+    panels.refresh();
+    $('full-screen').addEventListener('click', () => {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else page.requestFullscreen?.().catch(() => {});
+    });
 
     const READING_NAMES = {
         'A%': 'Peak amplitude in gate A', 'SA^': 'Sound path to the gate A peak', 'DA^': 'Depth of the gate A peak',
@@ -236,9 +242,11 @@
         const saved = localStorage.getItem(`analysisLayout:${kind}`);
         layoutSelect.value = saved || (kind === 'raster' ? 'A-S-C' : 'A-B-C-S');
         grid.dataset.layout = layoutSelect.value;
+        panels.refresh();
     }
     layoutSelect.addEventListener('change', () => {
         grid.dataset.layout = layoutSelect.value;
+        panels.refresh();
         try { localStorage.setItem(`analysisLayout:${isRaster() ? 'raster' : 'beams'}`, layoutSelect.value); } catch { /* not kept */ }
         scheduleProjections();
     });
@@ -416,7 +424,7 @@
         state.cscanGain = state.gain;
         cview.setGain(0);
         cview.setImage(result.data, scans, lines, {
-            transpose: true, mode, range, keepView: keep,
+            transpose: true, mode, range, keepView: keep, smooth: !isRaster(),
             axes: { x0: g.axes[0].offset, dx: g.axes[0].resolution, y0: lineY(0), dy: isRaster() ? g.axes[1].resolution : 1 },
         });
         $('cscan-range').hidden = mode === 'amplitude';
@@ -459,7 +467,7 @@
         for (let i = 0; i < values.length; i++) values[i] = result.data[i] * full / 255;
         const g = currentGroup(), ray = g.rays[line];
         bview.setImage(values, scans, bins, {
-            transpose: true, mode: 'amplitude', keepView: !!bview.hasImage,
+            transpose: true, mode: 'amplitude', keepView: !!bview.hasImage, smooth: true,
             axes: { x0: g.axes[0].offset, dx: g.axes[0].resolution,
                     y0: (ray.sp_start + (factor - 1) / 2 * ray.sp_step) * ray.dz, dy: factor * ray.sp_step * ray.dz },
         });

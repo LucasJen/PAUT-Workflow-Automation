@@ -45,6 +45,7 @@
             <select class="form-select form-select-sm" id="axis" aria-label="A-scan axis" title="A-scan horizontal axis">
                 <option value="depth">True depth</option><option value="path">Sound path</option>
             </select>
+            <button type="button" class="btn btn-sm btn-secondary" id="full-screen" title="Full screen (Esc to leave). Drag the gaps between the panels to resize them; double-click a gap to reset."><i class="bi bi-arrows-fullscreen"></i></button>
         </div>
     </div>
     <p class="analysis-status" id="analysis-status" role="status" hidden></p>
@@ -115,6 +116,7 @@
 <script src="{% static_v 'analysis/js/nde_client.js' %}"></script>
 <script src="{% static_v 'analysis/js/sscan_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/image_view.js' %}"></script>
+<script src="{% static_v 'analysis/js/analysis_layout.js' %}"></script>
 <script src="{% static_v 'analysis/js/ascan_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis.js' %}"></script>
 {% endblock %}

@@ -107,14 +107,25 @@ void main() {
             const verts = [];
             const quad = (a, b, c, d) => verts.push(...a, ...b, ...c, ...a, ...c, ...d);
             const s0 = -0.5, s1 = samples - 0.5;
-            if (parallel || lines === 1) {
-                const spacing = lines > 1 ? Math.abs(rays[1].v0 - rays[0].v0) : 0.001;
-                rays.forEach((r, i) => {
-                    const t = (i + 0.5) / lines;
-                    const [x0, y0] = point(r, s0), [x1, y1] = point(r, s1);
-                    const h = spacing / 2;
-                    quad([x0 - h, y0, 0, t], [x1 - h, y1, 1, t], [x1 + h, y1, 1, t], [x0 + h, y0, 0, t]);
-                });
+            if (lines === 1) {
+                const [x0, y0] = point(rays[0], s0), [x1, y1] = point(rays[0], s1);
+                quad([x0 - 0.0005, y0, 0, 0.5], [x1 - 0.0005, y1, 1, 0.5], [x1 + 0.0005, y1, 1, 0.5], [x0 + 0.0005, y0, 0, 0.5]);
+            } else if (parallel) {
+                // Side by side (linear / raster): blended from one line's centre to the next, and half a
+                // spacing beyond the outer two
+                const shift = (p, dx) => [p[0] + dx, p[1]];
+                for (let i = 0; i < lines - 1; i++) {
+                    const ta = (i + 0.5) / lines, tb = (i + 1.5) / lines;
+                    const a0 = point(rays[i], s0), a1 = point(rays[i], s1);
+                    const b0 = point(rays[i + 1], s0), b1 = point(rays[i + 1], s1);
+                    quad([...a0, 0, ta], [...a1, 1, ta], [...b1, 1, tb], [...b0, 0, tb]);
+                }
+                const first = rays[0], last = rays[lines - 1];
+                const h = (rays[1].v0 - first.v0) / 2;
+                const t0 = 0.5 / lines, t1 = (lines - 0.5) / lines;
+                const f0 = point(first, s0), f1 = point(first, s1), l0 = point(last, s0), l1 = point(last, s1);
+                quad([...shift(f0, -h), 0, t0], [...shift(f1, -h), 1, t0], [...f1, 1, t0], [...f0, 0, t0]);
+                quad([...l0, 0, t1], [...l1, 1, t1], [...shift(l1, h), 1, t1], [...shift(l0, h), 0, t1]);
             } else {
                 for (let i = 0; i < lines - 1; i++) {
                     const ta = (i + 0.5) / lines, tb = (i + 1.5) / lines;
