@@ -1,6 +1,9 @@
 // Report editor, Drawings step: the vessel drawing picked for this report and its scan coverage
 // rows (kept in the hidden vessel_coverage field as JSON, lengths in inches: see
-// reports/services/vessel/scene.py), with the drawing redrawn as they change.
+// reports/services/vessel/scene.py), with the drawing redrawn as they change. On the drawing
+// (vessel_view.js): click a course, head, seam or nozzle to shade it or clear it, drag boxes and
+// bands by their body or ends, or Draw box / Draw band and drag along the vessel. Ctrl+Z / Ctrl+Y
+// undo and redo, after working on the drawing.
 
 (function () {
     const box = document.getElementById('vessel-coverage');
@@ -10,7 +13,7 @@
     const input = form.elements.vessel_coverage;
     const body = box.querySelector('.vessel-coverage-body');
     const rowsBox = document.getElementById('coverage-rows');
-    const image = document.getElementById('coverage-image');
+    const stage = document.getElementById('coverage-stage');
     const L = window.VesselLengths;
     const urlFor = (template, pk) => template.replace('/0/', `/${pk}/`).replace('/0.', `/${pk}.`);
 
@@ -32,6 +35,29 @@
         input.value = JSON.stringify(marks);
         schedule();
     }
+
+    // ── undo, while working on the drawing ──
+    const undo = [], redo = [];
+    let onDrawing = false;
+    function remember() {
+        undo.push(JSON.stringify(marks));
+        if (undo.length > 100) undo.shift();
+        redo.length = 0;
+    }
+    function restore(from, to) {
+        if (!from.length) return;
+        to.push(JSON.stringify(marks));
+        marks = JSON.parse(from.pop());
+        render();
+        save();
+    }
+    document.addEventListener('pointerdown', event => { onDrawing = !!event.target.closest('#vessel-coverage'); }, true);
+    document.addEventListener('keydown', event => {
+        if (!onDrawing || !(event.ctrlKey || event.metaKey) || event.target.closest('input, textarea, select')) return;
+        const key = event.key.toLowerCase();
+        if (key === 'z' && !event.shiftKey) { event.preventDefault(); restore(undo, redo); }
+        else if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); restore(redo, undo); }
+    });
 
     function control(tag, attrs) {
         const el = Object.assign(document.createElement(tag), attrs);
@@ -81,6 +107,7 @@
         const directions = [['', 'All round'], ...parts.directions.map(d => [d, d])];
         marks.forEach((mark, i) => {
             const tr = tbody.insertRow();
+            tr.dataset.item = `mark:${i}`;
             tr.insertCell().textContent = KIND[mark.kind] || mark.kind;
             const cells = tr.insertCell();
             cells.className = 'vessel-coverage-cells';
@@ -110,22 +137,85 @@
             const remove = Object.assign(document.createElement('button'), {
                 type: 'button', className: 'btn btn-sm btn-secondary', title: 'Remove', innerHTML: '<i class="bi bi-x-lg"></i>',
             });
-            remove.addEventListener('click', () => { marks.splice(i, 1); render(); save(); });
+            remove.addEventListener('click', () => { remember(); marks.splice(i, 1); render(); save(); });
             tr.insertCell().append(remove);
         });
         rowsBox.replaceChildren(table);
     }
 
+    // ── the drawing (vessel_view.js) ──
     let timer = null;
-    function schedule() {
-        clearTimeout(timer);
-        timer = setTimeout(redraw, 300);
+    let request = 0;
+
+    /** Adds the mark for a clicked part / seam / nozzle, or takes it away when it's there. */
+    function toggle(kind, target) {
+        remember();
+        const at = marks.findIndex(m => m.kind === kind && String(m.target) === String(target));
+        if (at >= 0) marks.splice(at, 1);
+        else marks.push({ kind, target: String(target) });
+        render();
+        save();
     }
 
-    function redraw() {
+    function selectRow(item) {
+        rowsBox.querySelectorAll('tr.is-selected').forEach(tr => tr.classList.remove('is-selected'));
+        const tr = rowsBox.querySelector(`tr[data-item="${item}"]`);
+        if (tr) { tr.classList.add('is-selected'); tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    }
+
+    function setDrawing(kind) {
+        view.drawKind = kind;
+        box.querySelectorAll('[data-draw]').forEach(b => b.classList.toggle('active', b.dataset.draw === kind));
+    }
+
+    const view = new VesselView(stage, {
+        mode: 'coverage',
+        format: inches => L.formatLength(inches, parts?.metric),
+        onClick: item => {
+            const [type, key] = item.split(':');
+            if (type === 'part') toggle('part', key);
+            else if (type === 'seam') toggle('seam', key);
+            else if (type === 'nozzle' && parts.nozzles[+key]) toggle('nozzle', parts.nozzles[+key]);
+            else if (type === 'mark') { view.select(item); selectRow(item); }
+        },
+        onMark: (index, { start, end }) => {
+            remember();
+            Object.assign(marks[index], { start, end });
+            render();
+            selectRow(`mark:${index}`);
+            save();
+        },
+        onDraw: (kind, start, end) => {
+            setDrawing(null);
+            remember();
+            marks.push({ ...STARTING[kind](), kind, start, end });
+            render();
+            selectRow(`mark:${marks.length - 1}`);
+            save();
+        },
+        onDrawCancel: () => setDrawing(null),
+    });
+
+    box.querySelectorAll('[data-draw]').forEach(b => b.addEventListener('click', () => {
+        setDrawing(view.drawKind === b.dataset.draw ? null : b.dataset.draw);
+    }));
+    document.getElementById('coverage-fit').addEventListener('click', () => view.resetView());
+
+    function schedule() {
+        clearTimeout(timer);
+        timer = setTimeout(redraw, 250);
+    }
+
+    async function redraw() {
         if (!select.value) return;
-        const url = urlFor(box.dataset.pngUrl, select.value);
-        image.src = `${url}?coverage=${encodeURIComponent(JSON.stringify(marks))}`;
+        const mine = ++request;
+        const url = `${urlFor(box.dataset.sceneUrl, select.value)}?coverage=${encodeURIComponent(JSON.stringify(marks))}`;
+        try {
+            const data = await (await fetch(url)).json();
+            if (mine === request) view.setScene(data.scene, data.colours);
+        } catch {
+            view.cancelPreview();
+        }
     }
 
     async function load() {
@@ -147,6 +237,7 @@
         const kind = event.target.value;
         event.target.value = '';
         if (!kind || !parts) return;
+        remember();
         marks.push({ kind, ...STARTING[kind]() });
         render();
         save();

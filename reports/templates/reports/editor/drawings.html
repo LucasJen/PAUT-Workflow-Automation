@@ -5,7 +5,7 @@
     </div>
     <p class="form-text" data-label="drawings_intro">Vessel/equipment and isometric drawings, nozzle layouts, scan coverage maps. Each appears under the report's Drawing section with its title as a heading.</p>
     {# A vessel drawing (Setups › Vessel drawings) with this job's scan coverage: vessel_coverage.js #}
-    <div class="vessel-coverage" id="vessel-coverage" data-parts-url="{% url 'vessel-parts' 0 %}" data-png-url="{% url 'vessel-png' 0 %}">
+    <div class="vessel-coverage" id="vessel-coverage" data-parts-url="{% url 'vessel-parts' 0 %}" data-scene-url="{% url 'vessel-coverage-scene' 0 %}">
         <div class="field-grid cols-2">
             {{ form.vessel.as_field_group }}
             {{ form.vessel_caption.as_field_group }}
@@ -28,7 +28,14 @@
                     <option value="box">Box with a label (e.g. Examination Area)</option>
                 </select>
             </div>
-            <div class="vessel-stage vessel-coverage-stage"><img id="coverage-image" alt="Vessel drawing with the scan coverage"></div>
+            <div class="scan-plan-toolbar vessel-draw-tools">
+                <button type="button" class="btn btn-sm btn-secondary" data-draw="box" title="Then drag along the drawing to box that range"><i class="bi bi-bounding-box"></i> Draw box</button>
+                <button type="button" class="btn btn-sm btn-secondary" data-draw="band" title="Then drag along the drawing for the band's range (all the way round; pick its directions in its row)"><i class="bi bi-grid-3x3"></i> Draw band</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="coverage-fit" title="Fit the drawing back in its box (or double-click it)"><i class="bi bi-arrows-angle-contract"></i> Fit</button>
+                <i class="bi bi-question-circle scan-plan-help" tabindex="0"
+                   title="Click a course, head, seam or nozzle to shade it (click again to clear). Drag a box by its top or bottom edge, a band by its middle, and either by its ends to resize. Draw box / Draw band, then drag along the vessel. Positions snap to whole inches and course ends (Shift 6&quot;, Alt free). Ctrl+Z undoes. Scroll to zoom, drag the background to pan."></i>
+            </div>
+            <div class="vessel-stage scan-plan-stage vessel-coverage-stage" id="coverage-stage"></div>
         </div>
     </div>
     {{ drawing_formset.management_form }}

@@ -231,7 +231,7 @@
                 const rect = (s0, s1, r0, r1, part, cls) => {
                     const corners = [this.screen(s0, r0), this.screen(s1, r0), this.screen(s1, r1), this.screen(s0, r1)];
                     make('polygon', { points: this.pts(corners), fill: 'transparent', class: cls,
-                                      'data-mark': mark.index, 'data-part': part }, handles);
+                                      'data-mark': mark.index, 'data-part': part, 'data-item': `mark:${mark.index}` }, handles);
                 };
                 if (mark.kind === 'box') {   // the box's long edges move it; inside stays clickable
                     rect(lo, hi, r - w, r + w, 'body', 'handle-move');
@@ -241,8 +241,9 @@
                     const rr = this.radiusAt(mid) * 0.95;
                     rect(lo + w, hi - w, -rr, rr, 'body', 'handle-move');
                 }
-                rect(lo - w, lo + w, -r, r, lo === mark.s0 ? 'start' : 'end', 'handle-end');
-                rect(hi - w, hi + w, -r, r, hi === mark.s1 ? 'end' : 'start', 'handle-end');
+                const ends = this.meta.horizontal ? 'handle-end' : 'handle-end handle-end-v';
+                rect(lo - w, lo + w, -r, r, lo === mark.s0 ? 'start' : 'end', ends);
+                rect(hi - w, hi + w, -r, r, hi === mark.s1 ? 'end' : 'start', ends);
             }
         }
 

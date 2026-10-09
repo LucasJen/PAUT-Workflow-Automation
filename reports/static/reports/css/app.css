@@ -1745,3 +1745,4 @@ body.drop-target .content { outline: 2px dashed var(--bs-primary); outline-offse
 .vessel-range-preview { fill: rgba(249, 115, 22, 0.12); stroke: #dc2626; stroke-width: 2px; stroke-dasharray: 6 3; vector-effect: non-scaling-stroke; }
 .vessel-table tr.is-selected td { background: var(--accent-soft); }
 .vessel-draw-tools .btn.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+.vessel-svg .vessel-handles .handle-end-v { cursor: ns-resize; }
