@@ -5,6 +5,7 @@
 {% block item_noun %}calibration block{% endblock %}
 
 {% block new_button %}
+{% include 'reports/components/equipment_export_button.html' %}
 <a href="{% url 'new-cal-block' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New calibration block</a>
 {% endblock %}
 

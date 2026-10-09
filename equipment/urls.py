@@ -1,8 +1,10 @@
 from django.urls import path
-from . import catalogue_views, views
+from . import catalogue_views, inventory_views, views
 
 urlpatterns = [
     path('scopes/', views.scope_list, name='scope-list'),
+    path('export.xlsx', inventory_views.export_inventory, name='export-inventory'),
+    path('import-inventory/', inventory_views.import_inventory, name='import-inventory'),
     path('scopes/new/', views.new_scope, name='new-scope'),
     path('scope/<int:pk>/edit/', views.edit_scope, name='edit-scope'),
 

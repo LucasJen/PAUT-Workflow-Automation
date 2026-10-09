@@ -6,6 +6,8 @@
 {% block item_noun %}scope{% endblock %}
 
 {% block new_button %}
+{% include 'reports/components/equipment_export_button.html' %}
+<a href="{% url 'import-inventory' %}" class="btn btn-secondary" title="Add or update scopes and probes from a weld report workbook"><i class="bi bi-upload"></i> Import from workbook</a>
 <a href="{% url 'new-scope' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New scope</a>
 {% endblock %}
 

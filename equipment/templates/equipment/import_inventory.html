@@ -1,0 +1,80 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}Import inventory · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<a href="{% url 'scope-list' %}" class="back-link"><i class="bi bi-arrow-left"></i> Scopes</a>
+<div class="page-header">
+    <h1>Import inventory</h1>
+    <p class="page-subtitle">Scopes and probes from a weld report workbook's <em>Scope and Encoder</em> and
+        <em>All Probes</em> sheets. Ones already in the inventory (same serial number) are updated.</p>
+</div>
+
+{% if name %}
+<section class="panel">
+    <div class="panel-header">
+        <h2 class="panel-title">{{ name }}</h2>
+        <span class="small text-body-secondary">{{ scopes|length }} scope{{ scopes|length|pluralize }}, {{ probes|length }} probe{{ probes|length|pluralize }}</span>
+    </div>
+    {% for problem in problems %}
+    <div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> {{ problem }}</div>
+    {% endfor %}
+    {% if scopes %}
+    <h3 class="panel-subtitle mt-0">Scopes</h3>
+    <div class="table-wrap mb-3">
+        <table class="table data-table">
+            <thead><tr><th>Unit</th><th>Model</th><th>Serial number</th><th>Cal due</th><th>Module</th><th></th></tr></thead>
+            <tbody>
+                {% for scope in scopes %}
+                <tr>
+                    <td class="fw-medium">{{ scope.name }}</td>
+                    <td>{{ scope.model }}</td>
+                    <td class="mono">{{ scope.serial_number }}</td>
+                    <td>{{ scope.calibration_due_date|date:'M j, Y' }}</td>
+                    <td>{{ scope.module_model }} <span class="mono text-muted-cell">{{ scope.module_serial }}</span></td>
+                    <td>{% if scope.exists %}<span class="text-body-secondary small">Update</span>{% else %}<span class="badge text-bg-success">New</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    {% if probes %}
+    <h3 class="panel-subtitle">Probes</h3>
+    <div class="table-wrap">
+        <table class="table data-table">
+            <thead><tr><th>Make</th><th>Model</th><th>Serial number</th><th>Inactive / defective</th><th></th></tr></thead>
+            <tbody>
+                {% for probe in probes %}
+                <tr>
+                    <td>{{ probe.manufacturer }}</td>
+                    <td class="fw-medium">{{ probe.model }}</td>
+                    <td class="mono">{{ probe.serial_number }}</td>
+                    <td class="mono">{{ probe.inactive_elements|default_if_none:'–' }} / {{ probe.defective_elements|default_if_none:'–' }}</td>
+                    <td>{% if probe.exists %}<span class="text-body-secondary small">Update</span>{% else %}<span class="badge text-bg-success">New</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+<form method="post" class="sticky-actions">
+    {% csrf_token %}
+    <button type="submit" name="cancel" class="btn btn-secondary">Choose another file</button>
+    {% if scopes or probes %}
+    <button type="submit" name="import" class="btn btn-primary"><i class="bi bi-check-lg"></i> Import {{ total }}</button>
+    {% endif %}
+</form>
+{% else %}
+<form method="post" enctype="multipart/form-data" class="panel">
+    {% csrf_token %}
+    <div class="field">
+        <label for="workbook">Weld report workbook (.xlsx)</label>
+        <input type="file" name="workbook" id="workbook" accept=".xlsx,.xlsm" class="form-control" required>
+        <p class="form-text mb-0">Nothing is saved until you've checked what it holds.</p>
+    </div>
+    <div class="mt-3"><button type="submit" name="check" class="btn btn-primary"><i class="bi bi-search"></i> Check workbook</button></div>
+</form>
+{% endif %}
+{% endblock %}

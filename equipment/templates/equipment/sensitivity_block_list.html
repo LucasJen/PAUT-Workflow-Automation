@@ -5,6 +5,7 @@
 {% block item_noun %}sensitivity block{% endblock %}
 
 {% block new_button %}
+{% include 'reports/components/equipment_export_button.html' %}
 <a href="{% url 'new-sensitivity-block' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New sensitivity block</a>
 {% endblock %}
 
