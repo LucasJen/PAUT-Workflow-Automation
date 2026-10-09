@@ -83,7 +83,8 @@
         <section class="analysis-panel analysis-panel-sscan">
             <header class="analysis-panel-head">
                 <span>S-scan</span><span class="analysis-panel-note" id="sscan-label"></span>
-                <label class="analysis-check ms-auto" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry</label>
+                <label class="analysis-check ms-auto" id="weld-toggle" hidden title="The weld from the file's weld geometry, in every leg"><input type="checkbox" id="show-weld" checked> Weld</label>
+                <label class="analysis-check" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry</label>
                 <button type="button" class="btn btn-sm btn-secondary" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
                 <i class="bi bi-question-circle analysis-help" tabindex="0"
                    title="Click or drag to move the beam cursor (Up / Down keys too). Ctrl+click puts the reference cursors (red) at a point, Shift+click the measure cursors (green); drag a cursor line to move it. Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>

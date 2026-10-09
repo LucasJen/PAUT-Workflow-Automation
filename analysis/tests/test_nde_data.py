@@ -4,7 +4,7 @@ import shutil
 import tempfile
 
 import numpy as np
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from analysis.paths import PathNotAllowed, allowed_roots, checked_path
@@ -157,3 +157,19 @@ class PathTests(TempFolderMixin, TestCase):
         response = self.client.get(reverse('analysis'))
         self.assertContains(response, 'Analysis')
         self.assertContains(response, 'Preferences › Working folders')
+
+
+class WeldOutlineTests(SimpleTestCase):
+    def test_v_bevel_from_the_root_up_with_caps(self):
+        weld = {'offset': 0.0024, 'land': {'height': 0.0006}, 'fills': [{'angle': 37.5, 'height': 0.0089}],
+                'upperCap': {'width': 0.0202, 'height': 0.002}, 'lowerCap': {'width': 0.0051, 'height': 0.002}}
+        lines = geometry.weld_outline(weld, 0.0095)
+        left, right, upper, lower = lines
+        self.assertEqual(right[0], (0.0024, 0.0095))                     # root face at the back wall
+        self.assertAlmostEqual(right[1][1], 0.0089)                      # top of the land
+        self.assertAlmostEqual(right[-1][1], 0.0)                        # the fill reaches the surface
+        self.assertAlmostEqual(right[-1][0], 0.0024 + 0.0089 * math.tan(math.radians(37.5)))
+        self.assertEqual(left[-1][0], -right[-1][0])
+        self.assertAlmostEqual(min(y for _, y in upper), -0.002)         # cap above the surface
+        self.assertAlmostEqual(max(y for _, y in lower), 0.0095 + 0.002)  # root reinforcement below
+        self.assertEqual(geometry.weld_outline({}, 0.01), [])

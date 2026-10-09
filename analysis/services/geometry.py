@@ -73,3 +73,48 @@ def fold_depth(depth, thickness):
 def frame_rays(group):
     """Every lateral line's ray, for drawing the S-scan (or the raster's index x depth view)."""
     return [ray(group, beam) for beam in group.beams]
+
+
+def weld_outline(weld, thickness):
+    """
+    The weld's outline in the index x depth plane (m), from the .nde's weldGeometry: the centre line
+    at index 0, the probe side at negative index. A symmetric bevel built from the root up - the
+    root gap (2 x offset), the land, then each fill at its angle from vertical - with the caps as
+    arcs above the top surface and below the root. Returns [[(index, depth), ...], ...] polylines
+    for the first leg (the S-scan mirrors them into the later legs), or [] when there's no weld.
+    """
+    if not weld or not thickness:
+        return []
+    gap = float(weld.get('offset') or 0.0)          # half the root gap
+    land = float((weld.get('land') or {}).get('height') or 0.0)
+    right = [(gap, thickness)]
+    y = thickness
+    if land:
+        y -= land
+        right.append((gap, y))
+    x = gap
+    for fill in weld.get('fills') or []:
+        height = float(fill.get('height') or 0.0)
+        if height <= 0:
+            continue
+        top = max(0.0, y - height)
+        x += (y - top) * math.tan(math.radians(float(fill.get('angle') or 0.0)))
+        y = top
+        right.append((x, y))
+    if y > 1e-9:   # fills that stop short of the surface: carry on up the last face
+        right.append((x, 0.0))
+    left = [(-px, py) for px, py in right]
+    lines = [left, right]
+
+    def cap(spec, depth, direction):
+        width, height = float(spec.get('width') or 0.0), float(spec.get('height') or 0.0)
+        if width <= 0 or height <= 0:
+            return None
+        half = width / 2
+        return [(half * math.cos(t), depth + direction * height * math.sin(t))
+                for t in (math.pi * k / 16 for k in range(17))]
+
+    upper = cap(weld.get('upperCap') or {}, 0.0, -1.0)
+    lower = cap(weld.get('lowerCap') or {}, thickness, 1.0)
+    lines += [c for c in (upper, lower) if c]
+    return lines

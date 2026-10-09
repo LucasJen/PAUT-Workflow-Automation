@@ -83,6 +83,7 @@ def file_info(request):
     except (PathNotAllowed, NdeDataError) as e:
         return _error(str(e))
     data = info.as_dict()
+    data['weld_outline'] = geometry.weld_outline(info.weld, info.specimen.get('thickness'))
     for group, out in zip(info.groups, data['groups']):
         out['rays'] = [asdict(r) for r in geometry.frame_rays(group)] if group.layout != UNSUPPORTED else []
         out['synced_to_interface'] = group.synced_to_interface

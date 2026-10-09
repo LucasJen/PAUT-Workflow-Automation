@@ -187,6 +187,13 @@ void main() {
             this.drawOverlay();
         }
 
+        /** The weld's outline (index x depth polylines for the first leg, m), or null; drawn in every leg. */
+        setWeld(lines, show = true) {
+            this.weld = lines && lines.length ? lines : null;
+            this.showWeld = show;
+            this.drawOverlay();
+        }
+
         // ── view ──
         fitView() {
             const [x0, y0, x1, y1] = this.bounds;
@@ -273,8 +280,36 @@ void main() {
                 for (let k = 1; k * this.thickness < cy + height / 2; k++) {
                     const [, y] = this.toScreen(0, k * this.thickness);
                     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+                    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                    ctx.fillText(k === 1 ? 'T' : `${k}T`, w - 22 * ratio, y - 3 * ratio);
                 }
                 ctx.setLineDash([]);
+                // The weld outline in each leg: mirrored at the back wall on even legs
+                if (this.weld && this.showWeld) {
+                    const T = this.thickness;
+                    // Only inside the scanned area: the exit points along the top, the last samples round the bottom
+                    ctx.save();
+                    ctx.beginPath();
+                    const edge = (r, sp) => this.toScreen(r.v0 + r.dv * sp, r.dz * sp);
+                    this.rays.forEach((r, i) => { const [x, y] = edge(r, r.sp_start); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+                    [...this.rays].reverse().forEach(r => { const [x, y] = edge(r, r.sp_start + this.samples * r.sp_step); ctx.lineTo(x, y); });
+                    ctx.closePath();
+                    ctx.clip();
+                    ctx.strokeStyle = 'rgba(232, 121, 249, 0.9)';
+                    ctx.lineWidth = 1.3 * ratio;
+                    for (let k = 0; k * T < cy + height / 2; k++) {
+                        const fold = y => (k % 2 === 0 ? y + k * T : (k + 1) * T - y);
+                        for (const line of this.weld) {
+                            ctx.beginPath();
+                            line.forEach(([x, y], i) => {
+                                const [sx, sy] = this.toScreen(x, fold(y));
+                                if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+                            });
+                            ctx.stroke();
+                        }
+                    }
+                    ctx.restore();
+                }
             }
             // The beam cursor along its ray
             const r = this.rays[this.lateral];

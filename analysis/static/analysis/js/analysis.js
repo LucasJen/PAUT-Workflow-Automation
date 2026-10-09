@@ -291,6 +291,9 @@
         sscan.setGeometry(g.rays, g.shape[2], state.info.specimen?.thickness);
         sscan.setCursors(state.cursors);
         $('true-geometry').checked = sscan.trueGeometry;
+        const weld = g.layout === 'beams' ? state.info.weld_outline : null;
+        $('weld-toggle').hidden = !(weld && weld.length);
+        sscan.setWeld(weld, $('show-weld').checked);
         slider.max = scanNumber.max = g.shape[0] - 1;
         $('scan-count').textContent = `of ${g.shape[0]}`;
         state.lateral = Math.min(lateral, g.shape[1] - 1);
@@ -912,6 +915,7 @@
     axisSelect.addEventListener('change', () => ascan.setAxis(axisSelect.value));
     $('sscan-fit').addEventListener('click', () => { sscan.view = null; sscan.draw(); });
     $('true-geometry').addEventListener('change', e => sscan.setTrueGeometry(e.target.checked));
+    $('show-weld').addEventListener('change', e => { sscan.showWeld = e.target.checked; sscan.drawOverlay(); });
 
     document.addEventListener('keydown', e => {
         if (!state.info || e.target.closest('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
