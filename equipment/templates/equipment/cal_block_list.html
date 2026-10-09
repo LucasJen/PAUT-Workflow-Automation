@@ -14,6 +14,7 @@
 <th class="sortable">Serial number<span class="sort-indicator"></span></th>
 <th class="sortable">Material<span class="sort-indicator"></span></th>
 <th class="sortable">Notes<span class="sort-indicator"></span></th>
+<th class="sortable">Cal due<span class="sort-indicator"></span></th>
 {% endblock %}
 
 {% block rows %}
@@ -25,6 +26,7 @@
     <td class="mono">{{ block.serial_number }}</td>
     <td>{{ block.material }}</td>
     <td class="text-muted-cell">{{ block.notes|truncatechars:80 }}</td>
+    {% include 'equipment/_cal_due_cell.html' with due=block.calibration_due_date %}
 </tr>
 {% endfor %}
 {% endblock %}

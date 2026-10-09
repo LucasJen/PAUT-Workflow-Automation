@@ -2,6 +2,7 @@ from django.db.models import F
 from django.shortcuts import render
 
 from documents.views import dashboard_context
+from equipment.cal_due import due_items
 from equipment.models import CalibrationBlock, Encoder, Probe, ProbeModel, Scope, SensitivityBlock, WedgeModel
 from ..models import Report, Setup
 
@@ -27,6 +28,8 @@ def home(request):
         'recent_reports': recent_reports,
         **dashboard_context(request),
         'libraries': libraries,
+        # Equipment out of calibration or due within 30 days
+        'cal_due': due_items(),
         'stats': {
             'reports': Report.objects.count(),
             'saved_setups': Setup.objects.filter(report__isnull=True).count(),

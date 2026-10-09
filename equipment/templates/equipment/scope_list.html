@@ -30,14 +30,11 @@
     <td class="mono">{{ scope.serial_number }}</td>
     <td>{{ scope.manufacturer }}</td>
     <td class="mono">{{ scope.instrument_software_version }}</td>
-    <td>{{ scope.module_model }}{% if scope.module_serial %} <span class="mono text-muted-cell">{{ scope.module_serial }}</span>{% endif %}</td>
+    <td>{{ scope.module_model }}{% if scope.module_serial %} <span class="mono text-muted-cell">{{ scope.module_serial }}</span>{% endif %}
+        {% if scope.module_cal_due %}<span class="badge-due due-{{ scope.module_cal_due|cal_status }} ms-1" title="Module cal. due {{ scope.module_cal_due|date:'M j, Y' }}: {{ scope.module_cal_due|cal_label }}">{{ scope.module_cal_due|date:'M j, Y' }}</span>{% endif %}</td>
     <td>{{ scope.software }}{% if scope.software_version %} <span class="mono text-muted-cell">{{ scope.software_version }}</span>{% endif %}</td>
     <td data-sort-value="{{ scope.calibration_date|date:'Y-m-d' }}">{{ scope.calibration_date|date:'M j, Y' }}</td>
-    <td data-sort-value="{{ scope.calibration_due_date|date:'Y-m-d' }}">
-        {% if scope.calibration_due_date %}
-        <span class="badge-due due-{{ scope.calibration_due_date|cal_status }}" title="{{ scope.calibration_due_date|cal_label }}">{{ scope.calibration_due_date|date:'M j, Y' }}</span>
-        {% endif %}
-    </td>
+    {% include 'equipment/_cal_due_cell.html' with due=scope.calibration_due_date %}
 </tr>
 {% endfor %}
 {% endblock %}

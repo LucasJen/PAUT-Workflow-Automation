@@ -1,0 +1,2 @@
+{% load ui %}{# A "Cal due" cell: the due date as a badge coloured by how soon it is (overdue / within 30 days / ok) #}
+<td data-sort-value="{{ due|date:'Y-m-d' }}">{% if due %}<span class="badge-due due-{{ due|cal_status }}" title="{{ due|cal_label }}">{{ due|date:'M j, Y' }}</span>{% endif %}</td>

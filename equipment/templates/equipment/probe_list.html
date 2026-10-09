@@ -18,6 +18,7 @@
 <th class="sortable">Diameter<span class="sort-indicator"></span></th>
 <th class="sortable" title="Inactive / defective elements at the last check">Inactive / defective<span class="sort-indicator"></span></th>
 <th class="sortable">Cal. obtainable<span class="sort-indicator"></span></th>
+<th class="sortable">Cal due<span class="sort-indicator"></span></th>
 {% endblock %}
 
 {% block rows %}
@@ -33,6 +34,7 @@
     <td class="mono">{{ probe.diameter }}</td>
     <td class="mono" data-sort-value="{{ probe.inactive_elements|default_if_none:'' }}">{% if probe.inactive_elements is not None or probe.defective_elements is not None %}{{ probe.inactive_elements|default_if_none:'–' }} / {{ probe.defective_elements|default_if_none:'–' }}{% endif %}</td>
     <td>{% if probe.calibration_obtainable is True %}Yes{% elif probe.calibration_obtainable is False %}<span class="text-danger">No</span>{% endif %}</td>
+    {% include 'equipment/_cal_due_cell.html' with due=probe.calibration_due_date %}
 </tr>
 {% endfor %}
 {% endblock %}

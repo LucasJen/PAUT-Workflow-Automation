@@ -18,6 +18,7 @@ from ..forms import (
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
 from ..report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, get_report_type
 from ..defaults import all_defaults, defaults_for, in_page_order, only_defaults
+from equipment.cal_due import report_cal_warnings
 from equipment.inventory import with_library_scope
 
 from ..materials import library_blocks
@@ -304,8 +305,9 @@ def create_report(request):
             report_id=form.instance.pk, kind=ReportImage.INDICATION)} if form.instance.pk else {},
         'weld_results_rows': {'page1': len(REPORT_RESULT_ROWS), 'total': len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)},
         'has_equipment': bool(form.instance.pk) and has_equipment(form.instance),
-        # What the Excel form leaves out of this report (its pages hold so much)
-        'output_warnings': output_warnings(form.instance) if form.instance.pk else [],
+        # What the Excel form leaves out of this report (its pages hold so much), and equipment
+        # out of calibration on its test date
+        'output_warnings': report_warnings(form.instance) if form.instance.pk else [],
         'drawing_formset': drawings,
         'image_formset': image_formset,
         'known_people': _known_people(),
@@ -621,7 +623,8 @@ def generate_report(request, pk):
 
     _save_copy(request, report, output_name, content)
 
-    return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=DOCX_CONTENT_TYPE)
+    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name,
+                                       content_type=DOCX_CONTENT_TYPE), report)
 
 
 def _excel_download(request, report):
@@ -637,9 +640,14 @@ def _excel_download(request, report):
                                        content_type=XLSX_CONTENT_TYPE), report)
 
 
+def report_warnings(report):
+    """What to warn about before the report goes out: what the Excel form leaves out, and equipment out of cal."""
+    return output_warnings(report) + report_cal_warnings(report)
+
+
 def _with_warnings(response, report):
-    """The download with what the form leaves out (output_warnings) in X-Report-Warnings, for app.js to show."""
-    warnings = output_warnings(report)
+    """The download with report_warnings in X-Report-Warnings, for app.js to show."""
+    warnings = report_warnings(report)
     if warnings:
         response['X-Report-Warnings'] = json.dumps(warnings)   # ASCII (non-ASCII is escaped), as headers must be
     return response
