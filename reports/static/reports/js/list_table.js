@@ -147,6 +147,18 @@
     search?.addEventListener('input', applyFilters);
     filters.forEach(f => f.addEventListener('change', applyFilters));
 
+    // A link may open the list filtered: ?status=draft picks that option (the dashboard's Drafts tile)
+    const params = new URLSearchParams(location.search);
+    let preset = false;
+    filters.forEach(f => {
+        const value = params.get(f.dataset.filter);
+        if (value && Array.from(f.options || []).some(o => o.value === value)) {
+            f.value = value;
+            preset = true;
+        }
+    });
+    if (preset) applyFilters();
+
     // ── Sorting ────────────────────────────────────────────────────────
 
     const NUMBER = /^-?\d+(\.\d+)?$/;

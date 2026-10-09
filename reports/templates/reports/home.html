@@ -8,7 +8,7 @@
     <h1>Dashboard</h1>
     <div class="header-actions">
         <a href="{% url 'nde-upload' %}" class="btn btn-secondary"><i class="bi bi-upload"></i> Import from NDE</a>
-        <a href="{% url 'start-from-files' %}" class="btn btn-secondary"><i class="bi bi-folder2-open"></i> Weld report from files</a>
+        <a href="{% url 'start-from-files' %}" class="btn btn-secondary"><i class="bi bi-folder2-open"></i> Guided Creation</a>
         {% include 'reports/components/new_report_button.html' %}
     </div>
 </div>
@@ -17,6 +17,10 @@
     <a class="stat-tile" href="{% url 'report-list' %}">
         <span class="stat-label">Reports</span>
         <span class="stat-value">{{ stats.reports }}</span>
+    </a>
+    <a class="stat-tile" href="{% url 'report-list' %}?status=draft" title="Reports not issued yet">
+        <span class="stat-label">Drafts in progress</span>
+        <span class="stat-value">{{ stats.drafts }}</span>
     </a>
     <a class="stat-tile" href="{% url 'setup-list' %}">
         <span class="stat-label">Saved setups</span>
@@ -40,10 +44,11 @@
                         <span class="item-main">
                             <span class="item-title">{{ report.document_filename|default:"Untitled report" }}</span>
                             <span class="item-meta">
-                                {% if report.client %}{{ report.client }}{% endif %}{% if report.client and report.location %} · {% endif %}{{ report.location }}
+                                {{ report.type_label }}{% if report.client or report.location %} · {% endif %}{% if report.client %}{{ report.client }}{% endif %}{% if report.client and report.location %} · {% endif %}{{ report.location }}
                             </span>
                         </span>
                         <span class="item-aside">
+                            {% if report.is_issued %}<span class="badge text-bg-success me-2">Issued</span>{% endif %}
                             {% if report.updated_at %}{{ report.updated_at|timesince }} ago{% elif report.report_date %}{{ report.report_date|date:'M j, Y' }}{% endif %}
                         </span>
                     </a>

@@ -63,3 +63,18 @@ class EquipmentCardTests(TestCase):
         for url in ('scope-list', 'probe-list', 'probe-model-list', 'wedge-model-list', 'cal-block-list',
                     'sensitivity-block-list', 'encoder-list'):
             self.assertContains(page, f'href="{reverse(url)}"')
+
+
+class DashboardQolTests(TestCase):
+    def test_guided_creation_button_drafts_tile_and_types(self):
+        Report.objects.create(document_filename='PPI-1', report_type='paut_weld')
+        Report.objects.create(document_filename='PPI-1', report_type='paut_corrosion', status=Report.ISSUED)
+        page = self.client.get(reverse('home'))
+        self.assertContains(page, '> Guided Creation</a>')
+        self.assertNotContains(page, 'Weld report from files')
+        self.assertEqual(page.context['stats']['drafts'], 1)
+        self.assertContains(page, f'{reverse("report-list")}?status=draft')
+        # Same-named reports are told apart by their type and status
+        self.assertContains(page, 'PAUT weld (Excel)')
+        self.assertContains(page, 'Short Form')
+        self.assertContains(page, '>Issued</span>')

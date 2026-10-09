@@ -5,6 +5,7 @@ from documents.views import dashboard_context
 from equipment.cal_due import due_items
 from equipment.models import CalibrationBlock, Encoder, Probe, ProbeModel, Scope, SensitivityBlock, WedgeModel
 from ..models import Report, Setup
+from ..report_types import get_report_type
 
 
 def home(request):
@@ -12,7 +13,10 @@ def home(request):
     Dashboard: quick actions, recently edited reports, the documentation libraries (most recently
     used first, searchable with ?q= and filtered by file type with ?type=) and the equipment libraries
     """
-    recent_reports = Report.objects.order_by(F('updated_at').desc(nulls_last=True), '-pk')[:8]
+    recent_reports = list(Report.objects.order_by(F('updated_at').desc(nulls_last=True), '-pk')[:8])
+    # Same-named reports of different forms look alike without their type
+    for report in recent_reports:
+        report.type_label = get_report_type(report.report_type).label
 
     # How many in each library are out of calibration or due within 30 days (a module counts as its scope)
     due = {}
@@ -37,6 +41,7 @@ def home(request):
         'libraries': libraries,
         'stats': {
             'reports': Report.objects.count(),
+            'drafts': Report.objects.filter(status=Report.DRAFT).count(),
             'saved_setups': Setup.objects.filter(report__isnull=True).count(),
         },
     })
