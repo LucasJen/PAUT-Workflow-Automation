@@ -89,6 +89,8 @@ class Group:
     # Pulse: A-scan time from the pulse; SynchroGateRelative: each stored A-scan is already re-timed
     # to its own gate I crossing (t = 0 at the interface, e.g. immersion / HydroFORM)
     synchro_mode: str = 'Pulse'
+    # The thickness process's expected range (m) - OmniPC's thickness palette runs over it
+    thickness_range: tuple = None
 
     @property
     def synced_to_interface(self):
@@ -250,7 +252,14 @@ def _group(setup, raw_group, h5):
         formation=_formation(process), wave_mode=process.get('waveMode', ''), velocity=velocity,
         wedge_delay=process.get('wedgeDelay', 0.0), digitizing_frequency=process.get('digitizingFrequency', 0.0),
         rectification=process.get('rectification', ''), synchro_mode=process.get('ascanSynchroMode', 'Pulse'),
+        thickness_range=_thickness_range(raw_group),
     )
+
+
+def _thickness_range(raw_group):
+    thickness = _process(raw_group, 'thickness') or {}
+    low, high = thickness.get('min'), thickness.get('max')
+    return (low, high) if low is not None and high is not None and high > low else None
 
 
 def _specimen(setup):
@@ -322,6 +331,27 @@ def read_ascan(path, group, scan_index, lateral_index):
         raise NdeDataError('That position is outside the data.')
     with h5py.File(path, 'r') as h5:
         return np.asarray(h5[group.path][scan_index, lateral_index], dtype=np.int16)
+
+
+def read_status(path, group, scan_index, lateral_index):
+    """The A-scan's status bits (STATUS_HAS_DATA | STATUS_SATURATED | STATUS_NO_SYNCHRO), or has-data
+    when the file has no status dataset."""
+    _readable(group)
+    if not group.status_path:
+        return STATUS_HAS_DATA
+    with h5py.File(path, 'r') as h5:
+        return int(h5[group.status_path][scan_index, lateral_index])
+
+
+def usable(group, status):
+    """Whether an A-scan with these status bits has readings: it has data, and on a file re-timed
+    to the interface its gate I synchronised (OmniPC shows the rest as no data - e.g. the joins
+    between a HydroFORM scan's index passes)."""
+    status = np.asarray(status)
+    ok = (status & STATUS_HAS_DATA).astype(bool)
+    if group.synced_to_interface:
+        ok &= ~(status & STATUS_NO_SYNCHRO).astype(bool)
+    return ok
 
 
 def to_unit(raw, group):

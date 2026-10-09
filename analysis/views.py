@@ -8,7 +8,9 @@ from django.shortcuts import render
 
 from .paths import PathNotAllowed, allowed_roots, checked_path
 from .services import geometry, projections
-from .services.nde_data import RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame
+from .services.nde_data import (
+    RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame, read_status, usable,
+)
 from .services.readings import evaluate_gates, omnipc_reading
 
 MAX_FILES = 5000
@@ -137,13 +139,18 @@ def readings(request):
         path, info = _open(request)
         group = _group(info, request)
         lateral = _int(request, 'lateral')
-        raw = read_ascan(path, group, _int(request, 'scan'), lateral)
+        scan = _int(request, 'scan')
+        raw = read_ascan(path, group, scan, lateral)
+        status = read_status(path, group, scan, lateral)
         gain = float(request.GET.get('gain') or 0)
         gates = _gates(request, group)
     except (PathNotAllowed, NdeDataError, ValueError) as e:
         return _error(str(e))
     if gain:
         raw = np.clip(np.round(raw.astype(np.float64) * 10 ** (gain / 20)), -32768, 32767).astype(np.int16)
+    if not usable(group, status):
+        note = 'No interface sync (gate I) on this A-scan.' if status & 1 else 'No data on this A-scan.'
+        return JsonResponse({'gates': {}, 'readings': {}, 'note': note})
     beam = group.beams[lateral]
     results = evaluate_gates(group, beam, raw, gates)
     values = {}

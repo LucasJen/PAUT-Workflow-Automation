@@ -1,5 +1,6 @@
-// Colour palettes for the Analysis views: 256 RGBA entries for 0-100 % of full screen height, like
-// OmniPC's default amplitude palette (white at nothing, through blues, green and yellow to red).
+// Colour palettes for the Analysis views: 256 RGBA entries. Amplitude: 0-100 % of full screen height,
+// like OmniPC's default (white at nothing, through blues, green and yellow to red). Thickness: a
+// min-max range, red (thin) to blue (thick).
 
 window.AnalysisPalette = (function () {
     const AMPLITUDE = [
@@ -29,9 +30,22 @@ window.AnalysisPalette = (function () {
         return out;
     }
 
+    // Thickness / depth over a range, like OmniPC's thickness palette: thin (low) red through yellow,
+    // green and cyan to blue (thick)
+    const THICKNESS = [
+        [0.00, [200, 0, 0]],
+        [0.20, [245, 120, 0]],
+        [0.40, [240, 220, 0]],
+        [0.60, [40, 180, 60]],
+        [0.80, [0, 170, 220]],
+        [1.00, [30, 60, 200]],
+    ];
+
     const amplitude = build(AMPLITUDE);
+    const thickness = build(THICKNESS);
     return {
         amplitude: () => amplitude,
+        thickness: () => thickness,
         /** CSS colour of a percentage (0-100), for legends. */
         css(percent) {
             const i = Math.max(0, Math.min(255, Math.round(percent * 2.55))) * 4;

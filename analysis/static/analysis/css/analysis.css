@@ -67,3 +67,28 @@
 .gate-letter { display: inline-block; width: 1.3rem; text-align: center; font-weight: 700; border-radius: 3px; color: #111; }
 .gate-I { background: #facc15; } .gate-A { background: #ef4444; color: #fff; } .gate-B { background: #22c55e; }
 .analysis-gates td:last-child { width: 4.2rem; } .analysis-gates td:first-child { width: 1.6rem; }
+
+/* Layouts (like OmniPC's): A-S, A-S-C (C-scan along the bottom), A-B-C-S (C over B, S over A) */
+.analysis-grid { grid-template-areas: "s a r"; grid-template-rows: minmax(22rem, calc(100vh - 15rem)); }
+.analysis-panel-sscan { grid-area: s; } .analysis-panel-ascan { grid-area: a; } .analysis-readings { grid-area: r; }
+.analysis-panel-cscan { grid-area: c; } .analysis-panel-bscan { grid-area: b; }
+.analysis-grid[data-layout="A-S"] .analysis-panel-cscan, .analysis-grid[data-layout="A-S"] .analysis-panel-bscan,
+.analysis-grid[data-layout="A-S-C"] .analysis-panel-bscan { display: none; }
+.analysis-grid[data-layout="A-S-C"] {
+    grid-template-areas: "s a r" "c c r";
+    grid-template-rows: minmax(16rem, calc((100vh - 15.5rem) * 0.55)) minmax(12rem, calc((100vh - 15.5rem) * 0.45));
+}
+.analysis-grid[data-layout="A-B-C-S"] {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 17rem;
+    grid-template-areas: "c s r" "b a r";
+    grid-template-rows: repeat(2, minmax(14rem, calc((100vh - 15.5rem) / 2)));
+}
+@media (max-width: 1100px) {
+    .analysis-grid, .analysis-grid[data-layout] { grid-template-columns: minmax(0, 1fr); grid-template-areas: "s" "a" "c" "b" "r"; grid-template-rows: none; }
+    .analysis-panel-cscan, .analysis-panel-bscan { height: 22rem; }
+}
+.analysis-head-select { width: auto; max-width: 13rem; padding: 0.05rem 1.6rem 0.05rem 0.4rem; font-size: 0.75rem; }
+.analysis-range { display: inline-flex; align-items: center; gap: 0.2rem; font-weight: 400; }
+.analysis-range .form-control { width: 4.2rem; padding: 0.05rem 0.3rem; font-size: 0.75rem; }
+.analysis-progress { display: inline-block; width: 6rem; height: 0.35rem; border-radius: 2px; background: var(--border); overflow: hidden; vertical-align: middle; }
+.analysis-progress span { display: block; height: 100%; background: var(--accent); }

@@ -7,7 +7,9 @@
 {% block content %}
 <div class="analysis-page" id="analysis"
      data-files-url="{% url 'analysis-files' %}" data-file-url="{% url 'analysis-file' %}"
-     data-frame-url="{% url 'analysis-frame' %}" data-readings-url="{% url 'analysis-readings' %}">
+     data-frame-url="{% url 'analysis-frame' %}" data-readings-url="{% url 'analysis-readings' %}"
+     data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
+     data-bscan-url="{% url 'analysis-bscan' %}">
     <div class="analysis-toolbar panel">
         <div class="analysis-tool analysis-file">
             <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
@@ -21,6 +23,7 @@
             <button type="button" class="btn btn-sm btn-secondary" id="scan-next" aria-label="Next scan line"><i class="bi bi-chevron-right"></i></button>
             <input type="number" class="form-control form-control-sm mono analysis-number" id="scan-number" min="0" value="0" aria-label="Scan line number">
             <span class="analysis-tool-note" id="scan-count"></span>
+            <span class="analysis-tool-note mono" id="scan-position" title="Scan position (offset + line x resolution, from the file)"></span>
         </div>
         <div class="analysis-tool" title="Soft gain added to the data, like OmniPC's Gain (+ / - keys)">
             <span class="analysis-tool-label">Gain</span>
@@ -35,6 +38,9 @@
             <span class="analysis-tool-note">%</span>
         </div>
         <div class="analysis-tool">
+            <select class="form-select form-select-sm" id="layout" aria-label="Layout" title="Views shown, like OmniPC's layouts">
+                <option value="A-S">A-S</option><option value="A-S-C">A-S-C</option><option value="A-B-C-S">A-B-C-S</option>
+            </select>
             <select class="form-select form-select-sm" id="units" aria-label="Units"><option value="in">in</option><option value="mm">mm</option></select>
             <select class="form-select form-select-sm" id="axis" aria-label="A-scan axis" title="A-scan horizontal axis">
                 <option value="depth">True depth</option><option value="path">Sound path</option>
@@ -44,7 +50,31 @@
     <p class="analysis-status" id="analysis-status" role="status" hidden></p>
     {% if not roots %}<div class="alert alert-info">Add a working folder under Preferences › Working folders to open .nde files from it.</div>{% endif %}
 
-    <div class="analysis-grid">
+    <div class="analysis-grid" id="analysis-grid" data-layout="A-S">
+        <section class="analysis-panel analysis-panel-cscan">
+            <header class="analysis-panel-head">
+                <span>C-scan</span>
+                <select class="form-select form-select-sm analysis-head-select" id="cscan-kind" aria-label="C-scan shows"></select>
+                <span class="analysis-range" id="cscan-range" hidden>
+                    <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-min" aria-label="Palette from" title="Palette from (red)">
+                    –
+                    <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-max" aria-label="Palette to" title="Palette to (blue)">
+                </span>
+                <span class="analysis-panel-note" id="cscan-note"></span>
+                <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                   title="Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors. Built once from the whole file (and again when the gates or gain change). Scroll to zoom, right-drag to pan, double-click to fit."></i>
+            </header>
+            <div class="analysis-stage" id="cscan-stage"></div>
+            <div class="analysis-readout mono" id="cscan-readout"></div>
+        </section>
+        <section class="analysis-panel analysis-panel-bscan">
+            <header class="analysis-panel-head"><span>B-scan</span><span class="analysis-panel-note" id="bscan-label"></span>
+                <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                   title="Side view of the cursor's beam / index line: scan position across, depth down. Click to move the scan cursor; Ctrl+click / Shift+click put the reference / measure depth cursors."></i>
+            </header>
+            <div class="analysis-stage" id="bscan-stage"></div>
+            <div class="analysis-readout mono" id="bscan-readout"></div>
+        </section>
         <section class="analysis-panel analysis-panel-sscan">
             <header class="analysis-panel-head">
                 <span>S-scan</span><span class="analysis-panel-note" id="sscan-label"></span>
@@ -84,6 +114,7 @@
 <script src="{% static_v 'analysis/js/palette.js' %}"></script>
 <script src="{% static_v 'analysis/js/nde_client.js' %}"></script>
 <script src="{% static_v 'analysis/js/sscan_view.js' %}"></script>
+<script src="{% static_v 'analysis/js/image_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/ascan_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis.js' %}"></script>
 {% endblock %}

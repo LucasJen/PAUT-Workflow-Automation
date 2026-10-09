@@ -28,11 +28,12 @@ import h5py
 import numpy as np
 from django.conf import settings
 
-from .nde_data import open_file
+from .nde_data import open_file, usable
 from .readings import _order, gate_letter
 
 MAX_BINS = 512
 VOLUME_FULL = 200.0       # % at uint8 255
+CACHE_VERSION = 2         # bump when the rules change, so old C-scans are rebuilt
 BLOCK_SAMPLES = 4_000_000 # samples worked on at a time (~16 MB as float32; a few arrays of that)
 KEEP_CACHES = 12          # files whose caches are kept (most recently used)
 
@@ -61,7 +62,7 @@ def cache_dir(path):
 
 def gates_key(gates, gain):
     """A short key for a set of gates and a soft gain (the C-scan depends on both)."""
-    data = [asdict(g) for g in gates] + [round(float(gain), 3)]
+    data = [asdict(g) for g in gates] + [round(float(gain), 3), CACHE_VERSION]
     return hashlib.sha1(json.dumps(data, sort_keys=True).encode()).hexdigest()[:12]
 
 
@@ -186,7 +187,7 @@ def build(path, group, gates, gain=0.0, progress=None):
             if need_cscan:
                 # All the block's A-scans at once: (k * lines) rows, each with its own beam's times
                 results = gates_block(group, block.reshape(k * lines, samples), gates, np.tile(times, (k, 1)), gain)
-                has_data = (flags & 1).astype(bool).reshape(k * lines) if flags is not None else np.ones(k * lines, dtype=bool)
+                has_data = usable(group, flags).reshape(k * lines) if flags is not None else np.ones(k * lines, dtype=bool)
                 for letter, r in results.items():
                     out = cscan.setdefault(letter, {name: np.full((scans, lines), np.nan, dtype=np.float32)
                                                     for name in ('amplitude', 'peak_time', 'crossing_time')})

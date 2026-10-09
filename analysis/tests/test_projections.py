@@ -81,3 +81,12 @@ class ProjectionTests(SimpleTestCase):
         path = os.path.join(REPORTS, 'sample data', '31e33a wh 12x12.nde')
         group = open_file(path).group(0)
         self.assert_same_as_readings(path, group, 118, group.gates)
+
+
+class NoSynchroTests(SimpleTestCase):
+    def test_interface_synced_a_scans_without_sync_have_no_readings(self):
+        from analysis.services.nde_data import usable
+        group = type('G', (), {'synced_to_interface': True})()
+        self.assertEqual(list(usable(group, np.array([1, 5, 0, 3]))), [True, False, False, True])
+        group.synced_to_interface = False
+        self.assertEqual(list(usable(group, np.array([1, 5, 0]))), [True, True, False])

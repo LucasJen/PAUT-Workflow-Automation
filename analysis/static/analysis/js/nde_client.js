@@ -49,5 +49,20 @@ window.NdeClient = (function () {
         },
 
         clear() { frames.clear(); },
+
+        /** Starts / checks the whole-file build: {state, progress, error}. */
+        projections: (urls, params) => json(`${urls.projections}?${query(params)}`),
+
+        /** A whole-file view as a typed array with its headers, or {building: true} while it's built. */
+        async whole(url, params, Type) {
+            const response = await fetch(`${url}?${query(params)}`);
+            if (response.status === 409) return { building: true };
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || `Request failed (${response.status})`);
+            }
+            const header = name => response.headers.get(name);
+            return { data: new Type(await response.arrayBuffer()), header };
+        },
     };
 })();

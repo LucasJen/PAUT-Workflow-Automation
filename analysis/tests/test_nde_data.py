@@ -41,6 +41,7 @@ class WeldFileTests(TempFolderMixin, TestCase):
         self.assertEqual([(g.name, g.threshold) for g in group.gates], [('Gate A', 20.0)])
         self.assertEqual(info.specimen['thickness'], 0.0125)
         self.assertEqual(info.specimen['shear_velocity'], 3240.0)
+        self.assertIsNone(group.thickness_range)
         self.assertEqual(info.as_dict()['groups'][0]['beams'][0]['refracted_angle'], 45.0)
 
     def test_frame_and_ascan_are_the_right_slices(self):
