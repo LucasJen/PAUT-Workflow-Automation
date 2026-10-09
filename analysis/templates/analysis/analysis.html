@@ -48,6 +48,7 @@
                 <option value="depth">True depth</option><option value="path">Sound path</option>
             </select>
             <select class="form-select form-select-sm" id="amplitude-palette" aria-label="Amplitude palette" title="Amplitude colours (S-scan, B-scan, amplitude C-scans)"></select>
+            <button type="button" class="btn btn-sm btn-secondary" id="save-image" title="Save the views as a picture (PNG), as laid out, with the readings (P)"><i class="bi bi-camera"></i></button>
             <button type="button" class="btn btn-sm btn-secondary" id="full-screen" title="Full screen (Esc to leave). Drag the gaps between the panels to resize them; double-click a gap to reset."><i class="bi bi-arrows-fullscreen"></i></button>
         </div>
     </div>
@@ -83,7 +84,8 @@
         <section class="analysis-panel analysis-panel-sscan">
             <header class="analysis-panel-head">
                 <span>S-scan</span><span class="analysis-panel-note" id="sscan-label"></span>
-                <label class="analysis-check ms-auto" id="weld-toggle" hidden title="The weld from the file's weld geometry, in every leg"><input type="checkbox" id="show-weld" checked> Weld</label>
+                <label class="analysis-check ms-auto" id="groups-toggle" hidden title="Every group of the file drawn together at this scan position (this group on top); G switches group"><input type="checkbox" id="all-groups"> All groups</label>
+                <label class="analysis-check" id="weld-toggle" hidden title="The weld from the file's weld geometry, in every leg"><input type="checkbox" id="show-weld" checked> Weld</label>
                 <label class="analysis-check" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry</label>
                 <button type="button" class="btn btn-sm btn-secondary" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
                 <i class="bi bi-question-circle analysis-help" tabindex="0"

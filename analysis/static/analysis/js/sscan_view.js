@@ -92,13 +92,10 @@ void main() {
 
         // ── geometry ──
         /** rays: from the server (SI); samples: per line; thickness: m or null. */
-        setGeometry(rays, samples, thickness) {
-            this.rays = rays;
-            this.samples = samples;
-            this.thickness = thickness || null;
-            // Lines going the same way (linear / raster) are strips side by side; a fan interpolates
+        /** The S-scan mesh of a set of rays: {verts (x, y, s, t per vertex), parallel, bounds}. */
+        static mesh(rays, samples) {
+            // Lines going the same way (linear / raster) sit side by side; a fan interpolates between rays
             const parallel = rays.every(r => Math.abs(r.dz - rays[0].dz) < 1e-6 && Math.abs(r.dv - rays[0].dv) < 1e-6);
-            this.parallel = parallel;
             const lines = rays.length;
             const point = (r, sample) => {
                 const sp = r.sp_start + sample * r.sp_step;
@@ -107,43 +104,79 @@ void main() {
             const verts = [];
             const quad = (a, b, c, d) => verts.push(...a, ...b, ...c, ...a, ...c, ...d);
             const s0 = -0.5, s1 = samples - 0.5;
+            const between = i => {
+                const ta = (i + 0.5) / lines, tb = (i + 1.5) / lines;
+                const a0 = point(rays[i], s0), a1 = point(rays[i], s1);
+                const b0 = point(rays[i + 1], s0), b1 = point(rays[i + 1], s1);
+                quad([...a0, 0, ta], [...a1, 1, ta], [...b1, 1, tb], [...b0, 0, tb]);
+            };
             if (lines === 1) {
                 const [x0, y0] = point(rays[0], s0), [x1, y1] = point(rays[0], s1);
                 quad([x0 - 0.0005, y0, 0, 0.5], [x1 - 0.0005, y1, 1, 0.5], [x1 + 0.0005, y1, 1, 0.5], [x0 + 0.0005, y0, 0, 0.5]);
-            } else if (parallel) {
-                // Side by side (linear / raster): blended from one line's centre to the next, and half a
-                // spacing beyond the outer two
-                const shift = (p, dx) => [p[0] + dx, p[1]];
-                for (let i = 0; i < lines - 1; i++) {
-                    const ta = (i + 0.5) / lines, tb = (i + 1.5) / lines;
-                    const a0 = point(rays[i], s0), a1 = point(rays[i], s1);
-                    const b0 = point(rays[i + 1], s0), b1 = point(rays[i + 1], s1);
-                    quad([...a0, 0, ta], [...a1, 1, ta], [...b1, 1, tb], [...b0, 0, tb]);
-                }
-                const first = rays[0], last = rays[lines - 1];
-                const h = (rays[1].v0 - first.v0) / 2;
-                const t0 = 0.5 / lines, t1 = (lines - 0.5) / lines;
-                const f0 = point(first, s0), f1 = point(first, s1), l0 = point(last, s0), l1 = point(last, s1);
-                quad([...shift(f0, -h), 0, t0], [...shift(f1, -h), 1, t0], [...f1, 1, t0], [...f0, 0, t0]);
-                quad([...l0, 0, t1], [...l1, 1, t1], [...shift(l1, h), 1, t1], [...shift(l0, h), 0, t1]);
             } else {
-                for (let i = 0; i < lines - 1; i++) {
-                    const ta = (i + 0.5) / lines, tb = (i + 1.5) / lines;
-                    const a0 = point(rays[i], s0), a1 = point(rays[i], s1);
-                    const b0 = point(rays[i + 1], s0), b1 = point(rays[i + 1], s1);
-                    quad([...a0, 0, ta], [...a1, 1, ta], [...b1, 1, tb], [...b0, 0, tb]);
+                for (let i = 0; i < lines - 1; i++) between(i);
+                if (parallel) {   // half a spacing beyond the outer two lines
+                    const shift = (q, dx) => [q[0] + dx, q[1]];
+                    const first = rays[0], last = rays[lines - 1];
+                    const h = (rays[1].v0 - first.v0) / 2;
+                    const t0 = 0.5 / lines, t1 = (lines - 0.5) / lines;
+                    const f0 = point(first, s0), f1 = point(first, s1), l0 = point(last, s0), l1 = point(last, s1);
+                    quad([...shift(f0, -h), 0, t0], [...shift(f1, -h), 1, t0], [...f1, 1, t0], [...f0, 0, t0]);
+                    quad([...l0, 0, t1], [...l1, 1, t1], [...shift(l1, h), 1, t1], [...shift(l0, h), 0, t1]);
                 }
             }
+            let x0 = Infinity, x1 = -Infinity, y0 = 0, y1 = -Infinity;
+            for (let i = 0; i < verts.length; i += 4) {
+                x0 = Math.min(x0, verts[i]); x1 = Math.max(x1, verts[i]);
+                y0 = Math.min(y0, verts[i + 1]); y1 = Math.max(y1, verts[i + 1]);
+            }
+            return { verts: new Float32Array(verts), parallel, bounds: [x0, y0, x1, y1] };
+        }
+
+        /** rays: from the server (SI); samples: per line; thickness: m or null. */
+        setGeometry(rays, samples, thickness) {
+            this.rays = rays;
+            this.samples = samples;
+            this.thickness = thickness || null;
+            const { verts, parallel, bounds } = SScanView.mesh(rays, samples);
+            this.parallel = parallel;
             this.vertexCount = verts.length / 4;
             const gl = this.gl;
             gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
-            const xs = [], ys = [0];
-            for (let i = 0; i < verts.length; i += 4) { xs.push(verts[i]); ys.push(verts[i + 1]); }
-            this.bounds = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+            gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+            this.ownBounds = bounds;
+            this.setExtras([]);
             this.view = null;
             this.trueGeometry = !parallel;   // fans in true geometry; side-by-side lines stretched
-            this.lateral = Math.min(this.lateral, lines - 1);
+            this.lateral = Math.min(this.lateral, rays.length - 1);
+            this.draw();
+        }
+
+        /**
+         * Other groups drawn under this one at the same scan position (e.g. a weld's Root and Body
+         * groups together): [{rays, samples, values, lines}] - values as for setFrame.
+         */
+        setExtras(list) {
+            const gl = this.gl;
+            this.extras = this.extras || [];
+            while (this.extras.length < list.length) this.extras.push({ buffer: gl.createBuffer(), texture: gl.createTexture() });
+            this.extras.length = list.length;
+            let [x0, y0, x1, y1] = this.ownBounds || [0, 0, 1, 1];
+            list.forEach((item, i) => {
+                const layer = this.extras[i];
+                layer.rays = item.rays;
+                layer.samples = item.samples;
+                const { verts, bounds } = SScanView.mesh(item.rays, item.samples);
+                gl.bindBuffer(gl.ARRAY_BUFFER, layer.buffer);
+                gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+                layer.count = verts.length / 4;
+                gl.bindTexture(gl.TEXTURE_2D, layer.texture);
+                gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, item.samples, item.lines, 0, gl.RED, gl.FLOAT, item.values);
+                this.filter(gl.LINEAR);
+                [x0, y0, x1, y1] = [Math.min(x0, bounds[0]), Math.min(y0, bounds[1]), Math.max(x1, bounds[2]), Math.max(y1, bounds[3])];
+            });
+            this.bounds = [x0, y0, x1, y1];
             this.draw();
         }
 
@@ -247,18 +280,22 @@ void main() {
                 const [cx, cy, width, height] = this.currentView();
                 gl.uniform4f(this.loc.view, cx, cy, 2 / width, 2 / height);
                 gl.uniform1f(this.loc.gain, this.gain);
-                gl.activeTexture(gl.TEXTURE0);
-                gl.bindTexture(gl.TEXTURE_2D, this.dataTexture);
-                gl.uniform1i(this.loc.data, 0);
                 gl.activeTexture(gl.TEXTURE1);
                 gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture);
                 gl.uniform1i(this.loc.palette, 1);
-                gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-                gl.enableVertexAttribArray(this.loc.pos);
-                gl.vertexAttribPointer(this.loc.pos, 2, gl.FLOAT, false, 16, 0);
-                gl.enableVertexAttribArray(this.loc.tex);
-                gl.vertexAttribPointer(this.loc.tex, 2, gl.FLOAT, false, 16, 8);
-                gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
+                const layer = (buffer, texture, count) => {
+                    gl.activeTexture(gl.TEXTURE0);
+                    gl.bindTexture(gl.TEXTURE_2D, texture);
+                    gl.uniform1i(this.loc.data, 0);
+                    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+                    gl.enableVertexAttribArray(this.loc.pos);
+                    gl.vertexAttribPointer(this.loc.pos, 2, gl.FLOAT, false, 16, 0);
+                    gl.enableVertexAttribArray(this.loc.tex);
+                    gl.vertexAttribPointer(this.loc.tex, 2, gl.FLOAT, false, 16, 8);
+                    gl.drawArrays(gl.TRIANGLES, 0, count);
+                };
+                for (const extra of this.extras || []) layer(extra.buffer, extra.texture, extra.count);
+                layer(this.buffer, this.dataTexture, this.vertexCount);
             }
             this.drawOverlay();
         }
@@ -291,10 +328,14 @@ void main() {
                     ctx.save();
                     ctx.beginPath();
                     const edge = (r, sp) => this.toScreen(r.v0 + r.dv * sp, r.dz * sp);
-                    this.rays.forEach((r, i) => { const [x, y] = edge(r, r.sp_start); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
-                    [...this.rays].reverse().forEach(r => { const [x, y] = edge(r, r.sp_start + this.samples * r.sp_step); ctx.lineTo(x, y); });
-                    ctx.closePath();
-                    ctx.clip();
+                    // Every group drawn (this one and the others under it)
+                    const areas = [{ rays: this.rays, samples: this.samples }, ...(this.extras || [])];
+                    for (const area of areas) {
+                        area.rays.forEach((r, i) => { const [x, y] = edge(r, r.sp_start); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+                        [...area.rays].reverse().forEach(r => { const [x, y] = edge(r, r.sp_start + area.samples * r.sp_step); ctx.lineTo(x, y); });
+                        ctx.closePath();
+                    }
+                    ctx.clip('nonzero');
                     ctx.strokeStyle = 'rgba(232, 121, 249, 0.9)';
                     ctx.lineWidth = 1.3 * ratio;
                     for (let k = 0; k * T < cy + height / 2; k++) {

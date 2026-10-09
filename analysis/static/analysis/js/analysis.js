@@ -291,6 +291,7 @@
         sscan.setGeometry(g.rays, g.shape[2], state.info.specimen?.thickness);
         sscan.setCursors(state.cursors);
         $('true-geometry').checked = sscan.trueGeometry;
+        $('groups-toggle').hidden = otherGroups().length === 0;
         const weld = g.layout === 'beams' ? state.info.weld_outline : null;
         $('weld-toggle').hidden = !(weld && weld.length);
         sscan.setWeld(weld, $('show-weld').checked);
@@ -332,6 +333,7 @@
         state.frame = frame;
         state.values = values;
         sscan.setFrame(values, frame.lateral, frame.samples);
+        loadOtherGroups();
         setLateral(state.lateral, true);
         remember();
         for (const next of [state.scan + 1, state.scan - 1]) {   // read the neighbours ahead
@@ -359,6 +361,50 @@
         scheduleReadings();
         linkCursors();
         scheduleBscan();
+    }
+
+    // ── other groups at the same scan position (the S-scan's All groups) ──
+    /** The file's other groups that can be drawn with this one: same layout and scan positions. */
+    function otherGroups() {
+        const g = currentGroup();
+        if (!g) return [];
+        return state.info.groups.filter(o => o.id !== g.id && o.layout === g.layout && o.layout !== 'unsupported'
+                                             && o.shape[0] === g.shape[0]);
+    }
+    const percent = (frame, g) => {
+        const scale = g.unit_max / g.raw_max;
+        const values = new Float32Array(frame.raw.length);
+        for (let i = 0; i < values.length; i++) values[i] = frame.raw[i] * scale;
+        if (frame.status) {
+            for (let line = 0; line < frame.lateral; line++) {
+                if (!(frame.status[line] & 1)) values.fill(-1, line * frame.samples, (line + 1) * frame.samples);
+            }
+        }
+        return values;
+    };
+    let othersRequest = 0;
+    async function loadOtherGroups() {
+        const others = $('all-groups').checked ? otherGroups() : [];
+        const mine = ++othersRequest;
+        const scan = state.scan;
+        try {
+            const extras = await Promise.all(others.map(async o => {
+                const frame = await NdeClient.frame(urls, state.path, o.id, scan);
+                return { rays: o.rays, samples: frame.samples, lines: frame.lateral, values: percent(frame, o) };
+            }));
+            if (mine === othersRequest) sscan.setExtras(extras);
+        } catch (e) {
+            show(e.message);
+        }
+    }
+    $('all-groups').addEventListener('change', loadOtherGroups);
+    function nextGroup() {
+        const usable = state.info?.groups.filter(o => o.layout !== 'unsupported') || [];
+        if (usable.length < 2) return;
+        const at = usable.findIndex(o => o.id === state.group);
+        const next = usable[(at + 1) % usable.length];
+        groupSelect.value = next.id;
+        setGroup(next.id, state.scan, state.lateral);
     }
 
     /** The scan / line / depth cursors on the C-scan and B-scan. */
@@ -866,6 +912,74 @@
 
     $('add-indication').addEventListener('click', addIndication);
 
+    // ── picture of the views ──
+    /** The visible views as laid out on screen, their titles, and the readings, saved as a PNG. */
+    function saveImage() {
+        if (!state.info) return;
+        const ratio = window.devicePixelRatio || 1;
+        const origin = grid.getBoundingClientRect();
+        const panelsShown = [...grid.querySelectorAll('.analysis-panel')]
+            .filter(p => !p.classList.contains('analysis-readings') && p.offsetParent !== null);
+        const width = Math.max(...panelsShown.map(p => p.getBoundingClientRect().right)) - origin.left;
+        const height = Math.max(...panelsShown.map(p => p.getBoundingClientRect().bottom)) - origin.top;
+        const side = 240, title = 26;
+        const out = document.createElement('canvas');
+        out.width = Math.round((width + side) * ratio);
+        out.height = Math.round((height + title) * ratio);
+        const ctx = out.getContext('2d');
+        ctx.scale(ratio, ratio);
+        ctx.fillStyle = '#0f1115';
+        ctx.fillRect(0, 0, width + side, height + title);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '600 13px Inter, Arial, sans-serif';
+        const g = currentGroup();
+        ctx.fillText(`${state.info.path.split(/[\\/]/).pop()} · ${g.name} · scan line ${state.scan + 1} (${format(scanPosition(state.scan))}) · gain ${state.gain.toFixed(1)} dB`, 8, 17);
+        for (const panel of panelsShown) {
+            const box = panel.getBoundingClientRect();
+            const x = box.left - origin.left, y = box.top - origin.top + title;
+            const head = panel.querySelector('.analysis-panel-head');
+            ctx.fillStyle = '#1a1d24';
+            ctx.fillRect(x, y, box.width, 22);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '600 12px Inter, Arial, sans-serif';
+            const label = [...head.querySelectorAll(':scope > span')].map(s => s.textContent.trim()).filter(Boolean).join('  ');
+            ctx.fillText(label, x + 6, y + 15);
+            const stage = panel.querySelector('.analysis-stage');
+            const stageBox = stage.getBoundingClientRect();
+            for (const canvas of stage.querySelectorAll('canvas')) {
+                ctx.drawImage(canvas, stageBox.left - origin.left, stageBox.top - origin.top + title, stageBox.width, stageBox.height);
+            }
+        }
+        // The readings down the right
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '600 12px Inter, Arial, sans-serif';
+        let ry = title + 16;
+        ctx.fillText('Readings', width + 12, ry);
+        ctx.font = '12px Inter, Arial, sans-serif';
+        for (const [name, value] of Object.entries(state.shownReadings || {})) {
+            ry += 17;
+            if (ry > height + title - 4) break;
+            const text = name.includes('%') ? `${value.toFixed(1)} %` : name.includes('dB') ? `${value.toFixed(1)} dB` : format(value);
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText(name, width + 12, ry);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.textAlign = 'right';
+            ctx.fillText(text, width + side - 10, ry);
+            ctx.textAlign = 'left';
+        }
+        out.toBlob(blob => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            const stem = state.info.path.split(/[\\/]/).pop().replace(/\.nde$/i, '');
+            a.download = `${stem} - scan ${state.scan + 1}.png`;
+            document.body.append(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        }, 'image/png');
+    }
+    $('save-image').addEventListener('click', saveImage);
+
     function showTab(name) {
         document.querySelectorAll('.analysis-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
         document.querySelectorAll('[data-tab-body]').forEach(b => { b.hidden = b.dataset.tabBody !== name; });
@@ -925,7 +1039,7 @@
             PageUp: () => setScan(state.scan - 10), PageDown: () => setScan(state.scan + 10),
             ArrowUp: () => setLateral(state.lateral - 1), ArrowDown: () => setLateral(state.lateral + 1),
             '+': () => setGain(state.gain + 1), '=': () => setGain(state.gain + 1), '-': () => setGain(state.gain - 1),
-            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication,
+            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage,
         };
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });

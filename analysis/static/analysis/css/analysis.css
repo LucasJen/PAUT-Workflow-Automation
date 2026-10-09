@@ -131,3 +131,6 @@ body.analysis-resizing { user-select: none; }
 .analysis-indication-table .btn { padding: 0 0.3rem; font-size: 0.7rem; }
 .analysis-tab { white-space: nowrap; }
 .analysis-tabs { flex-wrap: nowrap; }
+.analysis-panel-head .analysis-check { font-size: 0.75rem; white-space: nowrap; }
+.analysis-panel-head > span:first-child { white-space: nowrap; }
+.analysis-panel-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
