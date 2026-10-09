@@ -44,7 +44,7 @@
                         <span class="item-main">
                             <span class="item-title">{{ report.document_filename|default:"Untitled report" }}</span>
                             <span class="item-meta">
-                                {{ report.type_label }}{% if report.client or report.location %} · {% endif %}{% if report.client %}{{ report.client }}{% endif %}{% if report.client and report.location %} · {% endif %}{{ report.location }}
+                                #{{ report.pk }} · {{ report.type_label }}{% if report.client or report.location %} · {% endif %}{% if report.client %}{{ report.client }}{% endif %}{% if report.client and report.location %} · {% endif %}{{ report.location }}
                             </span>
                         </span>
                         <span class="item-aside">
