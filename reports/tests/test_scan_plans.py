@@ -225,6 +225,9 @@ class ScanPlanPageTests(TestCase):
         self.assertAlmostEqual(scene['meta']['index_offset'], 0.48)
         self.assertAlmostEqual(scene['meta']['thickness'], 0.28)
         self.assertIn('toe', scene['meta'])
+        # the part thickness is dimensioned beside the offset
+        labels = {s['data']['dimension']: s['text'] for s in scene['shapes'] if s['kind'] == 'text' and 'dimension' in s.get('data', {})}
+        self.assertEqual(labels, {'index offset': '0.480"', 'thickness': 'Thk 0.280"'})
 
     def test_saved_plan_png(self):
         plan = make_plan()

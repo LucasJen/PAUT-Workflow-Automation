@@ -202,6 +202,20 @@ def build_scene(plan, side=1, position=1, analysis=False):
     scene.add('text', at=(front / 2, dim_y - 0.03), text=fmt_length(plan, index_offset(plan)), size=19,
               anchor='mb', halo=True, data={'dimension': 'index offset'}, **dimension)
     scene.meta['dimension_y'] = dim_y
+
+    # Part thickness: OD to ID behind the beams, labelled beside it: near the view's edge on a
+    # plate; on a pipe (whose wall falls away at the edge) under the back of the wedge
+    at = s_min + 0.12
+    if radius is not None:
+        back = min(x for x, _ in wedge)
+        at = max(at, radius * math.asin(max(-1.0, min(1.0, back / radius))))
+    outside, inside = wrap(plan, at, 0), wrap(plan, at, t)
+    scene.add('line', points=[outside, inside], width=1.2, **dimension)
+    scene.add('arrow', tip=outside, towards=inside, **dimension)
+    scene.add('arrow', tip=inside, towards=outside, **dimension)
+    middle = wrap(plan, at, t / 2)
+    scene.add('text', at=(middle[0] + 0.04, middle[1]), text=f'Thk {fmt_length(plan, t)}', size=19,
+              anchor='rm' if scene.mirror else 'lm', halo=True, data={'dimension': 'thickness'}, **dimension)
     return scene
 
 
