@@ -5,6 +5,7 @@ information here; all values are SI (m, s, m/s, degrees for angles).
 
 Two layouts of A-scan data are read:
     beams   (UCoordinate, Beam, Ultrasound)        sectorial / linear angle-beam (weld) scans
+            (UCoordinate, Ultrasound)              one conventional / TOFD line: read as one beam
     raster  (UCoordinate, VCoordinate, Ultrasound) 0 deg linear raster (corrosion / HIC) scans
 A frame is everything at one scan position: (beams or index positions) x samples. The data is
 chunked one scan line at a time, so a frame is one cheap hyperslab read; never load a whole
@@ -91,6 +92,7 @@ class Group:
     synchro_mode: str = 'Pulse'
     # The thickness process's expected range (m) - OmniPC's thickness palette runs over it
     thickness_range: tuple = None
+    single: bool = False             # stored (UCoordinate, Ultrasound): one line, shown as one beam
 
     @property
     def synced_to_interface(self):
@@ -197,10 +199,16 @@ def _group(setup, raw_group, h5):
     shape = tuple(h5[amplitude['path']].shape)
     dims = amplitude.get('dimensions') or []
     names = tuple(d.get('axis') for d in dims)
+    single = False
     if names == ('UCoordinate', 'Beam', 'Ultrasound'):
         layout = BEAMS
     elif names == ('UCoordinate', 'VCoordinate', 'Ultrasound'):
         layout = RASTER
+    elif names == ('UCoordinate', 'Ultrasound') and len(shape) == 2:
+        # One conventional / TOFD line: read as a scan with one beam
+        layout, single = BEAMS, True
+        dims = [dims[0], {'axis': 'Beam', 'beams': [{}]}, dims[1]]
+        shape = (shape[0], 1, shape[1])
     else:
         return Group(gid, name, UNSUPPORTED, reason=f"Unsupported axes {', '.join(map(str, names))}.")
     if len(shape) != 3:
@@ -223,6 +231,9 @@ def _group(setup, raw_group, h5):
     if layout == BEAMS:
         for i, b in enumerate(dims[1].get('beams') or []):
             pb = process_beams[i] if i < len(process_beams) else {}
+            if single:   # the line's beam is described by the process
+                b = {'refractedAngle': pb.get('refractedAngle', 0.0), 'skewAngle': pb.get('skewAngle', 90.0),
+                     'ultrasoundOffset': dims[2].get('offset') or pb.get('ascanStart', 0.0)}
             beams.append(Beam(
                 index=i, refracted_angle=b.get('refractedAngle', 0.0), skew_angle=b.get('skewAngle', 90.0),
                 velocity=b.get('velocity', velocity), u_offset=b.get('uCoordinateOffset', 0.0),
@@ -252,7 +263,7 @@ def _group(setup, raw_group, h5):
         formation=_formation(process), wave_mode=process.get('waveMode', ''), velocity=velocity,
         wedge_delay=process.get('wedgeDelay', 0.0), digitizing_frequency=process.get('digitizingFrequency', 0.0),
         rectification=process.get('rectification', ''), synchro_mode=process.get('ascanSynchroMode', 'Pulse'),
-        thickness_range=_thickness_range(raw_group),
+        thickness_range=_thickness_range(raw_group), single=single,
     )
 
 
@@ -321,6 +332,9 @@ def read_frame(path, group, scan_index):
     with h5py.File(path, 'r') as h5:
         amplitudes = np.asarray(h5[group.path][scan_index], dtype=np.int16)
         status = np.asarray(h5[group.status_path][scan_index], dtype=np.uint8) if group.status_path else None
+    if group.single:
+        amplitudes = amplitudes[None, :]
+        status = None if status is None else np.atleast_1d(status)
     return amplitudes, status
 
 
@@ -330,7 +344,8 @@ def read_ascan(path, group, scan_index, lateral_index):
     if not (0 <= scan_index < group.shape[0] and 0 <= lateral_index < group.shape[1]):
         raise NdeDataError('That position is outside the data.')
     with h5py.File(path, 'r') as h5:
-        return np.asarray(h5[group.path][scan_index, lateral_index], dtype=np.int16)
+        ds = h5[group.path]
+        return np.asarray(ds[scan_index] if group.single else ds[scan_index, lateral_index], dtype=np.int16)
 
 
 def read_status(path, group, scan_index, lateral_index):
@@ -340,7 +355,8 @@ def read_status(path, group, scan_index, lateral_index):
     if not group.status_path:
         return STATUS_HAS_DATA
     with h5py.File(path, 'r') as h5:
-        return int(h5[group.status_path][scan_index, lateral_index])
+        st = h5[group.status_path]
+        return int(st[scan_index] if group.single else st[scan_index, lateral_index])
 
 
 def usable(group, status):

@@ -179,6 +179,9 @@ def build(path, group, gates, gain=0.0, progress=None):
         for first in range(0, scans, block_scans):
             block = np.asarray(ds[first:first + block_scans], dtype=np.int16)
             flags = np.asarray(status[first:first + block_scans]) if status is not None else None
+            if group.single:   # one conventional / TOFD line: [scans, samples] -> [scans, 1, samples]
+                block = block[:, None, :]
+                flags = None if flags is None else flags.reshape(-1, 1)
             k = block.shape[0]
             if need_volume:
                 padded = block if samples == bins * factor else np.pad(block, ((0, 0), (0, 0), (0, bins * factor - samples)))

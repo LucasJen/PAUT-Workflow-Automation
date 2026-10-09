@@ -117,3 +117,30 @@ def tfm_file(folder=None):
     setup = {'version': '4.1.0', 'groups': [{'id': 1, 'processes': []}]}
     return _write(os.path.join(folder, 'tfm.nde'), setup,
                   {'Public/Groups/1/Datasets/0-TfmValue': np.zeros((2, 3, 4), dtype=np.int16)})
+
+
+def conventional_file(folder=None, scans=6, samples=60, angle=60.0):
+    """One conventional (or TOFD) line: (UCoordinate, Ultrasound)."""
+    folder = folder or tempfile.mkdtemp()
+    data = (np.arange(scans)[:, None] * 1000 + np.arange(samples)[None, :]).astype(np.int16)
+    dims = [{'axis': 'UCoordinate', 'quantity': scans, 'resolution': 0.001},
+            {'axis': 'Ultrasound', 'offset': 2e-6, 'quantity': samples, 'resolution': 1e-7}]
+    setup = {
+        'version': '4.1.0', 'groups': [{
+            'id': 0, 'name': 'UT-1', 'datasets': [
+                {'id': 0, 'dataClass': 'AScanAmplitude', 'storageMode': 'Independent',
+                 'dataValue': {'min': 0, 'max': 32767, 'unitMin': 0.0, 'unitMax': 100.0, 'unit': 'Percent'},
+                 'path': '/Public/Groups/0/Datasets/0-AScanAmplitude', 'dimensions': dims},
+                {'id': 1, 'dataClass': 'AScanStatus', 'storageMode': 'Independent',
+                 'path': '/Public/Groups/0/Datasets/1-AScanStatus', 'dimensions': dims[:1]}],
+            'processes': [{'id': 0, 'ultrasonicConventional': {
+                'pulseEcho': {}, 'waveMode': 'TransversalVertical', 'velocity': SHEAR,
+                'beams': [{'id': 0, 'refractedAngle': angle, 'skewAngle': 90.0, 'ascanStart': 2e-6}],
+                'gates': [{'id': 1, 'name': 'Gate A', 'start': 3e-6, 'length': 2e-6, 'threshold': 1.0,
+                           'synchronization': {'mode': 'Pulse'}}]}}],
+        }],
+        'specimens': _specimen(0.02),
+    }
+    return _write(os.path.join(folder, 'conventional.nde'), setup, {
+        'Public/Groups/0/Datasets/0-AScanAmplitude': data,
+        'Public/Groups/0/Datasets/1-AScanStatus': np.ones(scans, dtype=np.uint8)})

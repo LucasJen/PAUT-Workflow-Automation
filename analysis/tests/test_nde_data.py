@@ -173,3 +173,20 @@ class WeldOutlineTests(SimpleTestCase):
         self.assertAlmostEqual(min(y for _, y in upper), -0.002)         # cap above the surface
         self.assertAlmostEqual(max(y for _, y in lower), 0.0095 + 0.002)  # root reinforcement below
         self.assertEqual(geometry.weld_outline({}, 0.01), [])
+
+
+class ConventionalLineTests(TempFolderMixin, TestCase):
+    def test_one_line_reads_as_one_beam_through_frames_ascans_and_the_build(self):
+        from analysis.services import projections
+        path = builders.conventional_file(self.folder)
+        group = open_file(path).group(0)
+        self.assertEqual((group.layout, group.shape, group.single, group.technique),
+                         (BEAMS, (6, 1, 60), True, 'conventional'))
+        self.assertEqual((group.beams[0].refracted_angle, group.beams[0].velocity), (60.0, builders.SHEAR))
+        frame, status = read_frame(path, group, 3)
+        self.assertEqual((frame.shape, int(frame[0, 5]), list(status)), ((1, 60), 3005, [1]))
+        self.assertEqual(int(read_ascan(path, group, 4, 0)[7]), 4007)
+        with override_settings(ANALYSIS_CACHE_DIR=os.path.join(self.folder, 'cache')):
+            projections.build(path, group, group.gates)
+            self.assertEqual(projections.read_cscan(path, group, group.gates)['A_amplitude'].shape, (6, 1))
+            self.assertEqual(projections.read_volume_line(path, group, 0)[0].shape, (6, 60))
