@@ -4,6 +4,33 @@
         <button type="button" id="add-drawing" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add drawing</button>
     </div>
     <p class="form-text" data-label="drawings_intro">Vessel/equipment and isometric drawings, nozzle layouts, scan coverage maps. Each appears under the report's Drawing section with its title as a heading.</p>
+    {# A vessel drawing (Setups › Vessel drawings) with this job's scan coverage: vessel_coverage.js #}
+    <div class="vessel-coverage" id="vessel-coverage" data-parts-url="{% url 'vessel-parts' 0 %}" data-png-url="{% url 'vessel-png' 0 %}">
+        <div class="field-grid cols-2">
+            {{ form.vessel.as_field_group }}
+            {{ form.vessel_caption.as_field_group }}
+        </div>
+        {{ form.vessel_coverage }}
+        {% if form.vessel_coverage.errors %}<div class="field-cell-error">{{ form.vessel_coverage.errors|join:" " }}</div>{% endif %}
+        <div class="vessel-coverage-body" hidden>
+            <div class="vessel-coverage-head">
+                <strong>Scan coverage</strong>
+                <span class="form-text">What this job examined, marked on the drawing. Distances run along the shell from the <span data-coverage-start>left</span> tangent line.</span>
+            </div>
+            <div class="vessel-row-list" id="coverage-rows"></div>
+            <div class="vessel-row-actions">
+                <select class="form-select form-select-sm vessel-coverage-add" id="coverage-add" aria-label="Mark coverage">
+                    <option value="">+ Mark coverage…</option>
+                    <option value="part">Shade a course or head</option>
+                    <option value="seam">Highlight a seam</option>
+                    <option value="nozzle">Highlight a nozzle weld</option>
+                    <option value="band">Band or grid (along the shell, round part of it)</option>
+                    <option value="box">Box with a label (e.g. Examination Area)</option>
+                </select>
+            </div>
+            <div class="vessel-stage vessel-coverage-stage"><img id="coverage-image" alt="Vessel drawing with the scan coverage"></div>
+        </div>
+    </div>
     {{ drawing_formset.management_form }}
     <div id="drawing-formset-container">
         {% for img_form in drawing_formset %}

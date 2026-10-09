@@ -53,6 +53,11 @@ class Report(models.Model):
     weld_reviewer_cert = models.CharField('Reviewer certification', max_length=200, blank=True)
     notes = models.TextField(blank=True)
     scan_plan = models.ForeignKey('ScanPlan', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
+    # A vessel drawing from Setups › Vessel drawings with this job's scan coverage marked on it
+    # ([{kind, ...}] in inches: reports/services/vessel/scene.py), printed first on the Drawings page
+    vessel = models.ForeignKey('Vessel', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
+    vessel_coverage = models.JSONField(default=list, blank=True)
+    vessel_caption = models.CharField(max_length=200, blank=True)
 
     # Weld form: the testing instrument (one per report; reports/weld_form.py INSTRUMENT_ROWS)
     inst_name = models.CharField('Testing instrument', max_length=100, blank=True)

@@ -10,6 +10,7 @@ Images page per two scan images. Pages with nothing on them aren't printed; the 
 hidden (a setup page's method description comes from the Text library instead
 of its lookup).
 """
+import io
 import os
 from dataclasses import dataclass, field
 from datetime import date
@@ -19,6 +20,7 @@ from PIL import Image
 from ..models import ReportImage
 from ..results import report_results
 from .setup_sheet import sheet_png
+from .vessel import report_png
 
 SUMMARY = 'Summary'
 SETUP = 'Setup Information'
@@ -62,6 +64,7 @@ class CorrosionPages:
     summary: dict
     setups: list = field(default_factory=list)
     drawings: list = field(default_factory=list)      # [(sheet name, picture path)]
+    vessel: bytes = None                              # the vessel drawing's PNG: drawings[0], written out by the caller
     thickness: list = field(default_factory=list)     # Thickness Table rows: [scan, axial, circ, min, avg, result] as typed
     images: list = field(default_factory=list)        # [[ImageSlot, ImageSlot?]] one list per page
 
@@ -102,7 +105,7 @@ def _path(file_field):
 def drawing_sheet(path):
     """Horizontal Drawing for a landscape (or square) picture, Vertical Drawing for a portrait one."""
     try:
-        with Image.open(path) as img:
+        with Image.open(io.BytesIO(path) if isinstance(path, bytes) else path) as img:
             width, height = img.size
     except OSError:
         return HORIZONTAL
@@ -171,6 +174,10 @@ def corrosion_pages(report):
     pages = CorrosionPages(summary=_summary(report))
     pages.setups = [_setup(s) for s in report.setups.order_by('order', 'pk')
                     .select_related('method_description').prefetch_related('images')]
+    # The vessel drawing with this job's coverage first; its path is set once it's written out
+    pages.vessel = report_png(report)
+    if pages.vessel:
+        pages.drawings.append((drawing_sheet(pages.vessel), None))
     for drawing in report.images.filter(kind=ReportImage.DRAWING).order_by('order', 'pk'):
         path = _path(drawing.image)
         if path:

@@ -131,10 +131,14 @@ class ReportForm(StyledFormMixin, ModelForm):
             'cal_time_check2': 'Second calibration check time',
             'cal_time_out': 'Calibration out time',
             'scan_plan': 'Scan plan',
+            'vessel': 'Vessel drawing',
+            'vessel_caption': 'Title',
         }
         widgets = {
             # The part the .nde imports recorded, for the Sensitivity block card's Auto-detect
             'scan_part': HiddenInput(),
+            # The coverage rows (vessel_coverage.js), in inches
+            'vessel_coverage': HiddenInput(),
             # Names from earlier reports (the editor's known-people list) fill in the certification
             'weld_technician': TextInput(attrs={'list': 'known-people', 'autocomplete': 'off', 'data-cert-field': 'weld_technician_cert'}),
             'weld_reviewer': TextInput(attrs={'list': 'known-people', 'autocomplete': 'off', 'data-cert-field': 'weld_reviewer_cert'}),
@@ -148,6 +152,8 @@ class ReportForm(StyledFormMixin, ModelForm):
             'cal_time_initial': '24-hour time, e.g. 0700. Amp, sweep and probe position print as Accept.',
             'notes': 'Notes box at the bottom of the weld form.',
             'scan_plan': 'Printed on the last page. Create and edit scan plans under Scan plans.',
+            'vessel': 'Printed first under Drawings, with the coverage marked below. Draw vessels under Vessel drawings.',
+            'vessel_caption': "The drawing's heading in the report. Blank = the vessel's name and 'scan coverage'.",
             'test_end_date': 'Leave blank for a single-day test.',
             'asset_description': 'Opening paragraph of the Introduction: what the asset is, material, design and service conditions.',
             'discussion': 'Leave blank to use the standard Discussion from the Text library.',
@@ -163,6 +169,12 @@ class ReportForm(StyledFormMixin, ModelForm):
             self.initial.setdefault('report_date', date.today())
         # Weld editor: empty fields outlined by where their value comes from (fill_marks.js)
         fill_marks.mark_fill(self, fill_marks.REPORT_AUTO_FIELDS, fill_marks.REPORT_USER_FIELDS)
+        if 'vessel_coverage' in self.fields:
+            self.fields['vessel_coverage'].required = False
+
+    def clean_vessel_coverage(self):
+        from .services.vessel import clean_coverage
+        return clean_coverage(self.cleaned_data.get('vessel_coverage') or [])
 
 
 # Setup fields with a unit (converted by static/reports/js/units.js when the Units select changes)

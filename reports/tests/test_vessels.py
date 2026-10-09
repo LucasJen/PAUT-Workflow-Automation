@@ -170,3 +170,60 @@ class VesselViewTests(TestCase):
         vessel = Vessel.objects.get()
         self.assertAlmostEqual(vessel.diameter, 66)
         self.assertContains(self.client.get(reverse('edit-vessel', args=[vessel.pk])), 'value="1676.4 mm"')
+
+
+class ReportCoverageTests(TestCase):
+    def setUp(self):
+        self.client.post(reverse('new-vessel'), post_data(boot_diameter='24', boot_length='40', boot_position='84'))
+        self.vessel = Vessel.objects.get()
+
+    def test_editor_saves_the_vessel_and_its_cleaned_coverage(self):
+        from reports.models import Report
+        from reports.tests.test_create_report import post_data as report_post
+        marks = [{'kind': 'box', 'start': '12', 'end': 60, 'label': 'Examination Area', 'junk': 1},
+                 {'kind': 'seam', 'target': 17}, {'kind': 'nozzle', 'target': ''}, {'kind': 'nonsense'}]
+        self.client.post(reverse('create-report'), report_post(vessel=self.vessel.pk, vessel_coverage=json.dumps(marks),
+                                                              vessel_caption=''))
+        report = Report.objects.get()
+        self.assertEqual(report.vessel, self.vessel)
+        self.assertEqual(report.vessel_coverage, [
+            {'kind': 'box', 'start': 12.0, 'end': 60.0, 'label': 'Examination Area'},
+            {'kind': 'seam', 'target': '17'}])
+        # A report saved without the drawings step's fields keeps an empty list, not null
+        self.client.post(reverse('create-report'), report_post(document_filename='Other'))
+        self.assertEqual(Report.objects.get(document_filename='Other').vessel_coverage, [])
+
+    def test_parts_list_names_courses_seams_nozzles_and_boot(self):
+        parts = self.client.get(reverse('vessel-parts', args=[self.vessel.pk])).json()
+        self.assertEqual([p[1] for p in parts['parts']],
+                         ['Left head', 'Course 1', 'Course 2', 'Course 3', 'Right head', 'Boot'])
+        self.assertEqual(parts['seams'], [16, 17, 18, 19, 20, 21])
+        self.assertEqual(parts['nozzles'], ['A'])
+        self.assertEqual(parts['directions'], ['Top', 'S', 'Bottom', 'N'])
+        self.assertEqual(parts['length'], 168)
+
+    def test_png_draws_coverage_from_the_query(self):
+        url = reverse('vessel-png', args=[self.vessel.pk])
+        plain = self.client.get(url).content
+        marked = self.client.get(url, {'coverage': json.dumps([{'kind': 'part', 'target': '1'}])}).content
+        self.assertNotEqual(plain, marked)
+        self.assertEqual(self.client.get(url, {'coverage': 'not json'}).content, plain)
+
+    def test_word_and_short_form_print_the_vessel_first(self):
+        from docxtpl import DocxTemplate
+        from reports.models import Report
+        from reports.services.corrosion_report import corrosion_pages
+        from reports.services.report_render import _drawings, template_path
+        report = Report.objects.create(document_filename='R', vessel=self.vessel,
+                                       vessel_coverage=[{'kind': 'part', 'target': '0'}])
+        figures = _drawings(report, DocxTemplate(template_path(report)))
+        self.assertEqual(figures[0]['title'], '11V-9 – scan coverage')
+        report.vessel_caption = 'Shell coverage'
+        self.assertEqual(_drawings(report, DocxTemplate(template_path(report)))[0]['title'], 'Shell coverage')
+        report.report_type = 'paut_corrosion'
+        pages = corrosion_pages(report)
+        self.assertTrue(pages.vessel.startswith(b'\x89PNG'))
+        self.assertEqual(pages.drawings, [('Horizontal Drawing', None)])
+        self.assertEqual(pages.page_count, 2)
+        report.vessel = None
+        self.assertEqual(_drawings(report, DocxTemplate(template_path(report))), [])

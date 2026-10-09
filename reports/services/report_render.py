@@ -23,6 +23,7 @@ from ..models import ReportImage, TextSnippet
 from ..report_types import SECTIONS, get_report_type
 from ..results import report_results, report_scan_rows
 from .setup_sheet import sheet_png
+from .vessel import report_caption, report_png
 
 logger = logging.getLogger(__name__)
 
@@ -177,9 +178,27 @@ def _people(people, role):
     return [{'name': p.name, 'certification': p.certification} for p in people if getattr(p, role)]
 
 
+VESSEL_MAX_HEIGHT = Inches(8.0)
+
+
+def _vessel_figure(report, tpl):
+    """The vessel drawing with this job's coverage: full width, or scaled to fit the page when tall."""
+    png = report_png(report)
+    if not png:
+        return None
+    with PILImage.open(io.BytesIO(png)) as img:
+        width, height = img.size
+    if height / width > VESSEL_MAX_HEIGHT / FULL_WIDTH:
+        inline = InlineImage(tpl, io.BytesIO(png), height=VESSEL_MAX_HEIGHT)
+    else:
+        inline = InlineImage(tpl, io.BytesIO(png), width=FULL_WIDTH)
+    return {'title': report_caption(report), 'images': [inline]}
+
+
 def _drawings(report, tpl):
-    """Equipment drawings: one titled figure each, under the Drawing heading."""
-    figures = []
+    """Equipment drawings: one titled figure each, under the Drawing heading (the vessel's first)."""
+    vessel = _vessel_figure(report, tpl)
+    figures = [vessel] if vessel else []
     for image in report.images.filter(kind=ReportImage.DRAWING).order_by('order'):
         inline = _image(tpl, image.image, FULL_WIDTH)
         if inline:

@@ -174,7 +174,9 @@ class _Builder:
         profile = [(s + rb * math.cos(t), tl - depth * math.sin(t))
                    for t in (math.pi * k / 24 for k in range(25))]
         shape = [(s - rb, top), (s + rb, top)] + profile
-        boot = {'s': s, 'rb': rb, 'top': -lay.radius_at(s), 'tl': tl, 'apex': tl - depth, 'polygon': shape,
+        # Coverage shades the boot from the shell's outside down (its outline starts inside the shell, hidden)
+        covered = [(s - rb, -lay.radius_at(s)), (s + rb, -lay.radius_at(s))] + profile
+        boot = {'s': s, 'rb': rb, 'top': -lay.radius_at(s), 'tl': tl, 'apex': tl - depth, 'polygon': covered,
                 'scale': length / spec.boot_length}
         self.scene.add('polygon', points=self.pts(self.keep(shape)), fill='paper', stroke='outline', width=1.6)
         return boot
@@ -614,3 +616,69 @@ def build_scene(spec, coverage=()):
     scene.y_min, scene.y_max = min(ys) - MARGIN, max(ys) + MARGIN
     scene.shapes = [shape for shape in scene.shapes if shape['kind'] != 'bounds']
     return scene
+
+
+COVERAGE_KINDS = ('part', 'seam', 'nozzle', 'band', 'box')
+
+
+def clean_coverage(marks):
+    """A report's coverage marks with only the keys each kind uses (lengths as numbers, in inches)."""
+    cleaned = []
+    for mark in marks if isinstance(marks, list) else []:
+        if not isinstance(mark, dict) or mark.get('kind') not in COVERAGE_KINDS:
+            continue
+        kind = mark['kind']
+        item = {'kind': kind}
+        if kind in ('part', 'seam', 'nozzle'):
+            item['target'] = str(mark.get('target', '')).strip()[:20]
+            if not item['target']:
+                continue
+        else:
+            for key in ('start', 'end'):
+                try:
+                    item[key] = float(mark[key]) if mark.get(key) not in (None, '') else None
+                except (TypeError, ValueError):
+                    item[key] = None
+            item['label'] = str(mark.get('label') or '').strip()[:80]
+            if kind == 'band':
+                item['from'] = str(mark.get('from') or '')[:8]
+                item['to'] = str(mark.get('to') or '')[:8]
+                item['style'] = 'grid' if mark.get('style') == 'grid' else 'solid'
+        cleaned.append(item)
+    return cleaned
+
+
+def vessel_parts(spec):
+    """
+    What a report's coverage marks can name on this vessel, for the editor's lists: its parts
+    (heads, courses, boot), seam numbers, nozzle tags and the directions a band runs between.
+    """
+    from .spec import TOP, side_names
+    builder = _Builder(spec, [])
+    vertical = not spec.horizontal
+    start, end = ('Bottom head', 'Top head') if vertical else ('Left head', 'Right head')
+    if spec.vessel_type == 'tank':
+        start, end = 'Bottom', 'Roof'
+    parts = [['start', start]]
+    number = 0
+    for i, row in enumerate(spec.courses):
+        if row.get('kind') == 'course':
+            number += 1
+            label = f" ({row['label']})" if row.get('label') else ''
+            parts.append([str(i), f'Course {number}{label}'])
+        elif row.get('kind') == 'cone':
+            parts.append([str(i), 'Cone'])
+    parts.append(['end', end])
+    seams = [n for n, _ in builder.numbered_seams()]
+    if spec.has_boot:
+        parts.append(['boot', 'Boot'])
+        seams += [seams[-1] + 1, seams[-1] + 2] if seams else [spec.seam_start, spec.seam_start + 1]
+    if spec.horizontal:
+        near, far = side_names(spec)
+        directions = [TOP, near, BOTTOM, far]
+    else:
+        from .spec import COMPASS
+        directions = list(COMPASS)
+    return {'parts': parts, 'seams': seams, 'nozzles': [n.get('tag') for n in spec.nozzles if n.get('tag')],
+            'directions': directions, 'length': builder.layout.length, 'metric': spec.metric,
+            'start': 'bottom' if vertical else 'left'}

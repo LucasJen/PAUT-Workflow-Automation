@@ -66,5 +66,6 @@
 {% block scripts %}
 {{ type_starts|json_script:"vessel-type-starts" }}
 {{ directions|json_script:"vessel-directions" }}
+<script src="{% static_v 'reports/js/vessel_lengths.js' %}"></script>
 <script src="{% static_v 'reports/js/vessel.js' %}"></script>
 {% endblock %}

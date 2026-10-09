@@ -1712,3 +1712,15 @@ body.drop-target .content { outline: 2px dashed var(--bs-primary); outline-offse
                     border: 1px solid var(--border); border-radius: var(--radius); }
 .vessel-stage img:not([src]) { min-height: 12rem; width: 100%; }
 .cell-grid-note { font-weight: 400; color: var(--text-3); text-transform: none; letter-spacing: 0; }
+/* Report editor: the vessel drawing and its coverage rows (vessel_coverage.js) */
+.vessel-coverage { margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.vessel-coverage-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; margin: 0.5rem 0 0.25rem; }
+.vessel-coverage-head .form-text { margin: 0; font-size: 0.8125rem; }
+.vessel-coverage .vessel-table td:first-child { white-space: nowrap; padding-right: 0.5rem; }
+.vessel-coverage-cells { display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; align-items: center; }
+.vessel-coverage-cell { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0; font-size: 0.75rem; color: var(--text-2); }
+.vessel-coverage-cell .form-control.mono { width: 6rem; }
+.vessel-coverage-cell .form-select { width: auto; max-width: 14rem; }
+.vessel-coverage-add { width: auto; }
+.vessel-coverage-stage { margin-top: 0.75rem; }
+.vessel-coverage-stage img { max-height: 70vh; }

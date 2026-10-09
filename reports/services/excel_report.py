@@ -696,6 +696,11 @@ def _prepare(report, workdir, xlsx_path):
                 page.picture = os.path.join(workdir, f'setup_sheet_{i}.png')
                 with open(page.picture, 'wb') as f:
                     f.write(page.sheet)
+        if corrosion.vessel:
+            path = os.path.join(workdir, 'vessel.png')
+            with open(path, 'wb') as f:
+                f.write(corrosion.vessel)
+            corrosion.drawings[0] = (corrosion.drawings[0][0], path)
 
         def fill(wb):
             fill_corrosion(wb, corrosion, _write, _add_picture_in)

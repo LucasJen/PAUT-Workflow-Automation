@@ -1,3 +1,5 @@
+import json
+
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -5,7 +7,7 @@ from django.views.decorators.http import require_POST
 
 from ..forms import VesselForm
 from ..models import Vessel
-from ..services.vessel import COMPASS, render_png, side_names, spec_from, VesselSpec
+from ..services.vessel import COMPASS, VesselSpec, clean_coverage, render_png, side_names, spec_from, vessel_parts
 
 # What a new vessel of each type starts as (vessel.js applies it when the type changes on a new
 # vessel): its heads, and its rows from the start end (lengths in inches)
@@ -108,4 +110,14 @@ def vessel_preview(request):
 
 
 def vessel_png(request, pk):
-    return _png(render_png(spec_from(get_object_or_404(Vessel, pk=pk))))
+    """The saved vessel's drawing; ?coverage=<JSON marks> draws a report's coverage on it (its editor's preview)."""
+    try:
+        coverage = clean_coverage(json.loads(request.GET.get('coverage') or '[]'))
+    except ValueError:
+        coverage = []
+    return _png(render_png(spec_from(get_object_or_404(Vessel, pk=pk)), coverage))
+
+
+def vessel_parts_json(request, pk):
+    """What a report's coverage rows can name on the vessel: parts, seams, nozzles, band directions."""
+    return JsonResponse(vessel_parts(spec_from(get_object_or_404(Vessel, pk=pk))))
