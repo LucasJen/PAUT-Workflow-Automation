@@ -84,6 +84,20 @@ def _parse_results(post):
     return columns, rows
 
 
+def _page_order(formset):
+    """
+    The formset's forms in their order on the page: by each one's posted <prefix>-position when the
+    editor moved them (drawings: saved forms always come first in the formset itself), else as posted.
+    """
+    def position(item):
+        index, form = item
+        try:
+            return int(formset.data.get(f'{form.prefix}-position', index))
+        except (TypeError, ValueError):
+            return index
+    return [form for _, form in sorted(enumerate(formset.forms), key=position)]
+
+
 def _save_ordered_formset(formset, skip_new=None, **fields):
     """
     Saves an inline formset, deleting removed objects and numbering the rest
@@ -94,7 +108,7 @@ def _save_ordered_formset(formset, skip_new=None, **fields):
         obj.delete()
     deleted_forms = formset.deleted_forms
     order = 0
-    for f in formset.forms:
+    for f in _page_order(formset):
         if f in deleted_forms or (f.instance.pk is None and not f.has_changed()):
             continue
         if f.instance.pk is None and skip_new is not None and skip_new(f):

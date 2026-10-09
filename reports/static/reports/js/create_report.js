@@ -11,14 +11,26 @@ function readJson(id, fallback) {
 // ── Formset helpers ──────────────────────────────────────────────────────
 // Django formsets need contiguous indexes (<prefix>-<n>-<field>) and TOTAL_FORMS to match.
 
-function makeFormset({ prefix, container, template, blockSelector, titleSelector, titleText, removeSelector, onChange }) {
+function makeFormset({ prefix, container, template, blockSelector, titleSelector, titleText, removeSelector, onChange,
+                       reorder = false }) {
     const totalForms = document.querySelector(`[name="${prefix}-TOTAL_FORMS"]`);
     const namePattern = new RegExp(`^${prefix}-\\d+-`);
     const idPattern = new RegExp(`^id_${prefix}-\\d+-`);
 
     function renumber() {
         let index = 0;
-        container.querySelectorAll(blockSelector).forEach(block => {
+        let blocks = [...container.querySelectorAll(blockSelector)];
+        if (reorder) {
+            // Moved blocks keep the formset's rule that saved forms come first; their place on the
+            // page goes in each block's position field, which the server orders them by
+            blocks.forEach((block, i) => {
+                const position = block.querySelector('.block-position');
+                if (position) position.value = i;
+            });
+            const saved = block => !!block.querySelector('input[name$="-id"]')?.value;
+            blocks = [...blocks.filter(saved), ...blocks.filter(block => !saved(block))];
+        }
+        blocks.forEach(block => {
             block.querySelectorAll('input, select, textarea').forEach(el => {
                 if (el.name) el.name = el.name.replace(namePattern, `${prefix}-${index}-`);
                 if (el.id) el.id = el.id.replace(idPattern, `id_${prefix}-${index}-`);
@@ -41,7 +53,66 @@ function makeFormset({ prefix, container, template, blockSelector, titleSelector
             const title = block.querySelector(titleSelector);
             if (title) title.textContent = titleText(shown);
         });
+        if (reorder) container.classList.toggle('can-reorder', shown > 1);
         onChange(shown);
+    }
+
+    // Moving blocks (reorder): the arrows step past the next shown block, the grip drags
+    function shownBlocks() {
+        return [...container.querySelectorAll(blockSelector)].filter(block => !block.hidden);
+    }
+
+    function moveBlock(block, to) {
+        const list = shownBlocks().filter(b => b !== block);
+        if (!list.length) return;
+        to = Math.max(0, Math.min(list.length, to));
+        if (to < list.length) list[to].before(block);
+        else list[list.length - 1].after(block);
+        renumber();
+        markDirty();
+    }
+
+    if (reorder) {
+        container.addEventListener('click', e => {
+            const button = e.target.closest('.block-up, .block-down');
+            if (!button) return;
+            const block = button.closest(blockSelector);
+            const at = shownBlocks().indexOf(block);
+            moveBlock(block, button.classList.contains('block-up') ? at - 1 : at + 1);
+        });
+        container.addEventListener('pointerdown', e => {
+            const grip = e.target.closest('.block-grip');
+            if (!grip || e.button !== 0) return;
+            e.preventDefault();
+            const block = grip.closest(blockSelector);
+            const from = shownBlocks().indexOf(block);
+            let to = from;
+            grip.setPointerCapture(e.pointerId);
+            block.classList.add('is-dragging-block');
+            const clear = () => container.querySelectorAll('.drop-before, .drop-after')
+                .forEach(b => b.classList.remove('drop-before', 'drop-after'));
+            const move = ev => {
+                const list = shownBlocks();
+                to = list.length - 1;
+                for (let k = 0; k < list.length; k++) {
+                    const box = list[k].getBoundingClientRect();
+                    if (ev.clientY < box.top + box.height / 2) { to = k > from ? k - 1 : k; break; }
+                }
+                clear();
+                if (to !== from) list[to].classList.add(to > from ? 'drop-after' : 'drop-before');
+            };
+            const end = ev => {
+                grip.removeEventListener('pointermove', move);
+                grip.removeEventListener('pointerup', end);
+                grip.removeEventListener('pointercancel', end);
+                block.classList.remove('is-dragging-block');
+                clear();
+                if (ev.type === 'pointerup' && to !== from) moveBlock(block, to);
+            };
+            grip.addEventListener('pointermove', move);
+            grip.addEventListener('pointerup', end);
+            grip.addEventListener('pointercancel', end);
+        });
     }
 
     function add() {
@@ -203,6 +274,7 @@ const drawings = makeFormset({
     titleText: n => String(n),
     removeSelector: '.remove-image',
     onChange: n => { document.getElementById('drawings-count').textContent = n || ''; },
+    reorder: true,
 });
 
 const images = makeFormset({
