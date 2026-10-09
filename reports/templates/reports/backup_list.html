@@ -48,4 +48,32 @@
         <span class="mono">media</span> folder, then start the app again.
     </p>
 </section>
+
+<section class="panel mt-3">
+    <div class="panel-header">
+        <h2 class="panel-title">Unused files</h2>
+        {% if unused %}
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" name="delete_unused" class="btn btn-secondary btn-sm"
+                    data-confirm="Back up, then delete {{ unused|length }} unused file{{ unused|length|pluralize }} ({{ unused_size|filesizeformat }})? The backup keeps a copy of each."
+                    data-confirm-label="Back up &amp; delete"><i class="bi bi-trash"></i> Delete unused files</button>
+        </form>
+        {% endif %}
+    </div>
+    <p class="form-text">
+        Pictures and documents in <span class="mono">media</span> that no report, setup or library document uses
+        any more (left behind when one is deleted; duplicated reports share their files, so they stay while any
+        report uses them). Deleting makes a backup first.
+    </p>
+    {% if unused %}
+    <p class="mb-2">{{ unused|length }} file{{ unused|length|pluralize }}, {{ unused_size|filesizeformat }}:</p>
+    <ul class="mono small mb-0 unused-files">
+        {% for file in unused|slice:":50" %}<li>{{ file.name }} <span class="text-body-secondary">({{ file.size|filesizeformat }})</span></li>{% endfor %}
+        {% if unused|length > 50 %}<li class="text-body-secondary">…and {{ unused|length|add:"-50" }} more</li>{% endif %}
+    </ul>
+    {% else %}
+    <p class="mb-0 text-body-secondary"><i class="bi bi-check-circle text-success"></i> No unused files.</p>
+    {% endif %}
+</section>
 {% endblock %}

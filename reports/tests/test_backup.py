@@ -75,3 +75,36 @@ class BackupTests(TransactionTestCase):
         resp = self.client.post(reverse('backup-list'), {'backup': '1'}, follow=True)
         self.assertContains(resp, 'Backed up to backup_')
         self.assertEqual(len(backup.backups()), 1)
+
+
+class UnusedFilesTests(TransactionTestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        override = override_settings(BACKUP_DIR=self.tmp / 'backups', MEDIA_ROOT=self.tmp / 'media')
+        override.enable()
+        self.addCleanup(override.disable)
+        images = self.tmp / 'media' / 'report_images'
+        images.mkdir(parents=True)
+        old = datetime(2026, 1, 1).timestamp()
+        for name in ('used.png', 'shared.png', 'orphan.png', 'new.png'):
+            (images / name).write_bytes(b'x' * 10)
+            if name != 'new.png':
+                os.utime(images / name, (old, old))
+
+    def test_only_files_nothing_uses_are_deleted_after_a_backup(self):
+        from reports.models import ReportImage
+        from reports.services.media_cleanup import unused_files
+        report, copy = Report.objects.create(), Report.objects.create()
+        ReportImage.objects.create(report=report, image='report_images/used.png')
+        # A duplicate shares its original's file
+        ReportImage.objects.create(report=copy, image='report_images/shared.png')
+        # new.png is too recent to offer (a save may still be using it)
+        self.assertEqual([f['name'] for f in unused_files()], ['report_images/orphan.png'])
+
+        resp = self.client.post(reverse('backup-list'), {'delete_unused': '1'}, follow=True)
+        self.assertContains(resp, 'Deleted 1 unused file')
+        left = sorted(p.name for p in (self.tmp / 'media' / 'report_images').iterdir())
+        self.assertEqual(left, ['new.png', 'shared.png', 'used.png'])
+        self.assertTrue((self.tmp / 'backups' / 'media' / 'report_images' / 'orphan.png').exists())
+        self.assertEqual(len(backup.backups()), 1)
