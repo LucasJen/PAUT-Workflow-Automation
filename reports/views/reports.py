@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
+from django.db.models.functions import Trim
 from ..services.excel_report import (
     CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available, output_warnings,
 )
@@ -57,6 +58,11 @@ def safe_filename(name, default='report'):
     if not name or name.upper() in _WINDOWS_RESERVED:
         return default
     return name[:150]
+
+
+def output_name(report, ext):
+    """The download's file name: the report's name, or 'Report 12' for a report without one."""
+    return f'{safe_filename(report.document_filename, default=f"Report {report.pk}")}.{ext}'
 
 
 def _parse_results(post):
@@ -556,7 +562,7 @@ def report_docx(request, pk):
     except ReportRenderError as e:
         return render(request, 'reports/pdf_error.html', {'message': str(e), 'report': report}, status=500)
     response = FileResponse(io.BytesIO(content), content_type=DOCX_CONTENT_TYPE,
-                            filename=f'{safe_filename(report.document_filename)}.docx')
+                            filename=output_name(report, 'docx'))
     response['Cache-Control'] = 'no-store'
     return response
 
@@ -593,13 +599,22 @@ def _save_copy(request, report, name, content):
     if report.job_folder:
         _save_to_job_folder(request, report, name, content)
     else:
-        _save_server_copy(name, content)
+        _save_server_copy(report, name, content)
 
 
-def _save_server_copy(name, content):
-    """Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off)."""
+def _save_server_copy(report, name, content):
+    """
+    Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off). A name several
+    reports share gets the report's number ('PPI-1 (report 12).xlsx'), so they don't overwrite
+    each other's copy.
+    """
     if not settings.REPORT_OUTPUT_DIR:
         return
+    shared = report.document_filename.strip() and Report.objects.exclude(pk=report.pk).annotate(
+        name=Trim('document_filename')).filter(name__iexact=report.document_filename.strip()).exists()
+    if shared:
+        stem, ext = os.path.splitext(name)
+        name = f'{stem} (report {report.pk}){ext}'
     copy_path = os.path.join(settings.REPORT_OUTPUT_DIR, name)
     try:
         os.makedirs(settings.REPORT_OUTPUT_DIR, exist_ok=True)
@@ -620,7 +635,7 @@ def report_pdf(request, pk):
     if redirect_response:
         return redirect_response
     download = request.GET.get('download') == '1'
-    name = f'{safe_filename(report.document_filename)}.pdf'
+    name = output_name(report, 'pdf')
     try:
         if _is_excel(report):
             if not excel_available():
@@ -654,28 +669,28 @@ def generate_report(request, pk):
     if _is_excel(report):
         return _excel_download(request, report)
 
-    output_name = f'{safe_filename(report.document_filename)}.docx'
+    name = output_name(report, 'docx')
     try:
         content = _render_docx(report)
     except ReportRenderError as e:
         return _download_error(request, report.pk, str(e))
 
-    _save_copy(request, report, output_name, content)
+    _save_copy(request, report, name, content)
 
-    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name,
+    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=name,
                                        content_type=DOCX_CONTENT_TYPE), report)
 
 
 def _excel_download(request, report):
-    output_name = f'{safe_filename(report.document_filename)}.xlsx'
+    name = output_name(report, 'xlsx')
     try:
         if not excel_available():
             raise ExcelReportError(_excel_unavailable_message())
         content, _ = build_workbook(report)
     except ExcelReportError as e:
         return _download_error(request, report.pk, str(e))
-    _save_copy(request, report, output_name, content)
-    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name,
+    _save_copy(request, report, name, content)
+    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=name,
                                        content_type=XLSX_CONTENT_TYPE), report)
 
 

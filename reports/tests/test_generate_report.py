@@ -157,3 +157,33 @@ class SaveAndDownloadTests(TestCase):
         ReportGroup.objects.create(report=weld)
         resp = self.client.get(reverse('report-list'))
         self.assertContains(resp, reverse('generate-report', args=[weld.pk]))
+
+
+class OutputNameTests(TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        override = override_settings(REPORT_OUTPUT_DIR=self.tmp.name)
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def generate(self, report):
+        Setup.objects.create(report=report)
+        return self.client.get(reverse('generate-report', args=[report.pk]))
+
+    def test_blank_name_downloads_as_the_report_number(self):
+        report = Report.objects.create(document_filename='')
+        resp = self.generate(report)
+        self.assertIn(f'Report {report.pk}.docx', resp['Content-Disposition'])
+        self.assertEqual(os.listdir(self.tmp.name), [f'Report {report.pk}.docx'])
+
+    def test_same_named_reports_keep_their_own_copy(self):
+        first = Report.objects.create(document_filename='PPI-1')
+        self.generate(first)
+        second = Report.objects.create(document_filename='ppi-1 ')
+        resp = self.generate(second)
+        self.assertIn('ppi-1.docx', resp['Content-Disposition'])   # the download keeps its name
+        # The first copy (made while its name was its own) isn't overwritten
+        self.assertEqual(sorted(os.listdir(self.tmp.name)), ['PPI-1.docx', f'ppi-1 (report {second.pk}).docx'])
+        self.generate(first)
+        self.assertIn(f'PPI-1 (report {first.pk}).docx', os.listdir(self.tmp.name))
