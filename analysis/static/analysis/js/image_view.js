@@ -225,6 +225,23 @@ void main() {
                 }
                 return;
             }
+            const box = this.cursors.box;
+            if (box && [box.x0, box.x1, box.y0, box.y1].every(v => v !== null && v !== undefined && Number.isFinite(v))) {
+                const [ax, ay] = this.toScreen(box.x0, box.y0), [bx, by] = this.toScreen(box.x1, box.y1);
+                ctx.save();
+                ctx.fillStyle = 'rgba(250, 204, 21, 0.10)';
+                ctx.strokeStyle = '#facc15';
+                ctx.setLineDash([6 * ratio, 4 * ratio]);
+                ctx.lineWidth = 1.5 * ratio;
+                ctx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+                ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+                ctx.restore();
+            }
+            for (const mark of this.cursors.marks || []) {   // e.g. the zone's thinnest point
+                const [mx, my] = this.toScreen(mark.x, mark.y);
+                ctx.strokeStyle = mark.colour; ctx.lineWidth = 2 * ratio;
+                ctx.beginPath(); ctx.arc(mx, my, 6 * ratio, 0, Math.PI * 2); ctx.stroke();
+            }
             for (const c of this.cursors.x) {
                 if (c.value === null || c.value === undefined) continue;
                 const [x] = this.toScreen(c.value, 0);

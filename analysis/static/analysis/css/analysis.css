@@ -107,3 +107,25 @@ body.analysis-resizing { user-select: none; }
 .analysis-range .form-control { width: 4.2rem; padding: 0.05rem 0.3rem; font-size: 0.75rem; }
 .analysis-progress { display: inline-block; width: 6rem; height: 0.35rem; border-radius: 2px; background: var(--border); overflow: hidden; vertical-align: middle; }
 .analysis-progress span { display: block; height: 100%; background: var(--accent); }
+
+/* Readings / indications tabs, sizing, indication list */
+.analysis-tabs { gap: 0.25rem; padding-top: 0.2rem; padding-bottom: 0; align-items: flex-end; }
+.analysis-tab { border: 0; background: none; padding: 0.25rem 0.5rem; font-size: 0.8125rem; font-weight: 600; color: var(--text-3); border-bottom: 2px solid transparent; }
+.analysis-tab.is-active { color: var(--text); border-bottom-color: var(--accent); }
+.analysis-tabs .btn { margin-bottom: 0.25rem; }
+.analysis-count { font-weight: 400; color: var(--text-3); }
+.analysis-tab-body { display: flex; flex-direction: column; min-height: 0; overflow: auto; flex: 1 1 auto; }
+.analysis-tab-body[hidden] { display: none; }
+.analysis-sizing { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; padding: 0.4rem 0.5rem; }
+.analysis-sizing .form-select { width: auto; font-size: 0.75rem; padding: 0.1rem 1.4rem 0.1rem 0.35rem; }
+.analysis-sizing .analysis-note { width: 100%; font-size: 0.75rem; }
+.analysis-panel kbd { font-size: 0.65rem; padding: 0 0.2rem; background: rgba(0,0,0,0.25); color: inherit; }
+.analysis-indication-actions { display: flex; gap: 0.35rem; padding: 0.45rem 0.5rem; }
+.analysis-indications { padding: 0 0.4rem 0.5rem; }
+.analysis-indication-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.analysis-indication-table th { font-weight: 600; color: var(--text-2); text-align: left; padding: 0.15rem 0.2rem; border-bottom: 1px solid var(--border); }
+.analysis-indication-table td { padding: 0.15rem 0.2rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.analysis-indication-table tr.is-current td { background: var(--accent-soft); }
+.analysis-indication-table tr { cursor: pointer; }
+.analysis-indication-table .form-control { padding: 0.05rem 0.25rem; font-size: 0.75rem; min-width: 0; }
+.analysis-indication-table .btn { padding: 0 0.3rem; font-size: 0.7rem; }

@@ -20,7 +20,9 @@
     if (!page) return;
     const urls = { files: page.dataset.filesUrl, file: page.dataset.fileUrl, frame: page.dataset.frameUrl,
                    readings: page.dataset.readingsUrl, projections: page.dataset.projectionsUrl,
-                   cscan: page.dataset.cscanUrl, bscan: page.dataset.bscanUrl };
+                   cscan: page.dataset.cscanUrl, bscan: page.dataset.bscanUrl, size: page.dataset.sizeUrl,
+                   indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
+                   indication: page.dataset.indicationUrl };
     const $ = id => document.getElementById(id);
     const fileSelect = $('file-select'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const slider = $('scan-slider'), scanNumber = $('scan-number'), gainInput = $('gain');
@@ -48,9 +50,15 @@
         'A dB(r)': 'Gate A peak against the reference level, in dB',
         'U(r)': 'Reference cursor depth', 'U(m)': 'Measure cursor depth', 'U(m-r)': 'Depth between the cursors',
         Scan: 'Scan position of this scan line', Index: 'Index position (the line on a raster, the probe on a weld scan)',
+        'S(r)': 'Reference cursor scan position', 'S(m)': 'Measure cursor scan position', 'S(m-r)': 'Scan distance between the cursors',
+        Length: 'Indication length from the sizing', Width: 'Indication width (index axis) from the sizing',
+        'Peak%': 'Highest gate amplitude of the sized indication', TminZ: 'Least thickness in the zone between the cursors',
+        TmaxZ: 'Most thickness in the zone', TavgZ: 'Average thickness in the zone', 'S(TminZ)': 'Scan position of the least thickness',
+        'I(TminZ)': 'Index position of the least thickness', 'A%maxZ': 'Highest gate amplitude in the zone',
+        'S(A%maxZ)': 'Scan position of the highest amplitude in the zone',
         'I(r)': 'Reference cursor index position', 'I(m)': 'Measure cursor index position', 'I(m-r)': 'Index distance between the cursors',
     };
-    const NO_CURSORS = { u_ref: null, u_meas: null, i_ref: null, i_meas: null };
+    const NO_CURSORS = { u_ref: null, u_meas: null, i_ref: null, i_meas: null, s_ref: null, s_meas: null };
 
     const state = { path: '', group: 0, scan: 0, lateral: 0, gain: 0, info: null, frame: null, values: null,
                     gates: [], gatesEdited: false, cursors: { ...NO_CURSORS }, refLevel: 80, readings: {},
@@ -113,7 +121,12 @@
     const cview = new ImageView($('cscan-stage'), {
         formatX: x => format(x, true), formatY: y => (isRaster() ? format(y, true) : lineText(y)),
         xUnit: unitLength, yUnit: () => (isRaster() ? unitLength() : 1),
-        onPick: ({ column, row, inside }) => {
+        onPick: ({ column, row, x, y, inside, event }) => {
+            if (event.ctrlKey || event.shiftKey) {   // reference / measure: scan (and index on a raster)
+                const which = event.shiftKey ? 'meas' : 'ref';
+                setCursors({ [`s_${which}`]: x, ...(isRaster() ? { [`i_${which}`]: y } : {}) });
+                return;
+            }
             if (!inside) return;
             if (column !== state.scan) setScan(column);
             if (row !== state.lateral) setLateral(row);
@@ -131,8 +144,12 @@
     });
     const bview = new ImageView($('bscan-stage'), {
         formatX: x => format(x, true), formatY: y => format(y, true), xUnit: unitLength, yUnit: unitLength,
-        onPick: ({ column, y, event, inside }) => {
-            if (event.ctrlKey || event.shiftKey) { setCursors({ [event.shiftKey ? 'u_meas' : 'u_ref']: y }); return; }
+        onPick: ({ column, x, y, event, inside }) => {
+            if (event.ctrlKey || event.shiftKey) {   // reference / measure: scan and depth
+                const which = event.shiftKey ? 'meas' : 'ref';
+                setCursors({ [`s_${which}`]: x, [`u_${which}`]: y });
+                return;
+            }
             if (inside && column !== state.scan) setScan(column);
         },
         onHover: (x, y) => { $('bscan-readout').textContent = x === null ? '' : `Scan ${format(x)} · depth ${format(y)}`; },
@@ -240,7 +257,9 @@
         groupSelect.value = chosen.id;
         showDetails();
         show('');
+        state.sizing = null;
         await setGroup(chosen.id, scan, lateral);
+        loadIndications();
     }
 
     function applyLayout() {
@@ -266,6 +285,7 @@
         cview.clear('');
         bview.clear('');
         fillKinds();
+        fillSizeOver();
         scheduleProjections();
         renderGates();
         sscan.setGeometry(g.rays, g.shape[2], state.info.specimen?.thickness);
@@ -343,10 +363,12 @@
         if (!state.info) return;
         const c = state.cursors;
         const index = isRaster() ? [{ value: c.i_ref, colour: '#f87171' }, { value: c.i_meas, colour: '#4ade80' }] : [];
-        cview.setCursors({ x: [{ value: scanPosition(state.scan), colour: CURSOR }],
-                           y: [{ value: lineY(state.lateral), colour: CURSOR }, ...index] });
-        bview.setCursors({ x: [{ value: scanPosition(state.scan), colour: CURSOR }],
-                           y: [{ value: c.u_ref, colour: '#f87171' }, { value: c.u_meas, colour: '#4ade80' }] });
+        const scanLines = [{ value: c.s_ref, colour: '#f87171' }, { value: c.s_meas, colour: '#4ade80' },
+                           { value: scanPosition(state.scan), colour: CURSOR }];
+        const z = zoneBox();
+        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR }, ...index],
+                           box: z ? z.box : null, marks: z?.mark ? [z.mark] : [] });
+        bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171' }, { value: c.u_meas, colour: '#4ade80' }] });
     }
 
     // ── whole-file views ──
@@ -435,6 +457,7 @@
             transpose: true, mode, range, keepView: keep, smooth: !isRaster(),
             axes: { x0: g.axes[0].offset, dx: g.axes[0].resolution, y0: lineY(0), dy: isRaster() ? g.axes[1].resolution : 1 },
         });
+        renderReadings();
         $('cscan-range').hidden = mode === 'amplitude';
         if (mode !== 'amplitude') {
             $('cscan-min').value = (range[0] / unitLength()).toFixed(3);
@@ -494,7 +517,43 @@
         renderReadings();
         save();
     }
-    $('clear-cursors').addEventListener('click', () => setCursors({ ...NO_CURSORS }));
+    $('clear-cursors').addEventListener('click', () => { state.sizing = null; $('size-note').textContent = ''; setCursors({ ...NO_CURSORS }); });
+
+    // ── zone between the scan (and, on a raster, index) cursors ──
+    const has = v => v !== null && v !== undefined && Number.isFinite(v);
+    /** {box, stats, mark} of the C-scan zone between the cursors, or null. */
+    function zoneBox() {
+        const c = state.cursors, cs = state.cscan, g = currentGroup();
+        if (!g || !cs || !has(c.s_ref) || !has(c.s_meas)) return null;
+        const ax = g.axes[0];
+        const col = x => Math.round((x - ax.offset) / ax.resolution);
+        const c0 = Math.max(0, Math.min(col(c.s_ref), col(c.s_meas))), c1 = Math.min(cs.scans - 1, Math.max(col(c.s_ref), col(c.s_meas)));
+        let r0 = 0, r1 = cs.lines - 1;
+        if (isRaster() && has(c.i_ref) && has(c.i_meas)) {
+            const ay = g.axes[1];
+            const row = y => Math.round((y - ay.offset) / ay.resolution);
+            r0 = Math.max(0, Math.min(row(c.i_ref), row(c.i_meas)));
+            r1 = Math.min(cs.lines - 1, Math.max(row(c.i_ref), row(c.i_meas)));
+        }
+        if (c1 < c0 || r1 < r0) return null;
+        let min = Infinity, max = -Infinity, sum = 0, count = 0, minAt = null, maxAt = null;
+        for (let i = c0; i <= c1; i++) {
+            for (let j = r0; j <= r1; j++) {
+                const v = cs.data[i * cs.lines + j];
+                if (Number.isNaN(v)) continue;
+                sum += v; count++;
+                if (v < min) { min = v; minAt = [i, j]; }
+                if (v > max) { max = v; maxAt = [i, j]; }
+            }
+        }
+        const dy = isRaster() ? g.axes[1].resolution : 1;
+        const box = { x0: scanPosition(c0) - ax.resolution / 2, x1: scanPosition(c1) + ax.resolution / 2,
+                      y0: lineY(r0) - dy / 2, y1: lineY(r1) + dy / 2 };
+        if (!count) return { box, stats: null, mark: null };
+        const at = cs.mode === 'amplitude' ? maxAt : minAt;
+        return { box, stats: { min, max, mean: sum / count, count, minAt, maxAt },
+                 mark: { x: scanPosition(at[0]), y: lineY(at[1]), colour: '#facc15' } };
+    }
 
     // ── gates ──
     const halfVelocity = () => (currentGroup()?.beams[state.lateral]?.velocity || 0) / 2;   // sound path per s
@@ -614,9 +673,17 @@
         }
         if (!Object.keys(values).length) rows.push(Object.assign(document.createElement('dd'), { className: 'analysis-note', textContent: state.readingsNote || 'No gate signal on this line.' }));
         const c = state.cursors;
-        const has = v => v !== null && v !== undefined;
-        if ([c.u_ref, c.u_meas, c.i_ref, c.i_meas].some(has)) {
+        if (state.sizing) {
+            const r = state.sizing;
+            add(`Sizing (${r.method === 'threshold' ? 'threshold' : '−' + r.method + ' dB'})`, '', true);
+            add(r.axis === 'index' ? 'Width' : 'Length', format(r.length));
+            add('Peak%', `${r.peak_amplitude.toFixed(1)} %`);
+        }
+        if ([c.u_ref, c.u_meas, c.i_ref, c.i_meas, c.s_ref, c.s_meas].some(has)) {
             add('Cursors', '', true);
+            if (has(c.s_ref)) add('S(r)', format(c.s_ref));
+            if (has(c.s_meas)) add('S(m)', format(c.s_meas));
+            if (has(c.s_ref) && has(c.s_meas)) add('S(m-r)', format(c.s_meas - c.s_ref));
             if (has(c.u_ref)) add('U(r)', format(c.u_ref));
             if (has(c.u_meas)) add('U(m)', format(c.u_meas));
             if (has(c.u_ref) && has(c.u_meas)) add('U(m-r)', format(c.u_meas - c.u_ref));
@@ -624,8 +691,183 @@
             if (has(c.i_meas)) add('I(m)', format(c.i_meas));
             if (has(c.i_ref) && has(c.i_meas)) add('I(m-r)', format(c.i_meas - c.i_ref));
         }
+        const z = zoneBox();
+        if (z && z.stats) {
+            const s = z.stats;
+            add('Zone', '', true);
+            if (state.cscan.mode === 'amplitude') {
+                add('A%maxZ', `${s.max.toFixed(1)} %`);
+                add('S(A%maxZ)', format(scanPosition(s.maxAt[0])));
+            } else {
+                add('TminZ', format(s.min));
+                add('S(TminZ)', format(scanPosition(s.minAt[0])));
+                if (isRaster()) add('I(TminZ)', format(lineY(s.minAt[1])));
+                add('TmaxZ', format(s.max));
+                add('TavgZ', format(s.mean));
+            }
+        }
         list.replaceChildren(...rows);
+        state.shownReadings = snapshot();
     }
+
+    /** Every reading on show, SI (for an indication): the gate readings, dB, cursors, sizing, zone. */
+    function snapshot() {
+        const out = { ...(state.readings || {}) };
+        const a = out['A%'];
+        if (a > 0 && state.refLevel > 0) out['A dB(r)'] = 20 * Math.log10(a / state.refLevel);
+        const c = state.cursors;
+        for (const [key, name] of [['s', 'S'], ['u', 'U'], ['i', 'I']]) {
+            if (has(c[`${key}_ref`])) out[`${name}(r)`] = c[`${key}_ref`];
+            if (has(c[`${key}_meas`])) out[`${name}(m)`] = c[`${key}_meas`];
+            if (has(c[`${key}_ref`]) && has(c[`${key}_meas`])) out[`${name}(m-r)`] = c[`${key}_meas`] - c[`${key}_ref`];
+        }
+        if (state.sizing) {
+            out[state.sizing.axis === 'index' ? 'Width' : 'Length'] = state.sizing.length;
+            out['Peak%'] = state.sizing.peak_amplitude;
+        }
+        const z = zoneBox();
+        if (z && z.stats && state.cscan) {
+            if (state.cscan.mode === 'amplitude') out['A%maxZ'] = z.stats.max;
+            else Object.assign(out, { TminZ: z.stats.min, TmaxZ: z.stats.max, TavgZ: z.stats.mean,
+                                      'S(TminZ)': scanPosition(z.stats.minAt[0]), ...(isRaster() ? { 'I(TminZ)': lineY(z.stats.minAt[1]) } : {}) });
+        }
+        return out;
+    }
+
+    // ── sizing ──
+    function fillSizeOver() {
+        const options = isRaster()
+            ? [['scan:current', 'Length along the scan'], ['index:current', 'Width along the index']]
+            : [['scan:all', 'Length (all beams)'], ['scan:current', 'Length (this beam)']];
+        $('size-over').replaceChildren(...options.map(([v, t]) => new Option(t, v)));
+    }
+
+    async function sizeNow() {
+        if (!state.info) return;
+        const [axis, lines] = $('size-over').value.split(':');
+        const note = $('size-note');
+        note.textContent = 'Sizing…';
+        let response, data;
+        try {
+            response = await fetch(`${urls.size}?${new URLSearchParams({ ...projectionParams(), scan: state.scan, lateral: state.lateral,
+                                                                          axis, lines, method: $('size-method').value, gate: 'A' })}`);
+            data = await response.json();
+        } catch {
+            note.textContent = "Couldn't size: is the server running?";
+            return;
+        }
+        if (response.status === 409) { note.textContent = 'The C-scan data is still being built - try again in a moment.'; scheduleProjections(); return; }
+        if (!response.ok) { note.textContent = data.error || "Couldn't size here."; return; }
+        state.sizing = data;
+        note.textContent = '';
+        const which = axis === 'index' ? 'i' : 's';
+        setCursors({ [`${which}_ref`]: data.start, [`${which}_meas`]: data.end });
+    }
+    $('size-now').addEventListener('click', sizeNow);
+
+    // ── indications ──
+    const csrf = () => (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || '';
+    async function send(url, method, body) {
+        const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(csrf()) },
+                                            body: body === undefined ? undefined : JSON.stringify(body) });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+        return data;
+    }
+    const indicationUrl = id => urls.indication.replace('/0.json', `/${id}.json`);
+
+    async function loadIndications() {
+        if (!state.path) return;
+        try {
+            const data = await NdeClient.readings({ readings: urls.indications }, { path: state.path });
+            state.indications = data.indications;
+        } catch (e) {
+            state.indications = [];
+        }
+        renderIndications();
+        $('export-indications').href = `${urls.indicationsCsv}?${new URLSearchParams({ path: state.path, units })}`;
+    }
+
+    async function addIndication() {
+        if (!state.info) return;
+        const g = currentGroup();
+        try {
+            await send(urls.indications, 'POST', {
+                path: state.path, group: state.group, scan: state.scan, lateral: state.lateral,
+                scan_position: scanPosition(state.scan), index_position: isRaster() ? lineY(state.lateral) : (state.info.probe?.v_offset ?? null),
+                angle: g.layout === 'beams' ? g.beams[state.lateral].refracted_angle : null, gain: state.gain,
+                readings: snapshot(), cursors: state.cursors, sizing: state.sizing || {},
+            });
+        } catch (e) {
+            show(e.message);
+            return;
+        }
+        showTab('indications');
+        loadIndications();
+    }
+
+    function renderIndications() {
+        const list = state.indications || [];
+        $('indication-count').textContent = list.length ? `(${list.length})` : '';
+        const box = $('indication-rows');
+        if (!list.length) {
+            box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note',
+                textContent: 'No indications yet. Size the indication, then Add indication (N) to keep its readings.' }));
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'analysis-indication-table';
+        const head = table.createTHead().insertRow();
+        for (const h of ['#', 'Scan', isRaster() ? 'Index' : 'Angle', 'A%', 'Depth', 'Length', 'Comment', '']) {
+            head.append(Object.assign(document.createElement('th'), { textContent: h }));
+        }
+        const body = table.createTBody();
+        for (const item of list) {
+            const tr = body.insertRow();
+            if (item.scan === state.scan && item.lateral === state.lateral) tr.className = 'is-current';
+            const r = item.readings || {};
+            const depth = r['DA^'] ?? r['A/-I/'] ?? r['TminZ'];
+            const length = r.Length ?? r.Width ?? r['S(m-r)'];
+            const cells = [item.number, format(item.scan_position, true),
+                           isRaster() ? format(item.index_position, true) : (item.angle === null ? '-' : `${item.angle}°`),
+                           r['A%'] === undefined ? '-' : r['A%'].toFixed(1), depth === undefined ? '-' : format(depth, true),
+                           length === undefined ? '-' : format(Math.abs(length), true)];
+            for (const text of cells) tr.insertCell().textContent = text;
+            const comment = Object.assign(document.createElement('input'), { type: 'text', className: 'form-control', value: item.comment || '',
+                                                                            placeholder: 'Comment' });
+            comment.addEventListener('click', e => e.stopPropagation());
+            comment.addEventListener('change', () => send(indicationUrl(item.id), 'POST', { comment: comment.value })
+                .then(saved => { item.comment = saved.comment; }).catch(e => show(e.message)));
+            tr.insertCell().append(comment);
+            const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-secondary',
+                                                                           title: 'Delete this indication', innerHTML: '<i class="bi bi-x-lg"></i>' });
+            remove.addEventListener('click', async e => {
+                e.stopPropagation();
+                try { await send(indicationUrl(item.id), 'DELETE'); } catch (err) { show(err.message); return; }
+                loadIndications();
+            });
+            tr.insertCell().append(remove);
+            tr.addEventListener('click', () => goTo(item));
+        }
+        box.replaceChildren(table);
+    }
+
+    async function goTo(item) {
+        if (item.group !== state.group) await setGroup(item.group, item.scan, item.lateral);
+        state.sizing = item.sizing && item.sizing.length !== undefined ? item.sizing : null;
+        setCursors({ ...NO_CURSORS, ...(item.cursors || {}) });
+        await setScan(item.scan);
+        setLateral(item.lateral, true);
+        renderIndications();
+    }
+
+    $('add-indication').addEventListener('click', addIndication);
+
+    function showTab(name) {
+        document.querySelectorAll('.analysis-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
+        document.querySelectorAll('[data-tab-body]').forEach(b => { b.hidden = b.dataset.tabBody !== name; });
+    }
+    document.querySelectorAll('.analysis-tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
 
     // ── controls ──
     fileSelect.addEventListener('change', () => { if (fileSelect.value) openFile(fileSelect.value); });
@@ -679,6 +921,7 @@
             PageUp: () => setScan(state.scan - 10), PageDown: () => setScan(state.scan + 10),
             ArrowUp: () => setLateral(state.lateral - 1), ArrowDown: () => setLateral(state.lateral + 1),
             '+': () => setGain(state.gain + 1), '=': () => setGain(state.gain + 1), '-': () => setGain(state.gain - 1),
+            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication,
         };
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });

@@ -9,7 +9,9 @@
      data-files-url="{% url 'analysis-files' %}" data-file-url="{% url 'analysis-file' %}"
      data-frame-url="{% url 'analysis-frame' %}" data-readings-url="{% url 'analysis-readings' %}"
      data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
-     data-bscan-url="{% url 'analysis-bscan' %}">
+     data-bscan-url="{% url 'analysis-bscan' %}" data-size-url="{% url 'analysis-size' %}"
+     data-indications-url="{% url 'analysis-indications' %}" data-indications-csv-url="{% url 'analysis-indications-csv' %}"
+     data-indication-url="{% url 'analysis-indication' 0 %}">
     <div class="analysis-toolbar panel">
         <div class="analysis-tool analysis-file">
             <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
@@ -98,15 +100,36 @@
             <div class="analysis-readout mono" id="ascan-readout"></div>
         </section>
         <aside class="analysis-panel analysis-readings">
-            <header class="analysis-panel-head"><span>Readings</span>
-                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="clear-cursors" title="Clear the reference and measure cursors"><i class="bi bi-x-lg"></i> Cursors</button>
+            <header class="analysis-panel-head analysis-tabs" role="tablist">
+                <button type="button" class="analysis-tab is-active" data-tab="readings" role="tab">Readings</button>
+                <button type="button" class="analysis-tab" data-tab="indications" role="tab">Indications <span class="analysis-count" id="indication-count"></span></button>
+                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="clear-cursors" title="Clear the reference and measure cursors and the sizing"><i class="bi bi-x-lg"></i> Cursors</button>
             </header>
+            <div class="analysis-tab-body" data-tab-body="readings">
             <dl class="analysis-reading-list" id="readings"></dl>
+            <header class="analysis-panel-head analysis-panel-subhead"><span>Sizing</span></header>
+            <div class="analysis-sizing">
+                <select class="form-select form-select-sm" id="size-method" aria-label="Sizing method" title="How the ends are found">
+                    <option value="6">−6 dB drop</option><option value="12">−12 dB drop</option><option value="20">−20 dB drop</option>
+                    <option value="threshold">Gate threshold</option>
+                </select>
+                <select class="form-select form-select-sm" id="size-over" aria-label="Size along" title="What to size along"></select>
+                <button type="button" class="btn btn-sm btn-primary" id="size-now" title="Size the indication at the cursor (L): the reference and measure cursors go to its ends">Size <kbd>L</kbd></button>
+                <span class="analysis-note" id="size-note"></span>
+            </div>
             <header class="analysis-panel-head analysis-panel-subhead"><span>Gates</span>
                 <span class="analysis-panel-note" id="gates-edited" hidden>edited</span>
                 <button type="button" class="btn btn-sm btn-secondary ms-auto" id="reset-gates" title="Back to the file's gates"><i class="bi bi-arrow-counterclockwise"></i> File's</button>
             </header>
             <div class="analysis-gate-rows" id="gate-rows"></div>
+            </div>
+            <div class="analysis-tab-body" data-tab-body="indications" hidden>
+                <div class="analysis-indication-actions">
+                    <button type="button" class="btn btn-sm btn-primary" id="add-indication" title="Save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i> Add indication <kbd>N</kbd></button>
+                    <a class="btn btn-sm btn-secondary" id="export-indications" href="#" title="The indications as a CSV like OmniPC's indications.csv"><i class="bi bi-download"></i> CSV</a>
+                </div>
+                <div class="analysis-indications" id="indication-rows"></div>
+            </div>
             <p class="analysis-file-details" id="file-details"></p>
         </aside>
     </div>
