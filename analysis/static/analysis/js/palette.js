@@ -52,8 +52,33 @@ window.AnalysisPalette = (function () {
         return (built[`${kind}:${key}`] ||= build(set[key][1]));
     }
 
+    /** Draws a palette as a vertical colour bar (top = the high end) with labels, on a 2D canvas. */
+    function legend(ctx, kind, name, x, y, width, height, top, bottom, ratio = 1) {
+        const colours = get(kind, name);
+        for (let i = 0; i < height; i++) {
+            const k = Math.round((1 - i / Math.max(1, height - 1)) * 255) * 4;
+            ctx.fillStyle = `rgb(${colours[k]}, ${colours[k + 1]}, ${colours[k + 2]})`;
+            ctx.fillRect(x, y + i, width, 1);
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = ratio;
+        ctx.strokeRect(x, y, width, height);
+        ctx.save();
+        ctx.font = `${10 * ratio}px Inter, Arial, sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.lineWidth = 3 * ratio;
+        ctx.strokeStyle = 'rgba(8,10,14,0.9)';
+        for (const [text, ty] of [[top, y + 9 * ratio], [bottom, y + height]]) {
+            ctx.strokeText(text, x - 3 * ratio, ty);
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillText(text, x - 3 * ratio, ty);
+        }
+        ctx.restore();
+    }
+
     return {
         get,
+        legend,
         /** [[name, label]] of a kind's palettes ('amplitude' or 'range'). */
         list: kind => Object.entries(PALETTES[kind]).map(([name, [label]]) => [name, label]),
         amplitude: () => get('amplitude', 'omnipc'),

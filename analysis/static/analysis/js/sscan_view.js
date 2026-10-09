@@ -204,6 +204,7 @@ void main() {
 
         /** An amplitude palette by name (palette.js). */
         setPalette(name) {
+            this.paletteName = name;
             const gl = this.gl;
             gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, AnalysisPalette.get('amplitude', name));
@@ -361,6 +362,12 @@ void main() {
                 ctx.strokeStyle = '#38bdf8';
                 ctx.lineWidth = 1.5 * ratio;
                 ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+            }
+            // The colour scale, top right
+            if (this.hasFrame) {
+                const bh = Math.min(140 * ratio, h * 0.35);
+                AnalysisPalette.legend(ctx, 'amplitude', this.paletteName || 'omnipc', w - 16 * ratio, 8 * ratio, 8 * ratio, bh,
+                                       '100%', '0', ratio);
             }
             // Reference / measure cursors: depth (U) across, index (I) up and down
             const colours = { ref: '#f87171', meas: '#4ade80' };

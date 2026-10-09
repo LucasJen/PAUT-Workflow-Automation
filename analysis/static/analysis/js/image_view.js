@@ -254,6 +254,14 @@ void main() {
                 ctx.strokeStyle = c.colour; ctx.lineWidth = (c.width || 1) * ratio;
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
             }
+            {
+                const bh = Math.min(120 * ratio, h * 0.4);
+                const amplitude = this.mode === 'amplitude';
+                const fmt = this.options.formatRange || (v => v.toFixed(3));
+                AnalysisPalette.legend(ctx, amplitude ? 'amplitude' : 'range', this.palettes[amplitude ? 'amplitude' : 'range'],
+                                       w - 14 * ratio, 6 * ratio, 8 * ratio, bh,
+                                       amplitude ? '100%' : fmt(this.range[1]), amplitude ? '0' : fmt(this.range[0]), ratio);
+            }
             const [cx, cy, vw, vh] = this.currentView();
             const step = (span, pixels, unit) => {
                 const target = span / unit / Math.max(2, pixels / (75 * ratio));

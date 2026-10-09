@@ -120,6 +120,7 @@
     };
     const cview = new ImageView($('cscan-stage'), {
         formatX: x => format(x, true), formatY: y => (isRaster() ? format(y, true) : lineText(y)),
+        formatRange: v => format(v, true),
         xUnit: unitLength, yUnit: () => (isRaster() ? unitLength() : 1),
         onPick: ({ column, row, x, y, inside, event }) => {
             if (event.ctrlKey || event.shiftKey) {   // reference / measure: scan (and index on a raster)
@@ -204,7 +205,18 @@
             }
             fileSelect.append(group);
         }
-        const wanted = params.get('path');
+        const known = new Set(data.files.map(f => f.path));
+        const recent = recentFiles().filter(p => known.has(p));
+        if (recent.length) {
+            const group = document.createElement('optgroup');
+            group.label = 'Recent';
+            for (const p of recent) {
+                const f = data.files.find(x => x.path === p);
+                group.append(new Option(`${f.name} - ${f.folder === '.' ? f.root : f.folder}`, p));
+            }
+            fileSelect.insertBefore(group, fileSelect.options[1]?.parentElement === fileSelect ? fileSelect.options[1] : fileSelect.children[1] || null);
+        }
+        const wanted = params.get('path') || recent[0];
         if (wanted && [...fileSelect.options].some(o => o.value === wanted)) {
             fileSelect.value = wanted;
             await openFile(wanted, +params.get('group') || 0, +params.get('scan') || 0, +params.get('lateral') || 0);
@@ -234,6 +246,14 @@
                                          s.material || '', state.info.scan_pattern || ''].filter(Boolean).join(' · ');
     }
 
+    function recentFiles() {
+        try { return JSON.parse(localStorage.getItem('analysisRecent') || '[]'); } catch { return []; }
+    }
+    function rememberRecent(path) {
+        const list = [path, ...recentFiles().filter(p => p !== path)].slice(0, 8);
+        try { localStorage.setItem('analysisRecent', JSON.stringify(list)); } catch { /* not kept */ }
+    }
+
     async function openFile(path, group = 0, scan = 0, lateral = 0) {
         show('Opening…');
         try {
@@ -243,6 +263,7 @@
             return;
         }
         state.path = path;
+        rememberRecent(path);
         groupSelect.replaceChildren(...state.info.groups.map(g => {
             const o = new Option(groupLabel(g), g.id);
             o.disabled = g.layout === 'unsupported';
@@ -619,8 +640,8 @@
         const table = document.createElement('table');
         table.className = 'analysis-gates';
         const head = table.createTHead().insertRow();
-        for (const [label, help] of [['', ''], ['Start', 'Sound path from the pulse, or after the sync gate\'s crossing'],
-            ['Width', 'Sound path'], ['Thr %', 'Threshold, % of full screen'], ['Sync', 'What the gate starts from']]) {
+        for (const [label, help] of [['', ''], [`Start (${units})`, 'Sound path from the pulse, or after the sync gate\'s crossing'],
+            [`Width (${units})`, 'Sound path'], ['Thr %', 'Threshold, % of full screen'], ['Sync', 'What the gate starts from']]) {
             head.append(Object.assign(document.createElement('th'), { textContent: label, title: help }));
         }
         const body = table.createTBody();
@@ -980,6 +1001,16 @@
     }
     $('save-image').addEventListener('click', saveImage);
 
+    const toggleHelp = force => { const panel = $('help-panel'); panel.hidden = force === undefined ? !panel.hidden : !force; };
+    $('show-help').addEventListener('click', () => toggleHelp());
+    $('close-help').addEventListener('click', () => toggleHelp(false));
+    function fitAll() {
+        sscan.view = null; sscan.draw();
+        cview.view = null; cview.draw();
+        bview.view = null; bview.draw();
+        ascan.resetZoom();
+    }
+
     function showTab(name) {
         document.querySelectorAll('.analysis-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
         document.querySelectorAll('[data-tab-body]').forEach(b => { b.hidden = b.dataset.tabBody !== name; });
@@ -1039,7 +1070,7 @@
             PageUp: () => setScan(state.scan - 10), PageDown: () => setScan(state.scan + 10),
             ArrowUp: () => setLateral(state.lateral - 1), ArrowDown: () => setLateral(state.lateral + 1),
             '+': () => setGain(state.gain + 1), '=': () => setGain(state.gain + 1), '-': () => setGain(state.gain - 1),
-            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage,
+            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, '?': () => toggleHelp(), Escape: () => toggleHelp(false),
         };
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });

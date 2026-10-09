@@ -48,11 +48,40 @@
                 <option value="depth">True depth</option><option value="path">Sound path</option>
             </select>
             <select class="form-select form-select-sm" id="amplitude-palette" aria-label="Amplitude palette" title="Amplitude colours (S-scan, B-scan, amplitude C-scans)"></select>
+            <button type="button" class="btn btn-sm btn-secondary" id="show-help" title="Keys and mouse (?)"><i class="bi bi-keyboard"></i></button>
             <button type="button" class="btn btn-sm btn-secondary" id="save-image" title="Save the views as a picture (PNG), as laid out, with the readings (P)"><i class="bi bi-camera"></i></button>
             <button type="button" class="btn btn-sm btn-secondary" id="full-screen" title="Full screen (Esc to leave). Drag the gaps between the panels to resize them; double-click a gap to reset."><i class="bi bi-arrows-fullscreen"></i></button>
         </div>
     </div>
     <p class="analysis-status" id="analysis-status" role="status" hidden></p>
+    <div class="analysis-help-panel panel" id="help-panel" hidden role="dialog" aria-label="Keys and mouse">
+        <div class="analysis-help-head"><strong>Keys and mouse</strong>
+            <button type="button" class="btn btn-sm btn-secondary" id="close-help" aria-label="Close"><i class="bi bi-x-lg"></i></button></div>
+        <div class="analysis-help-cols">
+            <dl>
+                <dt>← / →</dt><dd>Previous / next scan line (Shift: 10)</dd>
+                <dt>PgUp / PgDn</dt><dd>10 scan lines</dd>
+                <dt>↑ / ↓</dt><dd>Beam / index line</dd>
+                <dt>+ / −</dt><dd>Soft gain ±1 dB</dd>
+                <dt>L</dt><dd>Size the indication at the cursor</dd>
+                <dt>N</dt><dd>Add an indication</dd>
+                <dt>G</dt><dd>Next group</dd>
+                <dt>P</dt><dd>Save a picture of the views</dd>
+                <dt>F</dt><dd>Fit every view</dd>
+                <dt>?</dt><dd>This help</dd>
+            </dl>
+            <dl>
+                <dt>Click</dt><dd>Move the cursors there (S-scan: beam; C-scan: scan + line; B-scan: scan)</dd>
+                <dt>Ctrl+click</dt><dd>Reference cursors (red)</dd>
+                <dt>Shift+click</dt><dd>Measure cursors (green)</dd>
+                <dt>Drag a line</dt><dd>Move that cursor; on the A-scan, drag a gate's bar or its ends</dd>
+                <dt>Scroll</dt><dd>Zoom at the pointer</dd>
+                <dt>Right-drag</dt><dd>Pan</dd>
+                <dt>Double-click</dt><dd>Fit that view</dd>
+                <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
+            </dl>
+        </div>
+    </div>
     {% if not roots %}<div class="alert alert-info">Add a working folder under Preferences › Working folders to open .nde files from it.</div>{% endif %}
 
     <div class="analysis-grid" id="analysis-grid" data-layout="A-S">

@@ -134,3 +134,12 @@ body.analysis-resizing { user-select: none; }
 .analysis-panel-head .analysis-check { font-size: 0.75rem; white-space: nowrap; }
 .analysis-panel-head > span:first-child { white-space: nowrap; }
 .analysis-panel-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* Keys and mouse help */
+.analysis-help-panel { position: absolute; z-index: 20; right: 1.5rem; top: 5.5rem; width: min(46rem, calc(100% - 3rem)); padding: 0.75rem 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+.analysis-help-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.analysis-help-cols { display: grid; grid-template-columns: 1fr 1.3fr; gap: 1.25rem; }
+.analysis-help-cols dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; margin: 0; font-size: 0.8125rem; }
+.analysis-help-cols dt { font-weight: 600; white-space: nowrap; }
+.analysis-help-cols dd { margin: 0; color: var(--text-2); }
+.analysis-page { position: relative; }
