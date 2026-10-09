@@ -33,7 +33,7 @@
 {% for document in items %}
 <tr data-href="{% url library.edit document.pk %}">
     {% include 'reports/components/row_check.html' with pk=document.pk %}
-    <td class="fw-medium">{{ document.title }}</td>
+    <td class="fw-medium">{{ document.title }}{% if document.revision %} <span class="text-muted-cell fw-normal">{{ document.revision }}</span>{% endif %}</td>
     <td>{{ document.description }}</td>
     <td class="text-nowrap"><i class="bi bi-{{ document.file_type_icon }} me-1 text-body-secondary"></i>{{ document.file_type_label }}</td>
     <td class="mono">{{ document.filename }}</td>

@@ -12,3 +12,34 @@
 {% block item_noun %}{{ library.noun }}{% endblock %}
 {% block form_attrs %} enctype="multipart/form-data"{% endblock %}
 {% block grid_cols %}cols-2{% endblock %}
+
+{% block form_body %}
+{{ block.super }}
+{% with revisions=document.revisions.all %}
+<section class="panel mt-3">
+    <div class="panel-header"><h2 class="panel-title">Revision history</h2></div>
+    <ul class="item-list">
+        <li>
+            <a href="{% url 'open-document' document.pk %}" {% if document.file_type == 'pdf' %}target="_blank" rel="noopener"{% endif %}>
+                <span class="item-main">
+                    <span class="item-title">{% if document.revision %}{{ document.revision }} <span class="badge text-bg-success ms-1">Current</span>{% else %}Current file{% endif %}</span>
+                    <span class="item-meta mono">{{ document.filename }}</span>
+                </span>
+            </a>
+        </li>
+        {% for revision in revisions %}
+        <li>
+            <a href="{% url 'open-revision' revision.pk %}" {% if revision.file_type == 'pdf' %}target="_blank" rel="noopener"{% endif %}>
+                <span class="item-main">
+                    <span class="item-title">{{ revision.revision|default:"Earlier revision" }}</span>
+                    <span class="item-meta mono">{{ revision.filename }}</span>
+                </span>
+                <span class="item-aside">Replaced {{ revision.replaced_at|date:'M j, Y' }}</span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% if not revisions %}<p class="form-text mb-0 mt-2">Replacing the file keeps this one here as an earlier revision.</p>{% endif %}
+</section>
+{% endwith %}
+{% endblock %}

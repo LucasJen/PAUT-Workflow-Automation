@@ -82,19 +82,30 @@ class DocumentLibraryTests(TestCase):
         self.assertContains(self.client.get(reverse('report-form-list')), 'Weld form')
         self.assertEqual(self.client.get(reverse('edit-report-form', args=[doc.pk])).status_code, 200)
 
-    def test_replace_and_delete_remove_the_old_file(self):
+    def test_replace_keeps_the_old_file_as_a_revision_and_delete_removes_every_file(self):
         self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('old.pdf')]})
         doc = Document.objects.get()
+        self.client.post(reverse('edit-procedure', args=[doc.pk]), {'title': 'a', 'revision': 'Rev. 1', 'notes': ''})
         old_path = doc.file.path
         self.client.post(reverse('edit-procedure', args=[doc.pk]),
-                         {'title': 'Renamed', 'notes': '', 'replace_file': pdf('new.pdf')})
+                         {'title': 'Renamed', 'revision': 'Rev. 2', 'notes': '', 'replace_file': pdf('new.pdf')})
         doc.refresh_from_db()
-        self.assertEqual((doc.title, doc.filename), ('Renamed', 'new.pdf'))
-        self.assertFalse(os.path.exists(old_path))
+        self.assertEqual((doc.title, doc.filename, doc.revision), ('Renamed', 'new.pdf', 'Rev. 2'))
+        self.assertTrue(os.path.exists(old_path))
+        earlier = doc.revisions.get()
+        self.assertEqual((earlier.revision, earlier.filename), ('Rev. 1', 'old.pdf'))
+        page = self.client.get(reverse('edit-procedure', args=[doc.pk]))
+        self.assertContains(page, 'Revision history')
+        self.assertContains(page, reverse('open-revision', args=[earlier.pk]))
+        response = self.client.get(reverse('open-revision', args=[earlier.pk]))
+        self.assertEqual(b''.join(response.streaming_content)[:4], b'%PDF')
+        self.assertContains(self.client.get(reverse('procedure-list')), 'Rev. 2')
+
         new_path = doc.file.path
         self.client.post(reverse('procedure-list'), {'delete': '1', 'selected': [doc.pk]})
         self.assertFalse(Document.objects.exists())
         self.assertFalse(os.path.exists(new_path))
+        self.assertFalse(os.path.exists(old_path))
 
     def test_description_column_edited_on_the_edit_page_and_searchable(self):
         self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('100-UT-001.pdf')]})
