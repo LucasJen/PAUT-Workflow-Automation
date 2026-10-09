@@ -10,6 +10,7 @@ urlpatterns = [
     path('setups/', views.setup_list, name='setup-list'),
     path('setups/new/', views.new_setup, name='new-setup'),
     path('setup/<int:pk>/edit/', views.edit_setup, name='edit-setup'),
+    path('setup/<int:pk>/values.json', views.saved_setup_json, name='saved-setup-json'),
     path('reports/', views.report_list, name='report-list'),
     path('reports/new/', views.new_report, name='new-report'),
     path('report/<int:pk>/generate/', views.generate_report, name='generate-report'),

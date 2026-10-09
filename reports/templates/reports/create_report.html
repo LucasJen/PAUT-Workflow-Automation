@@ -16,7 +16,8 @@
     <option value="Longitudinal">
 </datalist>
 
-<form method="post" enctype="multipart/form-data" id="report-form" novalidate data-arrow-nav{% if wizard %} data-wizard="1"{% endif %}>
+<form method="post" enctype="multipart/form-data" id="report-form" novalidate data-arrow-nav
+      data-saved-setup-url="{% url 'saved-setup-json' 0 %}"{% if wizard %} data-wizard="1"{% endif %}>
     {% csrf_token %}
     {% if wizard %}
     {# Guided mode (wizard.js): one step at a time; Prev / Next save, then go to wizard_goto #}
@@ -223,7 +224,6 @@
 
 {{ results_data|json_script:"results-initial-data" }}
 {{ report_types|json_script:"report-types" }}
-{{ saved_setup_values|json_script:"saved-setup-values" }}
 {{ report_defaults|json_script:"report-defaults" }}
 {% include 'reports/components/inventory_pickers.html' %}
 {% endblock %}

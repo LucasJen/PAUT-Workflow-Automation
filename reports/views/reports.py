@@ -330,7 +330,6 @@ def create_report(request):
             columns, rows = report_results(loaded_report)
             results_data = {'columns': columns, 'rows': rows}
 
-    saved_values = _saved_setup_values()
     return render(request, 'reports/create_report.html', {
         'form': form,
         'setup_formset': setup_formset,
@@ -352,12 +351,8 @@ def create_report(request):
         'known_people': _known_people(),
         'results_data': results_data,
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
+        # The 'Fill from saved setup…' menus; a picked setup's values are fetched (saved_setup_json)
         'saved_setups': _saved_setup_choices(),
-        'saved_setup_values': saved_values,
-        # A setup without a file of its own is marked by its number (an import fills a column once)
-        'saved_setup_columns': {pk: columns_from_setup(with_library_scope(
-                                    {**values, 'source_file': values.get('source_file') or f'Setup #{pk}'})[0])
-                                for pk, values in saved_values.items()},
         'report_defaults': all_defaults(),
         # The serial fields' pickers (inventory_pick.js)
         'inventory_picks': inventory_picks(),
@@ -424,19 +419,34 @@ def _wizard_redirect(request, report, goto):
 
 
 def _saved_setup_choices():
-    """Setups offered in each setup block's 'Load from…' menu, saved ones first."""
-    setups = Setup.objects.order_by('report_id', '-pk')
+    """Setups offered in each setup block's 'Load from…' menu, saved ones first (only what the menu shows)."""
+    setups = Setup.objects.order_by('report_id', '-pk').only(
+        'pk', 'report_id', 'title', 'scope_model', 'transducer_model')
     return {
         'saved': [s for s in setups if s.report_id is None],
         'in_reports': [s for s in setups if s.report_id is not None],
     }
 
 
-def _saved_setup_values():
-    """{pk: {field: value}} for filling a setup block from a saved setup in the browser."""
+def _saved_setup_values(pk):
+    """{field: value} of a setup, for filling a setup block from it in the browser (None if gone)."""
     excluded = {'id', 'report', 'order'}
     names = [f.name for f in Setup._meta.concrete_fields if f.name not in excluded]
-    return {s['id']: {n: s[n] for n in names} for s in Setup.objects.values('id', *names)}
+    return Setup.objects.filter(pk=pk).values(*names).first()
+
+
+def saved_setup_json(request, pk):
+    """
+    A setup picked under 'Fill from saved setup…': its values for a setup block, and the probe /
+    group columns it makes on the weld form. Fetched when picked, so the editor doesn't carry
+    every setup of every report.
+    """
+    values = _saved_setup_values(pk)
+    if values is None:
+        return JsonResponse({'error': f'Setup #{pk} is no longer there.'}, status=404)
+    # A setup without a file of its own is marked by its number (an import fills a column once)
+    columns = columns_from_setup(with_library_scope({**values, 'source_file': values.get('source_file') or f'Setup #{pk}'})[0])
+    return JsonResponse({'values': values, 'columns': columns})
 
 
 NEEDS_SETUP_MESSAGE = 'Add at least one UT setup (or, on a weld report, a probe or group) before generating the report.'

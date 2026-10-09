@@ -165,8 +165,10 @@ class WeldColumnsTests(TestCase):
         from reports.models import Setup
         setup = Setup.objects.create(transducer_model='D791', beam_formation='Conventional', wave_propagation='Longitudinal')
         resp = self.client.get(reverse('create-report'))
-        self.assertEqual(resp.context['saved_setup_columns'][setup.pk]['probe']['kind'], 'conv_long')
         self.assertContains(resp, 'id="weld-setup-loader"')
+        self.assertContains(resp, f'<option value="{setup.pk}">')
+        columns = self.client.get(reverse('saved-setup-json', args=[setup.pk])).json()['columns']
+        self.assertEqual(columns['probe']['kind'], 'conv_long')
 
 
 class NdeColumnsTests(TestCase):
