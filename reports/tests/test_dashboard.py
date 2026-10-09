@@ -56,7 +56,7 @@ class EquipmentCardTests(TestCase):
         from equipment.models import Scope
         Scope.objects.create(model='X3', serial_number='QC-1')
         page = self.client.get(reverse('home'))
-        labels = [label for label, _, _, _ in page.context['libraries']]
+        labels = [label for label, *_ in page.context['libraries']]
         self.assertEqual(labels, ['Scopes', 'Probes', 'Probe catalogue', 'Wedge catalogue', 'Calibration blocks',
                                   'Sensitivity blocks', 'Encoders'])
         self.assertEqual(page.context['libraries'][0][3], 1)

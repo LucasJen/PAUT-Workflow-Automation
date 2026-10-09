@@ -55,42 +55,22 @@
             {% endif %}
         </section>
 
-        <section class="panel">
-            <div class="panel-header">
-                <h2 class="panel-title">Calibration due</h2>
-                <span class="small text-body-secondary">Overdue or within 30 days</span>
-            </div>
-            {% if cal_due %}
-            <ul class="item-list">
-                {% for item in cal_due %}
-                <li>
-                    <a href="{{ item.url }}">
-                        <span class="item-main">
-                            <span class="item-title">{{ item.name }}</span>
-                            <span class="item-meta">{{ item.kind }}{% if item.serial %} · <span class="mono">{{ item.serial }}</span>{% endif %}</span>
-                        </span>
-                        <span class="item-aside"><span class="badge-due due-{{ item.overdue|yesno:'overdue,soon' }}">{% if item.overdue %}Overdue {% else %}Due {% endif %}{{ item.due|date:'M j, Y' }}</span></span>
-                    </a>
-                </li>
-                {% endfor %}
-            </ul>
-            {% else %}
-            <p class="text-body-secondary mb-0"><i class="bi bi-check-circle text-success"></i> Nothing is out of calibration or due in the next 30 days.</p>
-            {% endif %}
-        </section>
-
         <section class="panel dashboard-equipment">
             <div class="panel-header">
                 <h2 class="panel-title">Equipment</h2>
             </div>
             <ul class="item-list">
-                {% for label, icon, url_name, count in libraries %}
+                {% for label, icon, url_name, count, due in libraries %}
                 <li>
                     <a href="{% url url_name %}">
                         <span class="item-main">
                             <span class="item-title"><i class="bi bi-{{ icon }} me-2 text-body-secondary"></i>{{ label }}</span>
                         </span>
-                        <span class="item-aside mono">{{ count }}</span>
+                        <span class="item-aside">
+                            {% if due.overdue %}<span class="badge-due due-overdue me-2" title="Out of calibration">{{ due.overdue }} overdue</span>{% endif %}
+                            {% if due.soon %}<span class="badge-due due-soon me-2" title="Calibration due within 30 days">{{ due.soon }} due soon</span>{% endif %}
+                            <span class="mono">{{ count }}</span>
+                        </span>
                     </a>
                 </li>
                 {% endfor %}

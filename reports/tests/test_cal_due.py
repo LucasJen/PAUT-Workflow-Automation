@@ -27,7 +27,9 @@ class CalDueTests(TestCase):
         items = due_items()
         self.assertEqual([(i['kind'], i['serial'], i['overdue']) for i in items],
                          [('Scope', 'S1', True), ('Probe', 'P1', False), ('Encoder', 'E1', False)])
-        self.assertContains(self.client.get(reverse('home')), 'Calibration due')
+        resp = self.client.get(reverse('home'))
+        self.assertContains(resp, '1 overdue')
+        self.assertContains(resp, '1 due soon', count=2)   # the probe and the encoder
 
     def test_report_warnings_for_equipment_out_of_cal_on_the_test_date(self):
         Scope.objects.create(name='X3', serial_number='QC-1', calibration_due_date=date(2026, 5, 1),
