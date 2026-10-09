@@ -31,6 +31,17 @@ class NamesAndTimesTests(SimpleTestCase):
         self.assertEqual(calibration_window(['2026-09-28 08:09', '2026-09-28 07:42', '']), ('0725', '0825'))
         self.assertEqual(calibration_window([]), ('', ''))
 
+    def test_calibration_window_follows_dates(self):
+        from datetime import date
+        from reports.services.job_import import scan_days
+        # Over midnight: from before the first scan to after the last, not 0000 to 2359
+        self.assertEqual(calibration_window(['2026-09-28 23:52', '2026-09-29 00:31']), ('2335', '0050'))
+        # Several days: the first scan's day to the last's (a later day's earlier clock time doesn't win)
+        times = ['2026-09-28 13:10', '2026-09-29 07:05', '2026-09-29 09:40']
+        self.assertEqual(calibration_window(times), ('1255', '0955'))
+        self.assertEqual(scan_days(times), [date(2026, 9, 28), date(2026, 9, 29)])
+        self.assertEqual(scan_days(['08:00']), [])
+
     def test_welds_and_their_sides(self):
         files = [{'filename': 'a', 'weld': 'W5', 'offset': 0.35, 'thickness': 0.28},
                  {'filename': 'b', 'weld': 'W5', 'offset': 0.35, 'thickness': 0.28},
@@ -90,6 +101,27 @@ class BuildReportTests(TestCase):
         rows = list(report.results_table.rows.values_list('cells', flat=True))
         self.assertEqual([(r[0], r[6]) for r in rows], [('W5', '90/270')])
         self.assertIsNotNone(report.scan_plan)
+
+
+    def test_a_weld_scanned_at_two_offsets_has_both(self):
+        files = [read_job_file(nde_file('PPI 31-37575 w5 n off1.nde')),
+                 read_job_file(nde_file('PPI 31-37575 w5 n off2.nde'))]
+        files[0]['offset'], files[1]['offset'] = 0.5, 0.875
+        report, notes = build_report(files, None, 'Job')
+        rows = list(report.results_table.rows.order_by('order').values_list('cells', flat=True))
+        # a row per offset: the second with no Weld ID, the weld's location and thickness again
+        self.assertEqual([(r[0], r[2], r[6], r[7]) for r in rows],
+                         [('W5', '0.500', '90', rows[0][7]), ('', '0.875', '90', rows[0][7])])
+        plan = report.scan_plan
+        self.assertEqual((plan.index_offset, plan.index_offset_2), (0.5, 0.875))
+
+
+    def test_files_scanned_over_several_days_say_so(self):
+        files = [read_job_file(nde_file('a w5.nde', created='2026-09-28T13:10:00-04:00')),
+                 read_job_file(nde_file('b w5.nde', created='2026-09-29T09:40:00-04:00'))]
+        report, notes = build_report(files, None, 'Job')
+        self.assertEqual((report.cal_time_initial, report.cal_time_out), ('1255', '0955'))
+        self.assertTrue(any('scanned over 2 days (Sep 28 to Sep 29)' in note for note in notes))
 
 
 class FromFilesPagesTests(TestCase):
@@ -164,6 +196,36 @@ class GuidedEditorTests(TestCase):
         self.assertNotContains(page, 'Save &amp; download')
         plain = self.client.get(f'{self.editor}?loaded={self.report.pk}')
         self.assertNotContains(plain, 'data-wizard')
+
+    def test_the_scan_plan_step_shows_every_drawing(self):
+        plan = self.report.scan_plan
+        plan.index_offset, plan.skew_90, plan.skew_270 = 0.5, True, True
+        plan.index_offset_2, plan.skew_90_2 = 1.25, True
+        plan.save()
+        page = self.client.get(f'{self.editor}?loaded={self.report.pk}&wizard=1&step=scanplan')
+        for label, query in (('Offset 0.500" · 90° skew', 'position=1&amp;side=1'),
+                             ('Offset 0.500" · 270° skew', 'position=1&amp;side=2'),
+                             ('Offset 1.250" · 90° skew', 'position=2&amp;side=1')):
+            self.assertContains(page, f'<figcaption>{label}'.replace('"', '&quot;'))
+            self.assertContains(page, query)
+        self.assertNotContains(page, 'position=2&amp;side=2')
+        self.assertContains(page, '<span class="wizard-plan-welds">W5</span>', count=0)   # W5's offset is the file's
+        self.assertContains(page, 'No weld in the results has this offset')
+
+    def test_the_welds_at_each_offset(self):
+        from reports.views.scan_plans import plan_drawing_views
+        plan = self.report.scan_plan
+        plan.index_offset, plan.skew_90, plan.skew_270 = 0.5, True, False
+        plan.index_offset_2, plan.skew_90_2 = 0.875, True
+        plan.save()
+        row = self.report.results_table.rows.get()
+        row.cells[2] = '0.500'
+        row.save()
+        offset_row = list(row.cells)
+        offset_row[0], offset_row[2] = '', '0.875'
+        row.table.rows.create(cells=offset_row, order=1)
+        views = plan_drawing_views(self.report)
+        self.assertEqual([(v['position'], v['side'], v['welds']) for v in views], [(1, 1, ['W5']), (2, 1, ['W5'])])
 
     def test_next_saves_and_goes_to_the_step(self):
         resp = self.post('equipment', client='Saved on Next')

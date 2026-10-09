@@ -8,7 +8,7 @@ class ScopeForm(StyledFormMixin, forms.ModelForm):
         ('Instrument', ['name', 'manufacturer', 'model', 'serial_number', 'instrument_software_version', 'scanner_type']),
         ('Module / pulser', ['module_model', 'module_serial', 'module_cal_due']),
         ('Analysis software', ['software', 'software_version']),
-        ('Calibration', ['calibration_date', 'calibration_due_date']),
+        ('Calibration', ['calibration_date', 'calibration_due_date', 'certificate_number']),
     ]
 
     class Meta:
@@ -28,11 +28,16 @@ class ProbeForm(StyledFormMixin, forms.ModelForm):
          ['manufacturer', 'model', 'frequency', 'elements', 'diameter']),
         ('Element check', ['inactive_elements', 'defective_elements', 'previous_inactive_elements',
                            'previous_defective_elements', 'calibration_obtainable']),
+        ('Calibration', ['calibration_date', 'calibration_due_date', 'certificate_number']),
     ]
 
     class Meta:
         model = Probe
         fields = '__all__'
+        widgets = {
+            'calibration_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'calibration_due_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        }
 
     def save(self, commit=True):
         probe = super().save(commit=False)
@@ -46,6 +51,10 @@ class CalibrationBlockForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = CalibrationBlock
         fields = '__all__'
+        widgets = {
+            'calibration_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'calibration_due_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        }
 
 
 class SensitivityBlockForm(StyledFormMixin, forms.ModelForm):
@@ -67,6 +76,10 @@ class EncoderForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = Encoder
         fields = '__all__'
+        widgets = {
+            'calibration_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'calibration_due_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        }
 
 
 class ProbeModelForm(StyledFormMixin, forms.ModelForm):

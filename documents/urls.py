@@ -5,6 +5,7 @@ from .models import Document
 
 urlpatterns = [
     path('<int:pk>/open/', views.open_document, name='open-document'),
+    path('revision/<int:pk>/open/', views.open_revision, name='open-revision'),
     path('search/', views.document_search, name='document-search'),
 
     path('procedures/', views.document_list, {'category': Document.PROCEDURE}, name='procedure-list'),

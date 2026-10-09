@@ -115,3 +115,45 @@ class RealWordConversionTests(TestCase):
         pdf = word_pdf.docx_to_pdf(render_report(report_with_setup(), update_fields_on_open=False))
         self.assertTrue(pdf.startswith(b'%PDF'))
         self.assertGreater(len(pdf), 10_000)
+
+
+class OutputCacheTests(TestCase):
+    def setUp(self):
+        from reports.services import output_cache
+        output_cache.clear()
+        self.addCleanup(output_cache.clear)
+
+    def test_same_document_is_converted_once(self):
+        report = report_with_setup()
+        first = render_report(report, update_fields_on_open=False)
+        again = render_report(report, update_fields_on_open=False)
+        with mock.patch.object(word_pdf, '_convert', return_value=FAKE_PDF) as convert:
+            self.assertEqual(word_pdf.docx_to_pdf(first), FAKE_PDF)
+            self.assertEqual(word_pdf.docx_to_pdf(again), FAKE_PDF)
+            self.assertEqual(convert.call_count, 1)
+            # A change to the report is a new document
+            report.client = 'Changed'
+            report.save()
+            word_pdf.docx_to_pdf(render_report(report, update_fields_on_open=False))
+            self.assertEqual(convert.call_count, 2)
+
+    def test_excel_build_reuses_the_last_workbook_when_nothing_changed(self):
+        from reports.services import excel_report, output_cache
+        output_cache.put('xlsx:same', (b'xlsx', b'pdf'))
+        with mock.patch.object(excel_report, '_prepare', return_value=(lambda wb: None, 'same')), \
+                mock.patch('win32com.client.DispatchEx', side_effect=AssertionError('Excel started')):
+            self.assertEqual(excel_report.build_workbook(Report(), pdf=True), (b'xlsx', b'pdf'))
+            self.assertEqual(excel_report.build_workbook(Report()), (b'xlsx', None))
+
+    def test_fingerprint_follows_picture_contents_not_paths(self):
+        from reports.services.output_cache import fingerprint
+        folder = tempfile.mkdtemp()
+        self.addCleanup(__import__('shutil').rmtree, folder, True)
+        a, b = os.path.join(folder, 'a.png'), os.path.join(folder, 'b.png')
+        for path in (a, b):
+            with open(path, 'wb') as f:
+                f.write(b'same')
+        self.assertEqual(fingerprint({'pic': a}), fingerprint({'pic': b}))
+        with open(b, 'wb') as f:
+            f.write(b'other')
+        self.assertNotEqual(fingerprint({'pic': a}), fingerprint({'pic': b}))

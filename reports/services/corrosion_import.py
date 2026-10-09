@@ -18,9 +18,15 @@ from .job_import import catalogue_match, scope_label
 from .nde_parser import NdeError, extract_groups, read_nde
 
 CORROSION_TYPE = 'paut_corrosion'
+LONG_TYPE = 'paut_long'
+# The report types Guided Creation builds this way (a job folder's .nde files and pictures)
+PICTURE_TYPES = (CORROSION_TYPE, LONG_TYPE)
 # What a folder picture is used for
 DRAWING, SETUP, IMAGE, SKIP = 'drawing', 'setup', 'image', 'skip'
 ROLE_CHOICES = [(DRAWING, 'Drawing'), (SETUP, 'Setup image'), (IMAGE, 'Image'), (SKIP, 'Leave out')]
+# ...as the Long Form names them
+LONG_ROLE_CHOICES = [(DRAWING, 'Equipment drawing'), (SETUP, 'Calibration screenshot'), (IMAGE, 'Scan image'),
+                     (SKIP, 'Leave out')]
 SETUP_FIELDS = {f.name for f in Setup._meta.concrete_fields} - {'id', 'report', 'order'}
 FK_FIELDS = {f.name for f in Setup._meta.concrete_fields if f.is_relation} - {'report'}
 
@@ -119,16 +125,33 @@ def _attach(file_field, path):
         file_field.save(os.path.basename(path), File(f), save=False)
 
 
+def _plain(text):
+    return re.sub(r'[^a-z0-9]+', '', (text or '').lower())
+
+
+def scan_id_for(caption, scan_ids):
+    """The Scan ID (an .nde file's name) a scan image's caption names, else ''."""
+    caption = _plain(caption)
+    for scan_id in sorted(scan_ids, key=len, reverse=True):   # 'S10' before 'S1'
+        if _plain(scan_id) and _plain(scan_id) in caption:
+            return scan_id
+    return ''
+
+
 @transaction.atomic
 def build_corrosion_report(files, pictures, defaults=None, document_filename='', equipment_id='', job_folder='',
-                           client=None):
+                           client=None, report_type=CORROSION_TYPE):
     """
-    The corrosion report for the job: `files` from read_corrosion_file (errors left out), `pictures`
-    [(path, role, caption)], starting from a defaults set. Returns (report, notes).
+    The corrosion report (or Long Form, report_type LONG_TYPE) for the job: `files` from
+    read_corrosion_file (errors left out), `pictures` [(path, role, caption)], starting from a
+    defaults set. The Long Form also gets a results row per file (its name as the Scan ID), and its
+    scan images are tied to the row their caption names. Returns (report, notes).
     """
     from .job_import import _set_report_values   # the weld import's way of applying a defaults set
+    from ..report_types import get_report_type
+    from ..models import ResultsRow, ResultsTable
     notes = []
-    report = Report(report_type=CORROSION_TYPE, report_date=date.today())   # as a new report in the editor
+    report = Report(report_type=report_type, report_date=date.today())   # as a new report in the editor
     if defaults is not None:
         _set_report_values(report, defaults.report_values)
     report.document_filename = document_filename or report.document_filename
@@ -157,6 +180,15 @@ def build_corrosion_report(files, pictures, defaults=None, document_filename='',
     if not found:
         notes.append('No .nde files: one empty setup was added for the setup page; fill in its method and equipment.')
 
+    scan_ids = []
+    if report_type == LONG_TYPE:
+        scan_ids = list(dict.fromkeys(os.path.splitext(d['filename'])[0] for d in files if not d.get('error')))
+        headings = get_report_type(report_type).results_headings
+        if scan_ids:
+            table = ResultsTable.objects.create(report=report, columns=headings)
+            ResultsRow.objects.bulk_create(ResultsRow(table=table, order=i, cells=[s] + [''] * (len(headings) - 1))
+                                           for i, s in enumerate(scan_ids))
+
     setup_pictures = [p for p in pictures if p[1] == SETUP]
     for i, (path, _, _) in enumerate(setup_pictures):
         image = SetupImage(setup=setups[min(i, len(setups) - 1)], order=i)
@@ -168,6 +200,10 @@ def build_corrosion_report(files, pictures, defaults=None, document_filename='',
             continue
         image = ReportImage(report=report, kind=ReportImage.DRAWING if role == DRAWING else ReportImage.SCAN,
                             caption=caption if role == IMAGE else '', order=order)
+        if role == IMAGE and scan_ids:   # the Long Form's scan images belong to a results row
+            image.scan_id = scan_id_for(caption or os.path.basename(path), scan_ids)
+            if image.scan_id:
+                image.caption = ''   # labelled by its results row
         _attach(image.image, path)
         image.save()
         order += 1

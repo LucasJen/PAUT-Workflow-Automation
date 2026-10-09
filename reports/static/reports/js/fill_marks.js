@@ -15,7 +15,8 @@
     function refresh() {
         const missing = { user: 0, auto: 0 };
         form.querySelectorAll('[data-fill]').forEach(el => {
-            const skipped = el.readOnly || el.disabled || el.type === 'hidden' || el.closest('[hidden], template')
+            // :disabled also covers a disabled fieldset's fields (an issued report)
+            const skipped = el.readOnly || el.matches(':disabled') || el.type === 'hidden' || el.closest('[hidden], template')
                 || (visibleOnly && !el.getClientRects().length);
             const empty = !skipped && el.type !== 'checkbox' && !String(el.value ?? '').trim();
             el.classList.toggle('fill-missing', empty);

@@ -11,9 +11,10 @@ from django.http import FileResponse, Http404
 from django.shortcuts import redirect, render
 
 from ..models import ReportDefaults
+from ..report_types import get_report_type
 from ..services.corrosion_import import (
-    ROLE_CHOICES, SKIP, build_corrosion_report, caption_for, client_for_folder, distinct_setups, equipment_from_folder,
-    guess_role,
+    CORROSION_TYPE, LONG_ROLE_CHOICES, LONG_TYPE, ROLE_CHOICES, SKIP, build_corrosion_report, caption_for,
+    client_for_folder, distinct_setups, equipment_from_folder, guess_role,
 )
 
 SESSION_KEY = 'job_import'
@@ -44,7 +45,10 @@ def confirm_corrosion(request, job):
     defaults = ReportDefaults.objects.filter(pk=job['defaults']).first() if str(job['defaults']).isdigit() else None
     readable = [f for f in files if not f.get('error')]
     client = client_for_folder(folder_name)   # as the weld flow: the folder name's Client code
-    roles = {key for key, _ in ROLE_CHOICES}
+    report_type = job.get('type') or CORROSION_TYPE
+    long_form = report_type == LONG_TYPE
+    role_choices = LONG_ROLE_CHOICES if long_form else ROLE_CHOICES
+    roles = {key for key, _ in role_choices}
 
     if request.method == 'POST':
         kept = [data for i, data in enumerate(files) if not data.get('error') and request.POST.get(f'include_{i}')]
@@ -56,7 +60,7 @@ def confirm_corrosion(request, job):
                 chosen.append((path, role, request.POST.get(f'caption_{i}', '').strip()))
         report, notes = build_corrosion_report(
             kept, chosen, defaults, request.POST.get('document_filename', '').strip(),
-            request.POST.get('equipment_id', '').strip(), job_folder=folder, client=client)
+            request.POST.get('equipment_id', '').strip(), job_folder=folder, client=client, report_type=report_type)
         request.session.pop(SESSION_KEY, None)
         made = [f'{len(kept)} file{"s" if len(kept) != 1 else ""}'] if kept else []
         if chosen:
@@ -72,7 +76,8 @@ def confirm_corrosion(request, job):
                     for i, name in enumerate(pictures)]
     setups = distinct_setups(readable)
     return render(request, 'reports/confirm_corrosion.html', {
-        'files': files, 'defaults': defaults, 'folder': folder, 'pictures': picture_rows, 'role_choices': ROLE_CHOICES,
+        'files': files, 'defaults': defaults, 'folder': folder, 'pictures': picture_rows, 'role_choices': role_choices,
+        'rtype': get_report_type(report_type), 'long_form': long_form,
         'setups': setups, 'document_filename': folder_name, 'equipment_id': equipment_from_folder(folder_name, client),
         'client': client,
     })

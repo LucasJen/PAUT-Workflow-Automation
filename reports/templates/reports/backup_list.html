@@ -1,0 +1,79 @@
+{% extends 'reports/base.html' %}
+
+{% block title %}Backups · Preferences · PAUT Report Automation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Preferences</h1>
+    <div class="header-actions">
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" name="backup" class="btn btn-primary">
+                <i class="bi bi-database-down"></i> Back up now</button>
+        </form>
+    </div>
+</div>
+{% include 'reports/components/library_tabs.html' with tab='backups' %}
+
+<section class="panel">
+    <div class="panel-header"><h2 class="panel-title">Database backups</h2></div>
+    <p class="form-text">
+        A copy of the database is made the first time the app is used each day, and whenever you click
+        <em>Back up now</em>. The newest {{ keep }} are kept. Uploaded pictures and documents are copied
+        to <span class="mono">media</span> next to the backups (only new ones each time).
+        Backups are in <span class="mono">{{ folder }}</span>.
+    </p>
+    {% if backups %}
+    <div class="table-wrap">
+        <table class="table data-table">
+            <thead><tr><th>Made</th><th>File</th><th class="text-end">Size</th></tr></thead>
+            <tbody>
+                {% for backup in backups %}
+                <tr>
+                    <td>{{ backup.when|date:"M j, Y, g:i a" }}</td>
+                    <td class="mono">{{ backup.name }}</td>
+                    <td class="text-end">{{ backup.size|filesizeformat }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="mb-0">No backups yet.</p>
+    {% endif %}
+    <h2 class="panel-subtitle">Restoring a backup</h2>
+    <p class="form-text mb-0">
+        Stop the app, copy the backup over <span class="mono">db.sqlite3</span> in the app's folder (keep the
+        current one somewhere first), copy the backup's <span class="mono">media</span> folder over the app's
+        <span class="mono">media</span> folder, then start the app again.
+    </p>
+</section>
+
+<section class="panel mt-3">
+    <div class="panel-header">
+        <h2 class="panel-title">Unused files</h2>
+        {% if unused %}
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" name="delete_unused" class="btn btn-secondary btn-sm"
+                    data-confirm="Back up, then delete {{ unused|length }} unused file{{ unused|length|pluralize }} ({{ unused_size|filesizeformat }})? The backup keeps a copy of each."
+                    data-confirm-label="Back up &amp; delete"><i class="bi bi-trash"></i> Delete unused files</button>
+        </form>
+        {% endif %}
+    </div>
+    <p class="form-text">
+        Pictures and documents in <span class="mono">media</span> that no report, setup or library document uses
+        any more (left behind when one is deleted; duplicated reports share their files, so they stay while any
+        report uses them). Deleting makes a backup first.
+    </p>
+    {% if unused %}
+    <p class="mb-2">{{ unused|length }} file{{ unused|length|pluralize }}, {{ unused_size|filesizeformat }}:</p>
+    <ul class="mono small mb-0 unused-files">
+        {% for file in unused|slice:":50" %}<li>{{ file.name }} <span class="text-body-secondary">({{ file.size|filesizeformat }})</span></li>{% endfor %}
+        {% if unused|length > 50 %}<li class="text-body-secondary">…and {{ unused|length|add:"-50" }} more</li>{% endif %}
+    </ul>
+    {% else %}
+    <p class="mb-0 text-body-secondary"><i class="bi bi-check-circle text-success"></i> No unused files.</p>
+    {% endif %}
+</section>
+{% endblock %}

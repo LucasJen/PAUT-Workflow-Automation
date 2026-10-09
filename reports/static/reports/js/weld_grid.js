@@ -485,13 +485,17 @@
             }
         });
 
-        const savedColumns = JSON.parse(document.getElementById('saved-setup-columns').textContent);
         const setupLoader = document.getElementById('weld-setup-loader');
         setupLoader.addEventListener('change', async event => {
             event.stopPropagation();
-            const item = savedColumns[setupLoader.value];
+            const pk = setupLoader.value;
             setupLoader.value = '';
-            if (item) await importColumns([item]);
+            if (!pk) return;
+            try {
+                await importColumns([(await window.fetchSavedSetup(pk)).columns]);
+            } catch (error) {
+                showStatus(error.message, true);
+            }
         });
         // The toolbar's controls aren't part of the report (no unsaved-changes from them)
         ['input', 'change'].forEach(type => toolbar.addEventListener(type, event => event.stopPropagation()));

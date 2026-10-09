@@ -5,9 +5,9 @@ Excel, like the weld form (excel_report.py, which opens Excel and saves / export
 corrosion_pages(report) works out every value and picture and where it goes (pure Python, unit
 tested); fill_corrosion(wb, pages) writes them: the Summary page, a Setup Information page per
 setup, a drawing page per drawing (landscape pictures on Horizontal Drawing, portrait ones on
-Vertical Drawing) and an Images page per two scan images. Pages with nothing on them aren't
-printed: the Thickness Table always goes (the summary is written by the technician), the
-Formulas sheet is hidden (a setup page's method description comes from the Text library instead
+Vertical Drawing), the Thickness Table (only when the editor's Thickness table has rows) and an
+Images page per two scan images. Pages with nothing on them aren't printed; the Formulas sheet is
+hidden (a setup page's method description comes from the Text library instead
 of its lookup).
 """
 import os
@@ -17,6 +17,7 @@ from datetime import date
 from PIL import Image
 
 from ..models import ReportImage
+from ..results import report_results
 from .setup_sheet import sheet_png
 
 SUMMARY = 'Summary'
@@ -25,6 +26,10 @@ HORIZONTAL = 'Horizontal Drawing'
 VERTICAL = 'Vertical Drawing'
 THICKNESS = 'Thickness Table'
 IMAGES = 'Images'
+THICKNESS_TABLE_FIRST_ROW = 6     # the table's body starts at B6 (columns B:G), 13 rows before its totals
+THICKNESS_COLUMNS = 'BCDEFG'
+THICKNESS_NUMBERS = (3, 4)        # min. and avg. thickness: numbers, for the table's totals
+THICKNESS_HEADER_HEIGHT = 46      # points: three lines of the header's bold 11 pt
 FORMULAS = 'Formulas'
 TOTAL_PAGES = 'AO6'
 METHOD_DESCRIPTION = 'B5'          # the template's =VLOOKUP(method, Formulas!B1:C9, ...) is written over
@@ -57,11 +62,12 @@ class CorrosionPages:
     summary: dict
     setups: list = field(default_factory=list)
     drawings: list = field(default_factory=list)      # [(sheet name, picture path)]
+    thickness: list = field(default_factory=list)     # Thickness Table rows: [scan, axial, circ, min, avg, result] as typed
     images: list = field(default_factory=list)        # [[ImageSlot, ImageSlot?]] one list per page
 
     @property
     def page_count(self):
-        return 1 + len(self.setups) + len(self.drawings) + len(self.images)
+        return 1 + len(self.setups) + len(self.drawings) + bool(self.thickness) + len(self.images)
 
 
 def _v(value):
@@ -135,6 +141,31 @@ def _setup(setup):
                      picture='' if sheet or not image else _path(image.image))
 
 
+def thickness_number(text):
+    """
+    A thickness as the table's totals need it: ('0.310', '0.000') -> (0.31, its number format, so
+    it prints as typed); anything that isn't a number -> (the text, None).
+    """
+    text = _v(text).rstrip('"').strip()
+    try:
+        value = float(text)
+    except ValueError:
+        return _v(text), None
+    decimals = len(text.split('.', 1)[1]) if '.' in text else 0
+    return value, '0.' + '0' * decimals if decimals else '0'
+
+
+def thickness_rows(report):
+    """The Thickness table's rows with something in them, as typed."""
+    _, rows = report_results(report)
+    out = []
+    for cells in rows:
+        cells = [_v(c) for c in (list(cells) + [''] * len(THICKNESS_COLUMNS))[:len(THICKNESS_COLUMNS)]]
+        if any(cells):
+            out.append(cells)
+    return out
+
+
 def corrosion_pages(report):
     """Everything the corrosion form gets for this report, page by page."""
     pages = CorrosionPages(summary=_summary(report))
@@ -148,6 +179,7 @@ def corrosion_pages(report):
              for img in report.images.filter(kind=ReportImage.SCAN).order_by('order', 'pk')
              if (path := _path(img.image))]
     pages.images = [slots[i:i + 2] for i in range(0, len(slots), 2)]
+    pages.thickness = thickness_rows(report)
     pages.summary[TOTAL_PAGES] = str(pages.page_count)
     return pages
 
@@ -189,6 +221,33 @@ def fill_corrosion(wb, pages, write, add_picture):
         ws = copy_after(sheets[sheet], f'Drawing {i}')
         add_picture(ws, path, DRAWING_PICTURE[sheet])
 
+    if pages.thickness:
+        ws = copy_after(sheets[THICKNESS], 'Thickness')
+        table = ws.ListObjects(1)
+        height = ws.Rows(THICKNESS_TABLE_FIRST_ROW).RowHeight
+        while table.ListRows.Count < len(pages.thickness):   # more readings than the form's 13 rows
+            table.ListRows.Add()
+        table.DataBodyRange.RowHeight = height   # the template's last rows are shorter than its first
+        for r, cells in enumerate(pages.thickness):
+            row = THICKNESS_TABLE_FIRST_ROW + r
+            for i, (col, text) in enumerate(zip(THICKNESS_COLUMNS, cells)):
+                if i in THICKNESS_NUMBERS and text:
+                    value, number_format = thickness_number(text)
+                    if number_format:   # a number, for the totals; shown with the decimals typed
+                        ws.Range(f'{col}{row}').NumberFormat = number_format
+                        ws.Range(f'{col}{row}').Value = value
+                        continue
+                write(ws, {f'{col}{row}': text})
+        totals = table.TotalsRowRange.Row
+        for col in 'EF':
+            ws.Range(f'{col}{totals}').NumberFormat = '0.000'
+        # The template's header ('Minimum Thickness (inches)', three lines) and its 'thinnest reading'
+        # sentence don't fit their cells
+        header = ws.Rows(THICKNESS_TABLE_FIRST_ROW - 1)
+        header.RowHeight = max(header.RowHeight, THICKNESS_HEADER_HEIGHT)
+        ws.Range(f'G{totals}').WrapText = True
+        ws.Rows(f'{totals}:{totals}').AutoFit()
+
     for i, slots in enumerate(pages.images, start=1):
         ws = copy_after(sheets[IMAGES], f'Images {i}')
         for slot, (box, caption, description) in zip(slots, IMAGE_SLOTS):
@@ -202,6 +261,8 @@ def fill_corrosion(wb, pages, write, add_picture):
     sheets[FORMULAS].Visible = XL_SHEET_HIDDEN
     if len(pages.setups) == 1:
         placed[1].Name = SETUP   # the master's name is free now
+    if pages.thickness:
+        wb.Worksheets('Thickness').Name = THICKNESS
 
     for page, ws in enumerate(placed, start=1):
         ws.PageSetup.RightFooter = FOOTER.format(page=page, total=len(placed))

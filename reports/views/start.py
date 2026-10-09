@@ -22,7 +22,7 @@ from ..report_types import REPORT_TYPES, guided_report_types
 from ..services.job_folder import (
     invalid_name, job_folders, nde_files, parse_folder_name, resolve_job_folder, save_uploads, working_folder,
 )
-from ..services.corrosion_import import CORROSION_TYPE, folder_pictures, read_corrosion_file
+from ..services.corrosion_import import CORROSION_TYPE, PICTURE_TYPES, folder_pictures, read_corrosion_file
 from ..services.job_import import WELD_TYPE, build_report, read_job_file
 from ..services.nde_parser import UNIT_SYSTEMS
 from .reports import wizard_url
@@ -102,18 +102,18 @@ def start_from_files(request):
     if request.method == 'POST' and not rtype.guided:
         messages.error(request, f'Guided Creation can\'t build {rtype.label} reports yet; use New report.')
         return redirect(_start_url(rtype))
-    # A corrosion job may have no .nde files at all (manual UT): its pictures matter more
-    corrosion = rtype.key == CORROSION_TYPE
+    # A corrosion or Long Form job may have no .nde files at all (manual UT): its pictures matter more
+    picture_flow = rtype.key in PICTURE_TYPES
     if request.method == 'POST':
         uploads = [f for f in request.FILES.getlist('nde_files') if f.name.lower().endswith('.nde')]
         try:
-            folder = _job_folder(request, mode, uploads, root, needs_files=not corrosion)
+            folder = _job_folder(request, mode, uploads, root, needs_files=not picture_flow)
             if folder is not None:
                 saved = save_uploads(folder, uploads)
                 if saved:
                     messages.info(request, f'Copied {len(saved)} file{"s" if len(saved) != 1 else ""} into {folder.name}.')
                 sources = nde_files(folder)
-                if not sources and not corrosion:
+                if not sources and not picture_flow:
                     raise ValueError(f'{folder.name} has no .nde files yet; add them with the file picker.')
             else:
                 sources = uploads
@@ -125,7 +125,7 @@ def start_from_files(request):
             units = request.POST.get('units') if request.POST.get('units') in UNIT_SYSTEMS else 'imperial'
             job = {'type': rtype.key, 'defaults': request.POST.get('defaults') or '',
                    'folder': str(folder) if folder is not None else ''}
-            if corrosion:
+            if picture_flow:
                 files = sorted((read_corrosion_file(f, units) for f in sources), key=lambda f: f['filename'].lower())
                 job.update(files=files, pictures=folder_pictures(folder) if folder is not None else [])
             else:
@@ -139,13 +139,13 @@ def start_from_files(request):
     folders = job_folders(root.path) if root is not None and rtype.guided else []
     for item in folders:
         item['client'] = codes.get(item['info']['client_code'])
-        if corrosion:   # corrosion folders aren't named like weld jobs: any with files or pictures is one
+        if picture_flow:   # these folders aren't named like weld jobs: any with files or pictures is one
             item['job'] = bool(item['nde'] or item['pictures'])
-    if corrosion:
+    if picture_flow:
         folders.sort(key=lambda f: (not f['job'], -f['modified'].timestamp()))
     return render(request, 'reports/start_from_files.html', {
         'defaults_sets': _type_defaults(rtype.key), 'blocks': SensitivityBlock.objects.all(),
-        'corrosion': corrosion,
+        'picture_flow': picture_flow,
         'rtype': rtype, 'report_types': guided_report_types(),
         'root': root, 'root_exists': root is not None and os.path.isdir(root.path),
         'folders': folders, 'mode': mode, 'posted': request.POST,
@@ -172,7 +172,7 @@ def confirm_job(request):
     job = request.session.get(SESSION_KEY)
     if not job:
         return redirect('start-from-files')
-    if job.get('type') == CORROSION_TYPE:
+    if job.get('type') in PICTURE_TYPES:
         return confirm_corrosion(request, job)
     files = job['files']
     defaults = ReportDefaults.objects.filter(pk=job['defaults']).first() if str(job['defaults']).isdigit() else None

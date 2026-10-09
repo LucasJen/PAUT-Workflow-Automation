@@ -82,19 +82,30 @@ class DocumentLibraryTests(TestCase):
         self.assertContains(self.client.get(reverse('report-form-list')), 'Weld form')
         self.assertEqual(self.client.get(reverse('edit-report-form', args=[doc.pk])).status_code, 200)
 
-    def test_replace_and_delete_remove_the_old_file(self):
+    def test_replace_keeps_the_old_file_as_a_revision_and_delete_removes_every_file(self):
         self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('old.pdf')]})
         doc = Document.objects.get()
+        self.client.post(reverse('edit-procedure', args=[doc.pk]), {'title': 'a', 'revision': 'Rev. 1', 'notes': ''})
         old_path = doc.file.path
         self.client.post(reverse('edit-procedure', args=[doc.pk]),
-                         {'title': 'Renamed', 'notes': '', 'replace_file': pdf('new.pdf')})
+                         {'title': 'Renamed', 'revision': 'Rev. 2', 'notes': '', 'replace_file': pdf('new.pdf')})
         doc.refresh_from_db()
-        self.assertEqual((doc.title, doc.filename), ('Renamed', 'new.pdf'))
-        self.assertFalse(os.path.exists(old_path))
+        self.assertEqual((doc.title, doc.filename, doc.revision), ('Renamed', 'new.pdf', 'Rev. 2'))
+        self.assertTrue(os.path.exists(old_path))
+        earlier = doc.revisions.get()
+        self.assertEqual((earlier.revision, earlier.filename), ('Rev. 1', 'old.pdf'))
+        page = self.client.get(reverse('edit-procedure', args=[doc.pk]))
+        self.assertContains(page, 'Revision history')
+        self.assertContains(page, reverse('open-revision', args=[earlier.pk]))
+        response = self.client.get(reverse('open-revision', args=[earlier.pk]))
+        self.assertEqual(b''.join(response.streaming_content)[:4], b'%PDF')
+        self.assertContains(self.client.get(reverse('procedure-list')), 'Rev. 2')
+
         new_path = doc.file.path
         self.client.post(reverse('procedure-list'), {'delete': '1', 'selected': [doc.pk]})
         self.assertFalse(Document.objects.exists())
         self.assertFalse(os.path.exists(new_path))
+        self.assertFalse(os.path.exists(old_path))
 
     def test_description_column_edited_on_the_edit_page_and_searchable(self):
         self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('100-UT-001.pdf')]})
@@ -169,6 +180,17 @@ class DashboardDocumentsTests(TestCase):
         self.assertEqual(search('training'), ['Level II course'])
         self.assertEqual(search('report forms'), ['Weld inspection form'])
         self.assertContains(self.client.get(reverse('document-search'), {'q': 'zzz'}), 'No documents match')
+
+    def test_search_ignores_the_upload_folder(self):
+        self.make('PAUT-001')
+        self.make('Report form 2026 rev', Document.FORM)
+        doc = self.make('Old cert')
+        Document.objects.filter(pk=doc.pk).update(file='documents/2026/cert_scan-2026.pdf')
+        search = lambda q: sorted(d.title for d in self.client.get(reverse('document-search'), {'q': q}).context['documents'])
+        # Every file is under documents/<year>/: only names and titles with the year match it
+        self.assertEqual(search('2026'), ['Old cert', 'Report form 2026 rev'])
+        self.assertEqual(search('documents'), [])
+        self.assertEqual(search('scan-2026'), ['Old cert'])   # the file name still matches
 
     def test_opening_a_document_serves_the_pdf_and_moves_it_to_the_top(self):
         old = self.make('Old', hours_ago=10)

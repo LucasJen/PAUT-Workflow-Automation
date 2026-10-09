@@ -61,14 +61,14 @@ class PersonnelEditorTests(TestCase):
         ReportPerson.objects.create(report=report, name='A Prep', prepared=True, order=0)
         ReportPerson.objects.create(report=report, name='B Exam', examined=True, order=1)
         resp = self.client.get(reverse('report-list'))
-        self.assertContains(resp, '<td>A Prep</td>')
+        self.assertContains(resp, '<td class="text-nowrap">A Prep</td>')
 
     def test_report_list_shows_the_technician_of_the_weld_and_short_forms(self):
         for report_type in ('paut_weld', 'paut_corrosion'):
             Report.objects.create(report_type=report_type, weld_technician=f'Tech {report_type}')
         resp = self.client.get(reverse('report-list'))
-        self.assertContains(resp, '<td>Tech paut_weld</td>')
-        self.assertContains(resp, '<td>Tech paut_corrosion</td>')
+        self.assertContains(resp, '<td class="text-nowrap">Tech paut_weld</td>')
+        self.assertContains(resp, '<td class="text-nowrap">Tech paut_corrosion</td>')
 
 
 class Phase3RenderTests(MediaMixin, TestCase):

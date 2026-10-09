@@ -45,6 +45,33 @@ class CreateReportTests(TestCase):
             [('A', 0), ('B', 1)],
         )
 
+    def test_new_report_of_a_chosen_type_starts_from_its_defaults(self):
+        from reports.models import ReportDefaults
+        ReportDefaults.objects.create(report_type='paut_corrosion', in_use=True,
+                                      report_values={'client': 'Short Form Client'})
+        resp = self.client.get(self.url, {'type': 'paut_corrosion'})
+        form = resp.context['form']
+        self.assertEqual(form['report_type'].value(), 'paut_corrosion')
+        self.assertEqual(form['client'].value(), 'Short Form Client')
+        # An unknown type falls back to the default type
+        resp = self.client.get(self.url, {'type': 'nope'})
+        self.assertEqual(resp.context['form']['report_type'].value(), 'paut_long')
+
+    def test_new_report_menu_lists_every_type(self):
+        resp = self.client.get(reverse('report-list'))
+        for key in ('paut_long', 'paut_weld', 'paut_corrosion'):
+            self.assertContains(resp, f'?type={key}')
+
+    def test_report_list_columns_and_filters(self):
+        Report.objects.create(document_filename='Weld', report_type='paut_weld', client='Acme', status='issued')
+        Report.objects.create(document_filename='Corrosion', report_type='paut_corrosion', client=' acme 2 ')
+        resp = self.client.get(reverse('report-list'))
+        self.assertEqual(resp.context['clients'], ['Acme', 'acme 2'])
+        self.assertContains(resp, 'data-type="paut_weld"')
+        self.assertContains(resp, 'data-status="issued"')
+        self.assertContains(resp, 'data-client="acme 2"')
+        self.assertContains(resp, 'PAUT weld (Excel)')
+
     def test_saving_loaded_report_updates_instead_of_duplicating(self):
         report = Report.objects.create(document_filename='Existing')
         setup = Setup.objects.create(report=report, scope_model='Old')
@@ -180,3 +207,81 @@ class GenerateReportTests(TestCase):
         report = Report.objects.create()
         resp = self.client.get(reverse('generate-report', args=[report.pk]), follow=True)
         self.assertContains(resp, 'Add at least one UT setup')
+
+
+class StaleSaveTests(TestCase):
+    url = reverse('create-report')
+
+    def test_page_carries_the_version_it_loaded(self):
+        report = Report.objects.create(document_filename='Existing')
+        page = self.client.get(self.url, {'loaded': report.pk})
+        self.assertEqual(page.context['loaded_version'], report.updated_at.isoformat())
+        self.assertContains(page, f'name="loaded_version" value="{report.updated_at.isoformat()}"')
+
+    def test_save_over_a_newer_version_is_held_once(self):
+        from datetime import timedelta
+        report = Report.objects.create(document_filename='Existing', client='Mine')
+        opened = report.updated_at.isoformat()
+        # Another tab saves later
+        Report.objects.filter(pk=report.pk).update(client='Other tab', updated_at=report.updated_at + timedelta(minutes=5))
+
+        resp = self.client.post(self.url, post_data(report=report, client='This tab', loaded_version=opened))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'saved from another tab or window')
+        self.assertContains(resp, 'value="This tab"')   # this tab's entries stay on the page
+        report.refresh_from_db()
+        self.assertEqual(report.client, 'Other tab')
+        # Save again: the page now holds the newer version, so it goes through
+        resp = self.client.post(self.url, post_data(report=report, client='This tab',
+                                                    loaded_version=resp.context['loaded_version']))
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
+        report.refresh_from_db()
+        self.assertEqual(report.client, 'This tab')
+
+    def test_same_version_saves(self):
+        report = Report.objects.create(document_filename='Existing')
+        resp = self.client.post(self.url, post_data(report=report, client='X', loaded_version=report.updated_at.isoformat()))
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
+
+
+class KeptUploadTests(TestCase):
+    url = reverse('create-report')
+    setUp = ImageSectionTests.setUp   # a temporary MEDIA_ROOT
+
+    def test_pictures_survive_a_failed_save(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        kept_dir = Path(tempfile.mkdtemp())
+        patch = mock.patch('reports.services.kept_uploads.kept_root', return_value=kept_dir)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+        data = post_data(columns=['Scan ID', 'Results'], rows=[['CW1 Top', 'x']],
+                         test_date='2026-10-09', test_end_date='2026-10-01')   # refused: end before start
+        data.update(management('drawings', 1))
+        data.update({'drawings-0-caption': 'D1', 'drawings-0-image': png_upload('drawing.png')})
+        resp = self.client.post(self.url, data)
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Report.objects.exists())
+        kept = resp.context['kept_uploads']
+        self.assertEqual([(field, name) for field, _, name in kept], [('drawings-0-image', 'drawing.png')])
+        self.assertContains(resp, 'name="kept_upload"')
+
+        # Fixed and saved again without choosing the picture again: it's saved
+        data = post_data(columns=['Scan ID', 'Results'], rows=[['CW1 Top', 'x']], test_date='2026-10-09')
+        data.update(management('drawings', 1))
+        data.update({'drawings-0-caption': 'D1', 'kept_upload': [f'{field}|{ref}' for field, ref, _ in kept]})
+        resp = self.client.post(self.url, data)
+        report = Report.objects.get()
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
+        self.assertEqual(list(report.images.values_list('caption', flat=True)), ['D1'])
+        self.assertEqual(list(kept_dir.iterdir()), [])   # cleared once saved
+
+    def test_bad_references_are_ignored(self):
+        from django.http import QueryDict
+        from django.utils.datastructures import MultiValueDict
+        from reports.services.kept_uploads import with_kept
+        post = QueryDict(mutable=True)
+        post.setlist('kept_upload', ['drawings-0-image|../../etc/passwd', 'x|' + 'a' * 32 + '/../secret'])
+        self.assertEqual(dict(with_kept(post, MultiValueDict())), {})

@@ -8,7 +8,7 @@ columns placed as the grid places imports (place_columns), the sensitivity block
 part, a weld row per weld, the calibration window from the scan times and the scan plan.
 """
 import re
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from django.db import transaction
 
@@ -204,35 +204,57 @@ def place_columns(probes, groups, items):
 
 # ── The report ───────────────────────────────────────────────────────────
 
-def calibration_window(scan_times):
-    """('HHMM' initial, 'HHMM' out): 15 min before the earliest scan (down to 5 min), 15 after the latest (up)."""
-    minutes = []
+def _scan_moments(scan_times):
+    """The files' scan times ('2026-09-28 08:09') as datetimes; a time without a date counts as one day."""
+    moments = []
     for text in scan_times:
-        match = re.search(r'(\d{2}):(\d{2})', text or '')
+        match = re.search(r'(?:(\d{4})-(\d{2})-(\d{2})[T ])?(\d{2}):(\d{2})', text or '')
         if match:
-            minutes.append(int(match.group(1)) * 60 + int(match.group(2)))
-    if not minutes:
+            y, mo, d, h, mi = match.groups()
+            day = date(int(y), int(mo), int(d)) if y else date(2000, 1, 1)
+            moments.append(datetime(day.year, day.month, day.day, int(h), int(mi)))
+    return moments
+
+
+def calibration_window(scan_times):
+    """
+    ('HHMM' initial, 'HHMM' out): 15 min before the earliest scan (down to 5 min), 15 after the
+    latest (up), by date and time, so scans over midnight or several days get the first scan's
+    and the last scan's times.
+    """
+    moments = _scan_moments(scan_times)
+    if not moments:
         return '', ''
-    start = max(0, (min(minutes) - 15) // 5 * 5)
-    end = min(24 * 60 - 1, -(-(max(minutes) + 15) // 5) * 5)
-    return f'{start // 60:02d}{start % 60:02d}', f'{end // 60:02d}{end % 60:02d}'
+    start = min(moments) - timedelta(minutes=15)
+    start -= timedelta(minutes=start.minute % 5)
+    end = max(moments) + timedelta(minutes=15)
+    end += timedelta(minutes=-end.minute % 5)
+    return start.strftime('%H%M'), end.strftime('%H%M')
+
+
+def scan_days(scan_times):
+    """The days the files were scanned on, first to last ([] when they don't say)."""
+    return sorted({m.date() for m in _scan_moments(scan_times) if m.year != 2000})
 
 
 def welds_from_files(files):
     """
-    {weld ID: {'offsets': [...], 'thickness', 'files'}} in the order the welds first appear, from
-    the files' (confirmed) weld IDs. A weld scanned from both sides (two or more files at one
-    offset) is '90/270'.
+    {weld ID: {'offsets': [...], 'thickness', 'files', 'location', 'locations'}} in the order the
+    welds first appear, from the files' (confirmed) weld IDs. A weld scanned from both sides (two
+    or more files at one offset) is '90/270'; 'locations' is that per offset, in offset order.
     """
     welds = {}
     for data in files:
-        weld = welds.setdefault(data['weld'], {'offsets': [], 'thickness': None, 'files': []})
+        weld = welds.setdefault(data['weld'], {'offsets': [], 'thickness': None, 'files': [], 'per_offset': {}})
         weld['files'].append(data['filename'])
         if data.get('offset') is not None and data['offset'] not in weld['offsets']:
             weld['offsets'].append(data['offset'])
+        weld['per_offset'][data.get('offset')] = weld['per_offset'].get(data.get('offset'), 0) + 1
         weld['thickness'] = weld['thickness'] or data.get('thickness')
     for weld in welds.values():
         weld['location'] = '90/270' if len(weld['files']) > len(weld['offsets'] or [None]) else '90'
+        per_offset = weld.pop('per_offset')
+        weld['locations'] = ['90/270' if per_offset.get(offset, 0) > 1 else '90' for offset in weld['offsets']]
     return welds
 
 
@@ -277,7 +299,13 @@ def build_report(files, defaults=None, document_filename='', block=None, job_fol
     # The instrument: the files' (with the scope library's details)
     for name, value in (items[0]['instrument'] if items else {}).items():
         setattr(report, name, value)
-    report.cal_time_initial, report.cal_time_out = calibration_window([d.get('scan_time') for d in files])
+    scan_times = [d.get('scan_time') for d in files]
+    report.cal_time_initial, report.cal_time_out = calibration_window(scan_times)
+    days = scan_days(scan_times)
+    if len(days) > 1:
+        notes.append(f'The files were scanned over {len(days)} days ({days[0]:%b %d} to {days[-1]:%b %d}): the '
+                     f'calibration times run from the first scan ({report.cal_time_initial}) to the last '
+                     f"({report.cal_time_out}). Check them against each day's calibration.")
 
     # The part and its sensitivity block
     part = job_part(files)
@@ -322,16 +350,20 @@ def build_report(files, defaults=None, document_filename='', block=None, job_fol
     welds = welds_from_files(files)
     headings = get_report_type(WELD_TYPE).results_headings
     table = ResultsTable.objects.create(report=report, columns=headings)
-    for order, (weld_id, weld) in enumerate(welds.items()):
-        offset = weld['offsets'][0] if weld['offsets'] else None
-        cells = {'weld_id': weld_id, 'cl_offset': f'{offset:.3f}' if offset is not None else '',
-                 'probe1_location': weld['location'],
-                 'probe1_thk': f"{weld['thickness']:.3f}" if weld['thickness'] is not None else ''}
-        row = [cells.get(key, '') for key, _ in get_report_type(WELD_TYPE).results_columns]
-        ResultsRow.objects.create(table=table, cells=row, order=order)
-        skews = {90, 270} if weld['location'] == '90/270' else {90}
-        for weld_offset in weld['offsets'] or [None]:
-            ok, message, _ = add_weld_to_plan(report, weld['thickness'], None, weld_offset, skews)
+    keys = [key for key, _ in get_report_type(WELD_TYPE).results_columns]
+    order = 0
+    for weld_id, weld in welds.items():
+        # A row per offset the weld's files were scanned at: the first with the Weld ID, each
+        # further one the weld's next row (as the editor's offset rows)
+        thickness = f"{weld['thickness']:.3f}" if weld['thickness'] is not None else ''
+        parts = list(zip(weld['offsets'], weld['locations'])) or [(None, weld['location'])]
+        for n, (offset, location) in enumerate(parts):
+            cells = {'weld_id': weld_id if not n else '', 'cl_offset': f'{offset:.3f}' if offset is not None else '',
+                     'probe1_location': location, 'probe1_thk': thickness}
+            ResultsRow.objects.create(table=table, cells=[cells.get(key, '') for key in keys], order=order)
+            order += 1
+            skews = {90, 270} if location == '90/270' else {90}
+            ok, message, _ = add_weld_to_plan(report, weld['thickness'], None, offset, skews)
             if not ok:
                 notes.append(f'{weld_id}: {message}')
     return report, notes

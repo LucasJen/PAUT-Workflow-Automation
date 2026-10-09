@@ -165,8 +165,10 @@ class WeldColumnsTests(TestCase):
         from reports.models import Setup
         setup = Setup.objects.create(transducer_model='D791', beam_formation='Conventional', wave_propagation='Longitudinal')
         resp = self.client.get(reverse('create-report'))
-        self.assertEqual(resp.context['saved_setup_columns'][setup.pk]['probe']['kind'], 'conv_long')
         self.assertContains(resp, 'id="weld-setup-loader"')
+        self.assertContains(resp, f'<option value="{setup.pk}">')
+        columns = self.client.get(reverse('saved-setup-json', args=[setup.pk])).json()['columns']
+        self.assertEqual(columns['probe']['kind'], 'conv_long')
 
 
 class NdeColumnsTests(TestCase):
@@ -300,7 +302,8 @@ class WeldResultsTests(TestCase):
         pages = weld_pages(report)
         self.assertEqual((pages.report['A41'], pages.report['Q41'], pages.report['S41']), ('W5', 'LOF', 'P'))
         self.assertEqual((pages.report['A42'], pages.report['Q42']), ('', 'Slag'))
-        self.assertEqual((pages.report['A43'], pages.report['S43'], pages.report['U43']),
+        self.assertNotIn('A43', pages.report)   # the blank row between welds
+        self.assertEqual((pages.report['A44'], pages.report['S44'], pages.report['U44']),
                          ('W6', 'P', 'No rejectable indications. Passes per B31.3'))
         # an Indication page only for the indication with an image, keeping its number in the weld
         self.assertEqual([(i.weld_id, i.number, bool(i.image_path)) for i in pages.indications], [('W5', 2, True)])

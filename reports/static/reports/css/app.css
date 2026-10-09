@@ -641,6 +641,18 @@ textarea.form-control:not(.result-cell-input) { max-width: 110ch; }
     margin-top: 1rem;
 }
 
+/* A fieldset that only groups (the issued report editor disables everything in it) */
+.plain-fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+.display-contents {
+    display: contents;
+}
+
 /* Sticky action bar at the bottom of long forms */
 .sticky-actions {
     position: sticky;
@@ -752,6 +764,8 @@ textarea.form-control:not(.result-cell-input) { max-width: 110ch; }
     pointer-events: none;
 }
 .search-input input { padding-left: 2rem; }
+.list-filter { width: auto; max-width: 13rem; }
+.data-table .col-name { min-width: 12rem; }
 
 /* ── Badges / status ────────────────────────────────────────────────────── */
 
@@ -1084,6 +1098,18 @@ form[data-wizard] .section-nav { display: none; }
 .wizard-status { font-size: 0.8125rem; color: var(--danger); }
 .wizard-status.is-complete { color: var(--success); }
 
+/* As the form's scan plan page: a row per index offset, the 90 deg skew left and 270 deg right */
+.wizard-plan { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+@media (min-width: 768px) {
+    .wizard-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .wizard-plan-figure[data-side="1"] { grid-column: 1; }
+    .wizard-plan-figure[data-side="2"] { grid-column: 2; }
+    .wizard-plan-figure[data-position="1"] { grid-row: 1; }
+    .wizard-plan-figure[data-position="2"] { grid-row: 2; }
+}
+.wizard-plan-figure { margin: 0; }
+.wizard-plan-figure figcaption { font-size: 0.875rem; font-weight: 600; margin-bottom: 0.25rem; }
+.wizard-plan-welds { display: block; font-weight: 400; color: var(--text-2); }
 .wizard-plan img {
     display: block;
     max-width: 100%;
@@ -1189,6 +1215,10 @@ form[data-wizard] .section-nav { display: none; }
 .results-image-shown img { height: 1.75rem; max-width: 4rem; object-fit: cover; border-radius: 3px; vertical-align: middle; }
 .results-grid.indications thead th { background: var(--surface); }
 .results-grid .weld-row input[data-key="weld_id"] { font-weight: 600; }
+/* A weld's further offsets: a row each under its first (+ Offset) */
+.results-grid .weld-row .results-actions { text-align: left; }
+.offset-add { padding: 0 0.25rem; font-size: 0.8125rem; text-decoration: none; }
+.results-grid .offset-label { color: var(--text-2); font-size: 0.75rem; text-align: right; padding-right: 0.5rem; }
 .weld-verdict th { width: 10rem; }
 .weld-verdict td:nth-of-type(1) { width: 9rem; }
 
@@ -1278,7 +1308,7 @@ form[data-wizard] .section-nav { display: none; }
 
 .stat-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
     gap: 1rem;
     margin-bottom: 1rem;
 }
@@ -1311,7 +1341,6 @@ form[data-wizard] .section-nav { display: none; }
 .dashboard-col > .panel { margin-bottom: 0; }   /* the column gap spaces the cards */
 
 @media (max-width: 991.98px) {
-    .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     /* One column: the cards in page order, Equipment last */
     .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
     .dashboard-col { display: contents; }

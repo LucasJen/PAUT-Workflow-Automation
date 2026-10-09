@@ -12,6 +12,12 @@ class Report(models.Model):
     report_type = models.CharField(max_length=50, default='paut_long')
     updated_at = models.DateTimeField(auto_now=True, null=True)
 
+    # Draft while being written; Issued once sent (read-only in the editor until reopened)
+    DRAFT, ISSUED = 'draft', 'issued'
+    STATUS_CHOICES = [(DRAFT, 'Draft'), (ISSUED, 'Issued')]
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=DRAFT)
+    issued_date = models.DateField(null=True, blank=True)
+
     # Project File Name
     document_filename = models.CharField(max_length=200, blank=True)
 
@@ -97,6 +103,10 @@ class Report(models.Model):
 
     def __str__(self):
         return f"{self.pk} | {self.document_filename}"
+
+    @property
+    def is_issued(self):
+        return self.status == self.ISSUED
 
     @property
     def prepared_by_names(self):
@@ -253,6 +263,13 @@ class ScanPlan(models.Model):
                 if ticked:
                     out.append((position, offset, skew))
         return out
+
+    @property
+    def drawing_labels(self):
+        """[(position, side, label)] for each drawing, e.g. (2, 1, 'Offset 1.250" · 90° skew')."""
+        return [(position, 1 if skew == self.SKEW_90 else 2,
+                 f"Offset {self._length_text(offset) or 'at the weld toe'} · {skew}° skew")
+                for position, offset, skew in self.drawings]
 
 
 class ReportDefaults(models.Model):

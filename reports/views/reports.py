@@ -2,13 +2,17 @@ from django.http import FileResponse, JsonResponse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib import messages
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
+from django.db.models.functions import Trim
 from ..services.excel_report import (
     CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available, output_warnings,
 )
+from ..services.kept_uploads import discard as discard_kept, keep as keep_uploads, with_kept
 from ..services.report_render import render_report
 from ..services.word_pdf import WordPdfError, docx_to_pdf, word_available
 from ..forms import (
@@ -17,11 +21,14 @@ from ..forms import (
 from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, ResultsTable, ResultsRow
 from ..report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, get_report_type
 from ..defaults import all_defaults, defaults_for, in_page_order, only_defaults
+from equipment.cal_due import report_cal_warnings
+from equipment.pickers import inventory_picks
 from equipment.inventory import with_library_scope
 
 from ..materials import library_blocks
 from ..weld_columns import columns_from_setup
 from ..weld_form import NOT_USED, wedge_diameter_for, weld_grid_rows
+from .scan_plans import plan_drawing_views
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
 from django.core.exceptions import ValidationError
 from django.forms import ImageField
@@ -51,6 +58,11 @@ def safe_filename(name, default='report'):
     if not name or name.upper() in _WINDOWS_RESERVED:
         return default
     return name[:150]
+
+
+def output_name(report, ext):
+    """The download's file name: the report's name, or 'Report 12' for a report without one."""
+    return f'{safe_filename(report.document_filename, default=f"Report {report.pk}")}.{ext}'
 
 
 def _parse_results(post):
@@ -106,7 +118,7 @@ def _save_results_table(report, columns, rows):
 INDICATION_KEY = re.compile(r'^ind-[a-z0-9]{4,40}$')
 
 
-def _save_indication_images(request, report, rows):
+def _save_indication_images(request, report, rows, files):
     """
     The weld form's indication images: a file chosen for an indication (indication_image_<key>)
     replaces its image, a ticked remove_indication_image deletes it, and images of indications no
@@ -117,29 +129,28 @@ def _save_indication_images(request, report, rows):
     images.exclude(scan_id__in=keys).delete()
     images.filter(scan_id__in=request.POST.getlist('remove_indication_image')).delete()
     validator = ImageField()
-    for name, files in request.FILES.lists():
+    for name, chosen in files.lists():
         key = name.removeprefix('indication_image_')
-        if not name.startswith('indication_image_') or key not in keys or not files:
+        if not name.startswith('indication_image_') or key not in keys or not chosen:
             continue
         try:
-            upload = validator.clean(files[-1])
+            upload = validator.clean(chosen[-1])
         except ValidationError:
-            messages.error(request, f'{files[-1].name} isn\'t an image; that indication has no image.')
+            messages.error(request, f'{chosen[-1].name} isn\'t an image; that indication has no image.')
             continue
         images.filter(scan_id=key).delete()
         ReportImage.objects.create(report=report, kind=ReportImage.INDICATION, scan_id=key, image=upload)
 
 
-def _setup_image_uploads(request, setup_formset):
+def _setup_image_uploads(files, setup_formset):
     """
     Calibration screenshots uploaded per setup block (file input '<prefix>-cal_images').
     Returns {form: [validated files]}; adds an error to the setup form for non-image files.
     """
     uploads, validator = {}, ImageField()
     for f in setup_formset.forms:
-        files = request.FILES.getlist(f.add_prefix('cal_images'))
         valid = []
-        for file in files:
+        for file in files.getlist(f.add_prefix('cal_images')):
             try:
                 valid.append(validator.clean(file))
             except ValidationError:
@@ -175,6 +186,11 @@ def _known_people():
     return sorted(latest.items(), key=lambda item: item[0].lower())
 
 
+def _version(report):
+    """When the report was last saved, as the editor's loaded_version (blank for none)."""
+    return report.updated_at.isoformat() if report is not None and report.updated_at else ''
+
+
 def _get_report(pk):
     """The Report with this pk (from a query string or form field), or None."""
     return Report.objects.filter(pk=pk).first() if pk and str(pk).isdigit() else None
@@ -185,6 +201,7 @@ def create_report(request):
     Takes user input to either save the input as report and setup information or to generate a report
     """
     results_data = {}
+    kept_uploads = []
     # Guided mode (wizard.js): one section at a time, saved on each Prev / Next
     wizard = (request.POST if request.method == 'POST' else request.GET).get('wizard') == '1'
     wizard_step = (request.POST.get('wizard_step') if request.method == 'POST' else request.GET.get('step')) or ''
@@ -192,6 +209,17 @@ def create_report(request):
     if request.method == 'POST':
         # Bind to the loaded report (if any) so saving updates it instead of creating a copy
         instance = _get_report(request.POST.get('report_id'))
+        if instance is not None and instance.is_issued:
+            messages.error(request, ISSUED_MESSAGE)
+            return redirect(f"{reverse('create-report')}?loaded={instance.pk}")
+
+        # The same report saved from another tab (or window) since this one opened it: say so
+        # and keep this tab's entries on the page; saving again replaces the other tab's version
+        version = request.POST.get('loaded_version', '')
+        current = _version(instance)
+        stale = bool(version and current and version != current)
+        if stale:
+            version = current
 
         results, results_ok = None, True
         try:
@@ -209,17 +237,19 @@ def create_report(request):
         form = ReportForm(request.POST, instance=instance)
         setup_formset = SetupFormSet(request.POST, instance=form.instance)
         people = PersonFormSet(request.POST, instance=form.instance, prefix='people')
-        drawings = drawing_formset(request.POST, request.FILES, instance=form.instance)
-        image_formset = scan_image_formset(request.POST, request.FILES, instance=form.instance, scan_ids=scan_ids)
+        # Pictures kept from a save that failed come back unless chosen again (services/kept_uploads.py)
+        files = with_kept(request.POST, request.FILES)
+        drawings = drawing_formset(request.POST, files, instance=form.instance)
+        image_formset = scan_image_formset(request.POST, files, instance=form.instance, scan_ids=scan_ids)
         # The weld form's equipment grid (only posted by editors that show it)
         probes, groups = equipment_formsets(request.POST, instance=form.instance) \
             if 'probes-TOTAL_FORMS' in request.POST else (None, None)
         formsets = tuple(fs for fs in (setup_formset, people, drawings, image_formset, probes, groups) if fs is not None)
 
-        valid = form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
+        valid = not stale and form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
         if valid:
             # Checked after the formsets so each file's error can be shown on its setup block
-            setup_uploads = _setup_image_uploads(request, setup_formset)
+            setup_uploads = _setup_image_uploads(files, setup_formset)
             valid = not any(f.errors for f in setup_formset.forms)
         if valid:
             with transaction.atomic():
@@ -235,10 +265,15 @@ def create_report(request):
                 _save_ordered_formset(image_formset, kind=ReportImage.SCAN)
                 if results is not None:
                     _save_results_table(report, *results)
-                    _save_indication_images(request, report, results[1])
+                    _save_indication_images(request, report, results[1], files)
+            discard_kept(request.POST)
 
             if wizard:
                 return _wizard_redirect(request, report, request.POST.get('wizard_goto', ''))
+            if 'issue' in request.POST:
+                _set_status(report, Report.ISSUED)
+                messages.success(request, 'Report saved and issued. It is read-only until reopened.')
+                return redirect(f"{reverse('create-report')}?loaded={report.pk}")
             wants_output = 'generate' in request.POST or 'preview' in request.POST
             if wants_output and not has_equipment(report):
                 messages.success(request, 'Report saved.')
@@ -254,19 +289,38 @@ def create_report(request):
                 return redirect(f"{reverse('create-report')}?loaded={report.pk}&download=1")
             messages.success(request, 'Report saved.')
             return redirect(f"{reverse('create-report')}?loaded={report.pk}")
-        messages.error(request, 'The report was not saved. Check the highlighted fields.')
+        # The pictures chosen for this save wait for the next one (a file box can't be refilled)
+        kept_uploads = keep_uploads(files)
+        discard_kept(request.POST)
+        if kept_uploads:
+            messages.info(request, f'The {len(kept_uploads)} picture{"s" if len(kept_uploads) != 1 else ""} you chose '
+                                   'are kept and will be saved with the report.')
+        if stale:
+            when = timezone.localtime(instance.updated_at).strftime('%H:%M')
+            messages.error(request, f'Not saved: this report was saved from another tab or window at {when}, after '
+                                    'this page was opened. Saving now would replace those changes. Check the other '
+                                    'tab first; Save again here keeps what this page holds.')
+        else:
+            messages.error(request, 'The report was not saved. Check the highlighted fields.')
     else:
         loaded_report = _get_report(request.GET.get('loaded'))
         if loaded_report is None:
-            # A new report starts from its type's defaults (Preferences › Defaults)
-            report_values, setup_values = defaults_for(DEFAULT_REPORT_TYPE)
-            form = ReportForm(initial=report_values)
+            # A new report starts from its type's defaults (Preferences › Defaults): the type
+            # picked under New report (?type=), else the default type
+            report_type = request.GET.get('type')
+            if report_type not in REPORT_TYPES:
+                report_type = DEFAULT_REPORT_TYPE
+            report_values, setup_values = defaults_for(report_type)
+            form = ReportForm(initial={**report_values, 'report_type': report_type})
             setup_formset = SetupFormSet(initial=[setup_values])
         else:
+            if wizard and loaded_report.is_issued:   # nothing to step through: shown read-only
+                return redirect(f"{reverse('create-report')}?loaded={loaded_report.pk}")
             form = ReportForm(instance=loaded_report)
             setup_formset = SetupFormSet(instance=loaded_report)
             if loaded_report.setups.exists():
                 setup_formset.extra = 0   # no blank block (its empty fields would count as still to fill)
+        version = _version(loaded_report)
         people = PersonFormSet(instance=loaded_report, prefix='people')
         probes, groups = equipment_formsets(instance=loaded_report)
         drawings = drawing_formset(instance=loaded_report)
@@ -276,7 +330,6 @@ def create_report(request):
             columns, rows = report_results(loaded_report)
             results_data = {'columns': columns, 'rows': rows}
 
-    saved_values = _saved_setup_values()
     return render(request, 'reports/create_report.html', {
         'form': form,
         'setup_formset': setup_formset,
@@ -290,28 +343,58 @@ def create_report(request):
             report_id=form.instance.pk, kind=ReportImage.INDICATION)} if form.instance.pk else {},
         'weld_results_rows': {'page1': len(REPORT_RESULT_ROWS), 'total': len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)},
         'has_equipment': bool(form.instance.pk) and has_equipment(form.instance),
-        # What the Excel form leaves out of this report (its pages hold so much)
-        'output_warnings': output_warnings(form.instance) if form.instance.pk else [],
+        # What the Excel form leaves out of this report (its pages hold so much), and equipment
+        # out of calibration on its test date
+        'output_warnings': report_warnings(form.instance) if form.instance.pk else [],
         'drawing_formset': drawings,
         'image_formset': image_formset,
         'known_people': _known_people(),
         'results_data': results_data,
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
+        # The 'Fill from saved setup…' menus; a picked setup's values are fetched (saved_setup_json)
         'saved_setups': _saved_setup_choices(),
-        'saved_setup_values': saved_values,
-        # A setup without a file of its own is marked by its number (an import fills a column once)
-        'saved_setup_columns': {pk: columns_from_setup(with_library_scope(
-                                    {**values, 'source_file': values.get('source_file') or f'Setup #{pk}'})[0])
-                                for pk, values in saved_values.items()},
         'report_defaults': all_defaults(),
+        # The serial fields' pickers (inventory_pick.js)
+        'inventory_picks': inventory_picks(),
         'pdf_available': pdf_available(form.instance if form.instance.pk else None),
         'excel': bool(form.instance.pk) and _is_excel(form.instance),
         'wizard': wizard and bool(form.instance.pk),
+        'issued': form.instance.pk is not None and form.instance.is_issued,
         'wizard_step': wizard_step,
+        'loaded_version': version,
+        'kept_uploads': kept_uploads,
         'rtype': get_report_type(form.instance.report_type),
+        # The guided editor's Scan plan step: every drawing the plan prints, with the welds at its offset
+        'plan_drawings': plan_drawing_views(form.instance) if wizard and form.instance.pk else [],
     })
 
 
+
+
+ISSUED_MESSAGE = "This report is issued, so it can't be changed. Reopen it for editing first."
+
+
+def _set_status(report, status):
+    report.status = status
+    if status == Report.ISSUED:
+        report.issued_date = date.today()
+    report.save(update_fields=['status', 'issued_date', 'updated_at'])
+
+
+def report_status(request, pk):
+    """POST action=issue / reopen: marks the report Issued (read-only) or back to Draft."""
+    report = get_object_or_404(Report, pk=pk)
+    action = request.POST.get('action') if request.method == 'POST' else None
+    if action == 'issue':
+        _set_status(report, Report.ISSUED)
+        messages.success(request, 'Report issued. It is read-only until reopened.')
+    elif action == 'reopen':
+        _set_status(report, Report.DRAFT)
+        messages.success(request, 'Report reopened for editing. Issue it again once it is re-sent.')
+    target = request.POST.get('next', '')
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+        return redirect(target)
+    return redirect(f"{reverse('create-report')}?loaded={report.pk}")
 
 
 def _section_titles(report_type):
@@ -336,19 +419,34 @@ def _wizard_redirect(request, report, goto):
 
 
 def _saved_setup_choices():
-    """Setups offered in each setup block's 'Load from…' menu, saved ones first."""
-    setups = Setup.objects.order_by('report_id', '-pk')
+    """Setups offered in each setup block's 'Load from…' menu, saved ones first (only what the menu shows)."""
+    setups = Setup.objects.order_by('report_id', '-pk').only(
+        'pk', 'report_id', 'title', 'scope_model', 'transducer_model')
     return {
         'saved': [s for s in setups if s.report_id is None],
         'in_reports': [s for s in setups if s.report_id is not None],
     }
 
 
-def _saved_setup_values():
-    """{pk: {field: value}} for filling a setup block from a saved setup in the browser."""
+def _saved_setup_values(pk):
+    """{field: value} of a setup, for filling a setup block from it in the browser (None if gone)."""
     excluded = {'id', 'report', 'order'}
     names = [f.name for f in Setup._meta.concrete_fields if f.name not in excluded]
-    return {s['id']: {n: s[n] for n in names} for s in Setup.objects.values('id', *names)}
+    return Setup.objects.filter(pk=pk).values(*names).first()
+
+
+def saved_setup_json(request, pk):
+    """
+    A setup picked under 'Fill from saved setup…': its values for a setup block, and the probe /
+    group columns it makes on the weld form. Fetched when picked, so the editor doesn't carry
+    every setup of every report.
+    """
+    values = _saved_setup_values(pk)
+    if values is None:
+        return JsonResponse({'error': f'Setup #{pk} is no longer there.'}, status=404)
+    # A setup without a file of its own is marked by its number (an import fills a column once)
+    columns = columns_from_setup(with_library_scope({**values, 'source_file': values.get('source_file') or f'Setup #{pk}'})[0])
+    return JsonResponse({'values': values, 'columns': columns})
 
 
 NEEDS_SETUP_MESSAGE = 'Add at least one UT setup (or, on a weld report, a probe or group) before generating the report.'
@@ -474,7 +572,7 @@ def report_docx(request, pk):
     except ReportRenderError as e:
         return render(request, 'reports/pdf_error.html', {'message': str(e), 'report': report}, status=500)
     response = FileResponse(io.BytesIO(content), content_type=DOCX_CONTENT_TYPE,
-                            filename=f'{safe_filename(report.document_filename)}.docx')
+                            filename=output_name(report, 'docx'))
     response['Cache-Control'] = 'no-store'
     return response
 
@@ -511,13 +609,22 @@ def _save_copy(request, report, name, content):
     if report.job_folder:
         _save_to_job_folder(request, report, name, content)
     else:
-        _save_server_copy(name, content)
+        _save_server_copy(report, name, content)
 
 
-def _save_server_copy(name, content):
-    """Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off)."""
+def _save_server_copy(report, name, content):
+    """
+    Optionally keep a copy on the server (REPORT_OUTPUT_DIR = None turns this off). A name several
+    reports share gets the report's number ('PPI-1 (report 12).xlsx'), so they don't overwrite
+    each other's copy.
+    """
     if not settings.REPORT_OUTPUT_DIR:
         return
+    shared = report.document_filename.strip() and Report.objects.exclude(pk=report.pk).annotate(
+        name=Trim('document_filename')).filter(name__iexact=report.document_filename.strip()).exists()
+    if shared:
+        stem, ext = os.path.splitext(name)
+        name = f'{stem} (report {report.pk}){ext}'
     copy_path = os.path.join(settings.REPORT_OUTPUT_DIR, name)
     try:
         os.makedirs(settings.REPORT_OUTPUT_DIR, exist_ok=True)
@@ -538,7 +645,7 @@ def report_pdf(request, pk):
     if redirect_response:
         return redirect_response
     download = request.GET.get('download') == '1'
-    name = f'{safe_filename(report.document_filename)}.pdf'
+    name = output_name(report, 'pdf')
     try:
         if _is_excel(report):
             if not excel_available():
@@ -572,33 +679,39 @@ def generate_report(request, pk):
     if _is_excel(report):
         return _excel_download(request, report)
 
-    output_name = f'{safe_filename(report.document_filename)}.docx'
+    name = output_name(report, 'docx')
     try:
         content = _render_docx(report)
     except ReportRenderError as e:
         return _download_error(request, report.pk, str(e))
 
-    _save_copy(request, report, output_name, content)
+    _save_copy(request, report, name, content)
 
-    return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=DOCX_CONTENT_TYPE)
+    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=name,
+                                       content_type=DOCX_CONTENT_TYPE), report)
 
 
 def _excel_download(request, report):
-    output_name = f'{safe_filename(report.document_filename)}.xlsx'
+    name = output_name(report, 'xlsx')
     try:
         if not excel_available():
             raise ExcelReportError(_excel_unavailable_message())
         content, _ = build_workbook(report)
     except ExcelReportError as e:
         return _download_error(request, report.pk, str(e))
-    _save_copy(request, report, output_name, content)
-    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name,
+    _save_copy(request, report, name, content)
+    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=name,
                                        content_type=XLSX_CONTENT_TYPE), report)
 
 
+def report_warnings(report):
+    """What to warn about before the report goes out: what the Excel form leaves out, and equipment out of cal."""
+    return output_warnings(report) + report_cal_warnings(report)
+
+
 def _with_warnings(response, report):
-    """The download with what the form leaves out (output_warnings) in X-Report-Warnings, for app.js to show."""
-    warnings = output_warnings(report)
+    """The download with report_warnings in X-Report-Warnings, for app.js to show."""
+    warnings = report_warnings(report)
     if warnings:
         response['X-Report-Warnings'] = json.dumps(warnings)   # ASCII (non-ASCII is escaped), as headers must be
     return response
@@ -624,6 +737,7 @@ def _duplicate_report(original):
     report.document_filename = f'{original.document_filename or "Untitled"} (copy)'
     report.report_date = date.today()   # as a new report in the editor; the test dates are the new job's
     report.test_date = report.test_end_date = None
+    report.status, report.issued_date = Report.DRAFT, None   # a new report: not sent yet
     # A repeat inspection is a new job: it gets its own folder (if any), never the original's files
     report.job_folder, report.job_folder_files = '', []
     report.save()
@@ -665,12 +779,18 @@ def report_list(request):
     if request.method == 'POST':
         selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:
-            count = Report.objects.filter(pk__in=selected_pks).count()
-            Report.objects.filter(pk__in=selected_pks).delete()
-            messages.success(request, f"Deleted {count} report{'s' if count != 1 else ''}.")
+            # Issued reports are kept: they were sent, so deleting one takes reopening it first
+            selected = Report.objects.filter(pk__in=selected_pks)
+            kept = selected.filter(status=Report.ISSUED).count()
+            drafts = selected.exclude(status=Report.ISSUED)
+            count = drafts.count()
+            drafts.delete()
+            if count:
+                messages.success(request, f"Deleted {count} report{'s' if count != 1 else ''}.")
+            if kept:
+                messages.warning(request, f"{kept} issued report{'s were' if kept != 1 else ' was'} kept: "
+                                          'reopen a report in the editor to delete it.')
             return redirect('report-list')
-        if 'edit' in request.POST and len(selected_pks) == 1:
-            return redirect('edit-report', pk=selected_pks[0])
         if 'duplicate' in request.POST and len(selected_pks) == 1:
             duplicate = _duplicate_report(get_object_or_404(Report, pk=selected_pks[0]))
             messages.success(request, 'Report duplicated. Results, scan images and dates start empty.')
@@ -678,11 +798,18 @@ def report_list(request):
     word_ok, excel_ok = word_available(), excel_available()
     reports = list(reports)
     for report in reports:
+        report.type_label = get_report_type(report.report_type).label
+        report.client_key = report.client.strip()   # the client filter's value
         report.is_excel = _is_excel(report)
         report.pdf_ok = excel_ok if report.is_excel else word_ok
         # As has_equipment(): a setup, or a probe / group column on the weld form
         report.can_generate = bool(report.setup_count or report.probe_count or report.group_count)
-    return render(request, 'reports/report_list.html', {'items': reports})
+    return render(request, 'reports/report_list.html', {
+        'items': reports,
+        # The list's filters: every type, and the clients on the reports
+        'type_choices': [(key, t.label) for key, t in REPORT_TYPES.items()],
+        'clients': sorted({r.client.strip() for r in reports if r.client.strip()}, key=str.lower),
+    })
 
 
 def new_report(request):

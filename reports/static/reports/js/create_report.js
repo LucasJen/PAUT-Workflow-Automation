@@ -78,7 +78,15 @@ function makeFormset({ prefix, container, template, blockSelector, titleSelector
 
 // ── Setups ───────────────────────────────────────────────────────────────
 
-const savedSetupValues = readJson('saved-setup-values', {});
+// A saved setup's values and weld-form columns, fetched when it's picked (views/reports.py saved_setup_json)
+async function fetchSavedSetup(pk) {
+    const url = document.getElementById('report-form').dataset.savedSetupUrl.replace(/0\/values\.json$/, `${pk}/values.json`);
+    const response = await fetch(url, { cache: 'no-store' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) throw new Error(data.error || `Setup #${pk} couldn't be loaded.`);
+    return data;
+}
+window.fetchSavedSetup = fetchSavedSetup;
 
 const setups = makeFormset({
     prefix: 'setups',
@@ -118,13 +126,17 @@ function fillSetupBlock(prefix, values) {
 }
 
 // "Fill from saved setup…" copies a saved setup's values into this block
-document.addEventListener('change', e => {
+document.addEventListener('change', async e => {
     if (!e.target.classList.contains('setup-loader')) return;
     const select = e.target;
-    const values = savedSetupValues[select.value];
-    if (!values) return;
-    fillSetupBlock(select.dataset.formPrefix, values);
+    const pk = select.value;
     select.value = '';
+    if (!pk) return;
+    try {
+        fillSetupBlock(select.dataset.formPrefix, (await fetchSavedSetup(pk)).values);
+    } catch (error) {
+        showMessage(error.message);
+    }
 });
 
 // "Import .nde" fills this block from the file's first inspection group, and a new setup block

@@ -1,4 +1,5 @@
 import os
+import re
 
 from django.db import models
 from django.db.models.functions import Coalesce
@@ -26,6 +27,11 @@ def file_type_q(key):
     return q
 
 
+def file_name_q(word):
+    """Matches documents whose file name (not its upload folder, 'documents/2026/') contains `word`."""
+    return models.Q(file__iregex=rf'[^/]*{re.escape(word)}[^/]*$')
+
+
 class DocumentQuerySet(models.QuerySet):
     def recently_used(self):
         """Most recently opened first; a document never opened counts from its upload."""
@@ -41,7 +47,7 @@ class DocumentQuerySet(models.QuerySet):
         for word in query.split():
             in_label = [key for key, label in labels.items() if word.lower() in label.lower()]
             match = (models.Q(title__icontains=word) | models.Q(description__icontains=word)
-                     | models.Q(file__icontains=word)
+                     | file_name_q(word)
                      | models.Q(notes__icontains=word) | models.Q(category__in=in_label))
             for key, (label, _, _) in FILE_TYPES.items():
                 if word.lower() in label.lower():
@@ -72,6 +78,8 @@ class Document(models.Model):
     # What the document is, in full: a procedure's title from its cover (e.g. 'Ultrasonic Examination of Welds ...')
     description = models.CharField(max_length=300, blank=True)
     file = models.FileField(upload_to='documents/%Y/', max_length=255)
+    # The current file's revision, as the document names it (e.g. 'Rev. 3'); older files are kept as DocumentRevisions
+    revision = models.CharField(max_length=50, blank=True)
     notes = models.TextField(blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     last_opened_at = models.DateTimeField(null=True, blank=True, editable=False)
@@ -111,9 +119,33 @@ class Document(models.Model):
         return os.path.basename(self.file.name)
 
     def delete(self, *args, **kwargs):
-        # Removes the PDF from media/ along with the record
-        storage, name = self.file.storage, self.file.name
+        # Removes the file, and its earlier revisions' files, from media/ along with the record
+        storage = self.file.storage
+        names = [self.file.name, *self.revisions.values_list('file', flat=True)]
         result = super().delete(*args, **kwargs)
-        if name:
-            storage.delete(name)
+        for name in names:
+            if name:
+                storage.delete(name)
         return result
+
+
+class DocumentRevision(models.Model):
+    """An earlier file of a document, kept when Replace file put a new one in its place (controlled procedures)."""
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='revisions')
+    file = models.FileField(upload_to='documents/%Y/', max_length=255)
+    revision = models.CharField(max_length=50, blank=True)
+    replaced_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-replaced_at', '-pk']
+
+    def __str__(self):
+        return f'{self.document} {self.revision}'.strip()
+
+    @property
+    def filename(self):
+        return os.path.basename(self.file.name)
+
+    @property
+    def file_type(self):
+        return file_type_of(self.file.name)

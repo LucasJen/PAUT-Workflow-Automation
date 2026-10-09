@@ -51,7 +51,7 @@ class OutputWarningTests(MediaMixin, TestCase):
         for i in range(47):
             ResultsRow.objects.create(table=table, cells=[f'W{i}'], order=i)
         self.assertEqual(output_warnings(report), [
-            'The results have 47 rows; the form holds 45, so the last 2 are left out.',
+            'The results need 93 rows (with a blank row between welds); the form holds 45, so the last 24 are left out.',
             'The report has 5 probe columns; the form holds 4, so the last one is left out.'])
         page = self.client.get(f"{reverse('create-report')}?loaded={report.pk}")
         self.assertContains(page, 'the form holds 45')

@@ -1,4 +1,5 @@
 {% extends 'reports/components/edit_page.html' %}
+{% load ui %}
 {% block form_attrs %} data-arrow-nav{% endblock %}
 
 {% block title %}{% if setup.pk %}Setup #{{ setup.pk }}{% else %}New setup{% endif %} · PAUT Report Automation{% endblock %}
@@ -14,5 +15,10 @@
     <option value="Shear">
     <option value="Longitudinal">
 </datalist>
+{% include 'reports/components/inventory_pickers.html' %}
 {{ block.super }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'reports/js/inventory_pick.js' %}"></script>
 {% endblock %}

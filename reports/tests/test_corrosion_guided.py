@@ -47,7 +47,9 @@ class ScanDateTests(TestCase):
         self.assertEqual(report.test_date, date(2026, 3, 12))
 
 
-class CorrosionGuidedTests(TestCase):
+class JobFolderMixin:
+    """A temporary working folder (and media) for the guided flows that read a job folder's files and pictures."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
@@ -69,6 +71,9 @@ class CorrosionGuidedTests(TestCase):
             (folder / file_name).write_bytes(content)
         return folder
 
+
+
+class CorrosionGuidedTests(JobFolderMixin, TestCase):
     def start(self, **data):
         return self.client.post(reverse('start-from-files'), {'type': 'paut_corrosion', **data})
 
@@ -154,3 +159,39 @@ class CorrosionGuidedTests(TestCase):
         WorkingFolder.objects.create(path=str(self.root), report_type='paut_weld', is_default=True)
         page = self.client.get(reverse('start-from-files'))
         self.assertContains(page, 'id="start-block"')
+
+
+class LongFormGuidedTests(JobFolderMixin, TestCase):
+    """The Long Form's Guided Creation: the corrosion flow, plus a results row per file."""
+
+    def setUp(self):
+        super().setUp()
+        WorkingFolder.objects.create(path=str(self.root), report_type='paut_long', is_default=True)
+
+    def test_a_long_form_folder(self):
+        from reports.services.corrosion_import import scan_id_for
+        folder = self.job('11V2 HIC', {
+            'S1.nde': nde_bytes(), 'S10.nde': nde_bytes(),
+            'iso.jpg': png((300, 200), 'JPEG'), 'S10 c-scan.png': png(), 'overview.png': png()})
+        self.assertRedirects(self.client.post(reverse('start-from-files'), {
+            'type': 'paut_long', 'folder_mode': 'existing', 'job_folder': folder.name}), reverse('confirm-job'))
+        page = self.client.get(reverse('confirm-job'))
+        self.assertContains(page, '<option value="image" selected>Scan image</option>', html=True)
+        self.assertContains(page, 'each file used adds a results row')
+        self.client.post(reverse('confirm-job'), {
+            'document_filename': '11V2 HIC', 'include_0': '1', 'include_1': '1',
+            'role_0': 'drawing', 'role_1': 'image', 'caption_1': 'S10 c-scan', 'role_2': 'image', 'caption_2': 'Overview'})
+        report = Report.objects.get()
+        self.assertEqual(report.report_type, 'paut_long')
+        self.assertEqual([r.cells[0] for r in report.results_table.rows.order_by('order')], ['S1', 'S10'])
+        scans = {(i.scan_id, i.caption) for i in report.images.filter(kind=ReportImage.SCAN)}
+        self.assertEqual(scans, {('S10', ''), ('', 'Overview')})
+        self.assertEqual(report.images.filter(kind=ReportImage.DRAWING).count(), 1)
+        self.assertEqual(report.setups.count(), 1)
+        self.assertEqual(scan_id_for('s1 strip', ['S1', 'S10']), 'S1')
+        self.assertEqual(scan_id_for('S10 strip', ['S1', 'S10']), 'S10')
+
+        # The guided editor goes Files, Pictures, then the Long Form's sections
+        page = self.client.get(reverse('create-report'), {'loaded': report.pk, 'wizard': '1'})
+        self.assertContains(page, 'data-wizard="1"')
+        self.assertContains(page, 'Pictures')

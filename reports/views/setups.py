@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from ..forms import SetupForm
 from ..models import Setup
+from equipment.pickers import inventory_picks
 
 
 def setup_list(request):
@@ -55,4 +56,4 @@ def edit_setup(request, pk=None):
             return redirect('setup-list')
     else:
         form = SetupForm(instance=setup)
-    return render(request, 'reports/edit_setup.html', {'form': form, 'setup': setup})
+    return render(request, 'reports/edit_setup.html', {'form': form, 'setup': setup, 'inventory_picks': inventory_picks()})

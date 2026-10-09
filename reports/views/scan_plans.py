@@ -390,6 +390,46 @@ def scan_plan_wedges(request):
 OFFSET_TOLERANCE = 0.001   # inches: offsets this close are the same offset (one image per skew)
 
 
+# A weld's C/L Offset cell: one offset, or several ('0.500 / 0.875'); always positive
+OFFSET_NUMBER = re.compile(r'\d*\.?\d+')
+
+
+def weld_offsets(text):
+    """'0.500 / 0.875' -> [0.5, 0.875]; '' -> []."""
+    return [float(n) for n in OFFSET_NUMBER.findall(text or '')]
+
+
+def plan_drawing_views(report):
+    """
+    The report's scan plan drawings for the guided editor: [{'position', 'side', 'label', 'welds'}]
+    per ticked skew per index offset, with the welds whose C/L offset is that offset.
+    """
+    from ..report_types import WELD_RESULTS_COLUMNS
+    from ..results import report_results
+    plan = report.scan_plan
+    if plan is None:
+        return []
+    headings = dict(WELD_RESULTS_COLUMNS)
+    columns, rows = report_results(report) if report.pk else ([], [])
+    weld_at, offset_at = (columns.index(headings[key]) if headings[key] in columns else None
+                          for key in ('weld_id', 'cl_offset'))
+    welds = []   # [(weld ID, [offsets])]: a row with no Weld ID may be a further offset of the weld above
+    if weld_at is not None and offset_at is not None:
+        for cells in rows:
+            cells = list(cells) + [''] * len(columns)
+            if str(cells[weld_at]).strip():
+                welds.append((str(cells[weld_at]).strip(), []))
+            if welds:
+                welds[-1][1].extend(weld_offsets(str(cells[offset_at])))
+    views = []
+    for position, side, label in plan.drawing_labels:
+        offset = plan.index_offset if position == 1 else plan.index_offset_2
+        views.append({'position': position, 'side': side, 'label': label,
+                      'welds': [weld for weld, offsets in welds
+                                if any(_same_offset(offset, o) for o in offsets)]})
+    return views
+
+
 def _weld_skews(location):
     """Probe 1 Location -> the skews it scans: '90/270' both, '90' or '270' one; no number, both."""
     numbers = {int(float(n)) for n in NUMBER.findall(location or '')}
@@ -500,7 +540,15 @@ def scan_plan_from_weld(request):
     report = Report.objects.filter(pk=report_id).first() if report_id.isdigit() else None
     if report is None:
         return JsonResponse({'ok': False, 'message': 'Save the report first.'})
-    ok, message, plan = add_weld_to_plan(
-        report, _first_number(request.POST.get('probe1_thk')), _first_number(request.POST.get('weld_width')),
-        _first_number(request.POST.get('cl_offset')), _weld_skews(request.POST.get('probe1_location')))
-    return JsonResponse({'ok': ok, 'message': message, **({'plan': _plan_json(plan)} if plan else {})})
+    if report.is_issued:
+        return JsonResponse({'ok': False, 'message': 'The report is issued: reopen it to change its scan plan.'})
+    # Each of the weld's offsets ('0.500 / 0.875'), or the weld toe when none is typed
+    oks, messages_, plan = [], [], None
+    for offset in weld_offsets(request.POST.get('cl_offset')) or [None]:
+        ok, message, plan = add_weld_to_plan(
+            report, _first_number(request.POST.get('probe1_thk')), _first_number(request.POST.get('weld_width')),
+            offset, _weld_skews(request.POST.get('probe1_location')))
+        report.refresh_from_db(fields=['scan_plan'])   # the next offset goes into the plan just made
+        oks.append(ok)
+        messages_.append(message)
+    return JsonResponse({'ok': all(oks), 'message': ' '.join(messages_), **({'plan': _plan_json(plan)} if plan else {})})

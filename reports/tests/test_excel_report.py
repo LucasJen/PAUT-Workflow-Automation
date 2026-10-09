@@ -119,17 +119,44 @@ class WeldCellMapTests(TestCase):
         self.assertEqual((cells['A41'], cells['C41'], cells['I41'], cells['Q41']), ('W5', 'RJA4201', '0.280', 'LOF'))
         self.assertEqual(cells['S41'], CHECK)
         self.assertNotIn('T41', cells)
-        self.assertEqual(cells['T42'], CROSS)
-        self.assertNotIn('S42', cells)
-        self.assertEqual(cells['U42'], 'Cut out')
+        # W6 after a blank row
+        self.assertEqual([ref for ref in cells if ref[:1] in 'ACSTU' and ref[1:] == '42'], [])
+        self.assertEqual((cells['A43'], cells['T43']), ('W6', CROSS))
+        self.assertNotIn('S43', cells)
+        self.assertEqual(cells['U43'], 'Cut out')
 
     def test_rows_past_page_one_go_to_the_continuation_page(self):
-        rows = [weld_row(f'W{i}') for i in range(13)]
+        rows = [weld_row(f'W{i}') for i in range(8)]
         pages = weld_pages(weld_report(rows, location='Pipe rack'))
-        self.assertEqual(pages.report['A52'], 'W11')
-        self.assertEqual(pages.continuation['A15'], 'W12')
+        # a blank row between welds: page 1's 12 rows hold six; no blank row at the top of a page
+        self.assertEqual([pages.report.get(f'A{r}', '') for r in range(41, 53)],
+                         ['W0', '', 'W1', '', 'W2', '', 'W3', '', 'W4', '', 'W5', ''])
+        self.assertEqual((pages.continuation['A15'], pages.continuation['A17']), ('W6', 'W7'))
         self.assertEqual(pages.continuation['C13'], 'Pipe rack')
         self.assertEqual(pages.page_count, 2)
+
+    def test_an_offset_row_prints_as_saved(self):
+        one = weld_row('W5', 'LOF')
+        one[2], one[3], one[6] = '0.500', '0.6', '90/270'
+        offset = [''] * 18
+        offset[2], offset[3], offset[6], offset[7] = '0.875', '0.6', '90', '0.280'
+        offset[15] = 'Slag'
+        cells = weld_pages(weld_report([one, offset, weld_row('W6')])).report
+        self.assertEqual([(cells.get(f'A{r}', ''), cells.get(f'D{r}', ''), cells.get(f'H{r}', ''), cells.get(f'Q{r}', ''))
+                          for r in range(41, 45)],
+                         [('W5', '0.500', '90/270', 'LOF'), ('', '0.875', '90', 'Slag'), ('', '', '', ''), ('W6', '', '', '')])
+
+    def test_offsets_saved_in_one_cell_print_a_row_each(self):
+        one = weld_row('W5', 'LOF')
+        one[2], one[3] = '0.500 / 0.875 / 1.250', '0.6'
+        second = [''] * 18
+        second[15] = 'Slag'
+        cells = weld_pages(weld_report([one, second])).report
+        # the weld's columns copied to each offset's row, a row added for the third
+        self.assertEqual([(cells.get(f'A{r}', ''), cells.get(f'D{r}', ''), cells.get(f'E{r}', ''), cells.get(f'I{r}', ''),
+                           cells.get(f'Q{r}', '')) for r in range(41, 44)],
+                         [('W5', '0.500', '0.6', '0.280', 'LOF'), ('', '0.875', '0.6', '0.280', 'Slag'),
+                          ('', '1.250', '0.6', '0.280', '')])
 
     def test_no_continuation_page_when_results_fit(self):
         pages = weld_pages(weld_report([weld_row()]))

@@ -172,3 +172,49 @@ class LibraryScopeTests(TestCase):
         column = data['columns'][0]
         self.assertEqual(column['scope'], 'Omniscan X3 QC-0030383')
         self.assertEqual(column['instrument']['inst_cal_due'], '1/16/2027')
+
+
+class InventoryExcelTests(TestCase):
+    def setUp(self):
+        from pathlib import Path
+        from django.test import override_settings
+        self.tmp = tempfile.mkdtemp()
+        override = override_settings(REPORT_OUTPUT_DIR=Path(self.tmp))
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def test_export_is_a_workbook_with_a_sheet_per_library(self):
+        from django.urls import reverse
+        Scope.objects.create(name='X3', serial_number='QC-1', calibration_due_date=datetime.date(2027, 1, 16))
+        resp = self.client.get(reverse('export-inventory'))
+        self.assertIn('Equipment inventory', resp['Content-Disposition'])
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+            book = z.read('xl/workbook.xml').decode()
+            sheet = z.read('xl/worksheets/sheet1.xml').decode()
+        for name in ('Scopes', 'Probes', 'Calibration blocks', 'Sensitivity blocks', 'Encoders'):
+            self.assertIn(f'name="{name}"', book)
+        self.assertIn('QC-1', sheet)
+        self.assertIn('<v>46403</v>', sheet)   # 1/16/2027 as an Excel date
+
+    def test_import_is_checked_then_saved(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        Scope.objects.create(name='Old name', serial_number='QC-0030383')
+        url = reverse('import-inventory')
+        upload = SimpleUploadedFile('Inventory.xlsx', workbook({'Scope and Encoder': SCOPES, 'All Probes 2026': PROBES}))
+        resp = self.client.post(url, {'check': '1', 'workbook': upload}, follow=True)
+        self.assertContains(resp, 'Inventory.xlsx')
+        self.assertContains(resp, 'Import 5')
+        self.assertEqual(Probe.objects.count(), 0)   # nothing saved yet
+        self.client.post(url, {'import': '1'})
+        self.assertEqual(Probe.objects.count(), 3)
+        self.assertEqual(Scope.objects.get(serial_number='QC-0030383').name, 'Omniscan X3')
+        self.assertEqual(os.listdir(os.path.join(self.tmp, 'tmp')), [])   # the upload is removed
+
+    def test_import_of_a_file_that_is_not_a_workbook(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        url = reverse('import-inventory')
+        resp = self.client.post(url, {'check': '1', 'workbook': SimpleUploadedFile('x.xlsx', b'not a zip')}, follow=True)
+        self.assertContains(resp, 'could not be read')
+        self.assertNotContains(resp, 'name="import"')

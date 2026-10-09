@@ -80,7 +80,17 @@ class EditorTests(TestCase):
         Setup.objects.create(scope_model='OmniScan X3')
         resp = self.client.get(self.url)
         self.assertContains(resp, 'OmniScan X3')
-        self.assertContains(resp, 'id="saved-setup-values"')
+        # Its values are fetched when picked, not carried by the page
+        self.assertNotContains(resp, 'id="saved-setup-values"')
+        self.assertContains(resp, 'data-saved-setup-url="/setup/0/values.json"')
+
+    def test_saved_setup_values_are_fetched_when_picked(self):
+        setup = Setup.objects.create(scope_model='OmniScan X3', report=Report.objects.create())
+        data = self.client.get(reverse('saved-setup-json', args=[setup.pk])).json()
+        self.assertEqual(data['values']['scope_model'], 'OmniScan X3')
+        self.assertNotIn('report', data['values'])
+        self.assertIn('probe', data['columns'])
+        self.assertEqual(self.client.get(reverse('saved-setup-json', args=[setup.pk + 99])).status_code, 404)
 
     def test_old_urls_redirect_to_editor(self):
         report = Report.objects.create()

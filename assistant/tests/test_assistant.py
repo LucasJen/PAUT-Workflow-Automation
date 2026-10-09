@@ -91,6 +91,24 @@ class IndexTests(MediaTestCase):
         self.assertEqual(index.sync(), 1)
         self.assertEqual(index.search('5L64-A32'), [])
 
+    def test_an_unchanged_library_is_not_read_again(self):
+        self.library()
+        index.sync()
+        with mock.patch('assistant.sources.report_text', side_effect=AssertionError('read again')),                 mock.patch('assistant.sources.setup_text', side_effect=AssertionError('read again')):
+            self.assertEqual(index.sync(), 0)
+        # Saved without a change to its text: only its stamp moves
+        self.report.save()
+        self.assertEqual(index.sync(), 0)
+        with mock.patch('assistant.sources.report_text', side_effect=AssertionError('read again')):
+            self.assertEqual(index.sync(), 0)
+
+    def test_a_setup_edited_on_its_own_page_reindexes_its_report(self):
+        self.library()
+        index.sync()
+        Setup.objects.filter(pk=self.setup.pk).update(transducer_model='7.5L60-PWZ1')   # no report save
+        self.assertEqual(index.sync(), 2)   # the setup and its report
+        self.assertEqual({h['kind'] for h in index.search('7.5L60-PWZ1')}, {'setup', 'report'})
+
 
 class ToolTests(MediaTestCase):
     def test_lookups_return_text_and_record_their_sources(self):

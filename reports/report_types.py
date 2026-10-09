@@ -117,6 +117,16 @@ HIC_RESULTS_COLUMNS = (
     ('comments', 'Results'),
 )
 
+# The Short Form's optional Thickness Table (form 598-PAUTFORM-009): one row per scan area
+CORROSION_THICKNESS_COLUMNS = (
+    ('scan_id', 'Scan ID'),
+    ('axial', 'Axial Start / Stop'),
+    ('circ', 'Circ Start / Stop'),
+    ('min_thk', 'Min. Thickness (in.)'),
+    ('avg_thk', 'Avg. Thickness (in.)'),
+    ('comments', 'Results'),
+)
+
 # Results columns of the weld form (100-UTFORM-010). One row per flaw: a row with a blank
 # Weld ID is another flaw on the weld above it; a row with a flaw Type gets an indication page.
 WELD_RESULTS_COLUMNS = (
@@ -152,8 +162,9 @@ class ReportType:
     output_format: str = 'docx'
     # The editor outlines empty fields by where their value comes from (reports/fill_marks.py)
     fill_marks: bool = False
-    # Guided Creation can build it from a job's files (reports/views/start.py)
+    # Guided Creation can build it from a job's files (reports/views/start.py), and what its page says
     guided: bool = False
+    guided_intro: str = ''
     # (key, text) pairs the editor shows for this type instead of the usual wording: a field's
     # label (its name), a section's title ('section:<key>') or any [data-label="<key>"] text
     labels: tuple = ()
@@ -200,6 +211,16 @@ _TYPES = [
         hidden_fields=WELD_ONLY_FIELDS | CORROSION_ONLY_FIELDS,
         results_columns=HIC_RESULTS_COLUMNS,
         fill_marks=True,
+        # Guided Creation as the Short Form's: the job folder's .nde files and pictures, then its sections
+        guided=True,
+        guided_intro=("Pick the job's folder (or make one). The app reads its .nde files and pictures: each file's "
+                      'setup becomes a UT setup and a results row (Scan ID from the file name), and you say which '
+                      'pictures are equipment drawings, calibration screenshots and scan images. The folder name '
+                      'gives the report name and client, and the report is saved back into the folder when you '
+                      'download it.'),
+        wizard_done=('Files', 'Pictures'),
+        wizard_equipment_step='setups',
+        wizard_last_step='images',
     ),
     ReportType(
         'paut_weld', 'PAUT weld (Excel)',
@@ -211,12 +232,18 @@ _TYPES = [
         results_columns=WELD_RESULTS_COLUMNS,
         fill_marks=True,
         guided=True,
+        guided_intro=("Pick the job's folder (or make one). The app reads its .nde files: the instrument, probes "
+                      'and groups, the part, the welds and their offsets, the calibration times and the scan plan. '
+                      'The folder name gives the report name and client, and the report is saved back into the '
+                      'folder when you download it.'),
     ),
     ReportType(
         'paut_corrosion', 'Short Form',
         template='paut_corrosion.xlsx', output_format='xlsx',
-        # Form 598-PAUTFORM-009: Summary, a Setup Information page per setup, drawings, images
-        sections=('project', 'weld_personnel', 'summary', 'setups', 'drawings', 'images'),
+        # Form 598-PAUTFORM-009: Summary, a Setup Information page per setup, drawings, the
+        # Thickness Table (only when it has rows), images
+        sections=('project', 'weld_personnel', 'summary', 'setups', 'drawings', 'results', 'images'),
+        results_columns=CORROSION_THICKNESS_COLUMNS,
         hidden_fields=frozenset({
             'document_title', 'project_number', 'project_type', 'test_end_date', 'address', 'contractor',
             'exam_code', 'acceptance_standard', 'scan_id', 'scan_comments',
@@ -240,6 +267,7 @@ _TYPES = [
             ('section:summary', 'Examination scope, results & notes'),
             ('section:setups', 'Setup information'),
             ('section:drawings', 'Drawings'),
+            ('section:results', 'Thickness table'),
             ('section:images', 'Images'),
             ('section:weld_personnel', 'Personnel'),
             ('drawings_intro', 'Each drawing gets its own page: landscape pictures on the Horizontal Drawing '
@@ -251,6 +279,10 @@ _TYPES = [
         field_options=(('title', CORROSION_METHODS), ('procedure', ('100-UT-003', '100-UT-020', '100-UT-021', '100-UT-031'))),
         fill_marks=True,
         guided=True,
+        guided_intro=("Pick the job's folder (or make one). The app reads its .nde files, if any (a manual UT job "
+                      'has none): each distinct probe, wedge and instrument gets a Setup Information page. Then you '
+                      "say which of the folder's pictures are drawings, setup images and images. The folder name "
+                      'gives the report name and client, and the report is saved back into the folder when you download it.'),
         wizard_done=('Files', 'Pictures'),
         wizard_equipment_step='setups',
         wizard_last_step='images',

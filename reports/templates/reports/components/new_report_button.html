@@ -1,0 +1,14 @@
+{% comment %}
+"New report" with a menu of the report types: each opens the editor with that type's defaults (?type=).
+{% endcomment %}
+{% load ui %}{% report_types as new_report_types %}
+<div class="btn-group">
+    <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-plus-lg"></i> New report
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        {% for key, label in new_report_types %}
+        <li><a class="dropdown-item" href="{% url 'create-report' %}?type={{ key }}">{{ label }}</a></li>
+        {% endfor %}
+    </ul>
+</div>

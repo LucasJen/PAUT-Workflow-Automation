@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
 from .forms import ACCEPT, DocumentForm
-from .models import FILE_TYPES, Document, file_type_of
+from .models import FILE_TYPES, Document, DocumentRevision, file_type_of
 
 # Per library: its list and edit URL names, page title, the noun for one document and the empty-state icon
 LIBRARIES = {
@@ -95,6 +95,20 @@ def open_document(request, pk):
     content_type = mimetypes.guess_type(document.filename)[0] or 'application/octet-stream'
     return FileResponse(handle, filename=document.filename, content_type=content_type,
                         as_attachment=document.file_type != 'pdf')
+
+
+def open_revision(request, pk):
+    """An earlier revision's file: a PDF in the browser, Word / Excel as a download."""
+    revision = get_object_or_404(DocumentRevision, pk=pk)
+    document = revision.document
+    try:
+        handle = revision.file.open('rb')
+    except (OSError, ValueError):
+        messages.error(request, f'The file of {revision} is missing from the library.')
+        return redirect(LIBRARIES[document.category]['edit'], pk=document.pk)
+    content_type = mimetypes.guess_type(revision.filename)[0] or 'application/octet-stream'
+    return FileResponse(handle, filename=revision.filename, content_type=content_type,
+                        as_attachment=revision.file_type != 'pdf')
 
 
 DASHBOARD_COUNT = 10

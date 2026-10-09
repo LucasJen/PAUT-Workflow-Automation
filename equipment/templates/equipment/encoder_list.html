@@ -5,6 +5,7 @@
 {% block item_noun %}encoder{% endblock %}
 
 {% block new_button %}
+{% include 'reports/components/equipment_export_button.html' %}
 <a href="{% url 'new-encoder' %}" class="btn btn-primary"><i class="bi bi-plus-lg"></i> New encoder</a>
 {% endblock %}
 
@@ -15,6 +16,7 @@
 <th class="sortable">Manufacturer<span class="sort-indicator"></span></th>
 <th class="sortable">Type<span class="sort-indicator"></span></th>
 <th class="sortable">Step count<span class="sort-indicator"></span></th>
+<th class="sortable">Cal due<span class="sort-indicator"></span></th>
 {% endblock %}
 
 {% block rows %}
@@ -27,6 +29,7 @@
     <td>{{ encoder.manufacturer }}</td>
     <td>{{ encoder.encoder_type }}</td>
     <td class="mono">{{ encoder.step_count }}</td>
+    {% include 'equipment/_cal_due_cell.html' with due=encoder.calibration_due_date %}
 </tr>
 {% endfor %}
 {% endblock %}

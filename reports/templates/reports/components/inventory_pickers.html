@@ -1,0 +1,9 @@
+{% comment %}
+The inventory's serial numbers for the serial fields' pickers (inventory_pick.js, equipment/pickers.py):
+picking a serial fills the fields beside it. Include with inventory_picks in the context.
+{% endcomment %}
+{% load static ui %}
+<datalist id="inv-scopes">{% for item in inventory_picks.scopes.values %}<option value="{{ item.serial }}" label="{{ item.label }}">{% endfor %}</datalist>
+<datalist id="inv-probes">{% for item in inventory_picks.probes.values %}<option value="{{ item.serial }}" label="{{ item.label }}">{% endfor %}</datalist>
+<datalist id="inv-blocks">{% for item in inventory_picks.blocks.values %}<option value="{{ item.serial }}" label="{{ item.label }}">{% endfor %}</datalist>
+{{ inventory_picks|json_script:"inventory-picks" }}

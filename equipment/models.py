@@ -17,6 +17,7 @@ class Scope(models.Model):
     scanner_type = models.CharField(max_length=100, blank=True, help_text='e.g. SAUT')
     calibration_date = models.DateField(blank=True, null=True)
     calibration_due_date = models.DateField(blank=True, null=True)
+    certificate_number = models.CharField('Certificate number', max_length=100, blank=True)
 
     def __str__(self):
         return f"{self.model} ({self.serial_number})"
@@ -113,6 +114,12 @@ class Probe(models.Model):
     previous_defective_elements = models.PositiveIntegerField('Previous defective elements', null=True, blank=True)
     calibration_obtainable = models.BooleanField('Calibration obtainable', null=True, blank=True)
 
+    # Calibration certificate (Preferences: due badges, the dashboard's Calibration due card, and the
+    # report warning when it was out of calibration on the test date: equipment/cal_due.py)
+    certificate_number = models.CharField('Certificate number', max_length=100, blank=True)
+    calibration_date = models.DateField(blank=True, null=True)
+    calibration_due_date = models.DateField(blank=True, null=True)
+
     def __str__(self):
         return f"{self.model} ({self.serial_number})"
 
@@ -137,6 +144,12 @@ class CalibrationBlock(models.Model):
     material = models.CharField(max_length=200, blank=True)
     block_type = models.CharField(max_length=200, blank=True)
     notes = models.TextField(blank=True)
+
+    # Calibration certificate (Preferences: due badges, the dashboard's Calibration due card, and the
+    # report warning when it was out of calibration on the test date: equipment/cal_due.py)
+    certificate_number = models.CharField('Certificate number', max_length=100, blank=True)
+    calibration_date = models.DateField(blank=True, null=True)
+    calibration_due_date = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.block_type} - {self.serial_number}"
@@ -185,6 +198,12 @@ class Encoder(models.Model):
     serial_number = models.CharField(max_length=200, blank=True)
     encoder_type = models.CharField(max_length=200, blank=True)
     step_count = models.CharField(max_length=100, blank=True)
+
+    # Calibration certificate (Preferences: due badges, the dashboard's Calibration due card, and the
+    # report warning when it was out of calibration on the test date: equipment/cal_due.py)
+    certificate_number = models.CharField('Certificate number', max_length=100, blank=True)
+    calibration_date = models.DateField(blank=True, null=True)
+    calibration_due_date = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.model} ({self.serial_number})"

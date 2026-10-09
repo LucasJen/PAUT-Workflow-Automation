@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -62,6 +63,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'reports.services.backup.DailyBackupMiddleware',
 ]
 
 ROOT_URLCONF = 'ndt_reports.urls'
@@ -140,6 +142,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Generated reports are downloaded in the browser. A copy is also kept in this folder on
 # the server; set to None to turn the copy off (e.g. on a shared server).
 REPORT_OUTPUT_DIR = BASE_DIR / 'outputs'
+
+# Backups of the database and media/ (reports.services.backup): one on the first request of each
+# day (not while the tests run) and from Preferences › Backups; the newest 14 are kept.
+BACKUP_DIR = BASE_DIR / 'outputs' / 'db_backups'
+AUTO_BACKUP = 'test' not in sys.argv
 
 # Guided Creation's job folders (one per weld job, holding its .nde files and the report) are
 # listed and created here unless another folder is set in the app (reports.AppSetting 'jobs_root').
