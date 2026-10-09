@@ -126,6 +126,22 @@ class SaveAndDownloadTests(TestCase):
         self.assertContains(resp, 'Add at least one UT setup')
         self.assertNotContains(resp, 'id="download-link"')
 
+    def test_fetched_download_that_cant_be_made_answers_with_the_message(self):
+        report = Report.objects.create()   # nothing to generate yet
+        for name in ('generate-report', 'report-pdf'):
+            resp = self.client.get(reverse(name, args=[report.pk]), {'download': '1'}, HTTP_X_DOWNLOAD='1')
+            self.assertEqual(resp.status_code, 409, name)
+            self.assertEqual(resp.json(), {'error': 'Add at least one UT setup (or, on a weld report, a probe or group) '
+                                                    'before generating the report.'})
+
+    def test_fetched_excel_download_without_excel_answers_with_the_message(self):
+        report = Report.objects.create(report_type='paut_weld')
+        Setup.objects.create(report=report)
+        with mock.patch('reports.views.reports.excel_available', return_value=False):
+            resp = self.client.get(reverse('generate-report', args=[report.pk]), HTTP_X_DOWNLOAD='1')
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn('Excel', resp.json()['error'])
+
     def test_report_list_download_button_only_with_setups(self):
         with_setup = Report.objects.create()
         Setup.objects.create(report=with_setup)
@@ -133,3 +149,11 @@ class SaveAndDownloadTests(TestCase):
         resp = self.client.get(reverse('report-list'))
         self.assertContains(resp, reverse('generate-report', args=[with_setup.pk]))
         self.assertNotContains(resp, reverse('generate-report', args=[without.pk]))
+
+    def test_report_list_download_button_for_weld_columns(self):
+        from reports.models import ReportGroup, ReportProbe
+        weld = Report.objects.create(report_type='paut_weld')
+        ReportProbe.objects.create(report=weld)
+        ReportGroup.objects.create(report=weld)
+        resp = self.client.get(reverse('report-list'))
+        self.assertContains(resp, reverse('generate-report', args=[weld.pk]))

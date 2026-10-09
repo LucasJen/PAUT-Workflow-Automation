@@ -12,7 +12,7 @@ from docx import Document
 from PIL import Image
 
 from reports.models import Report, ReportImage, ReportPerson, ResultsRow, ResultsTable, Setup
-from reports.services.report_render import render_report, with_unit
+from reports.services.report_render import render_report, temperature_unit, with_unit
 
 TAG = re.compile(r'\{\{|\}\}|\{%|%\}')
 
@@ -152,3 +152,7 @@ class WithUnitTests(TestCase):
         self.assertEqual(with_unit('0.500"', '"'), '0.500"')
         self.assertEqual(with_unit('N/A', '"'), 'N/A')
         self.assertEqual(with_unit('', '"'), '')
+
+    def test_temperature_follows_the_setups_units(self):
+        self.assertEqual(with_unit('80', temperature_unit(Setup(units='imperial'))), '80°F')
+        self.assertEqual(with_unit('27', temperature_unit(Setup(units='metric'))), '27°C')

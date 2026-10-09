@@ -55,6 +55,17 @@ class DocumentLibraryTests(TestCase):
             'a': ('application/pdf', 'inline'),
             'b': ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'attachment')})
 
+    def test_a_document_whose_file_is_missing_says_so(self):
+        import os
+        self.client.post(reverse('procedure-list'), {'upload': '1', 'files': [pdf('gone.pdf')]})
+        doc = Document.objects.get()
+        os.remove(doc.file.path)
+        response = self.client.get(reverse('open-document', args=[doc.pk]), follow=True)
+        self.assertRedirects(response, reverse('edit-procedure', args=[doc.pk]))
+        self.assertContains(response, 'is missing from the library')
+        doc.refresh_from_db()
+        self.assertIsNone(doc.last_opened_at)
+
     def test_each_library_lists_only_its_own_documents(self):
         self.client.post(reverse('code-material-list'), {'upload': '1', 'files': [pdf('ASME V.pdf')]})
         self.client.post(reverse('training-material-list'), {'upload': '1', 'files': [pdf('Level II.pdf')]})

@@ -80,6 +80,8 @@ class BuildReportTests(TestCase):
         report, notes = build_report(files, defaults, 'PPI-31-37575-W5')
         self.assertEqual((report.report_type, report.document_filename, report.client), ('paut_weld', 'PPI-31-37575-W5', 'PPI'))
         self.assertEqual((report.cal_time_initial, report.cal_time_out), ('0750', '0845'))
+        from datetime import date
+        self.assertEqual(report.report_date, date.today())   # as a new report in the editor
         self.assertTrue(report.inst_serial)
         probe = report.probes.get()
         self.assertEqual((probe.cable_type, bool(probe.model)), ('Integral', True))

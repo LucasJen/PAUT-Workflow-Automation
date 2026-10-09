@@ -22,7 +22,7 @@ from ..models import ReportImage
 from ..report_types import get_report_type
 from ..results import report_results
 from .corrosion_report import corrosion_pages, fill_corrosion
-from .office import lock, office_app_available
+from .office import office_app_available, office_session, timed_out_message
 from .report_render import length_unit, velocity_unit, with_unit
 from .scan_plan import render_png
 
@@ -476,6 +476,38 @@ def _equipment_cells(report, setups):
     return cells
 
 
+def _last(count):
+    return 'the last one is left out' if count == 1 else f'the last {count} are left out'
+
+
+def output_warnings(report):
+    """
+    What the Excel form leaves out of this report, as its pages hold so much: the weld form's
+    results rows, probe and group columns, and a Short Form setup's extra setup images. A list of
+    messages for the editor and the downloads (empty for other report types).
+    """
+    warnings = []
+    if report.pk is None:
+        return warnings
+    if report.report_type == CORROSION_TYPE:
+        for number, setup in enumerate(report.setups.order_by('order', 'pk'), start=1):
+            count = setup.images.count()
+            if count > 1 and not setup.nde_sheet:
+                warnings.append(f'Setup {number} has {count} setup images; only the first prints on its '
+                                f'Setup Information page.')
+    elif get_report_type(report.report_type).output_format == 'xlsx':
+        _, rows = report_results(report)
+        filled = sum(1 for row in rows if any(_v(c) for c in row))
+        room = len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)
+        if filled > room:
+            warnings.append(f'The results have {filled} rows; the form holds {room}, so {_last(filled - room)}.')
+        for kind, count, room in (('probe', report.probes.count(), weld_form.MAX_PROBES),
+                                  ('group', report.groups.count(), weld_form.MAX_GROUPS)):
+            if count > room:
+                warnings.append(f'The report has {count} {kind} columns; the form holds {room}, so {_last(count - room)}.')
+    return warnings
+
+
 def weld_pages(report):
     """Every value of the weld report and where it goes."""
     setups = list(report.setups.order_by('order', 'pk'))
@@ -606,20 +638,9 @@ def _scan_plan_pictures(plan, workdir):
     return paths
 
 
-def build_workbook(report, pdf=False):
-    """
-    (xlsx bytes, pdf bytes or None) for an Excel report type (the weld form, or the corrosion
-    form: corrosion_report.py). Raises ExcelReportError on failure.
-    """
-    try:
-        import pythoncom
-        import win32com.client
-    except ImportError as e:
-        raise ExcelReportError('Excel output needs the pywin32 package (pip install pywin32).') from e
-
-    workdir = tempfile.mkdtemp(prefix='report-xlsx-')
-    xlsx_path = os.path.join(workdir, 'report.xlsx')
-    pdf_path = os.path.join(workdir, 'report.pdf')
+def _prepare(report, workdir, xlsx_path):
+    """Copies the template into `workdir` and works out the pages (writing their pictures there);
+    returns fill(wb), which writes them into the opened copy."""
     shutil.copyfile(template_path(report), xlsx_path)
     if report.report_type == CORROSION_TYPE:
         corrosion = corrosion_pages(report)
@@ -637,12 +658,35 @@ def build_workbook(report, pdf=False):
 
         def fill(wb):
             _fill(wb, pages, scan_plan_pictures)
+    return fill
 
-    with lock:
-        pythoncom.CoInitialize()  # COM must be initialised on each request thread
+
+def build_workbook(report, pdf=False):
+    """
+    (xlsx bytes, pdf bytes or None) for an Excel report type (the weld form, or the corrosion
+    form: corrosion_report.py). Raises ExcelReportError on failure.
+    """
+    try:
+        import pythoncom  # noqa: F401  (pywin32 installed; office_session uses it)
+        import win32com.client
+    except ImportError as e:
+        raise ExcelReportError('Excel output needs the pywin32 package (pip install pywin32).') from e
+
+    workdir = tempfile.mkdtemp(prefix='report-xlsx-')
+    xlsx_path = os.path.join(workdir, 'report.xlsx')
+    pdf_path = os.path.join(workdir, 'report.pdf')
+    try:
+        fill = _prepare(report, workdir, xlsx_path)
+    except Exception as e:  # a missing template, a drawing that can't be made...
+        logger.exception('Excel report preparation failed')
+        shutil.rmtree(workdir, ignore_errors=True)
+        raise ExcelReportError(f'The report could not be prepared: {e}') from e
+
+    with office_session('EXCEL.EXE', 'Excel', ExcelReportError) as watchdog:
         excel = wb = None
         try:
             excel = win32com.client.DispatchEx('Excel.Application')  # separate instance
+            watchdog.started()
             excel.Visible = False
             excel.DisplayAlerts = False
             excel.ScreenUpdating = False
@@ -654,6 +698,8 @@ def build_workbook(report, pdf=False):
                 wb.ExportAsFixedFormat(XL_TYPE_PDF, pdf_path, XL_QUALITY_STANDARD, True, False)
         except Exception as e:  # COM errors come in many types
             logger.exception('Excel report failed')
+            if watchdog.fired:
+                raise ExcelReportError(timed_out_message('Excel')) from e
             raise ExcelReportError(f'Excel could not create the report: {e}') from e
         finally:
             try:
@@ -663,7 +709,6 @@ def build_workbook(report, pdf=False):
                     excel.Quit()
             except Exception:
                 logger.warning('Could not close Excel cleanly', exc_info=True)
-            pythoncom.CoUninitialize()
 
     try:
         with open(xlsx_path, 'rb') as f:

@@ -5,13 +5,14 @@ and Images pages. read_corrosion_file() reads one .nde; build_corrosion_report()
 """
 import os
 import re
+from datetime import date
 
 from django.core.files import File
 from django.db import transaction
 
 from equipment.inventory import with_library_scope
 
-from ..models import Report, ReportImage, Setup, SetupImage
+from ..models import ClientCode, Report, ReportImage, Setup, SetupImage
 from .job_folder import PICTURE_EXTENSIONS
 from .job_import import catalogue_match, scope_label
 from .nde_parser import NdeError, extract_groups, read_nde
@@ -88,9 +89,29 @@ def caption_for(name):
     return stem[:1].upper() + stem[1:]
 
 
-def equipment_from_folder(name):
-    """'11V58A Corrosion Scan' -> '11V58A'; '86TK116 Corrosion Scans' -> '86TK116'."""
-    return (name or '').strip().split(' ')[0] if name else ''
+def client_for_folder(name):
+    """The Client code a folder name starts with ('FHR-11V58A Corrosion Scan', 'FHR 11V58A ...'), when it's
+    one in Preferences › Client codes; else None (corrosion folders are usually named by equipment only)."""
+    first = re.split(r'[\s_-]+', (name or '').strip(), maxsplit=1)[0]
+    return ClientCode.objects.filter(code__iexact=first).first() if first else None
+
+
+def equipment_from_folder(name, client=None):
+    """'11V58A Corrosion Scan' -> '11V58A'; '86TK116 Corrosion Scans' -> '86TK116'; with its client code
+    first ('FHR-11V58A Corrosion Scan') the code is left out."""
+    word = (name or '').strip().split(' ')[0] if name else ''
+    if client is not None and word.upper().startswith(f'{client.code.upper()}-'):
+        word = word[len(client.code) + 1:]
+    return word
+
+
+def scan_date(scan_time):
+    """The date of an .nde's scan time ('2026-03-11 10:09' -> date(2026, 3, 11)); None when the file's
+    date isn't in that form (nde_parser keeps such text as it is)."""
+    try:
+        return date.fromisoformat(str(scan_time or '')[:10])
+    except ValueError:
+        return None
 
 
 def _attach(file_field, path):
@@ -107,7 +128,7 @@ def build_corrosion_report(files, pictures, defaults=None, document_filename='',
     """
     from .job_import import _set_report_values   # the weld import's way of applying a defaults set
     notes = []
-    report = Report(report_type=CORROSION_TYPE)
+    report = Report(report_type=CORROSION_TYPE, report_date=date.today())   # as a new report in the editor
     if defaults is not None:
         _set_report_values(report, defaults.report_values)
     report.document_filename = document_filename or report.document_filename
@@ -116,7 +137,7 @@ def build_corrosion_report(files, pictures, defaults=None, document_filename='',
     if client is not None:
         report.client = client.client
         report.location = client.location or report.location
-    dates = sorted(d['scan_time'][:10] for d in files if not d.get('error') and d.get('scan_time'))
+    dates = sorted(filter(None, (scan_date(d.get('scan_time')) for d in files if not d.get('error'))))
     if dates:
         report.test_date = dates[0]
     report.save()

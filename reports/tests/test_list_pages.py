@@ -40,6 +40,32 @@ class ListPageTests(TestCase):
         self.client.post(reverse('setup-list'), {'selected': [setup.pk], 'duplicate': ''})
         self.assertEqual(Setup.objects.filter(scope_model='X3').count(), 2)
 
+    def test_setups_page_leaves_report_setups_alone(self):
+        report = Report.objects.create()
+        in_report = Setup.objects.create(report=report, scope_model='In report')
+        saved = Setup.objects.create(scope_model='Saved')
+        resp = self.client.get(reverse('setup-list'))
+        self.assertContains(resp, 'Saved')
+        self.assertNotContains(resp, 'In report')
+        self.client.post(reverse('setup-list'), {'selected': [in_report.pk, saved.pk], 'delete': ''})
+        self.assertEqual(list(Setup.objects.values_list('pk', flat=True)), [in_report.pk])
+        resp = self.client.post(reverse('setup-list'), {'selected': [in_report.pk], 'duplicate': ''})
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(report.setups.count(), 1)
+
+    def test_new_pages_only_create_on_save(self):
+        from equipment.models import CalibrationBlock, Encoder, Probe, SensitivityBlock
+        for name, model in (('new-setup', Setup), ('new-scope', Scope), ('new-probe', Probe),
+                            ('new-cal-block', CalibrationBlock), ('new-sensitivity-block', SensitivityBlock),
+                            ('new-encoder', Encoder)):
+            before = model.objects.count()
+            self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
+            self.assertEqual(model.objects.count(), before, name)
+            self.client.post(reverse(name), {'delete': ''})
+            self.assertEqual(model.objects.count(), before, name)
+        self.client.post(reverse('new-scope'), {'model': 'X3 new', 'manufacturer': 'Evident'})
+        self.assertTrue(Scope.objects.filter(model='X3 new').exists())
+
     def test_scope_list_shows_due_badge(self):
         Scope.objects.create(model='X3', calibration_due_date=date.today() + timedelta(days=5))
         resp = self.client.get(reverse('scope-list'))

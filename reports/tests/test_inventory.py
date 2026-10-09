@@ -9,7 +9,7 @@ from xml.sax.saxutils import escape
 from django.core.management import call_command
 from django.test import TestCase
 
-from equipment.inventory import catalogue_name, read_probes, read_scopes
+from equipment.inventory import apply_inventory, catalogue_name, read_probes, read_scopes
 from equipment.models import Probe, ProbeModel, Scope
 
 SCOPES = [
@@ -109,6 +109,25 @@ class InventoryImportTests(TestCase):
         self.assertEqual((probe.catalogue.model, probe.frequency, probe.elements), ('7.5CCEV35-A15', '7.5 MHz', '16'))
         self.assertIsNone(Probe.objects.get(serial_number='U2346').catalogue)   # series not in the catalogue
         self.assertEqual(Scope.objects.get(serial_number='OMNI2-104208').module_serial, 'QC-013106')
+
+
+class InventoryYearAndSerialTests(TestCase):
+    def path_for(self, sheets):
+        handle, path = tempfile.mkstemp(suffix='.xlsx')
+        with os.fdopen(handle, 'wb') as f:
+            f.write(workbook(sheets))
+        self.addCleanup(os.remove, path)
+        return path
+
+    def test_the_latest_all_probes_sheet_is_read(self):
+        newer = PROBES[:3] + [['Olympus', '10L32 A10', 'V9999', 0, 0, 0, 0, 'Y']]
+        path = self.path_for({'All Probes 2025': PROBES, 'All Probes 2026': newer})
+        self.assertEqual([p['serial_number'] for p in read_probes(path)], ['V9999'])
+
+    def test_scopes_without_a_serial_number_are_not_merged(self):
+        blank = {'name': '', 'manufacturer': 'Evident', 'model': 'X3', 'serial_number': '', 'calibration_due_date': None}
+        apply_inventory([dict(blank, name='One'), dict(blank, name='Two')], [])
+        self.assertEqual(sorted(Scope.objects.values_list('name', flat=True)), ['One', 'Two'])
 
 
 class LibraryScopeTests(TestCase):

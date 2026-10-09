@@ -29,7 +29,7 @@
     <td data-sort-value="{{ report.report_date|date:'Y-m-d' }}">{{ report.report_date|date:'M j, Y' }}</td>
     <td>{{ report.prepared_by_names }}</td>
     <td class="col-actions">
-        {% if report.setup_count %}
+        {% if report.can_generate %}
         <a href="{% url 'preview-report' report.pk %}" class="btn btn-icon btn-sm"
            title="Preview report" aria-label="Preview report {{ report.document_filename|default:'report' }}">
             <i class="bi bi-eye"></i>
@@ -47,7 +47,7 @@
         {% endif %}
         {% endwith %}
         {% else %}
-        <span class="btn btn-icon btn-sm disabled" title="Add a UT setup to generate this report"><i class="bi bi-download"></i></span>
+        <span class="btn btn-icon btn-sm disabled" title="Add a UT setup (or, on a weld report, a probe or group) to generate this report"><i class="bi bi-download"></i></span>
         {% endif %}
     </td>
 </tr>

@@ -124,14 +124,87 @@ document.getElementById('confirm-ok').addEventListener('click', () => {
 // Links with data-busy="Preparing…" show that label for a few seconds after a click, since the
 // browser gives no feedback while the server prepares a file download.
 
-document.addEventListener('click', e => {
-    const link = e.target.closest('a[data-busy]');
-    if (!link || link.dataset.confirm || link.classList.contains('busy')) return;
+function showBusy(link) {
     const original = link.innerHTML;
     link.classList.add('busy', 'disabled');
     link.innerHTML = `<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> ${link.dataset.busy}`;
-    setTimeout(() => {
+    return () => {
         link.innerHTML = original;
         link.classList.remove('busy', 'disabled');
-    }, 8000);
+    };
+}
+
+document.addEventListener('click', e => {
+    const link = e.target.closest('a[data-busy]');
+    if (!link || link.hasAttribute('download') || link.dataset.confirm || link.classList.contains('busy')) return;
+    setTimeout(showBusy(link), 8000);
+});
+
+// ── Downloads ─────────────────────────────────────────────────────────────
+// The app's download links (<a download>) are fetched here rather than left to the browser: a
+// report that can't be made (no Word / Excel, nothing to generate) answers with an error message
+// (reports/views/reports.py, _download_error), shown on this page, instead of the browser saving
+// an error page as the file.
+
+function showMessage(text, level = 'danger') {
+    let box = document.querySelector('main.content > .messages');
+    if (!box) {
+        box = document.createElement('div');
+        box.className = 'messages';
+        document.querySelector('main.content')?.prepend(box);
+    }
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${level} alert-dismissible fade show`;
+    alert.setAttribute('role', 'alert');
+    alert.textContent = text;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn-close';
+    close.dataset.bsDismiss = 'alert';
+    close.setAttribute('aria-label', 'Close');
+    alert.append(close);
+    box.append(alert);
+    alert.scrollIntoView({ block: 'nearest' });
+}
+
+function attachmentName(response, fallback) {
+    const header = response.headers.get('Content-Disposition') || '';
+    const encoded = header.match(/filename\*=(?:UTF-8|utf-8)''([^;]+)/);
+    if (encoded) return decodeURIComponent(encoded[1]);
+    const plain = header.match(/filename="?([^";]+)"?/);
+    return plain ? plain[1] : fallback;
+}
+
+document.addEventListener('click', async e => {
+    const link = e.target.closest('a[download]');
+    // Left to the browser: other sites' files, modified clicks, and links a confirm dialog held back
+    if (!link || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (link.classList.contains('busy') || link.protocol === 'blob:' || link.origin !== location.origin) return;
+    e.preventDefault();
+    const done = link.dataset.busy !== undefined ? showBusy(link) : () => {};
+    try {
+        const response = await fetch(link.href, { headers: { 'X-Download': '1' }, credentials: 'same-origin' });
+        const type = response.headers.get('Content-Type') || '';
+        if (!response.ok || type.includes('text/html')) {
+            const data = type.includes('application/json') ? await response.json().catch(() => ({})) : {};
+            showMessage(data.error || `The download failed (${response.status} ${response.statusText}).`);
+            return;
+        }
+        // What the form leaves out of the report (reports/views/reports.py, _with_warnings)
+        let warnings = [];
+        try { warnings = JSON.parse(response.headers.get('X-Report-Warnings') || '[]'); } catch { /* none */ }
+        warnings.forEach(text => showMessage(text, 'warning'));
+        const url = URL.createObjectURL(await response.blob());
+        const save = document.createElement('a');
+        save.href = url;
+        save.download = attachmentName(response, link.getAttribute('download') || 'download');
+        document.body.append(save);
+        save.click();   // a blob: link, so this handler leaves it to the browser
+        save.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+        showMessage(`The download failed: ${error.message}`);
+    } finally {
+        done();
+    }
 });

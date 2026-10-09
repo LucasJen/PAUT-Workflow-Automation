@@ -24,14 +24,16 @@ def scope_list(request):
 
 
 def new_scope(request):
-    scope = Scope.objects.create()
-    return redirect('edit-scope', pk=scope.pk)
+    """The edit page for a Scope not saved yet: saving creates it (just opening the page doesn't)."""
+    return edit_scope(request)
 
 
-def edit_scope(request, pk):
-    scope = get_object_or_404(Scope, pk=pk)
+def edit_scope(request, pk=None):
+    scope = get_object_or_404(Scope, pk=pk) if pk is not None else Scope()
     if request.method == 'POST':
         if 'delete' in request.POST:
+            if scope.pk is None:
+                return redirect('scope-list')
             scope.delete()
             messages.success(request, 'Scope deleted.')
             return redirect('scope-list')
@@ -65,14 +67,16 @@ def probe_list(request):
 
 
 def new_probe(request):
-    probe = Probe.objects.create()
-    return redirect('edit-probe', pk=probe.pk)
+    """The edit page for a Probe not saved yet: saving creates it (just opening the page doesn't)."""
+    return edit_probe(request)
 
 
-def edit_probe(request, pk):
-    probe = get_object_or_404(Probe, pk=pk)
+def edit_probe(request, pk=None):
+    probe = get_object_or_404(Probe, pk=pk) if pk is not None else Probe()
     if request.method == 'POST':
         if 'delete' in request.POST:
+            if probe.pk is None:
+                return redirect('probe-list')
             probe.delete()
             messages.success(request, 'Probe deleted.')
             return redirect('probe-list')
@@ -106,14 +110,16 @@ def cal_block_list(request):
 
 
 def new_cal_block(request):
-    cal_block = CalibrationBlock.objects.create()
-    return redirect('edit-cal-block', pk=cal_block.pk)
+    """The edit page for a CalibrationBlock not saved yet: saving creates it (just opening the page doesn't)."""
+    return edit_cal_block(request)
 
 
-def edit_cal_block(request, pk):
-    cal_block = get_object_or_404(CalibrationBlock, pk=pk)
+def edit_cal_block(request, pk=None):
+    cal_block = get_object_or_404(CalibrationBlock, pk=pk) if pk is not None else CalibrationBlock()
     if request.method == 'POST':
         if 'delete' in request.POST:
+            if cal_block.pk is None:
+                return redirect('cal-block-list')
             cal_block.delete()
             messages.success(request, 'Calibration block deleted.')
             return redirect('cal-block-list')
@@ -147,14 +153,16 @@ def sensitivity_block_list(request):
 
 
 def new_sensitivity_block(request):
-    block = SensitivityBlock.objects.create()
-    return redirect('edit-sensitivity-block', pk=block.pk)
+    """The edit page for a SensitivityBlock not saved yet: saving creates it (just opening the page doesn't)."""
+    return edit_sensitivity_block(request)
 
 
-def edit_sensitivity_block(request, pk):
-    block = get_object_or_404(SensitivityBlock, pk=pk)
+def edit_sensitivity_block(request, pk=None):
+    block = get_object_or_404(SensitivityBlock, pk=pk) if pk is not None else SensitivityBlock()
     if request.method == 'POST':
         if 'delete' in request.POST:
+            if block.pk is None:
+                return redirect('sensitivity-block-list')
             block.delete()
             messages.success(request, 'Sensitivity block deleted.')
             return redirect('sensitivity-block-list')
@@ -188,14 +196,16 @@ def encoder_list(request):
 
 
 def new_encoder(request):
-    encoder = Encoder.objects.create()
-    return redirect('edit-encoder', pk=encoder.pk)
+    """The edit page for a Encoder not saved yet: saving creates it (just opening the page doesn't)."""
+    return edit_encoder(request)
 
 
-def edit_encoder(request, pk):
-    encoder = get_object_or_404(Encoder, pk=pk)
+def edit_encoder(request, pk=None):
+    encoder = get_object_or_404(Encoder, pk=pk) if pk is not None else Encoder()
     if request.method == 'POST':
         if 'delete' in request.POST:
+            if encoder.pk is None:
+                return redirect('encoder-list')
             encoder.delete()
             messages.success(request, 'Encoder deleted.')
             return redirect('encoder-list')

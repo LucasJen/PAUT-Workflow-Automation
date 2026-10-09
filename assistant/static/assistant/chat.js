@@ -82,6 +82,10 @@
                     if (line) handle(JSON.parse(line), {bot, steps, status, answer});
                 }
             }
+            // The answer ended without its last event (the server stopped part-way)
+            if (answer.classList.contains('chat-streaming') && !bot.classList.contains('chat-error')) {
+                throw new Error('The answer stopped before it finished; ask again.');
+            }
         } catch (error) {
             status.textContent = '';
             bot.classList.add('chat-error');

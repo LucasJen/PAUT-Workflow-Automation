@@ -141,6 +141,13 @@ class WorkingFolderTests(TestCase):
         self.assertIsNone(working_folder('paut_corrosion'))
         self.assertEqual(add_working_folder(str(self.a / 'nope'), 'paut_weld')[1], f'No folder at {self.a / "nope"}.')
 
+    def test_after_saving_only_returns_to_a_page_of_this_app(self):
+        data = {'path': str(self.a), 'report_type': 'paut_weld'}
+        resp = self.client.post(reverse('new-working-folder'), {**data, 'next': 'https://example.com/'})
+        self.assertRedirects(resp, reverse('working-folder-list'))
+        resp = self.client.post(reverse('new-working-folder'), {**data, 'next': reverse('start-from-files')})
+        self.assertRedirects(resp, reverse('start-from-files'), fetch_redirect_response=False)
+
     def test_preferences_tab_adds_edits_and_removes(self):
         resp = self.client.post(reverse('new-working-folder'), {'path': str(self.a), 'report_type': 'paut_weld'})
         self.assertRedirects(resp, reverse('working-folder-list'))

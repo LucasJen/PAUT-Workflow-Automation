@@ -1,4 +1,5 @@
 """Guided Creation for the corrosion form: a job folder's .nde files and pictures to a report."""
+from datetime import date
 import shutil
 import tempfile
 from io import BytesIO
@@ -32,6 +33,18 @@ class GuessTests(TestCase):
         self.assertEqual(equipment_from_folder('11V58A Corrosion Scan'), '11V58A')
         self.assertEqual(equipment_from_folder('86TK116 Corrosion Scans'), '86TK116')
 
+
+
+class ScanDateTests(TestCase):
+    def test_scan_dates_in_other_forms_are_left_out(self):
+        from reports.services.corrosion_import import scan_date
+        self.assertEqual(scan_date('2026-03-11 10:09'), date(2026, 3, 11))
+        self.assertIsNone(scan_date('3/11/2026 10:09 AM'))
+        self.assertIsNone(scan_date(''))
+        files = [{'filename': 'a.nde', 'scan_time': '3/11/2026', 'setups': [{'label': 'G1', 'values': {}}]},
+                 {'filename': 'b.nde', 'scan_time': '2026-03-12 08:00', 'setups': [{'label': 'G1', 'values': {}}]}]
+        report, _ = build_corrosion_report(files, [])
+        self.assertEqual(report.test_date, date(2026, 3, 12))
 
 
 class CorrosionGuidedTests(TestCase):
@@ -109,6 +122,18 @@ class CorrosionGuidedTests(TestCase):
         report = Report.objects.get()
         self.assertEqual((report.setups.count(), report.images.count()), (1, 1))   # the .jpg guessed as the drawing
 
+    def test_a_folder_named_with_a_client_code_gets_that_client(self):
+        from reports.models import ClientCode
+        ClientCode.objects.update_or_create(code='FHR', defaults={'client': 'Flint Hills Resources', 'location': 'Rosemount, MN'})
+        self.job('FHR-86TK116 Corrosion Scans', {'a.png': png()})
+        self.start(folder_mode='existing', job_folder='FHR-86TK116 Corrosion Scans')
+        page = self.client.get(reverse('confirm-job'))
+        self.assertContains(page, 'name="equipment_id" value="86TK116"')
+        self.assertContains(page, 'Client Flint Hills Resources, Rosemount, MN (FHR).')
+        self.client.post(reverse('confirm-job'), {'role_0': 'image', 'equipment_id': '86TK116'})
+        report = Report.objects.get()
+        self.assertEqual((report.client, report.location), ('Flint Hills Resources', 'Rosemount, MN'))
+
     def test_leaving_pictures_out_and_files_only(self):
         self.job('TK86-100 Corrosion Scans', {'a.png': png(), 'b.png': png()})
         self.start(folder_mode='existing', job_folder='TK86-100 Corrosion Scans')
@@ -121,6 +146,7 @@ class CorrosionGuidedTests(TestCase):
         files = [{'filename': 'a.nde', 'setups': [{'label': 'G1', 'values': {
             'title': 'HydroFORM', 'transducer_model': '5L64-A2', 'catalogue_probe': probe.pk, 'catalogue_wedge': ''}}]}]
         report, _ = build_corrosion_report(files, [])
+        self.assertEqual(report.report_date, date.today())   # as a new report in the editor
         setup = report.setups.get()
         self.assertEqual((setup.catalogue_probe, setup.catalogue_wedge), (probe, None))
 

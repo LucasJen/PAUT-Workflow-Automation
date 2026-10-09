@@ -25,6 +25,7 @@
         </div>
         <p class="form-text mb-0">
             {% if folder %}<i class="bi bi-folder2-open"></i> Job folder <span class="mono">{{ folder }}</span>: the report is saved here when you download it.{% endif %}
+            {% if client %}Client {{ client.client }}{% if client.location %}, {{ client.location }}{% endif %} ({{ client.code }}).{% endif %}
             Starting from {% if defaults %}the “{{ defaults.name }}” defaults{% else %}no defaults{% endif %}.
         </p>
     </section>

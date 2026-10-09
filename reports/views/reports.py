@@ -1,4 +1,4 @@
-from django.http import FileResponse
+from django.http import FileResponse, JsonResponse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -7,7 +7,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
 from ..services.excel_report import (
-    CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available,
+    CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available, output_warnings,
 )
 from ..services.report_render import render_report
 from ..services.word_pdf import WordPdfError, docx_to_pdf, word_available
@@ -28,6 +28,7 @@ from django.forms import ImageField
 from ..report_types import REPORT_TYPES
 import io
 import json
+from datetime import date
 import logging
 import os
 import re
@@ -289,6 +290,8 @@ def create_report(request):
             report_id=form.instance.pk, kind=ReportImage.INDICATION)} if form.instance.pk else {},
         'weld_results_rows': {'page1': len(REPORT_RESULT_ROWS), 'total': len(REPORT_RESULT_ROWS) + len(CONTINUATION_ROWS)},
         'has_equipment': bool(form.instance.pk) and has_equipment(form.instance),
+        # What the Excel form leaves out of this report (its pages hold so much)
+        'output_warnings': output_warnings(form.instance) if form.instance.pk else [],
         'drawing_formset': drawings,
         'image_formset': image_formset,
         'known_people': _known_people(),
@@ -390,12 +393,23 @@ def _save_equipment(report, probes, groups):
 
 
 def _report_with_setups(request, pk):
-    """(report, None) when the report can be generated, else (report, redirect to the editor)."""
+    """(report, None) when the report can be generated, else (report, the response saying why)."""
     report = get_object_or_404(Report, pk=pk)
     if not has_equipment(report):
-        messages.error(request, NEEDS_SETUP_MESSAGE)
-        return report, redirect(f"{reverse('create-report')}?loaded={pk}")
+        return report, _download_error(request, pk, NEEDS_SETUP_MESSAGE)
     return report, None
+
+
+def _download_error(request, pk, message):
+    """
+    A file that couldn't be made. Download links are fetched by app.js (header X-Download: 1),
+    which shows `message` on the page it was clicked from: answered as JSON, so the browser never
+    saves an error page as the file. Anything else goes back to the editor with the message.
+    """
+    if request.headers.get('X-Download') == '1':
+        return JsonResponse({'error': message}, status=409)
+    messages.error(request, message)
+    return redirect(f"{reverse('create-report')}?loaded={pk}")
 
 
 def preview_report(request, pk):
@@ -434,6 +448,19 @@ def _excel_unavailable_message():
     return 'Excel reports need Microsoft Excel on the computer running this app.'
 
 
+class ReportRenderError(Exception):
+    """The Word report couldn't be made from its template."""
+
+
+def _render_docx(report, **kwargs):
+    """render_report, with any failure (e.g. a broken template) as a ReportRenderError to show."""
+    try:
+        return render_report(report, **kwargs)
+    except Exception as e:
+        logger.exception('Word report render failed')
+        raise ReportRenderError(f'The Word report could not be made: {e}') from e
+
+
 def report_docx(request, pk):
     """The generated .docx served inline for the preview page (no server copy is written)"""
     report, redirect_response = _report_with_setups(request, pk)
@@ -442,7 +469,11 @@ def report_docx(request, pk):
     if _is_excel(report):  # no in-browser fallback for Excel reports
         return render(request, 'reports/pdf_error.html',
                       {'message': _excel_unavailable_message(), 'report': report, 'excel': True}, status=503)
-    response = FileResponse(io.BytesIO(render_report(report)), content_type=DOCX_CONTENT_TYPE,
+    try:
+        content = _render_docx(report)
+    except ReportRenderError as e:
+        return render(request, 'reports/pdf_error.html', {'message': str(e), 'report': report}, status=500)
+    response = FileResponse(io.BytesIO(content), content_type=DOCX_CONTENT_TYPE,
                             filename=f'{safe_filename(report.document_filename)}.docx')
     response['Cache-Control'] = 'no-store'
     return response
@@ -516,18 +547,17 @@ def report_pdf(request, pk):
         else:
             if not word_available():
                 raise WordPdfError('PDF output needs Microsoft Word on the computer running this app.')
-            pdf = docx_to_pdf(render_report(report, update_fields_on_open=False))
-    except (WordPdfError, ExcelReportError) as e:
+            pdf = docx_to_pdf(_render_docx(report, update_fields_on_open=False))
+    except (WordPdfError, ExcelReportError, ReportRenderError) as e:
         if download:
-            messages.error(request, str(e))
-            return redirect(f"{reverse('create-report')}?loaded={pk}")
+            return _download_error(request, pk, str(e))
         return render(request, 'reports/pdf_error.html',
                       {'message': str(e), 'report': report, 'excel': _is_excel(report)}, status=503)
     if download:
         _save_copy(request, report, name, pdf)
     response = FileResponse(io.BytesIO(pdf), as_attachment=download, filename=name, content_type='application/pdf')
     response['Cache-Control'] = 'no-store'
-    return response
+    return _with_warnings(response, report) if download else response
 
 
 def generate_report(request, pk):
@@ -543,7 +573,10 @@ def generate_report(request, pk):
         return _excel_download(request, report)
 
     output_name = f'{safe_filename(report.document_filename)}.docx'
-    content = render_report(report)
+    try:
+        content = _render_docx(report)
+    except ReportRenderError as e:
+        return _download_error(request, report.pk, str(e))
 
     _save_copy(request, report, output_name, content)
 
@@ -557,27 +590,40 @@ def _excel_download(request, report):
             raise ExcelReportError(_excel_unavailable_message())
         content, _ = build_workbook(report)
     except ExcelReportError as e:
-        messages.error(request, str(e))
-        return redirect(f"{reverse('create-report')}?loaded={report.pk}")
+        return _download_error(request, report.pk, str(e))
     _save_copy(request, report, output_name, content)
-    return FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name, content_type=XLSX_CONTENT_TYPE)
+    return _with_warnings(FileResponse(io.BytesIO(content), as_attachment=True, filename=output_name,
+                                       content_type=XLSX_CONTENT_TYPE), report)
+
+
+def _with_warnings(response, report):
+    """The download with what the form leaves out (output_warnings) in X-Report-Warnings, for app.js to show."""
+    warnings = output_warnings(report)
+    if warnings:
+        response['X-Report-Warnings'] = json.dumps(warnings)   # ASCII (non-ASCII is escaped), as headers must be
+    return response
 
 
 @transaction.atomic
 def _duplicate_report(original):
     """
     Start a repeat inspection from an earlier report: the copy keeps the report text,
-    personnel, setups (with calibration screenshots) and equipment drawings, but starts with no
-    results, no scan images and no dates. Images are shared with the original, not copied on disk.
+    personnel, setups (with calibration screenshots), the weld form's probe and group columns and
+    equipment drawings, but starts with no results, no scan images and no test dates. Images are
+    shared with the original, not copied on disk; so is the scan plan, until a weld added to it
+    makes the copy its own (add_weld_to_plan).
     """
     people = list(original.people.all())
+    probes = list(original.probes.order_by('order', 'pk'))
+    groups = list(original.groups.order_by('order', 'pk'))
     setups = list(original.setups.order_by('order').prefetch_related('images'))
     drawings = list(original.images.filter(kind=ReportImage.DRAWING).order_by('order'))
 
     report = Report.objects.get(pk=original.pk)
     report.pk = None
     report.document_filename = f'{original.document_filename or "Untitled"} (copy)'
-    report.report_date = report.test_date = report.test_end_date = None
+    report.report_date = date.today()   # as a new report in the editor; the test dates are the new job's
+    report.test_date = report.test_end_date = None
     # A repeat inspection is a new job: it gets its own folder (if any), never the original's files
     report.job_folder, report.job_folder_files = '', []
     report.save()
@@ -592,6 +638,16 @@ def _duplicate_report(original):
         for image in images:
             image.pk, image.setup = None, setup
             image.save()
+    new_probes = {}
+    for probe in probes:
+        old_pk = probe.pk
+        probe.pk, probe.report = None, report
+        probe.save()
+        new_probes[old_pk] = probe
+    for group in groups:
+        group.pk, group.report = None, report
+        group.probe = new_probes.get(group.probe_id)
+        group.save()
     for drawing in drawings:
         drawing.pk, drawing.report = None, report
         drawing.save()
@@ -602,7 +658,10 @@ def report_list(request):
     """
     View all report information stored within the database
     """
-    reports = Report.objects.annotate(setup_count=Count('setups')).prefetch_related('people').order_by('-pk')
+    reports = Report.objects.annotate(
+        setup_count=Count('setups', distinct=True), probe_count=Count('probes', distinct=True),
+        group_count=Count('groups', distinct=True),
+    ).prefetch_related('people').order_by('-pk')
     if request.method == 'POST':
         selected_pks = request.POST.getlist('selected')
         if 'delete' in request.POST:
@@ -621,6 +680,8 @@ def report_list(request):
     for report in reports:
         report.is_excel = _is_excel(report)
         report.pdf_ok = excel_ok if report.is_excel else word_ok
+        # As has_equipment(): a setup, or a probe / group column on the weld form
+        report.can_generate = bool(report.setup_count or report.probe_count or report.group_count)
     return render(request, 'reports/report_list.html', {'items': reports})
 
 

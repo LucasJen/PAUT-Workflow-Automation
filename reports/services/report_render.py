@@ -7,10 +7,12 @@ variables they can use are built by build_context() below and listed in
 word_templates/TEMPLATE_TAGS.md.
 """
 import io
+import logging
 import os
 import re
 
 from django.conf import settings
+from docx.image.image import Image as DocxImage
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches
@@ -21,6 +23,8 @@ from ..models import ReportImage, TextSnippet
 from ..report_types import SECTIONS, get_report_type
 from ..results import report_results, report_scan_rows
 from .setup_sheet import sheet_png
+
+logger = logging.getLogger(__name__)
 
 FULL_WIDTH = Inches(7.0)       # drawings, scan images
 HALF_WIDTH = Inches(3.45)      # calibration screenshots, two per line
@@ -44,6 +48,11 @@ def length_unit(setup):
 
 def velocity_unit(setup):
     return ' m/s' if getattr(setup, 'units', 'imperial') == 'metric' else ' in/µs'
+
+
+def temperature_unit(setup):
+    """'°F' for imperial setups, '°C' for metric."""
+    return '°C' if getattr(setup, 'units', 'imperial') == 'metric' else '°F'
 
 
 def prose(text):
@@ -78,11 +87,20 @@ def lines(text):
 # ── Context ──────────────────────────────────────────────────────────────
 
 def _image(tpl, image_field, width):
+    """The picture for the template, or None when its file is missing or isn't a picture Word takes
+    (left out of the report, as a missing one is, rather than failing the whole report)."""
     try:
         path = image_field.path
     except (ValueError, NotImplementedError):
         return None
-    return InlineImage(tpl, path, width=width) if os.path.exists(path) else None
+    if not os.path.exists(path):
+        return None
+    try:
+        DocxImage.from_file(path)   # what docxtpl reads when it renders: fails here instead
+    except Exception:  # unrecognised or broken picture files raise many kinds of errors
+        logger.warning('Left out picture %s: not a picture Word can take', path, exc_info=True)
+        return None
+    return InlineImage(tpl, path, width=width)
 
 
 def _sheet_image(tpl, png):
@@ -115,7 +133,7 @@ def _setup_context(setup, number, report, tpl):
         'freq': setup.freq,
         'elements': setup.elements,
         'cal_material': setup.cal_material,
-        'material_temp': with_unit(setup.material_temp, '°F'),
+        'material_temp': with_unit(setup.material_temp, temperature_unit(setup)),
         'cal_block': ' S/N: '.join(v for v in (setup.cal_block_type, setup.cal_block_serial) if v),
         'surface_prep': setup.surface_prep,
         'tr_min': with_unit(setup.tr_min, length_unit(setup)),

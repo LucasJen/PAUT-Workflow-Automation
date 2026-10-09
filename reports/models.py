@@ -100,6 +100,11 @@ class Report(models.Model):
 
     @property
     def prepared_by_names(self):
+        """Who prepared it: the people marked Prepared by, or the technician on the forms with a
+        technician / reviewer signature pair instead of a people list (weld, Short Form)."""
+        from .report_types import get_report_type
+        if 'weld_personnel' in get_report_type(self.report_type).sections:
+            return self.weld_technician
         return ', '.join(p.name for p in self.people.all() if p.prepared)
 
 

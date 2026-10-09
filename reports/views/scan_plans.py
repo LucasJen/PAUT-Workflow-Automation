@@ -429,6 +429,21 @@ def _plan_json(plan):
     return {'pk': plan.pk, 'name': plan.name, 'url': reverse('edit-scan-plan', args=[plan.pk])}
 
 
+def _own_plan(report, plan):
+    """
+    The plan to change for this report: itself when only this report uses it, else (unsaved
+    changes and all) a new copy for this report, so other reports' scan plan pages stay as they were.
+    """
+    if not plan.reports.exclude(pk=report.pk).exists():
+        return plan
+    plan.pk = None
+    plan.name = f'{plan.name} (report #{report.pk})'[:100]
+    plan.save()
+    report.scan_plan = plan
+    report.save(update_fields=['scan_plan'])
+    return plan
+
+
 def add_weld_to_plan(report, thickness, cap_width, offset, skews):
     """
     Adds a weld to the report's scan plan: thickness, cap width, C/L offset (wedge front to the
@@ -470,6 +485,7 @@ def add_weld_to_plan(report, thickness, cap_width, offset, skews):
     if added:
         for skew in added:
             setattr(plan, fields[skew], True)
+        plan = _own_plan(report, plan)
         plan.save()
         message = f'Added offset {_inches(offset)} ({", ".join(f"{s}°" for s in added)}) to scan plan "{plan.name}".'
     else:

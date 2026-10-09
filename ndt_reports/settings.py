@@ -119,7 +119,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Times are shown, and dates (e.g. the assistant's monthly spend) turn over, in local (Central) time;
+# the database keeps UTC (USE_TZ)
+TIME_ZONE = 'America/Chicago'
 
 USE_I18N = True
 

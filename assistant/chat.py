@@ -8,6 +8,7 @@ Events: {'type': 'status', 'text'}, {'type': 'step', 'text'}, {'type': 'text', '
 {'type': 'done', 'html', 'sources', 'cost', 'conversation_cost', 'tokens', 'model'},
 {'type': 'error', 'text'}.
 """
+import logging
 from datetime import date
 from decimal import Decimal
 
@@ -20,6 +21,8 @@ from .models import AssistantSettings, Turn
 from .providers import ProviderError, Reply, TextDelta, Usage, get_provider
 from .providers.base import plain_history, price
 from .tools import TOOLS, Lookup
+
+logger = logging.getLogger(__name__)
 
 MAX_ROUNDS = 10          # model responses per question (each may call tools)
 
@@ -70,7 +73,11 @@ def _history(conversation, provider):
 
 
 def ask(conversation, question, settings=None):
-    """Answers `question` in `conversation`, yielding page events; the turn is saved however it ends."""
+    """
+    Answers `question` in `conversation`, yielding page events; the turn is saved however it ends.
+    A new conversation (not saved yet) is only saved once the question is going to be asked, so a
+    question stopped by the spending cap or a missing key leaves no empty conversation behind.
+    """
     settings = settings or AssistantSettings.load()
     provider = get_provider(settings.provider, settings)
     model = settings.model or provider.default_model
@@ -89,9 +96,6 @@ def ask(conversation, question, settings=None):
         yield {'type': 'error', 'text': f'Add your {provider.label} API key in Preferences › Assistant first.'}
         return
 
-    yield {'type': 'status', 'text': 'Checking for new or changed records…'}
-    index.sync()
-
     if not conversation.title:
         conversation.title = question.strip().splitlines()[0][:120]
     conversation.provider = provider.key
@@ -103,8 +107,10 @@ def ask(conversation, question, settings=None):
     cost_known = True
     # The question, with the date it was asked (appended, never edited: the transcript stays a valid prefix)
     transcript = [provider.user_message(f'{question}\n\n(Asked on {date.today():%Y-%m-%d}.)')]
-    history = _history(conversation, provider)
     try:
+        yield {'type': 'status', 'text': 'Checking for new or changed records…'}
+        index.sync()
+        history = _history(conversation, provider)
         for _ in range(MAX_ROUNDS):
             reply = None
             yield {'type': 'status', 'text': 'Thinking…'}
@@ -114,6 +120,8 @@ def ask(conversation, question, settings=None):
                     yield {'type': 'text', 'text': event.text}
                 elif isinstance(event, Reply):
                     reply = event
+            if reply is None:
+                raise ProviderError('The answer stopped before it finished; ask again.')
             transcript.append(reply.message)
             usage.add(reply.usage)
             part = _cost(provider, settings, reply.model or model, reply.usage)
@@ -141,11 +149,14 @@ def ask(conversation, question, settings=None):
             answer.append('\n\n')   # text written before a look-up stays, separated from what follows
         else:
             answer.append('\n\n*(Stopped after too many look-ups; ask a narrower question.)*')
-    except ProviderError as e:
+    except Exception as e:   # a provider's error, or anything else (the index, a look-up): said, not left hanging
+        if not isinstance(e, ProviderError):
+            logger.exception('Assistant question failed')
+        message = str(e) if isinstance(e, ProviderError) else f'Something went wrong while answering: {e}'
         turn.status, turn.transcript = Turn.ERROR, []
-        turn.answer = str(e)
+        turn.answer = message
         _save(turn, usage, cost if cost_known else None, lookup)
-        yield {'type': 'error', 'text': str(e)}
+        yield {'type': 'error', 'text': message}
         return
 
     turn.answer = ''.join(answer).strip()

@@ -139,7 +139,7 @@ class DuplicateTests(MediaMixin, TestCase):
 
         self.assertEqual(dup.document_filename, '15V3 2026 (copy)')
         self.assertEqual((dup.client, dup.asset_description, dup.discussion), ('FHR', 'Vessel.', 'Disc.'))
-        self.assertEqual((dup.report_date, dup.test_date, dup.test_end_date), (None, None, None))
+        self.assertEqual((dup.report_date, dup.test_date, dup.test_end_date), (datetime.date.today(), None, None))
         self.assertEqual(list(dup.people.values_list('name', 'prepared')), [('Pat', True)])
         dup_setup = dup.setups.get()
         self.assertEqual((dup_setup.title, dup_setup.procedure), ('HydroFORM', 'P-1'))
@@ -150,6 +150,18 @@ class DuplicateTests(MediaMixin, TestCase):
         self.assertEqual(original.setups.count(), 1)
         self.assertEqual(original.images.count(), 2)
         self.assertTrue(ResultsTable.objects.filter(report=original).exists())
+
+    def test_duplicate_carries_the_weld_forms_probe_and_group_columns(self):
+        from reports.models import ReportGroup, ReportProbe
+        original = Report.objects.create(report_type='paut_weld')
+        probe = ReportProbe.objects.create(report=original, order=0, model='10L32-A1')
+        ReportGroup.objects.create(report=original, order=0, probe=probe, angles='40° - 70°')
+        self.client.post(reverse('report-list'), {'selected': [original.pk], 'duplicate': ''})
+        dup = Report.objects.exclude(pk=original.pk).get()
+        dup_probe = dup.probes.get()
+        self.assertEqual(dup_probe.model, '10L32-A1')
+        self.assertEqual(dup.groups.get().probe, dup_probe)          # points at the copy's own probe
+        self.assertEqual(original.groups.get().probe, probe)
 
     def test_duplicate_renders_cleanly(self):
         original = Report.objects.create(document_filename='r')
