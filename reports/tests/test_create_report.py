@@ -207,3 +207,38 @@ class GenerateReportTests(TestCase):
         report = Report.objects.create()
         resp = self.client.get(reverse('generate-report', args=[report.pk]), follow=True)
         self.assertContains(resp, 'Add at least one UT setup')
+
+
+class StaleSaveTests(TestCase):
+    url = reverse('create-report')
+
+    def test_page_carries_the_version_it_loaded(self):
+        report = Report.objects.create(document_filename='Existing')
+        page = self.client.get(self.url, {'loaded': report.pk})
+        self.assertEqual(page.context['loaded_version'], report.updated_at.isoformat())
+        self.assertContains(page, f'name="loaded_version" value="{report.updated_at.isoformat()}"')
+
+    def test_save_over_a_newer_version_is_held_once(self):
+        from datetime import timedelta
+        report = Report.objects.create(document_filename='Existing', client='Mine')
+        opened = report.updated_at.isoformat()
+        # Another tab saves later
+        Report.objects.filter(pk=report.pk).update(client='Other tab', updated_at=report.updated_at + timedelta(minutes=5))
+
+        resp = self.client.post(self.url, post_data(report=report, client='This tab', loaded_version=opened))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'saved from another tab or window')
+        self.assertContains(resp, 'value="This tab"')   # this tab's entries stay on the page
+        report.refresh_from_db()
+        self.assertEqual(report.client, 'Other tab')
+        # Save again: the page now holds the newer version, so it goes through
+        resp = self.client.post(self.url, post_data(report=report, client='This tab',
+                                                    loaded_version=resp.context['loaded_version']))
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')
+        report.refresh_from_db()
+        self.assertEqual(report.client, 'This tab')
+
+    def test_same_version_saves(self):
+        report = Report.objects.create(document_filename='Existing')
+        resp = self.client.post(self.url, post_data(report=report, client='X', loaded_version=report.updated_at.isoformat()))
+        self.assertRedirects(resp, f'{self.url}?loaded={report.pk}')

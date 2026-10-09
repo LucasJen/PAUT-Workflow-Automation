@@ -36,6 +36,8 @@
     </section>
     {% endif %}
     <input type="hidden" name="report_id" value="{{ form.instance.pk|default_if_none:'' }}">
+    {# When the report was last saved as this page opened it: a save from another tab since is caught #}
+    <input type="hidden" name="loaded_version" value="{{ loaded_version }}">
     {% if form.instance.pk %}<input type="hidden" name="selected" value="{{ form.instance.pk }}">{% endif %}
 
     {# What the Excel form leaves out of this report as last saved (excel_report.output_warnings) #}

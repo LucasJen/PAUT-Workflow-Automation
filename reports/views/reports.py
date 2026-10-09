@@ -2,6 +2,7 @@ from django.http import FileResponse, JsonResponse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.contrib import messages
 from django.conf import settings
@@ -179,6 +180,11 @@ def _known_people():
     return sorted(latest.items(), key=lambda item: item[0].lower())
 
 
+def _version(report):
+    """When the report was last saved, as the editor's loaded_version (blank for none)."""
+    return report.updated_at.isoformat() if report is not None and report.updated_at else ''
+
+
 def _get_report(pk):
     """The Report with this pk (from a query string or form field), or None."""
     return Report.objects.filter(pk=pk).first() if pk and str(pk).isdigit() else None
@@ -199,6 +205,14 @@ def create_report(request):
         if instance is not None and instance.is_issued:
             messages.error(request, ISSUED_MESSAGE)
             return redirect(f"{reverse('create-report')}?loaded={instance.pk}")
+
+        # The same report saved from another tab (or window) since this one opened it: say so
+        # and keep this tab's entries on the page; saving again replaces the other tab's version
+        version = request.POST.get('loaded_version', '')
+        current = _version(instance)
+        stale = bool(version and current and version != current)
+        if stale:
+            version = current
 
         results, results_ok = None, True
         try:
@@ -223,7 +237,7 @@ def create_report(request):
             if 'probes-TOTAL_FORMS' in request.POST else (None, None)
         formsets = tuple(fs for fs in (setup_formset, people, drawings, image_formset, probes, groups) if fs is not None)
 
-        valid = form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
+        valid = not stale and form.is_valid() and all(fs.is_valid() for fs in formsets) and results_ok
         if valid:
             # Checked after the formsets so each file's error can be shown on its setup block
             setup_uploads = _setup_image_uploads(request, setup_formset)
@@ -265,7 +279,13 @@ def create_report(request):
                 return redirect(f"{reverse('create-report')}?loaded={report.pk}&download=1")
             messages.success(request, 'Report saved.')
             return redirect(f"{reverse('create-report')}?loaded={report.pk}")
-        messages.error(request, 'The report was not saved. Check the highlighted fields.')
+        if stale:
+            when = timezone.localtime(instance.updated_at).strftime('%H:%M')
+            messages.error(request, f'Not saved: this report was saved from another tab or window at {when}, after '
+                                    'this page was opened. Saving now would replace those changes. Check the other '
+                                    'tab first; Save again here keeps what this page holds.')
+        else:
+            messages.error(request, 'The report was not saved. Check the highlighted fields.')
     else:
         loaded_report = _get_report(request.GET.get('loaded'))
         if loaded_report is None:
@@ -284,6 +304,7 @@ def create_report(request):
             setup_formset = SetupFormSet(instance=loaded_report)
             if loaded_report.setups.exists():
                 setup_formset.extra = 0   # no blank block (its empty fields would count as still to fill)
+        version = _version(loaded_report)
         people = PersonFormSet(instance=loaded_report, prefix='people')
         probes, groups = equipment_formsets(instance=loaded_report)
         drawings = drawing_formset(instance=loaded_report)
@@ -329,6 +350,7 @@ def create_report(request):
         'wizard': wizard and bool(form.instance.pk),
         'issued': form.instance.pk is not None and form.instance.is_issued,
         'wizard_step': wizard_step,
+        'loaded_version': version,
         'rtype': get_report_type(form.instance.report_type),
         # The guided editor's Scan plan step: every drawing the plan prints, with the welds at its offset
         'plan_drawings': plan_drawing_views(form.instance) if wizard and form.instance.pk else [],
