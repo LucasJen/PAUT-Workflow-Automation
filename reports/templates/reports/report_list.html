@@ -8,26 +8,51 @@
 {% include 'reports/components/new_report_button.html' %}
 {% endblock %}
 
+{% block filters %}
+<select class="form-select list-filter" data-filter="type" aria-label="Report type">
+    <option value="">All types</option>
+    {% for key, label in type_choices %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+</select>
+<select class="form-select list-filter" data-filter="client" aria-label="Client">
+    <option value="">All clients</option>
+    {% for client in clients %}<option value="{{ client }}">{{ client }}</option>{% endfor %}
+</select>
+<select class="form-select list-filter" data-filter="status" aria-label="Status">
+    <option value="">Any status</option>
+    <option value="draft">Draft</option>
+    <option value="issued">Issued</option>
+</select>
+{% endblock %}
+
 {% block columns %}
 <th class="sortable">ID<span class="sort-indicator"></span></th>
 <th class="sortable">File name<span class="sort-indicator"></span></th>
-<th class="sortable">Client<span class="sort-indicator"></span></th>
-<th class="sortable">Location<span class="sort-indicator"></span></th>
+<th class="sortable">Type<span class="sort-indicator"></span></th>
+<th class="sortable">Client / location<span class="sort-indicator"></span></th>
+<th class="sortable">Test date<span class="sort-indicator"></span></th>
 <th class="sortable">Report date<span class="sort-indicator"></span></th>
 <th class="sortable">Prepared by<span class="sort-indicator"></span></th>
+<th class="sortable">Edited<span class="sort-indicator"></span></th>
 <th class="col-actions"><span class="visually-hidden">Preview and download</span></th>
 {% endblock %}
 
 {% block rows %}
 {% for report in items %}
-<tr data-href="{% url 'create-report' %}?loaded={{ report.pk }}">
+<tr data-href="{% url 'create-report' %}?loaded={{ report.pk }}" data-type="{{ report.report_type }}"
+    data-client="{{ report.client_key }}" data-status="{{ report.status }}">
     {% include 'reports/components/row_check.html' with pk=report.pk %}
     <td class="mono text-muted-cell">{{ report.pk }}</td>
-    <td class="fw-medium">{{ report.document_filename|default:"Untitled" }}</td>
-    <td>{{ report.client }}</td>
-    <td>{{ report.location }}</td>
-    <td data-sort-value="{{ report.report_date|date:'Y-m-d' }}">{{ report.report_date|date:'M j, Y' }}</td>
-    <td>{{ report.prepared_by_names }}</td>
+    <td class="fw-medium col-name">
+        {{ report.document_filename|default:"Untitled" }}
+        {% if report.is_issued %}<span class="badge text-bg-success ms-1" title="Issued {{ report.issued_date|date:'M j, Y' }}">Issued</span>{% endif %}
+        {% if report.job_folder %}<i class="bi bi-folder2 text-body-secondary ms-1" title="Job folder: {{ report.job_folder }}"></i>{% endif %}
+    </td>
+    <td class="text-nowrap">{{ report.type_label }}</td>
+    <td>{{ report.client }}{% if report.location %}<span class="d-block small text-body-secondary">{{ report.location }}</span>{% endif %}</td>
+    <td class="text-nowrap" data-sort-value="{{ report.test_date|date:'Y-m-d' }}">{{ report.test_date|date:'M j, Y' }}{% if report.test_end_date and report.test_end_date != report.test_date %} – {{ report.test_end_date|date:'M j' }}{% endif %}</td>
+    <td class="text-nowrap" data-sort-value="{{ report.report_date|date:'Y-m-d' }}">{{ report.report_date|date:'M j, Y' }}</td>
+    <td class="text-nowrap">{{ report.prepared_by_names }}</td>
+    <td class="text-nowrap small text-body-secondary" data-sort-value="{{ report.updated_at|date:'c' }}" title="{{ report.updated_at|date:'M j, Y, g:i a' }}">{{ report.updated_at|date:'M j' }}</td>
     <td class="col-actions">
         {% if report.can_generate %}
         <a href="{% url 'preview-report' report.pk %}" class="btn btn-icon btn-sm"

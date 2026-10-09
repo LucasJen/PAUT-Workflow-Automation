@@ -62,6 +62,16 @@ class CreateReportTests(TestCase):
         for key in ('paut_long', 'paut_weld', 'paut_corrosion'):
             self.assertContains(resp, f'?type={key}')
 
+    def test_report_list_columns_and_filters(self):
+        Report.objects.create(document_filename='Weld', report_type='paut_weld', client='Acme', status='issued')
+        Report.objects.create(document_filename='Corrosion', report_type='paut_corrosion', client=' acme 2 ')
+        resp = self.client.get(reverse('report-list'))
+        self.assertEqual(resp.context['clients'], ['Acme', 'acme 2'])
+        self.assertContains(resp, 'data-type="paut_weld"')
+        self.assertContains(resp, 'data-status="issued"')
+        self.assertContains(resp, 'data-client="acme 2"')
+        self.assertContains(resp, 'PAUT weld (Excel)')
+
     def test_saving_loaded_report_updates_instead_of_duplicating(self):
         report = Report.objects.create(document_filename='Existing')
         setup = Setup.objects.create(report=report, scope_model='Old')

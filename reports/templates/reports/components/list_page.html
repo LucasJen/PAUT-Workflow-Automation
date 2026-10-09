@@ -3,7 +3,8 @@
 {% comment %}
 Shared list page. Views pass `items`. Child templates fill:
   page_title, item_noun (singular, lower case), new_button, columns (<th>s), rows (<tr>s),
-  empty_icon, empty_text
+  empty_icon, empty_text, and optionally filters: <select class="form-select list-filter" data-filter="x">
+  whose option values match the rows' data-x attributes ('' shows every row)
 Rows: <tr data-href="..."> with {% include 'reports/components/row_check.html' with pk=obj.pk %} first.
 Sortable headers: <th class="sortable">Label<span class="sort-indicator"></span></th>;
 cells may set data-sort-value (e.g. ISO dates).
@@ -32,6 +33,7 @@ cells may set data-sort-value (e.g. ISO dates).
 
     <div class="header-actions">
         {% if items %}
+        {% block filters %}{% endblock %}
         <div class="search-input">
             <i class="bi bi-search"></i>
             <input type="search" id="list-search" class="form-control" placeholder="Search…" aria-label="Search">

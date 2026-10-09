@@ -125,22 +125,27 @@
         if (e.key === 'Enter' && e.target.matches('tr[data-href]')) openRow(e.target, false);
     });
 
-    // ── Search ─────────────────────────────────────────────────────────
+    // ── Search and filters ─────────────────────────────────────────────
+    // A row is shown when it has the search text and each filter's value (its data-<filter>)
 
     const search = document.getElementById('list-search');
-    if (search) {
-        search.addEventListener('input', () => {
-            const keyword = search.value.trim().toLowerCase();
-            let shown = 0;
-            rows().forEach(r => {
-                const match = !keyword || r.textContent.toLowerCase().includes(keyword);
-                r.hidden = !match;
-                if (match) shown++;
-            });
-            noMatches.hidden = shown > 0;
-            updateBulkBar();
+    const filters = Array.from(document.querySelectorAll('.list-filter'));
+
+    function applyFilters() {
+        const keyword = (search?.value || '').trim().toLowerCase();
+        let shown = 0;
+        rows().forEach(r => {
+            const match = (!keyword || r.textContent.toLowerCase().includes(keyword))
+                && filters.every(f => !f.value || r.dataset[f.dataset.filter] === f.value);
+            r.hidden = !match;
+            if (match) shown++;
         });
+        noMatches.hidden = shown > 0;
+        updateBulkBar();
     }
+
+    search?.addEventListener('input', applyFilters);
+    filters.forEach(f => f.addEventListener('change', applyFilters));
 
     // ── Sorting ────────────────────────────────────────────────────────
 

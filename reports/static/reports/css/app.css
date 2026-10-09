@@ -764,6 +764,8 @@ textarea.form-control:not(.result-cell-input) { max-width: 110ch; }
     pointer-events: none;
 }
 .search-input input { padding-left: 2rem; }
+.list-filter { width: auto; max-width: 13rem; }
+.data-table .col-name { min-width: 12rem; }
 
 /* ── Badges / status ────────────────────────────────────────────────────── */
 

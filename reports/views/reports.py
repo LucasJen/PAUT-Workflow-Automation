@@ -719,8 +719,6 @@ def report_list(request):
                 messages.warning(request, f"{kept} issued report{'s were' if kept != 1 else ' was'} kept: "
                                           'reopen a report in the editor to delete it.')
             return redirect('report-list')
-        if 'edit' in request.POST and len(selected_pks) == 1:
-            return redirect('edit-report', pk=selected_pks[0])
         if 'duplicate' in request.POST and len(selected_pks) == 1:
             duplicate = _duplicate_report(get_object_or_404(Report, pk=selected_pks[0]))
             messages.success(request, 'Report duplicated. Results, scan images and dates start empty.')
@@ -728,11 +726,18 @@ def report_list(request):
     word_ok, excel_ok = word_available(), excel_available()
     reports = list(reports)
     for report in reports:
+        report.type_label = get_report_type(report.report_type).label
+        report.client_key = report.client.strip()   # the client filter's value
         report.is_excel = _is_excel(report)
         report.pdf_ok = excel_ok if report.is_excel else word_ok
         # As has_equipment(): a setup, or a probe / group column on the weld form
         report.can_generate = bool(report.setup_count or report.probe_count or report.group_count)
-    return render(request, 'reports/report_list.html', {'items': reports})
+    return render(request, 'reports/report_list.html', {
+        'items': reports,
+        # The list's filters: every type, and the clients on the reports
+        'type_choices': [(key, t.label) for key, t in REPORT_TYPES.items()],
+        'clients': sorted({r.client.strip() for r in reports if r.client.strip()}, key=str.lower),
+    })
 
 
 def new_report(request):
