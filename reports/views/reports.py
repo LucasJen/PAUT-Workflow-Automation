@@ -19,6 +19,7 @@ from ..models import Report, ReportImage, ReportPerson, Setup, SetupImage, Resul
 from ..report_types import DEFAULT_REPORT_TYPE, REPORT_SECTIONS, get_report_type
 from ..defaults import all_defaults, defaults_for, in_page_order, only_defaults
 from equipment.cal_due import report_cal_warnings
+from equipment.pickers import inventory_picks
 from equipment.inventory import with_library_scope
 
 from ..materials import library_blocks
@@ -320,6 +321,8 @@ def create_report(request):
                                     {**values, 'source_file': values.get('source_file') or f'Setup #{pk}'})[0])
                                 for pk, values in saved_values.items()},
         'report_defaults': all_defaults(),
+        # The serial fields' pickers (inventory_pick.js)
+        'inventory_picks': inventory_picks(),
         'pdf_available': pdf_available(form.instance if form.instance.pk else None),
         'excel': bool(form.instance.pk) and _is_excel(form.instance),
         'wizard': wizard and bool(form.instance.pk),

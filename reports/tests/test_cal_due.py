@@ -60,3 +60,25 @@ class CalDueTests(TestCase):
         Scope.objects.create(serial_number='QC-1', calibration_due_date=date(2027, 5, 1))
         report = Report.objects.create(test_date=date(2026, 6, 1), inst_serial='QC-1', inst_cal_due='5/1/2027')
         self.assertEqual(report_cal_warnings(report), [])
+
+
+class InventoryPickerTests(TestCase):
+    def test_picks_fill_setup_and_weld_fields(self):
+        from equipment.pickers import inventory_picks
+        Scope.objects.create(name='OmniScan X3', model='X3', serial_number='qc-1', calibration_due_date=date(2027, 1, 16))
+        Probe.objects.create(model='5L64', serial_number='P1', frequency='5 MHz', manufacturer='Evident')
+        CalibrationBlock.objects.create(block_type='IIW', serial_number='B1', material='Carbon steel')
+        Scope.objects.create(model='No serial')
+        picks = inventory_picks()
+        scope = picks['scopes']['QC-1']
+        self.assertEqual((scope['serial'], scope['setup']['scope_model'], scope['setup']['scope_cal_due']),
+                         ('qc-1', 'X3', '1/16/2027'))
+        self.assertEqual(scope['weld']['inst_name'], 'OmniScan X3')
+        self.assertEqual(picks['probes']['P1']['column'], {'model': '5L64', 'make': 'Evident', 'frequency': '5 MHz',
+                                                          'serial': 'P1'})
+        self.assertEqual(picks['blocks']['B1']['weld']['material'], 'Carbon steel')
+        self.assertEqual(len(picks['scopes']), 1)
+
+        resp = self.client.get(reverse('create-report'))
+        self.assertContains(resp, '<datalist id="inv-scopes"><option value="qc-1" label="OmniScan X3 · Evident">')
+        self.assertContains(self.client.get(reverse('new-setup')), 'inventory_pick.js')

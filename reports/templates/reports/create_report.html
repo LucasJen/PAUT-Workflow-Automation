@@ -205,6 +205,7 @@
 {{ report_types|json_script:"report-types" }}
 {{ saved_setup_values|json_script:"saved-setup-values" }}
 {{ report_defaults|json_script:"report-defaults" }}
+{% include 'reports/components/inventory_pickers.html' %}
 {% endblock %}
 
 {% block scripts %}
@@ -214,5 +215,6 @@
 <script src="{% static_v 'reports/js/weld_results.js' %}"></script>
 <script src="{% static_v 'reports/js/materials.js' %}"></script>
 <script src="{% static_v 'reports/js/fill_marks.js' %}"></script>
+<script src="{% static_v 'reports/js/inventory_pick.js' %}"></script>
 {% if wizard %}<script src="{% static_v 'reports/js/wizard.js' %}"></script>{% endif %}
 {% endblock %}
