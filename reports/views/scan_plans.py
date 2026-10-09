@@ -390,6 +390,44 @@ def scan_plan_wedges(request):
 OFFSET_TOLERANCE = 0.001   # inches: offsets this close are the same offset (one image per skew)
 
 
+# A weld's C/L Offset cell: one offset, or several ('0.500 / 0.875'); always positive
+OFFSET_NUMBER = re.compile(r'\d*\.?\d+')
+
+
+def weld_offsets(text):
+    """'0.500 / 0.875' -> [0.5, 0.875]; '' -> []."""
+    return [float(n) for n in OFFSET_NUMBER.findall(text or '')]
+
+
+def plan_drawing_views(report):
+    """
+    The report's scan plan drawings for the guided editor: [{'position', 'side', 'label', 'welds'}]
+    per ticked skew per index offset, with the welds whose C/L offset is that offset.
+    """
+    from ..report_types import WELD_RESULTS_COLUMNS
+    from ..results import report_results
+    plan = report.scan_plan
+    if plan is None:
+        return []
+    headings = dict(WELD_RESULTS_COLUMNS)
+    columns, rows = report_results(report) if report.pk else ([], [])
+    weld_at, offset_at = (columns.index(headings[key]) if headings[key] in columns else None
+                          for key in ('weld_id', 'cl_offset'))
+    welds = []   # [(weld ID, [offsets])]
+    if weld_at is not None and offset_at is not None:
+        for cells in rows:
+            cells = list(cells) + [''] * len(columns)
+            if str(cells[weld_at]).strip():
+                welds.append((str(cells[weld_at]).strip(), weld_offsets(str(cells[offset_at]))))
+    views = []
+    for position, side, label in plan.drawing_labels:
+        offset = plan.index_offset if position == 1 else plan.index_offset_2
+        views.append({'position': position, 'side': side, 'label': label,
+                      'welds': [weld for weld, offsets in welds
+                                if any(_same_offset(offset, o) for o in offsets)]})
+    return views
+
+
 def _weld_skews(location):
     """Probe 1 Location -> the skews it scans: '90/270' both, '90' or '270' one; no number, both."""
     numbers = {int(float(n)) for n in NUMBER.findall(location or '')}

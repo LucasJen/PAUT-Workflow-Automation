@@ -108,8 +108,18 @@
                 {% with plan=form.instance.scan_plan %}
                 {% if plan %}
                 <p class="form-text">“{{ plan.name }}” prints on the report's last page. The drawing is as last saved: after editing the plan, reload it here.</p>
+                {# Every drawing the plan prints: each ticked skew at each index offset #}
                 <div class="wizard-plan">
-                    <img src="{% url 'scan-plan-png' plan.pk %}" alt="Scan plan {{ plan.name }}" id="wizard-plan-img">
+                    {% for drawing in plan_drawings %}
+                    <figure class="wizard-plan-figure" data-position="{{ drawing.position }}" data-side="{{ drawing.side }}">
+                        <figcaption>{{ drawing.label }}
+                            <span class="wizard-plan-welds">{% if drawing.welds %}{{ drawing.welds|join:", " }}{% else %}No weld in the results has this offset{% endif %}</span>
+                        </figcaption>
+                        <img src="{% url 'scan-plan-png' plan.pk %}?position={{ drawing.position }}&amp;side={{ drawing.side }}" alt="Scan plan {{ plan.name }}: {{ drawing.label }}" class="wizard-plan-img">
+                    </figure>
+                    {% empty %}
+                    <p class="mb-0">The plan has no skew ticked: edit it to tick the skews scanned.</p>
+                    {% endfor %}
                 </div>
                 <div class="d-flex gap-2 mt-2">
                     <a href="{% url 'edit-scan-plan' plan.pk %}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">

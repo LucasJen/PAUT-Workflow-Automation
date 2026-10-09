@@ -94,10 +94,11 @@
     ['input', 'change', 'click'].forEach(type => form.addEventListener(type, () => setTimeout(refresh)));
 
     document.getElementById('wizard-plan-reload')?.addEventListener('click', () => {
-        const img = document.getElementById('wizard-plan-img');
-        const url = new URL(img.src, window.location.href);
-        url.searchParams.set('t', Date.now());
-        img.src = url;
+        for (const img of document.querySelectorAll('.wizard-plan-img')) {
+            const url = new URL(img.src, window.location.href);
+            url.searchParams.set('t', Date.now());
+            img.src = url;
+        }
     });
 
     show();

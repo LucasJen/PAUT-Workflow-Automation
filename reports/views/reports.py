@@ -25,6 +25,7 @@ from equipment.inventory import with_library_scope
 from ..materials import library_blocks
 from ..weld_columns import columns_from_setup
 from ..weld_form import NOT_USED, wedge_diameter_for, weld_grid_rows
+from .scan_plans import plan_drawing_views
 from ..results import fit_to_columns, report_results, report_scan_rows, scan_rows
 from django.core.exceptions import ValidationError
 from django.forms import ImageField
@@ -329,6 +330,8 @@ def create_report(request):
         'issued': form.instance.pk is not None and form.instance.is_issued,
         'wizard_step': wizard_step,
         'rtype': get_report_type(form.instance.report_type),
+        # The guided editor's Scan plan step: every drawing the plan prints, with the welds at its offset
+        'plan_drawings': plan_drawing_views(form.instance) if wizard and form.instance.pk else [],
     })
 
 

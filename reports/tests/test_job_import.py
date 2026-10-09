@@ -165,6 +165,33 @@ class GuidedEditorTests(TestCase):
         plain = self.client.get(f'{self.editor}?loaded={self.report.pk}')
         self.assertNotContains(plain, 'data-wizard')
 
+    def test_the_scan_plan_step_shows_every_drawing(self):
+        plan = self.report.scan_plan
+        plan.index_offset, plan.skew_90, plan.skew_270 = 0.5, True, True
+        plan.index_offset_2, plan.skew_90_2 = 1.25, True
+        plan.save()
+        page = self.client.get(f'{self.editor}?loaded={self.report.pk}&wizard=1&step=scanplan')
+        for label, query in (('Offset 0.500" · 90° skew', 'position=1&amp;side=1'),
+                             ('Offset 0.500" · 270° skew', 'position=1&amp;side=2'),
+                             ('Offset 1.250" · 90° skew', 'position=2&amp;side=1')):
+            self.assertContains(page, f'<figcaption>{label}'.replace('"', '&quot;'))
+            self.assertContains(page, query)
+        self.assertNotContains(page, 'position=2&amp;side=2')
+        self.assertContains(page, '<span class="wizard-plan-welds">W5</span>', count=0)   # W5's offset is the file's
+        self.assertContains(page, 'No weld in the results has this offset')
+
+    def test_the_welds_at_each_offset(self):
+        from reports.views.scan_plans import plan_drawing_views
+        plan = self.report.scan_plan
+        plan.index_offset, plan.skew_90, plan.skew_270 = 0.5, True, False
+        plan.index_offset_2, plan.skew_90_2 = 0.875, True
+        plan.save()
+        row = self.report.results_table.rows.get()
+        row.cells[2] = '0.500 / 0.875'
+        row.save()
+        views = plan_drawing_views(self.report)
+        self.assertEqual([(v['position'], v['side'], v['welds']) for v in views], [(1, 1, ['W5']), (2, 1, ['W5'])])
+
     def test_next_saves_and_goes_to_the_step(self):
         resp = self.post('equipment', client='Saved on Next')
         self.assertRedirects(resp, f'{self.editor}?loaded={self.report.pk}&wizard=1&step=equipment')

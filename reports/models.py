@@ -264,6 +264,13 @@ class ScanPlan(models.Model):
                     out.append((position, offset, skew))
         return out
 
+    @property
+    def drawing_labels(self):
+        """[(position, side, label)] for each drawing, e.g. (2, 1, 'Offset 1.250" · 90° skew')."""
+        return [(position, 1 if skew == self.SKEW_90 else 2,
+                 f"Offset {self._length_text(offset) or 'at the weld toe'} · {skew}° skew")
+                for position, offset, skew in self.drawings]
+
 
 class ReportDefaults(models.Model):
     """
