@@ -233,13 +233,17 @@
         const box = block.querySelector('.setup-values-preview');
         if (!box || !previewUrl) return;
         box.hidden = false;
+        box.closest('details').open = true;
         box.replaceChildren(el('p', { className: 'form-text', textContent: 'Drawing the setup picture…' }));
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         const form = block.closest('form');
         const body = new FormData();
         body.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
         body.append('nde_sheet', block.querySelector('input[name$="-nde_sheet"]').value);
         body.append('units', unitsOf(block));
-        for (const name of ['specimen_thickness', 'tr_max']) body.append(name, fieldInput(block, name)?.value || '');
+        for (const name of ['specimen_thickness', 'tr_max', 'weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width',
+                            'index_offset', 'extra_offsets']) body.append(name, fieldInput(block, name)?.value || '');
+        if (fieldInput(block, 'weld_on')?.checked) body.append('weld_on', 'on');
         body.append('report_type', document.getElementById('id_report_type')?.value || '');
         try {
             const response = await fetch(previewUrl, { method: 'POST', body });
@@ -260,5 +264,5 @@
     new MutationObserver(records => records.forEach(r => r.addedNodes.forEach(node => {
         if (node.nodeType === 1 && node.matches?.('.setup-block')) render(node);
     }))).observe(document.getElementById('setup-formset-container') || document.body, { childList: true });
-    window.SetupValues = { render };
+    window.SetupValues = { render, preview: showPreview };
 })();

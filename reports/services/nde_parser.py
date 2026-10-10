@@ -584,10 +584,12 @@ class _GroupContext:
         scan plan calculates it from the bevel instead.
         """
         weld = self.specimen.get('weldGeometry') or {}
-        fills = weld.get('fills') or [{}]
+        passes = [weld.get('root') or {}, weld.get('hotPass') or {}, *(weld.get('fills') or [])]
+        # Many files build the bevel from the root / hot pass with an empty fill: the first pass with a height
+        bevel = next((p for p in passes if p.get('height')), (weld.get('fills') or [{}])[0])
         offset = weld.get('offset')
         values = {
-            'weld_bevel_angle': _plain(fills[0].get('angle'), 1),
+            'weld_bevel_angle': _plain(bevel.get('angle'), 1),
             'weld_root_face': _dist(_get(weld, 'land', 'height'), system, 3, 2),
             'weld_root_gap': _dist(2 * offset, system, 3, 2) if offset is not None else None,
         }

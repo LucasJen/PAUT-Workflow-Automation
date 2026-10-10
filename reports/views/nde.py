@@ -112,7 +112,12 @@ def setup_sheet_preview(request):
     setup = Setup(nde_sheet=request.POST.get('nde_sheet', ''),
                   units='metric' if request.POST.get('units') == 'metric' else 'imperial',
                   specimen_thickness=request.POST.get('specimen_thickness', '')[:100],
-                  tr_max=request.POST.get('tr_max', '')[:50])
+                  tr_max=request.POST.get('tr_max', '')[:50],
+                  # The Weld & offsets panel: the weld on the scan plan at each offset
+                  weld_on=bool(request.POST.get('weld_on')),
+                  **{name: request.POST.get(name, '')[:200] for name in (
+                      'weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width', 'index_offset',
+                      'extra_offsets')})
     size = SETUP_SHEET_IN if request.POST.get('report_type') == 'paut_corrosion' else (SHEET_WIDTH_IN, SHEET_HEIGHT_IN)
     try:
         png = sheet_png(setup, *size)

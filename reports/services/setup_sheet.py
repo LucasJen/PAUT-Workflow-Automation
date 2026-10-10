@@ -288,11 +288,13 @@ def _inch(metres, default=None):
     return metres * M_TO_IN if metres is not None else default
 
 
-def drawing_scene(data, setup, aspect, units, width_px=2000):
+def drawing_scene(data, setup, aspect, units, width_px=2000, weld=None, weld_offset=None, size=30):
     """
     The probe on its wedge and the beams through the part, in the plane of the probe's elements,
     as a scan plan Scene (inches; depth down) with bounds padded to `aspect` (height / width), with
-    room for its labels when drawn `width_px` wide.
+    room for its labels when drawn `width_px` wide (aspect None: the drawing's own shape). With `weld`
+    (weld_spec), the weld is drawn with its centre line `weld_offset` inches ahead of the wedge front
+    (None: the wedge front at the weld toe). Labels are `size` pixels.
     """
     u = Units(units)
     probe, wedge, ut, part = (data.get(k, {}) for k in ('probe', 'wedge', 'ut', 'part'))
@@ -344,6 +346,10 @@ def drawing_scene(data, setup, aspect, units, width_px=2000):
         paths.append(((ex, ey), (exit_x, 0.0), end, angle, (centre, angle) in map(tuple, shown), skip))
 
     xs = [front, back] + [p[1][0] for p in paths] + [(p[5] or p[2])[0] for p in paths]
+    if weld:   # the weld ahead of the wedge front
+        w_top, w_cap, w_cap_h = _weld_shape(weld, t)
+        centre = front + (weld_offset if weld_offset is not None else w_cap / 2)
+        xs += [centre - w_cap / 2 - 0.15, centre + w_cap / 2 + 0.15]
     x_lo, x_hi = min(xs) - 0.25, max(xs) + 0.25
     top = max(height, h1 + array * sin_a) + 0.2
 
@@ -355,6 +361,16 @@ def drawing_scene(data, setup, aspect, units, width_px=2000):
         scene.add('polygon', points=[first[1], last[1], last[2], first[2]], fill='beam_zone')
         if first[5] and last[5]:
             scene.add('polygon', points=[first[2], last[2], last[5], first[5]], fill='beam_zone')
+    if weld:
+        # A single V from the root up (root gap, root face, then the bevel to the surface), the cap above
+        # it - over the beams' coverage shading, under the beams
+        g, land = weld['gap'] / 2, min(weld['face'], t)
+        weld_outline = [(centre - g, t), (centre + g, t), (centre + g, t - land), (centre + w_top, 0.0),
+                        (centre - w_top, 0.0), (centre - g, t - land)]
+        scene.add('polygon', points=weld_outline, fill='weld', stroke='plate', width=1.6)
+        weld_cap = [(centre + w_cap / 2 * math.cos(math.pi * k / 16), -w_cap_h * math.sin(math.pi * k / 16)) for k in range(17)]
+        scene.add('polygon', points=weld_cap, fill='weld', stroke='plate', width=1.6)
+        scene.add('dashed', a=(centre, -w_cap_h - 0.12), b=(centre, t + 0.06), stroke='centre_line', width=1.0)
 
     # Wedge (or the water column) and the probe on it
     if has_wedge:
@@ -381,7 +397,6 @@ def drawing_scene(data, setup, aspect, units, width_px=2000):
                 scene.add('line', points=[(ex, ey), (sx, 0.0)], stroke='wedge_beam', width=1.0)
             scene.add('line', points=[(sx, 0.0), end] + ([skip] if skip else []), stroke='beam', width=1.3)
 
-    size = 30
     # Thickness, at the right
     dim_x = x_hi + 0.12
     scene.add('line', points=[(dim_x, 0.0), (dim_x, t)], stroke='dimension', width=1.2)
@@ -428,16 +443,34 @@ def drawing_scene(data, setup, aspect, units, width_px=2000):
     if not paths:
         scene.add('text', at=((x_lo + x_hi) / 2, t / 2), text='No focal laws in this group', size=size,
                   stroke='text', halo=True)
+    if weld:   # the offset: wedge front to the centre line, under the part (clear of the wedge's labels)
+        y = t + 0.16
+        text = f'Offset {u.length((centre - front) / M_TO_IN)}' if weld_offset is not None else 'Wedge front at the weld toe'
+        scene.add('dashed', a=(front, 0.0), b=(front, y + 0.04), stroke='dimension', width=0.9)
+        scene.add('dashed', a=(centre, t), b=(centre, y + 0.04), stroke='dimension', width=0.9)
+        if abs(centre - front) > 0.02:
+            scene.add('line', points=[(front, y), (centre, y)], stroke='dimension', width=1.2)
+            scene.add('arrow', tip=(front, y), towards=(centre, y), stroke='dimension')
+            scene.add('arrow', tip=(centre, y), towards=(front, y), stroke='dimension')
+        scene.add('text', at=((front + centre) / 2, y + 0.04), text=text, size=size, stroke='dimension', anchor='mt', halo=True)
 
     # Bounds: the drawing plus room for the labels round it (text is a fixed size in pixels, so the
     # room depends on the scale), padded to the box's shape
-    body = (x_lo, x_hi, -top, t)
-    side_px, below_px, above_px = 13 * size, 2.6 * size, 2.2 * size
+    body = (x_lo, x_hi, -top, t + (0.2 if weld else 0.0))
+    # Room for the labels: the thickness on the right; on the left only the focus label (when it's drawn)
+    focus_label = bool(focus and 0 < focus < t * 1.5 and law.get('focus_mode') in ('Depth', 'TrueDepth'))
+    left_px, right_px = (9 if focus_label else 1.5) * size, 10 * size
+    below_px, above_px = 2.6 * size, 2.2 * size
     scale = width_px / ((x_hi - x_lo) * 1.6)       # first guess, then refined with the bounds it gives
     for _ in range(4):
-        x_lo, x_hi = body[0] - side_px / scale, body[1] + side_px / scale
+        # ...and the probe / wedge label, centred over the probe, mustn't run off the left
+        label_half = 0.33 * size * len(label) if label else 0.0
+        needed = label_half - ((p1[0] + p2[0]) / 2 - body[0]) * scale
+        x_lo, x_hi = body[0] - max(left_px, needed) / scale, body[1] + right_px / scale
         y_lo, y_hi = body[2] - above_px / scale, body[3] + below_px / scale
-        if (y_hi - y_lo) / (x_hi - x_lo) < aspect:
+        if aspect is None:   # the drawing's own shape (for laying several out)
+            pass
+        elif (y_hi - y_lo) / (x_hi - x_lo) < aspect:
             extra = aspect * (x_hi - x_lo) - (y_hi - y_lo)
             y_lo, y_hi = y_lo - extra / 2, y_hi + extra / 2
         else:
@@ -457,6 +490,44 @@ def _clip(exit_point, end, skip, reach):
     if reach <= first:
         return along(exit_point, end, reach), None
     return end, along(end, skip, reach - first) if skip else None
+
+
+def _length_in(text, metric):
+    """A typed length ('0.750', '19.05 mm') in inches, or None."""
+    try:
+        value = float(str(text or '').replace(',', ' ').split()[0])
+    except (ValueError, IndexError):
+        return None
+    return value / 25.4 if metric else value
+
+
+def weld_spec(setup):
+    """
+    The weld to draw on the scan plan (Weld & offsets panel), in inches, or None when it's off:
+    {angle (deg from vertical), face, gap, cap (None: worked out from the bevel), offsets: [wedge front
+    to the centre line, or None for the wedge front at the weld toe]}.
+    """
+    if not getattr(setup, 'weld_on', False):
+        return None
+    metric = getattr(setup, 'units', 'imperial') == 'metric'
+    try:
+        angle = float(str(setup.weld_bevel_angle or '').split()[0])
+    except (ValueError, IndexError):
+        angle = 37.5
+    offsets = [_length_in(setup.index_offset, metric)]
+    offsets += [_length_in(part, metric) for part in str(setup.extra_offsets or '').split(',') if part.strip()]
+    offsets = [o for o in offsets if o is not None] or [None]
+    return {'angle': min(max(angle, 0.0), 80.0), 'face': _length_in(setup.weld_root_face, metric) or 0.0,
+            'gap': _length_in(setup.weld_root_gap, metric) or 0.0, 'cap': _length_in(setup.weld_cap_width, metric),
+            'offsets': offsets[:6]}
+
+
+def _weld_shape(weld, t):
+    """(half width at the top, cap width, cap height) of a V weld in a part `t` thick (inches)."""
+    face = min(weld['face'], t)
+    top = weld['gap'] / 2 + (t - face) * math.tan(math.radians(weld['angle']))
+    cap = weld['cap'] or 2 * top + 0.125
+    return top, cap, min(0.08, max(0.03, t * 0.08))
 
 
 def _setup_thickness(setup):
@@ -580,6 +651,35 @@ def _draw_sections(sheet, data, system):
             sheet.tcg(content)
 
 
+def _label_size(panel_w, panel_h):
+    """Label size (px) for a drawing panel: smaller as the drawings get smaller."""
+    return max(16, min(30, round(30 * min(panel_w / 1500, panel_h / 700))))
+
+
+def _arrangement(data, setup, system, weld, offsets, width, height, gap):
+    """
+    (columns, rows) for the offsets' drawings in a `width` × `height` space: the arrangement that draws
+    them at the largest scale, found by laying a drawing out at each panel size (its labels take a
+    fixed number of pixels, so its shape depends on the size).
+    """
+    n = len(offsets)
+    if n == 1:
+        return 1, 1
+    best, choice = 0.0, (n, 1)
+    for columns in range(1, n + 1):
+        rows = math.ceil(n / columns)
+        if (rows - 1) * columns >= n:          # an empty row
+            continue
+        w = (width - gap * (columns - 1)) / columns
+        h = (height - gap * (rows - 1)) / rows
+        scene = drawing_scene(data, setup, None, system, round(w), weld=weld, weld_offset=offsets[0], size=_label_size(w, h))
+        span_x, span_y = scene.x_max - scene.x_min, scene.y_max - scene.y_min
+        scale = min(w / span_x, h / span_y)    # pixels per inch it can be drawn at
+        if scale > best * 1.02:                # near ties: the earlier (wider) arrangement
+            best, choice = scale, (columns, rows)
+    return choice
+
+
 def sheet_png(setup, width_in, height_in):
     """
     PNG bytes of the setup's sheet, laid out for a `width_in` × `height_in` box: the tables at the
@@ -596,14 +696,32 @@ def sheet_png(setup, width_in, height_in):
     drawing = max(round(height_in * DPI) - tables - heading, round(MIN_DRAWING_IN * DPI))
     sheet = _Sheet(width, tables + heading + drawing)
     _draw_sections(sheet, data, system)
-    sheet.heading('Scan Plan', 'Probe, wedge and beams from the .nde file')
+    weld = weld_spec(setup)
+    offsets = weld['offsets'] if weld else [None]
+    note = 'Probe, wedge and beams from the .nde file'
+    if weld:
+        note += f" · the weld at {len(offsets)} offset{'s' if len(offsets) > 1 else ''}"
+    sheet.heading('Scan Plan', note)
 
+    # One drawing per offset, sharing the space left on the page (the page stays one page): side by side
+    # or one above the other, whichever draws them biggest - a thin plate's wide drawings stack
     drawing_width = width - 2 * sheet.pad
     drawing = sheet.image.height - sheet.y - sheet.pad
-    scene = drawing_scene(data, setup, drawing / drawing_width, system, drawing_width)
-    picture = Image.open(io.BytesIO(render_scene(scene, drawing_width)))
-    picture = picture.resize((drawing_width, drawing), Image.LANCZOS) if picture.size != (drawing_width, drawing) else picture
-    sheet.image.paste(picture, (sheet.pad, sheet.y))
+    gap = round(0.12 * DPI)
+    columns, rows = _arrangement(data, setup, system, weld, offsets, drawing_width, drawing, gap)
+    panel_w = (drawing_width - gap * (columns - 1)) // columns
+    panel_h = (drawing - gap * (rows - 1)) // rows
+    size = _label_size(panel_w, panel_h)   # labels shrink with the drawings
+    for i, weld_offset in enumerate(offsets):
+        scene = drawing_scene(data, setup, panel_h / panel_w, system, panel_w, weld=weld, weld_offset=weld_offset, size=size)
+        picture = Image.open(io.BytesIO(render_scene(scene, panel_w)))
+        if picture.size != (panel_w, panel_h):
+            picture = picture.resize((panel_w, panel_h), Image.LANCZOS)
+        x = sheet.pad + (i % columns) * (panel_w + gap)
+        y = sheet.y + (i // columns) * (panel_h + gap)
+        sheet.image.paste(picture, (x, y))
+        if len(offsets) > 1:   # which position this is
+            sheet.draw.text((x + _pt(2), y + _pt(1)), f'Position {i + 1}', font=sheet.bold, fill=LABEL)
 
     out = io.BytesIO()
     sheet.image.save(out, format='PNG', optimize=True, dpi=(DPI, DPI))
