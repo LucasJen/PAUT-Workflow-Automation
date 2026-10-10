@@ -174,6 +174,15 @@ class WeldOutlineTests(SimpleTestCase):
         self.assertAlmostEqual(max(y for _, y in lower), 0.0095 + 0.002)  # root reinforcement below
         self.assertEqual(geometry.weld_outline({}, 0.01), [])
 
+    def test_root_and_hot_pass_make_the_bevel_when_there_are_no_fills(self):
+        # As in '43v4c course 3 ...': land 2 + root 22.8 + hot pass 22.8 = the 47.6 mm wall
+        weld = {'offset': 0.0, 'land': {'height': 0.002}, 'root': {'angle': 30.0, 'height': 0.0228125},
+                'hotPass': {'angle': 30.0, 'height': 0.0228125}, 'fills': [{'angle': 0.0, 'height': 0.0}]}
+        right = geometry.weld_outline(weld, 0.047625)[1]
+        self.assertEqual(len(right), 4)                                  # root face, land top, root top, surface
+        self.assertAlmostEqual(right[-1][1], 0.0)
+        self.assertAlmostEqual(right[-1][0], 2 * 0.0228125 * math.tan(math.radians(30.0)))
+
 
 class ConventionalLineTests(TempFolderMixin, TestCase):
     def test_one_line_reads_as_one_beam_through_frames_ascans_and_the_build(self):

@@ -79,7 +79,7 @@ def weld_outline(weld, thickness):
     """
     The weld's outline in the index x depth plane (m), from the .nde's weldGeometry: the centre line
     at index 0, the probe side at negative index. A symmetric bevel built from the root up - the
-    root gap (2 x offset), the land, then each fill at its angle from vertical - with the caps as
+    root gap (2 x offset), the land, then the root, hot pass and fills at their angles from vertical - with the caps as
     arcs above the top surface and below the root. Returns [[(index, depth), ...], ...] polylines
     for the first leg (the S-scan mirrors them into the later legs), or [] when there's no weld.
     """
@@ -93,7 +93,9 @@ def weld_outline(weld, thickness):
         y -= land
         right.append((gap, y))
     x = gap
-    for fill in weld.get('fills') or []:
+    # From the root up: root, hot pass, then the fills (their heights add up to the thickness with the land)
+    passes = [weld.get('root') or {}, weld.get('hotPass') or {}, *(weld.get('fills') or [])]
+    for fill in passes:
         height = float(fill.get('height') or 0.0)
         if height <= 0:
             continue

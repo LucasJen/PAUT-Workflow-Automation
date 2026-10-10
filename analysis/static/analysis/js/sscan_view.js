@@ -341,6 +341,11 @@ void main() {
                     ctx.lineWidth = 1.3 * ratio;
                     for (let k = 0; k * T < cy + height / 2; k++) {
                         const fold = y => (k % 2 === 0 ? y + k * T : (k + 1) * T - y);
+                        // Each leg's copy only from its own start down: a cap past the surface shows where the beam would
+                        // reach it going straight on, and the mirrored copy of the cap the leg before can't close it into an oval
+                        ctx.save();
+                        const [, top] = this.toScreen(0, k * T);
+                        ctx.beginPath(); ctx.rect(0, Math.max(0, top), w, h); ctx.clip();
                         for (const line of this.weld) {
                             ctx.beginPath();
                             line.forEach(([x, y], i) => {
@@ -349,6 +354,7 @@ void main() {
                             });
                             ctx.stroke();
                         }
+                        ctx.restore();
                     }
                     ctx.restore();
                 }
