@@ -86,7 +86,8 @@ def file_info(request):
     except (PathNotAllowed, NdeDataError) as e:
         return _error(str(e))
     data = info.as_dict()
-    data['weld_outline'] = geometry.weld_outline(info.weld, info.specimen.get('thickness'))
+    data['weld_outline'] = geometry.weld_outline(info.weld, info.specimen.get('thickness'), caps=False)
+    data['weld_caps'] = geometry.weld_outline(info.weld, info.specimen.get('thickness'), caps='only')
     for group, out in zip(info.groups, data['groups']):
         out['rays'] = [asdict(r) for r in geometry.frame_rays(group)] if group.layout != UNSUPPORTED else []
         out['synced_to_interface'] = group.synced_to_interface
@@ -461,4 +462,5 @@ def weld_outline(request):
     if not (0 < thickness < 1):
         return _error('The part thickness is needed to draw the weld.')
     weld = geometry.clean_weld(data.get('weld'))
-    return JsonResponse({'weld': weld, 'lines': geometry.weld_outline(weld, thickness)})
+    return JsonResponse({'weld': weld, 'lines': geometry.weld_outline(weld, thickness, caps=False),
+                         'caps': geometry.weld_outline(weld, thickness, caps='only')})

@@ -75,13 +75,14 @@ def frame_rays(group):
     return [ray(group, beam) for beam in group.beams]
 
 
-def weld_outline(weld, thickness):
+def weld_outline(weld, thickness, caps=True):
     """
     The weld's outline in the index x depth plane (m), from the .nde's weldGeometry: the centre line
     at index 0, the probe side at negative index. A symmetric bevel built from the root up - the
     root gap (2 x offset), the land, then the root, hot pass and fills at their angles from vertical - with the caps as
     arcs above the top surface and below the root. Returns [[(index, depth), ...], ...] polylines
-    for the first leg (the S-scan mirrors them into the later legs), or [] when there's no weld.
+    for the first leg (the S-scan mirrors them into the later legs), or [] when there's no weld:
+    the two bevel faces, then the caps (caps=False leaves them out, caps='only' gives just them).
     """
     if not weld or not thickness:
         return []
@@ -106,7 +107,9 @@ def weld_outline(weld, thickness):
     if y > 1e-9:   # fills that stop short of the surface: carry on up the last face
         right.append((x, 0.0))
     left = [(-px, py) for px, py in right]
-    lines = [left, right]
+    lines = [left, right] if caps != 'only' else []
+    if not caps:
+        return lines
 
     def cap(spec, depth, direction):
         width, height = float(spec.get('width') or 0.0), float(spec.get('height') or 0.0)

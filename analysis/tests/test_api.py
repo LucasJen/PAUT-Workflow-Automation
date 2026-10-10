@@ -147,7 +147,9 @@ class WeldOutlineApiTests(TestCase):
         self.assertNotIn('evil', data['weld'])
         self.assertEqual(data['weld']['lowerCap'], {'width': 0.5, 'height': 0.0})   # clamped: no root cap drawn
         self.assertEqual(data['weld']['fills'][1], {'angle': 0.0, 'height': 0.0})
-        left, right, upper = data['lines']
+        left, right = data['lines']
+        self.assertEqual(len(data['caps']), 1)                      # the cap (the clamped root cap has no height)
+        self.assertAlmostEqual(min(y for _, y in data['caps'][0]), -0.0015)
         self.assertAlmostEqual(right[0][0], 0.001)
         self.assertAlmostEqual(right[-1][1], 0.0)
         bad = self.client.post(reverse('analysis-weld-outline'), json.dumps({'weld': weld}), content_type='application/json')

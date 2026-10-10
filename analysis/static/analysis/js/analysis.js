@@ -420,7 +420,7 @@
         const g = state.info ? currentGroup() : null;
         const beams = g?.layout === 'beams';
         const shape = beams ? weld.shape || fileWeld() : null;
-        $('weld-toggle').hidden = !shape;
+        $('weld-toggle').hidden = $('caps-toggle').hidden = !shape;
         sscan.setWeldShift(weld.shift);
         if (!shape) {
             sscan.setWeld(null);
@@ -438,7 +438,7 @@
 
     let weldRequest = 0;
     async function drawWeld() {
-        if (!weld.shape) { sscan.setWeld(state.info.weld_outline, $('show-weld').checked); return; }
+        if (!weld.shape) { weldLines(state.info.weld_outline, state.info.weld_caps); return; }
         const mine = ++weldRequest;
         let data;
         try {
@@ -447,8 +447,20 @@
             show(e.message);
             return;
         }
-        if (mine === weldRequest) sscan.setWeld(data.lines, $('show-weld').checked);
+        if (mine === weldRequest) weldLines(data.lines, data.caps);
     }
+
+    /** The outline on the S-scan: the bevel, and the caps when they're asked for (off unless turned on). */
+    let shownWeld = { lines: [], caps: [] };
+    function weldLines(lines, caps) {
+        shownWeld = { lines: lines || [], caps: caps || [] };
+        sscan.setWeld([...shownWeld.lines, ...($('show-caps').checked ? shownWeld.caps : [])], $('show-weld').checked);
+    }
+    try { $('show-caps').checked = localStorage.getItem('analysisWeldCaps') === '1'; } catch { /* off */ }
+    $('show-caps').addEventListener('change', e => {
+        try { localStorage.setItem('analysisWeldCaps', e.target.checked ? '1' : '0'); } catch { /* not kept */ }
+        weldLines(shownWeld.lines, shownWeld.caps);
+    });
 
     /** The centre line moved (typed, nudged, or Alt+dragged on the S-scan; `done` when it settles). */
     function weldShifted(shift, done) {
