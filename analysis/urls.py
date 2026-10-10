@@ -15,4 +15,8 @@ urlpatterns = [
     path('indications.json', views.indications, name='analysis-indications'),
     path('indication/<int:pk>.json', views.indication, name='analysis-indication'),
     path('indications.csv', views.indications_csv, name='analysis-indications-csv'),
+    path('weld-outline.json', views.weld_outline, name='analysis-weld-outline'),
+    path('reports.json', views.report_targets, name='analysis-report-targets'),
+    path('report-preview.json', views.report_preview, name='analysis-report-preview'),
+    path('report-send.json', views.report_send, name='analysis-report-send'),
 ]

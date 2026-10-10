@@ -135,3 +135,22 @@ class ApiTests(TestCase):
             data = self.client.get(reverse('analysis-size'), {'path': self.weld, 'scan': 2, 'lateral': 1, 'lines': 'all'}).json()
             self.assertIn('length', data)
             self.assertGreaterEqual(data['end'], data['start'])
+
+
+class WeldOutlineApiTests(TestCase):
+    def test_an_edited_weld_is_cleaned_and_drawn(self):
+        weld = {'offset': 0.001, 'land': {'height': 0.0015}, 'fills': [{'angle': 37.5, 'height': 0.008}, {'angle': 'x'}],
+                'upperCap': {'width': 0.016, 'height': 0.0015}, 'lowerCap': {'width': 1e9, 'height': -1}, 'evil': '<script>'}
+        response = self.client.post(reverse('analysis-weld-outline'), json.dumps({'weld': weld, 'thickness': 0.0095}),
+                                    content_type='application/json')
+        data = response.json()
+        self.assertNotIn('evil', data['weld'])
+        self.assertEqual(data['weld']['lowerCap'], {'width': 0.5, 'height': 0.0})   # clamped: no root cap drawn
+        self.assertEqual(data['weld']['fills'][1], {'angle': 0.0, 'height': 0.0})
+        left, right = data['lines']
+        self.assertEqual(len(data['caps']), 1)                      # the cap (the clamped root cap has no height)
+        self.assertAlmostEqual(min(y for _, y in data['caps'][0]), -0.0015)
+        self.assertAlmostEqual(right[0][0], 0.001)
+        self.assertAlmostEqual(right[-1][1], 0.0)
+        bad = self.client.post(reverse('analysis-weld-outline'), json.dumps({'weld': weld}), content_type='application/json')
+        self.assertEqual(bad.status_code, 400)

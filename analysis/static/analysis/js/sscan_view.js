@@ -228,6 +228,12 @@ void main() {
             this.drawOverlay();
         }
 
+        /** Moves the weld's centre line across the index (m) - where the weld really is from the probe. */
+        setWeldShift(shift) {
+            this.weldShift = shift || 0;
+            this.drawOverlay();
+        }
+
         // ── view ──
         fitView() {
             const [x0, y0, x1, y1] = this.bounds;
@@ -349,7 +355,7 @@ void main() {
                         for (const line of this.weld) {
                             ctx.beginPath();
                             line.forEach(([x, y], i) => {
-                                const [sx, sy] = this.toScreen(x, fold(y));
+                                const [sx, sy] = this.toScreen(x + (this.weldShift || 0), fold(y));
                                 if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
                             });
                             ctx.stroke();
@@ -468,7 +474,9 @@ void main() {
                 } else if (e.button === 0) {
                     const [x, y] = this.toWorld(e);
                     const line = this.grabLine(e);
-                    if (line) {
+                    if (e.altKey && this.weld && this.showWeld) {   // Alt+drag: move the weld's centre line
+                        drag = { weld: true, x, shift: this.weldShift || 0 };
+                    } else if (line) {
                         drag = { line };
                     } else if (e.shiftKey || e.ctrlKey) {
                         const which = e.shiftKey ? 'meas' : 'ref';
@@ -486,7 +494,13 @@ void main() {
                 this.options.onHover?.(x, y);
                 if (!drag) {
                     const line = this.grabLine(e);
-                    el.style.cursor = line ? (line.startsWith('u') ? 'ns-resize' : 'ew-resize') : '';
+                    el.style.cursor = e.altKey && this.weld && this.showWeld ? 'ew-resize'
+                        : line ? (line.startsWith('u') ? 'ns-resize' : 'ew-resize') : '';
+                    return;
+                }
+                if (drag.weld) {
+                    this.setWeldShift(drag.shift + x - drag.x);
+                    this.options.onWeldShift?.(this.weldShift, false);
                     return;
                 }
                 if (drag.line) {
@@ -506,7 +520,10 @@ void main() {
                     this.options.onCursor(this.pick([x, y]));
                 }
             });
-            const end = () => { drag = null; };
+            const end = () => {
+                if (drag?.weld) this.options.onWeldShift?.(this.weldShift, true);
+                drag = null;
+            };
             el.addEventListener('pointerup', end);
             el.addEventListener('pointercancel', end);
             el.addEventListener('pointerleave', () => this.options.onHover?.(null));

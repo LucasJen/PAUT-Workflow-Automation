@@ -75,13 +75,14 @@ def frame_rays(group):
     return [ray(group, beam) for beam in group.beams]
 
 
-def weld_outline(weld, thickness):
+def weld_outline(weld, thickness, caps=True):
     """
     The weld's outline in the index x depth plane (m), from the .nde's weldGeometry: the centre line
     at index 0, the probe side at negative index. A symmetric bevel built from the root up - the
     root gap (2 x offset), the land, then the root, hot pass and fills at their angles from vertical - with the caps as
     arcs above the top surface and below the root. Returns [[(index, depth), ...], ...] polylines
-    for the first leg (the S-scan mirrors them into the later legs), or [] when there's no weld.
+    for the first leg (the S-scan mirrors them into the later legs), or [] when there's no weld:
+    the two bevel faces, then the caps (caps=False leaves them out, caps='only' gives just them).
     """
     if not weld or not thickness:
         return []
@@ -106,7 +107,9 @@ def weld_outline(weld, thickness):
     if y > 1e-9:   # fills that stop short of the surface: carry on up the last face
         right.append((x, 0.0))
     left = [(-px, py) for px, py in right]
-    lines = [left, right]
+    lines = [left, right] if caps != 'only' else []
+    if not caps:
+        return lines
 
     def cap(spec, depth, direction):
         width, height = float(spec.get('width') or 0.0), float(spec.get('height') or 0.0)
@@ -120,3 +123,36 @@ def weld_outline(weld, thickness):
     lower = cap(weld.get('lowerCap') or {}, thickness, 1.0)
     lines += [c for c in (upper, lower) if c]
     return lines
+
+
+def clean_weld(data):
+    """
+    A weld geometry as the page edits it, kept to what weld_outline reads (the .nde's weldGeometry
+    names), every value a number in range: lengths 0 - 0.5 m, angles 0 - 80 deg. Unknown keys are dropped.
+    """
+    def length(value):
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return min(max(v, 0.0), 0.5) if math.isfinite(v) else 0.0
+
+    def angle(value):
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return min(max(v, 0.0), 80.0) if math.isfinite(v) else 0.0
+
+    data = data if isinstance(data, dict) else {}
+    part = lambda name: data.get(name) if isinstance(data.get(name), dict) else {}
+    passes = lambda p: {'angle': angle(p.get('angle')), 'height': length(p.get('height'))}
+    caps = lambda p: {'width': length(p.get('width')), 'height': length(p.get('height'))}
+    fills = [passes(f) for f in (data.get('fills') or []) if isinstance(f, dict)][:12]
+    return {
+        'bevelShape': str(data.get('bevelShape') or 'V')[:20],
+        'offset': length(data.get('offset')),
+        'land': {'height': length(part('land').get('height'))},
+        'root': passes(part('root')), 'hotPass': passes(part('hotPass')), 'fills': fills,
+        'upperCap': caps(part('upperCap')), 'lowerCap': caps(part('lowerCap')),
+    }

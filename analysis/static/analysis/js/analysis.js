@@ -22,9 +22,11 @@
                    readings: page.dataset.readingsUrl, projections: page.dataset.projectionsUrl,
                    cscan: page.dataset.cscanUrl, bscan: page.dataset.bscanUrl, size: page.dataset.sizeUrl,
                    indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
-                   indication: page.dataset.indicationUrl };
+                   indication: page.dataset.indicationUrl, reportTargets: page.dataset.reportTargetsUrl,
+                   reportPreview: page.dataset.reportPreviewUrl, weldOutline: page.dataset.weldOutlineUrl, reportSend: page.dataset.reportSendUrl };
     const $ = id => document.getElementById(id);
-    const fileSelect = $('file-select'), fileFilter = $('file-filter'), groupSelect = $('group-select');
+    const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
+    const shell = window.AnalysisShell;
     const slider = $('scan-slider'), scanNumber = $('scan-number'), gainInput = $('gain');
     const unitsSelect = $('units'), axisSelect = $('axis'), refInput = $('ref-level');
     const status = $('analysis-status');
@@ -37,10 +39,7 @@
         if (!select.value) select.value = 'omnipc';
     }
     panels.refresh();
-    $('full-screen').addEventListener('click', () => {
-        if (document.fullscreenElement) document.exitFullscreen();
-        else page.requestFullscreen?.().catch(() => {});
-    });
+    shell.onChange(() => requestAnimationFrame(panels.fit));   // a panel opened / closed, the readings shown / hidden
 
     const READING_NAMES = {
         'A%': 'Peak amplitude in gate A', 'SA^': 'Sound path to the gate A peak', 'DA^': 'Depth of the gate A peak',
@@ -79,6 +78,7 @@
         format, unitLength,
         onCursor: lateral => setLateral(lateral),
         onCursors: partial => setCursors(partial),
+        onWeldShift: (shift, done) => weldShifted(shift, done),
         onHover: (x, y) => {
             if (x === null) { $('sscan-readout').textContent = ''; return; }
             let value = '';
@@ -215,48 +215,67 @@
     }
 
     // ── files and groups ──
+    let allFiles = [];
     async function loadFiles() {
         const data = await NdeClient.files(urls);
-        const byFolder = new Map();
-        for (const f of data.files) {
-            const key = f.folder === '.' ? f.root : `${f.root}\\${f.folder}`;
-            if (!byFolder.has(key)) byFolder.set(key, []);
-            byFolder.get(key).push(f);
-        }
-        fileSelect.replaceChildren(new Option(data.files.length ? 'Pick an .nde file…' : 'No .nde files in the working folders', ''));
-        for (const [folder, list] of [...byFolder.entries()].sort()) {
-            const group = document.createElement('optgroup');
-            group.label = folder;
-            for (const f of list.sort((a, b) => a.name.localeCompare(b.name))) {
-                group.append(new Option(`${f.name} (${(f.size / 1e6).toFixed(0)} MB)`, f.path));
-            }
-            fileSelect.append(group);
-        }
-        const known = new Set(data.files.map(f => f.path));
-        const recent = recentFiles().filter(p => known.has(p));
-        if (recent.length) {
-            const group = document.createElement('optgroup');
-            group.label = 'Recent';
-            for (const p of recent) {
-                const f = data.files.find(x => x.path === p);
-                group.append(new Option(`${f.name} - ${f.folder === '.' ? f.root : f.folder}`, p));
-            }
-            fileSelect.insertBefore(group, fileSelect.options[1]?.parentElement === fileSelect ? fileSelect.options[1] : fileSelect.children[1] || null);
-        }
-        const wanted = params.get('path') || recent[0];
-        if (wanted && [...fileSelect.options].some(o => o.value === wanted)) {
-            fileSelect.value = wanted;
+        allFiles = data.files;
+        renderFiles();
+        const known = new Set(allFiles.map(f => f.path));
+        const wanted = params.get('path') || recentFiles().find(p => known.has(p));
+        if (wanted && known.has(wanted)) {
             await openFile(wanted, +params.get('group') || 0, +params.get('scan') || 0, +params.get('lateral') || 0);
+        } else {
+            shell.open('files');
+            fileFilter.focus();
         }
     }
 
-    fileFilter.addEventListener('input', () => {
+    /** The Files panel: recent files first, then every folder's files; the filter matches folder and name words. */
+    function renderFiles() {
         const words = fileFilter.value.toLowerCase().split(/\s+/).filter(Boolean);
-        for (const option of fileSelect.querySelectorAll('optgroup option')) {
-            const text = `${option.parentElement.label} ${option.text}`.toLowerCase();
-            option.hidden = !words.every(w => text.includes(w));
+        // Shown and matched below the working folder: its own name, then the sub-folders
+        const rootName = f => f.root.split(/[\\/]/).filter(Boolean).pop();
+        const folderOf = f => (f.folder === '.' ? rootName(f) : `${rootName(f)} › ${f.folder.split(/[\\/]/).join(' › ')}`);
+        const matches = f => words.every(w => `${f.folder === '.' ? '' : f.folder} ${f.name}`.toLowerCase().includes(w));
+        const item = (f, meta) => {
+            const b = Object.assign(document.createElement('button'), { type: 'button', className: 'analysis-file-item', title: f.path });
+            b.dataset.path = f.path;
+            b.classList.toggle('is-current', f.path === state.path);
+            b.append(Object.assign(document.createElement('span'), { className: 'name', textContent: f.name }),
+                     Object.assign(document.createElement('span'), { className: 'meta', textContent: meta }));
+            b.addEventListener('click', () => openFile(f.path));
+            return b;
+        };
+        const heading = text => Object.assign(document.createElement('div'), { className: 'analysis-file-folder', textContent: text, title: text });
+        const out = [];
+        const byPath = new Map(allFiles.map(f => [f.path, f]));
+        const recent = recentFiles().map(p => byPath.get(p)).filter(f => f && matches(f));
+        if (recent.length) {
+            out.push(heading('Recent'));
+            for (const f of recent) out.push(item(f, f.folder === '.' ? rootName(f) : f.folder.split(/[\\/]/).pop()));
         }
+        const byFolder = new Map();
+        for (const f of allFiles.filter(matches)) {
+            if (!byFolder.has(folderOf(f))) byFolder.set(folderOf(f), []);
+            byFolder.get(folderOf(f)).push(f);
+        }
+        for (const [folder, list] of [...byFolder.entries()].sort()) {
+            out.push(heading(folder));
+            for (const f of list.sort((a, b) => a.name.localeCompare(b.name))) out.push(item(f, `${(f.size / 1e6).toFixed(0)} MB`));
+        }
+        if (!out.length) {
+            out.push(Object.assign(document.createElement('p'), { className: 'analysis-note',
+                textContent: allFiles.length ? 'No files match.' : 'No .nde files in the working folders.' }));
+        }
+        fileList.replaceChildren(...out);
+    }
+    fileFilter.addEventListener('input', renderFiles);
+    fileFilter.addEventListener('keydown', e => {   // Enter opens the first match
+        if (e.key !== 'Enter') return;
+        const first = fileList.querySelector('.analysis-file-item');
+        if (first) first.click();
     });
+    $('file-button').addEventListener('click', () => { shell.toggle('files'); if (shell.current === 'files') fileFilter.focus(); });
 
     function groupLabel(g) {
         if (g.layout === 'unsupported') return `${g.name} - can't be shown (${g.reason})`;
@@ -292,6 +311,12 @@
         }
         state.path = path;
         rememberRecent(path);
+        const name = path.split(/[\\/]/).pop();
+        $('file-name').textContent = name;
+        $('file-button').title = `${path}\nOpen another file (O)`;
+        document.title = `${name} · Analysis`;
+        renderFiles();
+        if (shell.current === 'files') shell.close();
         groupSelect.replaceChildren(...state.info.groups.map(g => {
             const o = new Option(groupLabel(g), g.id);
             o.disabled = g.layout === 'unsupported';
@@ -304,9 +329,13 @@
         }
         const chosen = usable.find(g => g.id === group) || usable[0];
         groupSelect.value = chosen.id;
+        groupSelect.hidden = state.info.groups.length < 2;
         showDetails();
         show('');
         state.sizing = null;
+        loadWeld();
+        targetsLoaded = false;
+        toReport.picked = new Set();
         await setGroup(chosen.id, scan, lateral);
         loadIndications();
     }
@@ -341,9 +370,7 @@
         sscan.setCursors(state.cursors);
         $('true-geometry').checked = sscan.trueGeometry;
         $('groups-toggle').hidden = otherGroups().length === 0;
-        const weld = g.layout === 'beams' ? state.info.weld_outline : null;
-        $('weld-toggle').hidden = !(weld && weld.length);
-        sscan.setWeld(weld, $('show-weld').checked);
+        applyWeld();
         slider.max = scanNumber.max = g.shape[0] - 1;
         $('scan-count').textContent = `of ${g.shape[0]}`;
         state.lateral = Math.min(lateral, g.shape[1] - 1);
@@ -351,6 +378,101 @@
     }
 
     const currentGroup = () => state.info.groups.find(g => g.id === state.group);
+
+    // ── the weld overlay: the file's weld, or as edited here (kept per file in this browser) ──
+    const weld = { shape: null, shift: 0 };   // shape null: the file's own
+    const thickness = () => state.info?.specimen?.thickness || 0;
+    const fileWeld = () => (state.info?.weld && Object.keys(state.info.weld).length && state.info.weld_outline?.length ? state.info.weld : null);
+    const weldKey = () => `analysisWeld:${state.path}`;
+    const weldEdited = () => !!weld.shape || Math.abs(weld.shift) > 1e-9;
+    const weldEditor = new WeldEditor($('weld-editor'), {
+        unitLength, format, units: () => units,
+        onShape: (shape, rebuild) => { weld.shape = shape; saveWeld(); drawWeld(); if (rebuild) showWeldEditor(); },
+        onShift: shift => weldShifted(shift, true),
+        onReset: () => { weld.shape = null; weld.shift = 0; saveWeld(); applyWeld(); },
+        onCreate: () => { weld.shape = defaultWeld(thickness()); saveWeld(); applyWeld(); },
+    });
+
+    function loadWeld() {
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(weldKey()) || 'null'); } catch { saved = null; }
+        weld.shape = saved?.shape || null;
+        weld.shift = Number.isFinite(saved?.shift) ? saved.shift : 0;
+    }
+    function saveWeld() {
+        try {
+            if (weldEdited()) localStorage.setItem(weldKey(), JSON.stringify({ shape: weld.shape, shift: weld.shift }));
+            else localStorage.removeItem(weldKey());
+        } catch { /* not kept */ }
+    }
+
+    /** A usual single-V butt weld for a file whose setup has none: 1.6 mm gap and land, 37.5 deg to the surface. */
+    function defaultWeld(t) {
+        const gap = 0.0008, land = Math.min(0.0016, t / 4), face = t - land;
+        const top = gap + face * Math.tan(37.5 * Math.PI / 180);
+        return { bevelShape: 'V', offset: gap, land: { height: land }, root: { angle: 0, height: 0 }, hotPass: { angle: 0, height: 0 },
+                 fills: [{ angle: 37.5, height: face }], upperCap: { width: 2 * top + 0.003, height: 0.0015 },
+                 lowerCap: { width: 2 * gap + 0.003, height: 0.001 } };
+    }
+
+    /** The overlay and the Geometry panel for this group (angle-beam groups only). */
+    function applyWeld() {
+        const g = state.info ? currentGroup() : null;
+        const beams = g?.layout === 'beams';
+        const shape = beams ? weld.shape || fileWeld() : null;
+        $('weld-toggle').hidden = $('caps-toggle').hidden = !shape;
+        sscan.setWeldShift(weld.shift);
+        if (!shape) {
+            sscan.setWeld(null);
+            weldEditor.show({ message: !state.info ? 'Open a weld scan to see its weld.' : !beams ? 'Weld overlays are for angle-beam weld scans.'
+                              : thickness() ? "This file's setup has no weld geometry." : "This file's setup has no weld or part thickness.",
+                              canCreate: beams && thickness() > 0 });
+            return;
+        }
+        showWeldEditor();
+        drawWeld();
+    }
+    function showWeldEditor() {
+        weldEditor.show({ shape: weld.shape || fileWeld(), shift: weld.shift, edited: weldEdited(), thickness: thickness() });
+    }
+
+    let weldRequest = 0;
+    async function drawWeld() {
+        if (!weld.shape) { weldLines(state.info.weld_outline, state.info.weld_caps); return; }
+        const mine = ++weldRequest;
+        let data;
+        try {
+            data = await send(urls.weldOutline, 'POST', { weld: weld.shape, thickness: thickness() });
+        } catch (e) {
+            show(e.message);
+            return;
+        }
+        if (mine === weldRequest) weldLines(data.lines, data.caps);
+    }
+
+    /** The outline on the S-scan: the bevel, and the caps when they're asked for (off unless turned on). */
+    let shownWeld = { lines: [], caps: [] };
+    function weldLines(lines, caps) {
+        shownWeld = { lines: lines || [], caps: caps || [] };
+        sscan.setWeld([...shownWeld.lines, ...($('show-caps').checked ? shownWeld.caps : [])], $('show-weld').checked);
+    }
+    try { $('show-caps').checked = localStorage.getItem('analysisWeldCaps') === '1'; } catch { /* off */ }
+    $('show-caps').addEventListener('change', e => {
+        try { localStorage.setItem('analysisWeldCaps', e.target.checked ? '1' : '0'); } catch { /* not kept */ }
+        weldLines(shownWeld.lines, shownWeld.caps);
+    });
+
+    /** The centre line moved (typed, nudged, or Alt+dragged on the S-scan; `done` when it settles). */
+    function weldShifted(shift, done) {
+        const wasEdited = weldEdited();
+        weld.shift = shift;
+        sscan.setWeldShift(shift);
+        weldEditor.setShift(shift);
+        $('sscan-readout').textContent = `Weld centre line ${format(shift)}`;
+        if (!done) return;
+        saveWeld();
+        if (wasEdited !== weldEdited()) showWeldEditor();   // the "edited" note and the reset button
+    }
 
     // ── scan line, beam cursor ──
     let frameRequest = 0;
@@ -869,8 +991,8 @@
     // ── sizing ──
     function fillSizeOver() {
         const options = isRaster()
-            ? [['scan:current', 'Length along the scan'], ['index:current', 'Width along the index']]
-            : [['scan:all', 'Length (all beams)'], ['scan:current', 'Length (this beam)']];
+            ? [['scan:current', 'Length (scan)'], ['index:current', 'Width (index)']]
+            : [['scan:all', 'All beams'], ['scan:current', 'This beam']];
         $('size-over').replaceChildren(...options.map(([v, t]) => new Option(t, v)));
     }
 
@@ -935,6 +1057,7 @@
             state.indications = [];
         }
         renderIndications();
+        if (shell.current === 'report') renderSendIndications();
         linkCursors();
         $('export-indications').href = `${urls.indicationsCsv}?${new URLSearchParams({ path: state.path, units })}`;
     }
@@ -953,13 +1076,14 @@
             show(e.message);
             return;
         }
-        showTab('indications');
+        shell.open('indications');
         loadIndications();
     }
 
     function renderIndications() {
         const list = state.indications || [];
-        $('indication-count').textContent = list.length ? `(${list.length})` : '';
+        $('indication-count').textContent = list.length;
+        $('indication-count').hidden = !list.length;
         const box = $('indication-rows');
         if (!list.length) {
             box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note',
@@ -1018,6 +1142,7 @@
     }
 
     $('add-indication').addEventListener('click', addIndication);
+    $('quick-indication').addEventListener('click', addIndication);
 
     /** The next (step 1) or previous (-1) saved indication along the scan from here. */
     function stepIndication(step) {
@@ -1034,10 +1159,201 @@
         goTo(list[at]);
     }
 
+    // ── send indications to a report ──
+    const toReport = { reports: [], report: null, picked: new Set(), preview: null, timer: null };
+    let targetsLoaded = false;
+
+    async function loadReportTargets() {
+        try {
+            const data = await NdeClient.readings({ readings: urls.reportTargets }, { path: state.path || '' });
+            toReport.reports = data.reports;
+        } catch (e) {
+            toReport.reports = [];
+            $('report-list').replaceChildren(note(e.message));
+            return;
+        }
+        targetsLoaded = true;
+        if (toReport.report && !toReport.reports.some(r => r.id === toReport.report)) toReport.report = null;
+        renderReportTargets();
+    }
+    const note = text => Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: text });
+
+    function renderReportTargets() {
+        const words = $('report-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
+        const list = toReport.reports.filter(r => words.every(w => `${r.name} ${r.type} ${r.client}`.toLowerCase().includes(w)));
+        if (!list.length) {
+            $('report-list').replaceChildren(note(toReport.reports.length ? 'No reports match.' : 'No draft reports. Start one under Reports › New report.'));
+            return;
+        }
+        $('report-list').replaceChildren(...list.map(r => {
+            const b = Object.assign(document.createElement('button'), { type: 'button', className: 'analysis-pick' });
+            b.classList.toggle('is-current', r.id === toReport.report);
+            b.title = `${r.name} · ${r.type}${r.client ? ' · ' + r.client : ''}`;
+            b.append(Object.assign(document.createElement('span'), { className: 'name', textContent: r.name }));
+            if (r.this_job) b.append(Object.assign(document.createElement('span'), { className: 'tag', textContent: 'This job' }));
+            b.append(Object.assign(document.createElement('span'), { className: 'meta', textContent: r.type }));
+            b.addEventListener('click', () => { toReport.report = r.id; renderReportTargets(); choiceChanged(); });
+            return b;
+        }));
+    }
+    $('report-filter').addEventListener('input', renderReportTargets);
+
+    function renderSendIndications() {
+        const list = state.indications || [];
+        const known = new Set(list.map(i => i.id));
+        toReport.picked = new Set([...toReport.picked].filter(id => known.has(id)));
+        if (!list.length) {
+            $('send-indications').replaceChildren(note('No indications saved for this file yet (N adds one).'));
+            schedulePreview();
+            return;
+        }
+        $('send-indications').replaceChildren(...list.map(item => {
+            const label = Object.assign(document.createElement('label'), { className: 'analysis-pick' });
+            const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: toReport.picked.has(item.id) });
+            box.addEventListener('change', () => { if (box.checked) toReport.picked.add(item.id); else toReport.picked.delete(item.id); choiceChanged(); });
+            const r = item.readings || {};
+            const where = isRaster() ? format(item.index_position, true) : (item.angle === null ? '' : `${item.angle}°`);
+            label.append(box, Object.assign(document.createElement('span'), { className: 'name',
+                textContent: `#${item.number} · ${format(item.scan_position, true)}${where ? ' · ' + where : ''}${item.comment ? ' · ' + item.comment : ''}` }),
+                Object.assign(document.createElement('span'), { className: 'meta', textContent: r['A%'] === undefined ? '' : `${r['A%'].toFixed(1)} %` }));
+            return label;
+        }));
+        schedulePreview();
+    }
+    $('send-all').addEventListener('click', () => {
+        const all = (state.indications || []).map(i => i.id);
+        toReport.picked = toReport.picked.size === all.length ? new Set() : new Set(all);
+        renderSendIndications();
+        choiceChanged();
+    });
+    $('open-send').addEventListener('click', () => {
+        if (!toReport.picked.size) toReport.picked = new Set((state.indications || []).map(i => i.id));
+        shell.open('report');
+    });
+
+    const pickedIndications = () => (state.indications || []).filter(i => toReport.picked.has(i.id));
+    /** The rows again for a changed choice (the last send's message goes: it was about other rows). */
+    function choiceChanged() {
+        $('send-result').textContent = '';
+        schedulePreview();
+    }
+    function schedulePreview() {
+        clearTimeout(toReport.timer);
+        toReport.timer = setTimeout(loadPreview, 120);
+    }
+
+    async function loadPreview() {
+        const box = $('send-rows');
+        const items = pickedIndications();
+        toReport.preview = null;
+        updateSendButton();
+        if (!toReport.report || !items.length) {
+            box.replaceChildren(note(!toReport.report ? 'Pick a report to see the rows.' : 'Pick the indications to send.'));
+            return;
+        }
+        let data;
+        try {
+            data = await send(urls.reportPreview, 'POST', { report: toReport.report, indications: items.map(i => i.id), units });
+        } catch (e) {
+            box.replaceChildren(note(e.message));
+            return;
+        }
+        toReport.preview = { ...data, ids: items.map(i => i.id) };
+        box.replaceChildren(...data.rows.map((row, r) => {
+            const item = items[r];
+            const card = Object.assign(document.createElement('div'), { className: 'analysis-send-row' });
+            const head = document.createElement('header');
+            head.textContent = `Indication #${item.number}`;
+            const cells = Object.assign(document.createElement('div'), { className: 'analysis-send-cells' });
+            let blank = 0;
+            data.columns.forEach((heading, c) => {
+                const id = `send-${r}-${c}`;
+                const label = Object.assign(document.createElement('label'), { htmlFor: id, textContent: heading });
+                label.title = data.fields[c] ? `${heading}: ${data.field_names[data.fields[c]]}` : `${heading}: nothing from the analysis, fill it in if you like`;
+                const input = Object.assign(document.createElement('input'), { type: 'text', id, value: row[c], className: 'form-control mono' });
+                input.addEventListener('input', () => { toReport.preview.rows[r][c] = input.value; });
+                if (!row[c]) { label.classList.add('is-blank'); input.classList.add('is-blank'); blank++; }
+                cells.append(label, input);
+            });
+            card.append(head, cells);
+            if (blank) {
+                const more = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-link analysis-send-more',
+                                                                             textContent: `+ ${blank} blank column${blank > 1 ? 's' : ''}` });
+                more.addEventListener('click', () => {
+                    const on = card.classList.toggle('show-all');
+                    more.textContent = on ? 'Hide the blank columns' : `+ ${blank} blank column${blank > 1 ? 's' : ''}`;
+                });
+                card.append(more);
+            }
+            return card;
+        }));
+        if (data.report.issued) box.prepend(note('This report is issued - reopen it before adding indications.'));
+        updateSendButton();
+    }
+
+    function updateSendButton() {
+        const p = toReport.preview;
+        const button = $('send-now');
+        button.disabled = !p || p.report.issued;
+        button.innerHTML = `<i class="bi bi-send"></i> ${p ? `Add ${p.rows.length} row${p.rows.length > 1 ? 's' : ''} to ${p.report.name}` : 'Add to report'}`;
+    }
+
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    /** Each indication's picture: the views at it (as laid out now), back where we were afterwards. */
+    async function picturesOf(items) {
+        const here = { group: state.group, scan: state.scan, lateral: state.lateral, cursors: { ...state.cursors }, sizing: state.sizing };
+        const out = [];
+        for (const [n, item] of items.entries()) {
+            $('send-result').textContent = `Taking the pictures… ${n + 1} of ${items.length}`;
+            await goTo(item);
+            await wait(150);
+            await loadReadings();
+            await wait(350);   // the B-scan and the overlays follow the cursor
+            out.push(composeImage().toDataURL('image/png'));
+        }
+        if (here.group !== state.group) await setGroup(here.group, here.scan, here.lateral);
+        state.sizing = here.sizing;
+        setCursors(here.cursors);
+        await setScan(here.scan);
+        setLateral(here.lateral, true);
+        return out;
+    }
+
+    $('send-now').addEventListener('click', async () => {
+        const p = toReport.preview;
+        if (!p) return;
+        const button = $('send-now'), result = $('send-result');
+        button.disabled = true;
+        const items = p.ids.map(id => (state.indications || []).find(i => i.id === id)).filter(Boolean);
+        let pictures = null;
+        try {
+            if ($('send-pictures').checked && state.info) pictures = await picturesOf(items);
+            result.textContent = 'Adding…';
+            const done = await send(urls.reportSend, 'POST', { report: p.report.id, indications: p.ids, columns: p.columns,
+                                                              rows: p.rows, pictures });
+            result.replaceChildren(`Added ${done.added} row${done.added > 1 ? 's' : ''}. `,
+                Object.assign(document.createElement('a'), { href: done.edit_url, target: '_blank', rel: 'noopener', textContent: 'Open the report' }));
+            toReport.picked = new Set();
+            toReport.preview = null;
+            renderSendIndications();
+            updateSendButton();
+        } catch (e) {
+            result.textContent = e.message;
+            button.disabled = false;
+        }
+    });
+
+    function reportPanelOpened(name) {
+        if (name !== 'report') return;
+        if (!targetsLoaded) loadReportTargets();
+        renderSendIndications();
+    }
+    shell.onChange(reportPanelOpened);
+    reportPanelOpened(shell.current);   // still open from last time
+
     // ── picture of the views ──
-    /** The visible views as laid out on screen, their titles, and the readings, saved as a PNG. */
-    function saveImage() {
-        if (!state.info) return;
+    /** The visible views as laid out on screen, their titles, and the readings, on one canvas. */
+    function composeImage() {
         const ratio = window.devicePixelRatio || 1;
         const origin = grid.getBoundingClientRect();
         const panelsShown = [...grid.querySelectorAll('.analysis-panel')]
@@ -1064,7 +1380,9 @@
             ctx.fillRect(x, y, box.width, 22);
             ctx.fillStyle = '#e2e8f0';
             ctx.font = '600 12px Inter, Arial, sans-serif';
-            const label = [...head.querySelectorAll(':scope > span')].map(s => s.textContent.trim()).filter(Boolean).join('  ');
+            // The title, what the view shows (e.g. the C-scan's kind) and its note
+            const label = [...head.querySelectorAll(':scope > span, :scope > select')]
+                .map(el => (el.tagName === 'SELECT' ? el.selectedOptions[0]?.text || '' : el.textContent).trim()).filter(Boolean).join('  ');
             ctx.fillText(label, x + 6, y + 15);
             const stage = panel.querySelector('.analysis-stage');
             const stageBox = stage.getBoundingClientRect();
@@ -1089,7 +1407,13 @@
             ctx.fillText(text, width + side - 10, ry);
             ctx.textAlign = 'left';
         }
-        out.toBlob(blob => {
+        return out;
+    }
+
+    /** The picture of the views, saved as a PNG. */
+    function saveImage() {
+        if (!state.info) return;
+        composeImage().toBlob(blob => {
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             const stem = state.info.path.split(/[\\/]/).pop().replace(/\.nde$/i, '');
@@ -1112,14 +1436,7 @@
         ascan.resetZoom();
     }
 
-    function showTab(name) {
-        document.querySelectorAll('.analysis-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
-        document.querySelectorAll('[data-tab-body]').forEach(b => { b.hidden = b.dataset.tabBody !== name; });
-    }
-    document.querySelectorAll('.analysis-tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
-
     // ── controls ──
-    fileSelect.addEventListener('change', () => { if (fileSelect.value) openFile(fileSelect.value); });
     groupSelect.addEventListener('change', () => setGroup(+groupSelect.value, state.scan, state.lateral));
     slider.addEventListener('input', () => setScan(+slider.value));
     scanNumber.addEventListener('change', () => setScan(+scanNumber.value));
@@ -1152,7 +1469,7 @@
         sscan.drawOverlay();
         ascan.draw();
         if (state.info) {
-            showDetails(); renderGates(); renderReadings(); setLateral(state.lateral, true);
+            showDetails(); renderGates(); renderReadings(); setLateral(state.lateral, true); if (currentGroup()?.layout === 'beams' && (weld.shape || fileWeld())) showWeldEditor();
             $('scan-position').textContent = `= ${format(scanPosition(state.scan))}`;
             cview.drawOverlay(); bview.drawOverlay();
             if (state.cscan && state.cscan.mode !== 'amplitude') loadCscan(projectionRequest);
@@ -1166,14 +1483,21 @@
     $('show-weld').addEventListener('change', e => { sscan.showWeld = e.target.checked; sscan.drawOverlay(); });
 
     document.addEventListener('keydown', e => {
-        if (!state.info || e.target.closest('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.target.closest?.('input, select, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+        const always = {   // with or without a file open
+            o: () => { shell.open('files'); fileFilter.focus(); }, O: () => { shell.open('files'); fileFilter.focus(); },
+            r: shell.toggleReadings, R: shell.toggleReadings, '?': () => toggleHelp(),
+            Escape: () => { if (!$('help-panel').hidden) toggleHelp(false); else shell.close(); },
+        };
+        if (always[e.key]) { e.preventDefault(); always[e.key](); return; }
+        if (!state.info) return;
         const big = e.shiftKey ? 10 : 1;
         const actions = {
             ArrowLeft: () => setScan(state.scan - big), ArrowRight: () => setScan(state.scan + big),
             PageUp: () => setScan(state.scan - 10), PageDown: () => setScan(state.scan + 10),
             ArrowUp: () => setLateral(state.lateral - 1), ArrowDown: () => setLateral(state.lateral + 1),
             '+': () => setGain(state.gain + 1), '=': () => setGain(state.gain + 1), '-': () => setGain(state.gain - 1),
-            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, ']': () => stepIndication(1), '[': () => stepIndication(-1), '?': () => toggleHelp(), Escape: () => toggleHelp(false),
+            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, ']': () => stepIndication(1), '[': () => stepIndication(-1),
         };
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });
@@ -1191,6 +1515,7 @@
     }
     applyPalettes();
     grid.classList.add('is-empty');
+    applyWeld();
     page.views = { sscan, ascan, cview, bview };   // for checking the page in a test browser
     loadFiles().catch(e => show(e.message));
 })();
