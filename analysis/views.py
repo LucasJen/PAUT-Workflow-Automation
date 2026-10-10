@@ -1,5 +1,6 @@
 import csv
 import json
+import math
 import os
 from dataclasses import asdict
 
@@ -132,7 +133,8 @@ def frame(request):
 
 def _gates(request, group):
     """The file's gates, or the editor's own (?gates= JSON list, SI: start / length in s from the
-    pulse or from the sync gate's crossing, threshold in %)."""
+    pulse or from the sync gate's crossing, threshold in %; a TrueDepth gate's depth_start / depth_end
+    and a Box gate's index_start / index_end in m - those two are always from the pulse)."""
     text = request.GET.get('gates')
     if not text:
         return group.gates
@@ -140,13 +142,21 @@ def _gates(request, group):
         items = json.loads(text)
         gates = []
         for item in items:
-            sync = item.get('sync_gate')
+            geometry = item.get('geometry') if item.get('geometry') in ('TrueDepth', 'Box') else 'SoundPath'
+            sync = item.get('sync_gate') if geometry == 'SoundPath' else None
+            extra = {}
+            if geometry != 'SoundPath':
+                names = ('depth_start', 'depth_end') + (('index_start', 'index_end') if geometry == 'Box' else ())
+                extra = {name: float(item[name]) for name in names}
+                if not all(math.isfinite(v) for v in extra.values()):
+                    raise ValueError
             gate = Gate(
                 id=int(item['id']), name=str(item.get('name') or '')[:20], start=float(item['start']),
                 length=float(item['length']), threshold=float(item['threshold']),
                 sync_mode='GateRelative' if sync is not None else 'Pulse',
                 sync_gate=int(sync) if sync is not None else None,
                 trigger='MaxPeak' if item.get('trigger') == 'MaxPeak' else 'Crossing',
+                geometry=geometry, **extra,
             )
             if gate.length <= 0 or not 0 <= gate.threshold <= 1000:
                 raise ValueError
@@ -570,3 +580,38 @@ def project_status(request):
     if job is None:
         return _error('That project job is unknown (was the server restarted?).', status=404)
     return JsonResponse(job)
+
+
+def frame_gates(request):
+    """
+    Every beam's gate windows at one scan line, for drawing the gates on the S-scan:
+    {letters, windows: {letter: [[start, end] s | null per beam]}, paths: the same as sound paths (m),
+    crossings: {letter: [s | null]}}.
+    Same rules as the readings (synced gates follow each beam's own sync crossing).
+    """
+    try:
+        path, info = _open(request)
+        group = _group(info, request)
+        scan = _int(request, 'scan')
+        raw, status = read_frame(path, group, scan)
+        gain = float(request.GET.get('gain') or 0)
+        gates = _gates(request, group)
+    except (PathNotAllowed, NdeDataError, ValueError) as e:
+        return _error(str(e))
+    if gain:
+        raw = np.clip(np.round(raw.astype(np.float64) * 10 ** (gain / 20)), -32768, 32767).astype(np.int16)
+    letters = [gate_letter(g.name) for g in gates]
+    windows = {letter: [] for letter in letters}
+    paths = {letter: [] for letter in letters}
+    crossings = {letter: [] for letter in letters}
+    for line, beam in enumerate(group.beams):
+        results = {}
+        if status is None or usable(group, int(status[line])):
+            results = evaluate_gates(group, beam, raw[line], gates)
+        for letter in letters:
+            r = results.get(letter)
+            ok = r is not None and r.found and r.start is not None
+            windows[letter].append([r.start, r.end] if ok else None)
+            paths[letter].append([beam.velocity * r.start / 2, beam.velocity * r.end / 2] if ok else None)
+            crossings[letter].append(r.crossing_time if ok else None)
+    return JsonResponse({'letters': letters, 'windows': windows, 'paths': paths, 'crossings': crossings})

@@ -19,7 +19,7 @@
     const page = document.getElementById('analysis');
     if (!page) return;
     const urls = { files: page.dataset.filesUrl, file: page.dataset.fileUrl, frame: page.dataset.frameUrl,
-                   readings: page.dataset.readingsUrl, projections: page.dataset.projectionsUrl,
+                   readings: page.dataset.readingsUrl, frameGates: page.dataset.frameGatesUrl, projections: page.dataset.projectionsUrl,
                    cscan: page.dataset.cscanUrl, bscan: page.dataset.bscanUrl, size: page.dataset.sizeUrl,
                    indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
                    indication: page.dataset.indicationUrl, reportTargets: page.dataset.reportTargetsUrl,
@@ -81,6 +81,9 @@
         onCursor: lateral => setLateral(lateral),
         onCursors: partial => setCursors(partial),
         onWeldShift: (shift, done) => weldShifted(shift, done),
+        onGateDragStart: letter => { gateSnapshot = structuredClone(gateByLetter(letter)); },
+        onGateDrag: (letter, part, delta) => dragGateOnSscan(letter, part, delta),
+        onGateDragEnd: () => { gateSnapshot = null; loadFrameGates(); },
         onHover: (x, y) => {
             if (x === null) { $('sscan-readout').textContent = ''; return; }
             let value = '';
@@ -110,6 +113,17 @@
             const gate = gateByLetter(letter);
             if (!gate || !gateSnapshot) return;
             const minimum = currentGroup().axes[2].resolution;
+            if ((gate.geometry || 'SoundPath') !== 'SoundPath') {
+                const dd = dt * halfVelocity() * (currentGroup().rays[state.lateral]?.dz || 1);
+                const lo = gateSnapshot.depth_start, hi = gateSnapshot.depth_end, least = minimum * halfVelocity();
+                if (part === 'move') {
+                    gate.depth_start = lo + dd; gate.depth_end = hi + dd;
+                    if (threshold !== undefined) gate.threshold = Math.round(threshold);
+                } else if (part === 'start') gate.depth_start = Math.min(lo + dd, hi - least);
+                else gate.depth_end = Math.max(hi + dd, lo + least);
+                gatesChanged(20);
+                return;
+            }
             if (part === 'move') {
                 gate.start = gateSnapshot.start + dt;
                 if (threshold !== undefined) gate.threshold = Math.round(threshold);
@@ -205,7 +219,7 @@
         refInput.value = state.refLevel;
     }
     const fileGates = g => g.gates.map(x => ({
-        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold,
+        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold, geometry: 'SoundPath',
         sync_gate: x.sync_mode === 'GateRelative' ? x.sync_gate : null, trigger: x.trigger || 'Crossing',
     }));
     const letterOf = name => (name || '').trim().split(/\s+/).pop().toUpperCase();
@@ -559,6 +573,7 @@
         state.frame = frame;
         state.values = values;
         sscan.setFrame(values, frame.lateral, frame.samples);
+        loadFrameGates();   // the gates along every beam (synced ones follow this line's crossings)
         loadOtherGroups();
         setLateral(state.lateral, true);
         remember();
@@ -847,8 +862,9 @@
         const table = document.createElement('table');
         table.className = 'analysis-gates';
         const head = table.createTHead().insertRow();
-        for (const [label, help] of [['', ''], [`Start (${units})`, 'Sound path from the pulse, or after the sync gate\'s crossing'],
-            [`Width (${units})`, 'Sound path'], ['Thr %', 'Threshold, % of full screen'], ['Sync', 'What the gate starts from']]) {
+        for (const [label, help] of [['', ''], ['Type', 'Sound path (the same time on every beam), True depth (between two depths) or Box (depth and index)'],
+            [`Start (${units})`, 'Sound path from the pulse or after the sync gate\'s crossing; a depth / box gate: its top depth'],
+            [`Width (${units})`, 'Sound path; a depth / box gate: its height in depth'], ['Thr %', 'Threshold, % of full screen'], ['Sync', 'What the gate starts from']]) {
             head.append(Object.assign(document.createElement('th'), { textContent: label, title: help }));
         }
         const body = table.createTBody();
@@ -866,8 +882,24 @@
                 });
                 return input;
             };
-            tr.insertCell().append(number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); }));
-            tr.insertCell().append(number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); }));
+            const type = Object.assign(document.createElement('select'), { className: 'form-select form-select-sm analysis-gate-type' });
+            for (const [value, text] of [['SoundPath', 'Sound path'], ['TrueDepth', 'True depth'], ['Box', 'Box']]) type.add(new Option(text, value));
+            type.value = gate.geometry || 'SoundPath';
+            type.addEventListener('change', () => { convertGate(gate, type.value); gatesChanged(); renderGates(); });
+            tr.insertCell().append(type);
+            const depthGate = (gate.geometry || 'SoundPath') !== 'SoundPath';
+            if (depthGate) {   // a depth / box gate: its top depth and its height
+                tr.insertCell().append(number(format(gate.depth_start, 'value'), v => {
+                    const h = gate.depth_end - gate.depth_start;
+                    gate.depth_start = v * unitLength(); gate.depth_end = gate.depth_start + h;
+                }));
+                tr.insertCell().append(number(format(gate.depth_end - gate.depth_start, 'value'), v => {
+                    if (v > 0) gate.depth_end = gate.depth_start + v * unitLength();
+                }));
+            } else {
+                tr.insertCell().append(number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); }));
+                tr.insertCell().append(number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); }));
+            }
             tr.insertCell().append(number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); }));
             const sync = Object.assign(document.createElement('select'), { className: 'form-select form-select-sm' });
             sync.add(new Option('Pulse', ''));
@@ -875,12 +907,162 @@
                 if (other !== gate) sync.add(new Option(letterOf(other.name), other.id, false, gate.sync_gate === other.id));
             }
             if (gate.sync_gate === null) sync.value = '';
+            sync.disabled = depthGate;   // depth and box gates start from the pulse
+            if (depthGate) sync.title = 'Depth and box gates start from the pulse';
             sync.addEventListener('change', () => { gate.sync_gate = sync.value === '' ? null : +sync.value; gatesChanged(); });
             tr.insertCell().append(sync);
+            if (gate.geometry === 'Box') {   // the box across the index: from / to
+                const row = body.insertRow();
+                row.className = 'analysis-gate-index';
+                row.insertCell();
+                const label = row.insertCell();
+                label.append(Object.assign(document.createElement('span'), { className: 'analysis-tool-note', textContent: 'Index from / to' }));
+                row.insertCell().append(number(format(gate.index_start, 'value'), v => { gate.index_start = v * unitLength(); }));
+                row.insertCell().append(number(format(gate.index_end, 'value'), v => { gate.index_end = v * unitLength(); }));
+                row.insertCell().colSpan = 2;
+            }
         }
         box.replaceChildren(table);
         $('gates-edited').hidden = !state.gatesEdited;
         renderAddGates();
+    }
+
+    // ── gates on the S-scan ──
+    const GATE_COLOURS = { I: '#facc15', A: '#ef4444', B: '#22c55e' };
+    const halfV = line => (currentGroup()?.beams[line]?.velocity || 0) / 2;
+    const synced = gate => (gate.geometry || 'SoundPath') === 'SoundPath' && gate.sync_gate !== null && gate.sync_gate !== undefined;
+
+    /** A pulse-synced gate's stretch of sound path on each line (as the server's gate_window), for drawing as it's dragged. */
+    function localPaths(gate) {
+        const g = currentGroup();
+        return g.rays.map((r, i) => {
+            const geometry = gate.geometry || 'SoundPath';
+            if (geometry === 'SoundPath') return [halfV(i) * gate.start, halfV(i) * (gate.start + gate.length)];
+            const dz = Math.abs(r.dz) > 1e-9 ? r.dz : 1e-9;
+            const [d0, d1] = [gate.depth_start, gate.depth_end].sort((a, b) => a - b);
+            let lo = d0 / dz, hi = d1 / dz;
+            if (geometry === 'Box') {
+                const [i0, i1] = [gate.index_start, gate.index_end].sort((a, b) => a - b);
+                if (Math.abs(r.dv) < 1e-12) {
+                    if (r.v0 < i0 || r.v0 > i1) return null;
+                } else {
+                    const [a, b] = [(i0 - r.v0) / r.dv, (i1 - r.v0) / r.dv].sort((x, y) => x - y);
+                    lo = Math.max(lo, a); hi = Math.min(hi, b);
+                }
+            }
+            return hi > lo && hi > 0 ? [Math.max(lo, 0), hi] : null;
+        });
+    }
+
+    /** The S-scan's gates: drawn from their own settings, or (synced gates) from the server's per-beam windows. */
+    function renderSscanGates() {
+        const g = currentGroup();
+        if (!g) return;
+        const list = [];
+        for (const gate of state.gates) {
+            const letter = letterOf(gate.name);
+            if (letter === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files
+            const editable = !synced(gate);
+            const paths = editable ? localPaths(gate) : state.frameGatePaths?.[letter];
+            if (!paths) continue;
+            list.push({ letter, colour: GATE_COLOURS[letter] || '#a78bfa', editable, paths,
+                        box: gate.geometry === 'Box' ? { i0: gate.index_start, i1: gate.index_end, d0: gate.depth_start, d1: gate.depth_end } : null });
+        }
+        sscan.setGates(list);
+    }
+
+    let frameGatesTimer = null, frameGatesRequest = 0;
+    /** Every beam's window of the synced gates at this scan line (they follow each beam's own sync crossing). */
+    function loadFrameGates(delay = 0) {
+        clearTimeout(frameGatesTimer);
+        frameGatesTimer = setTimeout(async () => {
+            if (!state.info || !$('show-sscan-gates').checked || !state.gates.some(synced)) { state.frameGatePaths = null; renderSscanGates(); return; }
+            const mine = ++frameGatesRequest;
+            const query = { path: state.path, group: state.group, scan: state.scan, gain: state.gain };
+            if (state.gatesEdited) query.gates = JSON.stringify(state.gates);
+            try {
+                const data = await NdeClient.readings({ readings: urls.frameGates }, query);
+                if (mine !== frameGatesRequest) return;
+                state.frameGatePaths = data.paths;
+            } catch {
+                state.frameGatePaths = null;
+            }
+            renderSscanGates();
+        }, delay);
+    }
+    try { $('show-sscan-gates').checked = localStorage.getItem('analysisSscanGates') !== '0'; } catch { /* on */ }
+    sscan.setShowGates($('show-sscan-gates').checked);
+    $('show-sscan-gates').addEventListener('change', e => {
+        try { localStorage.setItem('analysisSscanGates', e.target.checked ? '1' : '0'); } catch { /* not kept */ }
+        sscan.setShowGates(e.target.checked);
+        loadFrameGates();
+    });
+
+    /** A gate edited by dragging it on the S-scan: deltas (m) since the press, applied to its settings then. */
+    function dragGateOnSscan(letter, part, { dx, dy, dsp, line }) {
+        const gate = gateByLetter(letter), s = gateSnapshot;
+        if (!gate || !s) return;
+        const g = currentGroup();
+        const least = g.axes[2].resolution * halfV(state.lateral);   // a sample's worth of sound path
+        const geometry = gate.geometry || 'SoundPath';
+        if (geometry === 'SoundPath') {
+            const dt = dsp / (halfV(line ?? state.lateral) || 1);
+            const minimum = g.axes[2].resolution;
+            if (part === 'move') gate.start = s.start + dt;
+            else if (part === 'start') { const d = Math.min(dt, s.length - minimum); gate.start = s.start + d; gate.length = s.length - d; }
+            else if (part === 'end') gate.length = Math.max(minimum, s.length + dt);
+        } else {
+            const dd = part === 'move' ? dy : dsp * (g.rays[line ?? state.lateral]?.dz || 1);
+            const vertical = { start: 'depth_start', end: 'depth_end', d0: 'depth_start', d1: 'depth_end' }[part];
+            if (part === 'move') {
+                gate.depth_start = s.depth_start + dy; gate.depth_end = s.depth_end + dy;
+                if (geometry === 'Box') { gate.index_start = s.index_start + dx; gate.index_end = s.index_end + dx; }
+            } else if (vertical) {
+                gate[vertical] = s[vertical] + (part.startsWith('d') ? dy : dd);
+                if (gate.depth_end - gate.depth_start < least && part !== 'd0' && part !== 'd1') {
+                    if (vertical === 'depth_start') gate.depth_start = gate.depth_end - least; else gate.depth_end = gate.depth_start + least;
+                }
+            } else if (part === 'i0' || part === 'i1') {
+                const key = part === 'i0' ? 'index_start' : 'index_end';
+                gate[key] = s[key] + dx;
+            }
+        }
+        renderSscanGates();
+        gatesChanged(20);
+    }
+
+    /**
+     * A gate changed to another type, keeping where it is on the cursor's beam: its stretch of sound path
+     * there becomes the depths (and, for a box, the index positions it spans) or back again.
+     */
+    function convertGate(gate, geometry) {
+        const g = currentGroup();
+        const r = g.rays[state.lateral], hv = halfV(state.lateral) || 1;
+        const old = gate.geometry || 'SoundPath';
+        if (old === geometry) return;
+        let sp0, sp1;
+        if (old === 'SoundPath') {
+            const shown = state.gateResults?.[letterOf(gate.name)];   // where it is on this beam now (synced gates too)
+            const t0 = shown?.start ?? gate.start, t1 = shown?.end ?? gate.start + gate.length;
+            sp0 = t0 * hv; sp1 = t1 * hv;
+        } else {
+            const p = localPaths(gate)[state.lateral];
+            const dz = r.dz || 1;
+            [sp0, sp1] = p || [gate.depth_start / dz, gate.depth_end / dz];
+        }
+        gate.geometry = geometry;
+        if (geometry === 'SoundPath') {
+            gate.start = sp0 / hv; gate.length = Math.max(g.axes[2].resolution, (sp1 - sp0) / hv);
+            return;
+        }
+        gate.sync_gate = null;   // depth and box gates start from the pulse
+        gate.depth_start = sp0 * r.dz; gate.depth_end = sp1 * r.dz;
+        if (geometry === 'Box') {
+            const a = r.v0 + sp0 * r.dv, b = r.v0 + sp1 * r.dv;
+            const half = Math.max(Math.abs(b - a) / 2, 0.005);   // at least 5 mm each side (a 0 deg line is a point)
+            const mid = (a + b) / 2;
+            gate.index_start = mid - half; gate.index_end = mid + half;
+        }
     }
 
     /** Buttons to add the gates a file doesn't have (I, A, B), set up the usual way. */
@@ -916,6 +1098,8 @@
     function gatesChanged(delay = 60) {
         state.gatesEdited = true;
         save();
+        renderSscanGates();
+        loadFrameGates(150);
         if (!document.activeElement?.closest('#gate-rows')) renderGates();
         $('gates-edited').hidden = false;
         scheduleReadings(delay);
@@ -927,6 +1111,8 @@
         state.gatesEdited = false;
         save();
         renderGates();
+        renderSscanGates();
+        loadFrameGates();
         fillKinds();
         scheduleReadings();
         scheduleProjections();
@@ -1514,6 +1700,7 @@
         cview.setGain(state.gain - state.cscanGain);   // straight away; the rebuilt C-scan follows
         scheduleReadings();
         scheduleProjections(800);
+        loadFrameGates(300);
     }
     gainInput.addEventListener('change', () => setGain(parseFloat(gainInput.value) || 0));
 

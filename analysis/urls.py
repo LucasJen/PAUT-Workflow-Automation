@@ -8,6 +8,7 @@ urlpatterns = [
     path('file.json', views.file_info, name='analysis-file'),
     path('frame.bin', views.frame, name='analysis-frame'),
     path('readings.json', views.readings, name='analysis-readings'),
+    path('frame-gates.json', views.frame_gates, name='analysis-frame-gates'),
     path('projections.json', views.projections_status, name='analysis-projections'),
     path('cscan.bin', views.cscan, name='analysis-cscan'),
     path('bscan.bin', views.bscan, name='analysis-bscan'),

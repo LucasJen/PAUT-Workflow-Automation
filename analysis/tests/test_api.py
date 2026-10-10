@@ -22,6 +22,19 @@ class ApiTests(TestCase):
         self.weld = builders.weld_file(os.path.join(self.folder, 'job'))
         self.raster = builders.raster_file(self.folder)
 
+    def test_frame_gates_give_every_beams_window_true_depth_too(self):
+        gates = [{'id': 0, 'name': 'Gate A', 'start': 0, 'length': 1e-6, 'threshold': 5, 'sync_gate': 3,
+                  'geometry': 'TrueDepth', 'depth_start': 0.002, 'depth_end': 0.006}]
+        data = self.client.get(reverse('analysis-frame-gates'), {'path': self.weld, 'group': 0, 'scan': 2,
+                                                                 'gates': json.dumps(gates)}).json()
+        windows = data['windows']['A']
+        self.assertEqual(len(windows), 3)
+        ends = [w[1] for w in windows]
+        self.assertTrue(ends[0] < ends[1] < ends[2])               # deeper along the steeper rays
+        bad = [{**gates[0], 'depth_end': 'x'}]
+        self.assertEqual(self.client.get(reverse('analysis-frame-gates'), {'path': self.weld, 'group': 0, 'scan': 2,
+                                                                           'gates': json.dumps(bad)}).status_code, 400)
+
     def test_lists_nde_files_in_the_working_folders(self):
         data = self.client.get(reverse('analysis-files')).json()
         self.assertEqual(sorted(f['name'] for f in data['files']), ['raster.nde', 'weld.nde'])

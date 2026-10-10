@@ -208,6 +208,7 @@ void main() {
         draw() {
             this.resize();
             const gl = this.gl;
+            (this.pixels ||= new AnalysisPalette.PixelReader(gl)).invalidate();
             gl.viewport(0, 0, this.canvas.width, this.canvas.height);
             gl.clearColor(0.06, 0.07, 0.09, 1);
             gl.clear(gl.COLOR_BUFFER_BIT);
@@ -305,13 +306,10 @@ void main() {
             };
             if (this.guides?.length) {
                 ctx.save();
-                ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-                ctx.setLineDash([6 * ratio, 5 * ratio]);
-                ctx.lineWidth = ratio;
-                for (const guide of this.guides) {
+                for (const guide of this.guides) {   // black over light data, white over dark
                     const [, gy] = this.toScreen(0, guide.y);
                     if (gy < 0 || gy > h) continue;
-                    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+                    AnalysisPalette.contrastDash(ctx, this.pixels, 0, gy, w, gy, ratio);
                     if (guide.label) label(guide.label, 46 * ratio, gy - 3 * ratio);   // left: clear of the colour legend
                 }
                 ctx.restore();

@@ -228,6 +228,138 @@ void main() {
             this.drawOverlay();
         }
 
+        /**
+         * The gates on the S-scan: [{letter, colour, editable, paths: [[sp start, sp end] | null per line],
+         * box: {i0, i1, d0, d1} | null}]. Each is drawn along every beam it reaches; an editable one's
+         * edges and letter tab can be dragged (options.onGateDrag).
+         */
+        setGates(gates) {
+            this.gates = gates || [];
+            this.drawOverlay();
+        }
+
+        /** The gates on or off. */
+        setShowGates(show) {
+            this.showGates = show;
+            this.drawOverlay();
+        }
+
+        /** Where a sound path along a line is on screen. */
+        alongRay(line, sp) {
+            const r = this.rays[line];
+            return this.toScreen(r.v0 + r.dv * sp, r.dz * sp);
+        }
+
+        drawGates(ctx, ratio) {
+            this.gateTabs = [];
+            if (this.showGates === false || !this.gates?.length) return;
+            for (const gate of this.gates) {
+                // Each line's stretch kept to where that line has samples (a depth gate can reach past a short beam)
+                const paths = (gate.paths || []).map((p, i) => {
+                    const r = this.rays[i];
+                    if (!p || !r) return null;
+                    const first = r.sp_start, last = r.sp_start + this.samples * r.sp_step;
+                    const a = Math.max(p[0], first), b = Math.min(p[1], last);
+                    return b > a ? [a, b] : null;
+                });
+                // Runs of neighbouring lines the gate reaches: a band from its start curve to its end curve
+                const runs = [];
+                let run = [];
+                paths.forEach((p, i) => {
+                    if (p && i < this.rays.length) run.push(i);
+                    else if (run.length) { runs.push(run); run = []; }
+                });
+                if (run.length) runs.push(run);
+                ctx.save();
+                ctx.lineWidth = 1.5 * ratio;
+                ctx.strokeStyle = gate.colour;
+                for (const lines of runs) {
+                    const curve = (end, order) => order.forEach((i, k) => {
+                        const [x, y] = this.alongRay(i, paths[i][end]);
+                        if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+                    });
+                    // Filled from the start curve to the end curve; only those two curves outlined
+                    ctx.beginPath();
+                    curve(0, lines);
+                    [...lines].reverse().forEach(i => { const [x, y] = this.alongRay(i, paths[i][1]); ctx.lineTo(x, y); });
+                    ctx.closePath();
+                    ctx.globalAlpha = 0.16; ctx.fillStyle = gate.colour; ctx.fill();
+                    ctx.globalAlpha = 0.95;
+                    ctx.beginPath(); curve(0, lines); ctx.stroke();
+                    ctx.beginPath(); curve(1, lines); ctx.stroke();
+                }
+                if (gate.box) {   // the box itself, dashed
+                    const [ax, ay] = this.toScreen(gate.box.i0, gate.box.d0), [bx, by] = this.toScreen(gate.box.i1, gate.box.d1);
+                    ctx.setLineDash([5 * ratio, 4 * ratio]);
+                    ctx.globalAlpha = 0.9;
+                    ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+                    ctx.setLineDash([]);
+                }
+                // The letter tab: on the start curve of the middle line (a box: its top left corner)
+                let tab = null, tabLine = null;
+                if (gate.box) {
+                    tab = this.toScreen(Math.min(gate.box.i0, gate.box.i1), Math.min(gate.box.d0, gate.box.d1));
+                } else if (runs.length) {
+                    const longest = runs.reduce((a, b) => (b.length > a.length ? b : a));
+                    tabLine = longest[Math.floor(longest.length / 2)];
+                    tab = this.alongRay(tabLine, paths[tabLine][0]);
+                }
+                if (tab) {
+                    const s = 7 * ratio;
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = gate.colour;
+                    ctx.beginPath(); ctx.roundRect(tab[0] - s, tab[1] - s, 2 * s, 2 * s, 3 * ratio); ctx.fill();
+                    ctx.fillStyle = gate.letter === 'A' ? '#fff' : '#111';
+                    ctx.font = `700 ${10 * ratio}px Inter, Arial, sans-serif`;
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(gate.letter, tab[0], tab[1] + 0.5 * ratio);
+                    this.gateTabs.push({ letter: gate.letter, x: tab[0], y: tab[1], line: tabLine });
+                }
+                ctx.restore();
+            }
+        }
+
+        /** The editable gate part under a press: {letter, part: move | start | end | d0 | d1 | i0 | i1, line} or null. */
+        grabGate(e) {
+            if (this.showGates === false || !this.gates?.length) return null;
+            const box = this.overlay.getBoundingClientRect();
+            const ratio = window.devicePixelRatio || 1;
+            const px = (e.clientX - box.left) * ratio, py = (e.clientY - box.top) * ratio;
+            const reach = 7 * ratio;
+            const editable = this.gates.filter(g => g.editable);
+            for (const tab of this.gateTabs || []) {
+                if (editable.some(g => g.letter === tab.letter) && Math.hypot(px - tab.x, py - tab.y) <= reach + 2 * ratio) {
+                    return { letter: tab.letter, part: 'move', line: tab.line };
+                }
+            }
+            const [x, y] = this.toWorld(e);
+            const [, , width] = this.currentView();
+            const perPixel = width / this.overlay.width;   // m per overlay pixel
+            for (const gate of editable) {
+                if (gate.box) {
+                    const b = gate.box;
+                    const [ax, ay] = this.toScreen(b.i0, b.d0), [bx, by] = this.toScreen(b.i1, b.d1);
+                    const inX = px >= Math.min(ax, bx) - reach && px <= Math.max(ax, bx) + reach;
+                    const inY = py >= Math.min(ay, by) - reach && py <= Math.max(ay, by) + reach;
+                    if (inX && Math.abs(py - ay) <= reach) return { letter: gate.letter, part: 'd0' };
+                    if (inX && Math.abs(py - by) <= reach) return { letter: gate.letter, part: 'd1' };
+                    if (inY && Math.abs(px - ax) <= reach) return { letter: gate.letter, part: 'i0' };
+                    if (inY && Math.abs(px - bx) <= reach) return { letter: gate.letter, part: 'i1' };
+                    continue;
+                }
+                const line = this.pick([x, y]);
+                const p = gate.paths?.[line];
+                if (!p) continue;
+                const r = this.rays[line];
+                const len = Math.hypot(r.dv, r.dz) || 1;
+                const sp = ((x - r.v0) * r.dv + y * r.dz) / (len * len);
+                const near = edge => Math.abs(sp - edge) * len / perPixel <= reach;
+                if (near(p[0])) return { letter: gate.letter, part: 'start', line };
+                if (near(p[1])) return { letter: gate.letter, part: 'end', line };
+            }
+            return null;
+        }
+
         /** The leg lines (T, 2T, ...) on or off. */
         setLegs(show) {
             this.showLegs = show;
@@ -285,6 +417,7 @@ void main() {
             if (!this.rays) return;
             this.resize();
             const gl = this.gl;
+            (this.pixels ||= new AnalysisPalette.PixelReader(gl)).invalidate();
             gl.viewport(0, 0, this.canvas.width, this.canvas.height);
             gl.clearColor(0.06, 0.07, 0.09, 1);
             gl.clear(gl.COLOR_BUFFER_BIT);
@@ -322,16 +455,16 @@ void main() {
             const [cx, cy, width, height] = this.currentView();
             ctx.save();
             ctx.font = `${11 * ratio}px Inter, Arial, sans-serif`;
-            // Back wall and skips (the legs): dashed lines at each thickness, unless turned off
+            // Back wall and skips (the legs): dashed lines at each thickness, black over light data, white over dark
             if (this.thickness) {
-                ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-                ctx.setLineDash([6 * ratio, 5 * ratio]);
-                ctx.lineWidth = ratio;
                 for (let k = 1; this.showLegs !== false && k * this.thickness < cy + height / 2; k++) {
                     const [, y] = this.toScreen(0, k * this.thickness);
-                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-                    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-                    ctx.fillText(k === 1 ? 'T' : `${k}T`, 44 * ratio, y - 3 * ratio);   // left: clear of the colour legend
+                    AnalysisPalette.contrastDash(ctx, this.pixels, 0, y, w, y, ratio);
+                    const text = k === 1 ? 'T' : `${k}T`;   // left: clear of the colour legend; outlined over light data
+                    ctx.save(); ctx.strokeStyle = 'rgba(8,10,14,0.9)'; ctx.lineWidth = 3 * ratio; ctx.lineJoin = 'round';
+                    ctx.strokeText(text, 44 * ratio, y - 3 * ratio); ctx.restore();
+                    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                    ctx.fillText(text, 44 * ratio, y - 3 * ratio);
                 }
                 ctx.setLineDash([]);
                 // The weld outline in each leg: mirrored at the back wall on even legs
@@ -371,6 +504,7 @@ void main() {
                     ctx.restore();
                 }
             }
+            this.drawGates(ctx, ratio);
             // The beam cursor along its ray
             const r = this.rays[this.lateral];
             if (r) {
@@ -480,8 +614,12 @@ void main() {
                 } else if (e.button === 0) {
                     const [x, y] = this.toWorld(e);
                     const line = this.grabLine(e);
+                    const gate = !e.altKey && !e.shiftKey && !e.ctrlKey && !line ? this.grabGate(e) : null;
                     if (e.altKey && this.weld && this.showWeld) {   // Alt+drag: move the weld's centre line
                         drag = { weld: true, x, shift: this.weldShift || 0 };
+                    } else if (gate) {                              // a gate's edge or its letter tab
+                        drag = { gate, x, y };
+                        this.options.onGateDragStart?.(gate.letter);
                     } else if (line) {
                         drag = { line };
                     } else if (e.shiftKey || e.ctrlKey) {
@@ -500,8 +638,20 @@ void main() {
                 this.options.onHover?.(x, y);
                 if (!drag) {
                     const line = this.grabLine(e);
+                    const gate = line ? null : this.grabGate(e);
+                    const gateCursor = { move: 'move', i0: 'ew-resize', i1: 'ew-resize', d0: 'ns-resize', d1: 'ns-resize' };
                     el.style.cursor = e.altKey && this.weld && this.showWeld ? 'ew-resize'
-                        : line ? (line.startsWith('u') ? 'ns-resize' : 'ew-resize') : '';
+                        : line ? (line.startsWith('u') ? 'ns-resize' : 'ew-resize')
+                            : gate ? (gateCursor[gate.part] || 'grab') : '';
+                    return;
+                }
+                if (drag.gate) {   // world deltas since the press; along the grabbed line for sound path edges
+                    const dx = x - drag.x, dy = y - drag.y;
+                    const line = drag.gate.line;
+                    const r = line !== null && line !== undefined ? this.rays[line] : null;
+                    const len = r ? Math.hypot(r.dv, r.dz) || 1 : 1;
+                    const dsp = r ? (dx * r.dv + dy * r.dz) / (len * len) : 0;
+                    this.options.onGateDrag?.(drag.gate.letter, drag.gate.part, { dx, dy, dsp, line });
                     return;
                 }
                 if (drag.weld) {
@@ -528,6 +678,7 @@ void main() {
             });
             const end = () => {
                 if (drag?.weld) this.options.onWeldShift?.(this.weldShift, true);
+                if (drag?.gate) this.options.onGateDragEnd?.(drag.gate.letter);
                 drag = null;
             };
             el.addEventListener('pointerup', end);

@@ -33,7 +33,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .geometry import fold_depth, sample_times
+from .geometry import fold_depth, ray, sample_times
 from .nde_data import to_unit
 
 
@@ -77,6 +77,33 @@ def _order(gates):
     return ordered
 
 
+def gate_window(gate, beam, group):
+    """
+    (start, end) A-scan times of a pulse-synced gate on `beam`, or None when the beam misses it.
+    SoundPath: the gate's own start / length (the same time window on every beam). TrueDepth: the
+    times this beam's ray is between the two depths. Box: the times its ray is inside the box of
+    depths and index positions (a beam that doesn't cross the box has no gate).
+    """
+    if gate.geometry not in ('TrueDepth', 'Box') or gate.depth_start is None or gate.depth_end is None:
+        return gate.start, gate.start + gate.length
+    r = ray(group, beam)
+    d0, d1 = sorted((gate.depth_start, gate.depth_end))
+    dz = r.dz if abs(r.dz) > 1e-9 else 1e-9
+    lo, hi = d0 / dz, d1 / dz                              # sound path between the depths
+    if gate.geometry == 'Box' and gate.index_start is not None and gate.index_end is not None:
+        i0, i1 = sorted((gate.index_start, gate.index_end))
+        if abs(r.dv) < 1e-12:                              # straight down (0 deg): in or out by its index
+            if not i0 <= r.v0 <= i1:
+                return None
+        else:
+            a, b = sorted(((i0 - r.v0) / r.dv, (i1 - r.v0) / r.dv))
+            lo, hi = max(lo, a), min(hi, b)
+    if hi <= lo or hi <= 0:
+        return None
+    to_time = 2.0 / beam.velocity
+    return max(lo, 0.0) * to_time, hi * to_time
+
+
 def evaluate_gates(group, beam, raw, gates=None):
     """{letter: GateResult} for a raw A-scan (int16 samples) of `beam` in `group`."""
     gates = group.gates if gates is None else gates
@@ -101,8 +128,13 @@ def evaluate_gates(group, beam, raw, gates=None):
                 peak_time=0.0, threshold=gate.threshold)
             continue
         else:
-            start = gate.start
-        end = start + gate.length
+            window = gate_window(gate, beam, group)
+            if window is None:   # a box gate this beam doesn't cross
+                by_id[gate.id] = results[letter] = GateResult(letter, False, threshold=gate.threshold)
+                continue
+            start, end = window
+        if gate.sync_mode == 'GateRelative':
+            end = start + gate.length
         inside = np.nonzero((times >= start) & (times <= end))[0]
         result = GateResult(letter, True, start=start, end=end, threshold=gate.threshold)
         if len(inside):

@@ -59,10 +59,15 @@ class Gate:
     start: float                     # s
     length: float                    # s
     threshold: float                 # % of full screen
-    geometry: str = 'SoundPath'
+    geometry: str = 'SoundPath'      # SoundPath (start / length), or set on the page: TrueDepth, Box
     sync_mode: str = 'Pulse'         # Pulse, or GateRelative (to sync_gate)
     sync_gate: int = None
     trigger: str = ''                # Crossing / MaxPeak for GateRelative
+    # TrueDepth and Box gates (m, depth not folded at the back wall; Box also across the index)
+    depth_start: float = None
+    depth_end: float = None
+    index_start: float = None
+    index_end: float = None
 
 
 @dataclass

@@ -76,9 +76,54 @@ window.AnalysisPalette = (function () {
         ctx.restore();
     }
 
+    /**
+     * A dashed line that stays visible on any image: each dash black where the picture under it is
+     * light (the white of a quiet S-scan), white where it's dark. `pixels` is a view's PixelReader.
+     */
+    function contrastDash(ctx, pixels, x0, y0, x1, y1, ratio) {
+        const len = Math.hypot(x1 - x0, y1 - y0);
+        if (!len) return;
+        const on = 6 * ratio, off = 5 * ratio;
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.lineWidth = Math.max(1, 1.2 * ratio);
+        for (let d = 0; d < len; d += on + off) {
+            const a = d / len, b = Math.min(d + on, len) / len;
+            const mid = (a + b) / 2;
+            const light = pixels ? pixels.light(x0 + (x1 - x0) * mid, y0 + (y1 - y0) * mid) : false;
+            ctx.strokeStyle = light ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.moveTo(x0 + (x1 - x0) * a, y0 + (y1 - y0) * a);
+            ctx.lineTo(x0 + (x1 - x0) * b, y0 + (y1 - y0) * b);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    /**
+     * Reads a WebGL canvas's pixels once per drawing (the canvas keeps its drawing buffer) and says
+     * whether a point (overlay pixels, same size as the canvas) is light. invalidate() after each draw.
+     */
+    class PixelReader {
+        constructor(gl) { this.gl = gl; this.data = null; }
+        invalidate() { this.data = null; }
+        light(x, y) {
+            const gl = this.gl, w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+            if (!this.data || this.data.length !== w * h * 4) {
+                this.data = new Uint8Array(w * h * 4);
+                gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, this.data);
+            }
+            const px = Math.min(w - 1, Math.max(0, Math.round(x))), py = Math.min(h - 1, Math.max(0, h - 1 - Math.round(y)));
+            const i = (py * w + px) * 4;
+            return 0.299 * this.data[i] + 0.587 * this.data[i + 1] + 0.114 * this.data[i + 2] > 150;
+        }
+    }
+
     return {
         get,
         legend,
+        contrastDash,
+        PixelReader,
         /** [[name, label]] of a kind's palettes ('amplitude' or 'range'). */
         list: kind => Object.entries(PALETTES[kind]).map(([name, [label]]) => [name, label]),
         amplitude: () => get('amplitude', 'omnipc'),

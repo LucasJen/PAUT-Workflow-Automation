@@ -7,6 +7,7 @@
 <div class="analysis-app" id="analysis"
      data-files-url="{% url 'analysis-files' %}" data-file-url="{% url 'analysis-file' %}"
      data-frame-url="{% url 'analysis-frame' %}" data-readings-url="{% url 'analysis-readings' %}"
+     data-frame-gates-url="{% url 'analysis-frame-gates' %}"
      data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
      data-bscan-url="{% url 'analysis-bscan' %}" data-size-url="{% url 'analysis-size' %}"
      data-indications-url="{% url 'analysis-indications' %}" data-indications-csv-url="{% url 'analysis-indications-csv' %}"
@@ -132,7 +133,9 @@
             </div>
             <div class="analysis-gate-rows" id="gate-rows"><p class="analysis-note">Open a file to see its gates.</p></div>
             <div class="analysis-add-gates" id="add-gates"></div>
-            <p class="analysis-note">Drag a gate's bar on the A-scan to move it (up / down changes its threshold) and its end ticks to change its start or width.</p>
+            <label class="analysis-check" title="Each gate drawn along every beam of the S-scan, where it can be dragged"><input type="checkbox" id="show-sscan-gates" checked> Show the gates on the S-scan</label>
+            <p class="analysis-note"><strong>Type:</strong> <em>Sound path</em> - the same stretch of time on every beam (an arc on a sectorial scan); <em>True depth</em> - between two depths on every beam; <em>Box</em> - inside a box of depth and index (beams that miss it have no gate). Depth and box gates start from the pulse.</p>
+            <p class="analysis-note">On the S-scan drag a gate's edges to change its start or end (a box: any side) and its letter tab to move it. On the A-scan drag a gate's bar (up / down changes its threshold) and its end ticks.</p>
         </section>
 
         <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" hidden>
