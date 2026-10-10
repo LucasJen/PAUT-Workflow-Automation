@@ -129,8 +129,10 @@ def evaluate_gates(group, beam, raw, gates=None):
             continue
         else:
             window = gate_window(gate, beam, group)
-            if window is None:   # a box gate this beam doesn't cross
-                by_id[gate.id] = results[letter] = GateResult(letter, False, threshold=gate.threshold)
+            if window is None:   # a box gate this beam doesn't cross: no gate, or (if asked) no amplitude
+                zero = gate.geometry == 'Box' and gate.outside == 'zero'
+                by_id[gate.id] = results[letter] = GateResult(letter, zero, amplitude=0.0 if zero else None,
+                                                              threshold=gate.threshold)
                 continue
             start, end = window
         if gate.sync_mode == 'GateRelative':

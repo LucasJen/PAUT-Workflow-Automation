@@ -123,6 +123,23 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-add-gates { display: flex; gap: 0.3rem; }
 .analysis-add-gates[hidden] { display: none; }
 
+/* Gate cards */
+.analysis-gate-rows { display: flex; flex-direction: column; gap: 0.6rem; }
+.analysis-gate-card { border: 1px solid var(--border); border-left: 3px solid var(--gate-colour, var(--border-strong)); border-radius: var(--radius); }
+.gate-card-I { --gate-colour: #facc15; } .gate-card-A { --gate-colour: #ef4444; } .gate-card-B { --gate-colour: #22c55e; }
+.analysis-gate-card > header { display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.5rem; background: var(--surface-2);
+    border-bottom: 1px solid var(--border); border-radius: 0 var(--radius) 0 0; font-size: 0.8125rem; }
+.analysis-gate-card > header strong { font-weight: 600; white-space: nowrap; }
+.analysis-gate-types { margin-left: auto; }
+.analysis-gate-types .btn { padding: 0.1rem 0.45rem; font-size: 0.75rem; white-space: nowrap; }
+.analysis-gate-remove { padding: 0.15rem 0.35rem; color: var(--text-3); }
+.analysis-gate-remove:hover { color: var(--danger); }
+.analysis-gate-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem 0.6rem; padding: 0.55rem 0.6rem 0.6rem; }
+.analysis-gate-field { display: flex; flex-direction: column; gap: 0.15rem; margin: 0; min-width: 0; cursor: help; }
+.analysis-gate-field > span { font-size: 0.6875rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+.analysis-gate-field .form-control, .analysis-gate-field .form-select { font-size: 0.8125rem; cursor: auto; }
+.analysis-gate-field.is-wide { grid-column: 1 / -1; }
+
 /* Geometry: the weld overlay editor */
 .analysis-weld-editor { display: flex; flex-direction: column; gap: 0.5rem; }
 .analysis-weld-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.3rem 0.6rem; align-items: center; font-size: 0.8125rem; }

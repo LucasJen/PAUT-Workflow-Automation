@@ -851,80 +851,122 @@
     const halfVelocity = () => (currentGroup()?.beams[state.lateral]?.velocity || 0) / 2;   // sound path per s
     const gateLength = t => format(t * halfVelocity(), 'value');
 
+    /** A gate the user added on this page (the file's own gates can't be removed). */
+    const addedGate = gate => gate.added || !currentGroup()?.gates.some(f => f.id === gate.id);
+
+    /** The Gates panel: a card per gate - its type, start and width (or depths), threshold, sync, a box's index range. */
     function renderGates() {
         const g = currentGroup();
         const box = $('gate-rows');
         if (!g) return;
         if (!state.gates.length) {
-            box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: 'This group has no gates.' }));
+            box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: 'This group has no gates - add one below.' }));
+            $('gates-edited').hidden = !state.gatesEdited;
+            renderAddGates();
             return;
         }
-        const table = document.createElement('table');
-        table.className = 'analysis-gates';
-        const head = table.createTHead().insertRow();
-        for (const [label, help] of [['', ''], ['Type', 'Sound path (the same time on every beam), True depth (between two depths) or Box (depth and index)'],
-            [`Start (${units})`, 'Sound path from the pulse or after the sync gate\'s crossing; a depth / box gate: its top depth'],
-            [`Width (${units})`, 'Sound path; a depth / box gate: its height in depth'], ['Thr %', 'Threshold, % of full screen'], ['Sync', 'What the gate starts from']]) {
-            head.append(Object.assign(document.createElement('th'), { textContent: label, title: help }));
-        }
-        const body = table.createTBody();
-        for (const gate of state.gates) {
+        const el = (tag, props = {}, ...children) => { const n = Object.assign(document.createElement(tag), props); n.append(...children); return n; };
+        const number = (value, onChange) => {
+            const input = el('input', { type: 'text', inputMode: 'decimal', value, className: 'form-control form-control-sm mono' });
+            input.addEventListener('change', () => {
+                const v = parseFloat(input.value);
+                if (Number.isFinite(v)) onChange(v);
+                gatesChanged();
+            });
+            return input;
+        };
+        const field = (label, help, control) => el('label', { className: 'analysis-gate-field', title: help }, el('span', { textContent: label }), control);
+        const cards = state.gates.map(gate => {
             const letter = letterOf(gate.name);
-            const tr = body.insertRow();
-            tr.insertCell().append(Object.assign(document.createElement('span'), { className: `gate-letter gate-${letter}`, textContent: letter }));
-            const number = (value, onChange) => {
-                const input = Object.assign(document.createElement('input'), { type: 'text', inputMode: 'decimal', value,
-                                                                              className: 'form-control form-control-sm mono' });
-                input.addEventListener('change', () => {
-                    const v = parseFloat(input.value);
-                    if (Number.isFinite(v)) onChange(v);
+            const geometry = gate.geometry || 'SoundPath';
+            const depthGate = geometry !== 'SoundPath';
+            const card = el('div', { className: `analysis-gate-card gate-card-${letter}` });
+
+            // Header: the letter, the type, remove
+            const types = el('div', { className: 'btn-group btn-group-sm analysis-gate-types', role: 'group' });
+            for (const [value, text, help] of [['SoundPath', 'Sound path', 'The same stretch of time on every beam (an arc on a sectorial scan)'],
+                                               ['TrueDepth', 'True depth', 'Between two depths on every beam'],
+                                               ['Box', 'Box', 'Inside a box of depth and index']]) {
+                const b = el('button', { type: 'button', className: `btn ${value === geometry ? 'btn-primary' : 'btn-secondary'}`, textContent: text, title: help });
+                b.addEventListener('click', () => {
+                    if (value === geometry) return;
+                    convertGate(gate, value);
                     gatesChanged();
+                    renderGates();
                 });
-                return input;
-            };
-            const type = Object.assign(document.createElement('select'), { className: 'form-select form-select-sm analysis-gate-type' });
-            for (const [value, text] of [['SoundPath', 'Sound path'], ['TrueDepth', 'True depth'], ['Box', 'Box']]) type.add(new Option(text, value));
-            type.value = gate.geometry || 'SoundPath';
-            type.addEventListener('change', () => { convertGate(gate, type.value); gatesChanged(); renderGates(); });
-            tr.insertCell().append(type);
-            const depthGate = (gate.geometry || 'SoundPath') !== 'SoundPath';
-            if (depthGate) {   // a depth / box gate: its top depth and its height
-                tr.insertCell().append(number(format(gate.depth_start, 'value'), v => {
+                types.append(b);
+            }
+            const head = el('header', {}, el('span', { className: `gate-letter gate-${letter}`, textContent: letter }),
+                            el('strong', { textContent: gate.name }), types);
+            if (addedGate(gate)) {
+                const remove = el('button', { type: 'button', className: 'btn btn-sm btn-ghost analysis-gate-remove', title: `Remove ${gate.name}`,
+                                              innerHTML: '<i class="bi bi-trash3"></i>' });
+                remove.addEventListener('click', () => removeGate(gate));
+                head.append(remove);
+            }
+            card.append(head);
+
+            // Fields
+            const grid = el('div', { className: 'analysis-gate-fields' });
+            if (depthGate) {
+                grid.append(field(`Top depth (${units})`, 'Where the gate starts, in true depth', number(format(gate.depth_start, 'value'), v => {
                     const h = gate.depth_end - gate.depth_start;
                     gate.depth_start = v * unitLength(); gate.depth_end = gate.depth_start + h;
-                }));
-                tr.insertCell().append(number(format(gate.depth_end - gate.depth_start, 'value'), v => {
+                })));
+                grid.append(field(`Height (${units})`, 'How deep the gate reaches below its top', number(format(gate.depth_end - gate.depth_start, 'value'), v => {
                     if (v > 0) gate.depth_end = gate.depth_start + v * unitLength();
-                }));
+                })));
             } else {
-                tr.insertCell().append(number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); }));
-                tr.insertCell().append(number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); }));
+                const from = gate.sync_gate === null || gate.sync_gate === undefined ? 'from the pulse' : 'after the sync gate\'s crossing';
+                grid.append(field(`Start (${units})`, `Sound path ${from}`, number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); })));
+                grid.append(field(`Width (${units})`, 'Sound path the gate spans', number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); })));
             }
-            tr.insertCell().append(number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); }));
-            const sync = Object.assign(document.createElement('select'), { className: 'form-select form-select-sm' });
+            grid.append(field('Threshold (%)', 'The level a signal must reach to break the gate, % of full screen',
+                              number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); })));
+            const sync = el('select', { className: 'form-select form-select-sm' });
             sync.add(new Option('Pulse', ''));
             for (const other of state.gates) {
-                if (other !== gate) sync.add(new Option(letterOf(other.name), other.id, false, gate.sync_gate === other.id));
+                if (other !== gate) sync.add(new Option(`Gate ${letterOf(other.name)}`, other.id, false, gate.sync_gate === other.id));
             }
-            if (gate.sync_gate === null) sync.value = '';
-            sync.disabled = depthGate;   // depth and box gates start from the pulse
-            if (depthGate) sync.title = 'Depth and box gates start from the pulse';
-            sync.addEventListener('change', () => { gate.sync_gate = sync.value === '' ? null : +sync.value; gatesChanged(); });
-            tr.insertCell().append(sync);
-            if (gate.geometry === 'Box') {   // the box across the index: from / to
-                const row = body.insertRow();
-                row.className = 'analysis-gate-index';
-                row.insertCell();
-                const label = row.insertCell();
-                label.append(Object.assign(document.createElement('span'), { className: 'analysis-tool-note', textContent: 'Index from / to' }));
-                row.insertCell().append(number(format(gate.index_start, 'value'), v => { gate.index_start = v * unitLength(); }));
-                row.insertCell().append(number(format(gate.index_end, 'value'), v => { gate.index_end = v * unitLength(); }));
-                row.insertCell().colSpan = 2;
+            if (gate.sync_gate === null || gate.sync_gate === undefined) sync.value = '';
+            sync.disabled = depthGate;
+            sync.addEventListener('change', () => { gate.sync_gate = sync.value === '' ? null : +sync.value; gatesChanged(); renderGates(); });
+            grid.append(field('Starts from', depthGate ? 'Depth and box gates start from the pulse' : 'The pulse, or another gate\'s crossing', sync));
+            if (geometry === 'Box') {
+                grid.append(field(`Index from (${units})`, 'The box\'s side nearer the probe', number(format(gate.index_start, 'value'), v => { gate.index_start = v * unitLength(); })));
+                grid.append(field(`Index to (${units})`, 'The box\'s far side', number(format(gate.index_end, 'value'), v => { gate.index_end = v * unitLength(); })));
+                const outside = el('select', { className: 'form-select form-select-sm' });
+                outside.add(new Option('No gate (no data, grey)', 'none'));
+                outside.add(new Option('Zero amplitude (0 %, white)', 'zero'));
+                outside.value = gate.outside === 'zero' ? 'zero' : 'none';
+                outside.addEventListener('change', () => { gate.outside = outside.value; gatesChanged(); });
+                const wide = field('Beams that miss the box', 'A beam that never passes through the box: no gate at all (the C-scan shows no data), or a gate with no amplitude (0 %, the palette\'s lowest colour)', outside);
+                wide.classList.add('is-wide');
+                grid.append(wide);
             }
-        }
-        box.replaceChildren(table);
+            card.append(grid);
+            return card;
+        });
+        box.replaceChildren(...cards);
         $('gates-edited').hidden = !state.gatesEdited;
         renderAddGates();
+    }
+
+    /**
+     * Removes a gate added on this page. Gates that started from it start from the pulse instead, where
+     * they are now on the cursor's beam.
+     */
+    function removeGate(gate) {
+        for (const other of state.gates) {
+            if (other.sync_gate !== gate.id) continue;
+            const shown = state.gateResults?.[letterOf(other.name)];
+            if (shown?.start !== null && shown?.start !== undefined) other.start = shown.start;
+            other.sync_gate = null;
+        }
+        state.gates = state.gates.filter(x => x !== gate);
+        gatesChanged();
+        fillKinds();
+        renderGates();
     }
 
     // ── gates on the S-scan ──
@@ -1086,7 +1128,7 @@
         const start = g.beams[0]?.ultrasound_offset || 0;
         const id = Math.max(-1, ...state.gates.map(x => x.id)) + 1;
         const byLetter = L => state.gates.find(x => letterOf(x.name) === L);
-        const gate = { id, name: `Gate ${letter}`, threshold: letter === 'I' ? 35 : 20, trigger: 'Crossing', sync_gate: null,
+        const gate = { id, name: `Gate ${letter}`, threshold: letter === 'I' ? 35 : 20, trigger: 'Crossing', sync_gate: null, added: true,
                        start: start + span * 0.25, length: span * 0.5 };
         if (letter === 'B' && byLetter('A')) Object.assign(gate, { sync_gate: byLetter('A').id, start: span * 0.02, length: span * 0.4 });
         if (letter === 'A' && byLetter('I')) Object.assign(gate, { sync_gate: byLetter('I').id, start: span * 0.02, length: span * 0.4 });

@@ -68,6 +68,8 @@ class Gate:
     depth_end: float = None
     index_start: float = None
     index_end: float = None
+    # A Box gate's beams that miss the box: 'none' (no gate - no data on the C-scan) or 'zero' (amplitude 0)
+    outside: str = 'none'
 
 
 @dataclass

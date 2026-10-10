@@ -67,7 +67,17 @@ class ProjectionTests(SimpleTestCase):
         self.assertGreater(e65, e45)
         narrow = Gate(2, 'Gate B', start=0.0, length=1e-6, threshold=5.0, geometry='Box',
                       depth_start=0.0, depth_end=0.004, index_start=-0.0145, index_end=-0.013)
-        self.assertIsNone(gate_window(narrow, b45, group))       # 4 mm deep it has only reached -16 mm
+        self.assertIsNone(gate_window(narrow, b45, group))
+        # Missed beams: no gate, or (outside='zero') amplitude 0 - the same in the readings and the whole-file block
+        zero = Gate(2, 'Gate B', start=0.0, length=1e-6, threshold=5.0, geometry='Box', outside='zero',
+                    depth_start=0.0, depth_end=0.004, index_start=-0.0145, index_end=-0.013)
+        self.assert_same_as_readings(path, group, 2, [zero])
+        raw, _ = read_frame(path, group, 2)
+        block = projections.gates_block(group, raw, [narrow], projections.line_times(group, raw.shape[1]))
+        self.assertTrue(np.isnan(block['B']['amplitude'][0]))
+        block = projections.gates_block(group, raw, [zero], projections.line_times(group, raw.shape[1]))
+        self.assertEqual(block['B']['amplitude'][0], 0.0)
+        self.assertTrue(np.isnan(block['B']['crossing_time'][0]))       # 4 mm deep it has only reached -16 mm
         self.assertIsNotNone(gate_window(narrow, b65, group))
 
     def test_build_makes_the_volume_and_cscan(self):

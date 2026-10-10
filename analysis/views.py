@@ -150,6 +150,8 @@ def _gates(request, group):
                 extra = {name: float(item[name]) for name in names}
                 if not all(math.isfinite(v) for v in extra.values()):
                     raise ValueError
+                if geometry == 'Box':
+                    extra['outside'] = 'zero' if item.get('outside') == 'zero' else 'none'
             gate = Gate(
                 id=int(item['id']), name=str(item.get('name') or '')[:20], start=float(item['start']),
                 length=float(item['length']), threshold=float(item['threshold']),
