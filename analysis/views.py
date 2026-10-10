@@ -448,3 +448,17 @@ def report_send(request):
     except report_export.ExportError as e:
         return _error(str(e), status=409)
     return JsonResponse({'added': added, 'edit_url': reverse('edit-report', args=[report.pk])})
+
+
+@require_http_methods(['POST'])
+def weld_outline(request):
+    """POST (JSON weld, thickness): the outline of a weld as edited on the page (the same drawing as the file's)."""
+    try:
+        data = json.loads(request.body or b'{}')
+        thickness = float(data.get('thickness'))
+    except (ValueError, TypeError):
+        return _error("The weld couldn't be read.")
+    if not (0 < thickness < 1):
+        return _error('The part thickness is needed to draw the weld.')
+    weld = geometry.clean_weld(data.get('weld'))
+    return JsonResponse({'weld': weld, 'lines': geometry.weld_outline(weld, thickness)})

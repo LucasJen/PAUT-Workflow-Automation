@@ -23,7 +23,7 @@
                    cscan: page.dataset.cscanUrl, bscan: page.dataset.bscanUrl, size: page.dataset.sizeUrl,
                    indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
                    indication: page.dataset.indicationUrl, reportTargets: page.dataset.reportTargetsUrl,
-                   reportPreview: page.dataset.reportPreviewUrl, reportSend: page.dataset.reportSendUrl };
+                   reportPreview: page.dataset.reportPreviewUrl, weldOutline: page.dataset.weldOutlineUrl, reportSend: page.dataset.reportSendUrl };
     const $ = id => document.getElementById(id);
     const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const shell = window.AnalysisShell;
@@ -78,6 +78,7 @@
         format, unitLength,
         onCursor: lateral => setLateral(lateral),
         onCursors: partial => setCursors(partial),
+        onWeldShift: (shift, done) => weldShifted(shift, done),
         onHover: (x, y) => {
             if (x === null) { $('sscan-readout').textContent = ''; return; }
             let value = '';
@@ -332,6 +333,7 @@
         showDetails();
         show('');
         state.sizing = null;
+        loadWeld();
         targetsLoaded = false;
         toReport.picked = new Set();
         await setGroup(chosen.id, scan, lateral);
@@ -368,11 +370,7 @@
         sscan.setCursors(state.cursors);
         $('true-geometry').checked = sscan.trueGeometry;
         $('groups-toggle').hidden = otherGroups().length === 0;
-        const weld = g.layout === 'beams' ? state.info.weld_outline : null;
-        $('weld-toggle').hidden = !(weld && weld.length);
-        sscan.setWeld(weld, $('show-weld').checked);
-        state.weldShown = weld && weld.length ? state.info.weld : null;
-        renderWeldSummary(state.weldShown);
+        applyWeld();
         slider.max = scanNumber.max = g.shape[0] - 1;
         $('scan-count').textContent = `of ${g.shape[0]}`;
         state.lateral = Math.min(lateral, g.shape[1] - 1);
@@ -381,30 +379,87 @@
 
     const currentGroup = () => state.info.groups.find(g => g.id === state.group);
 
-    /** The Geometry panel's description of the weld the overlay is drawn from (the file's setup). */
-    function renderWeldSummary(weld) {
-        const box = $('weld-summary');
-        if (!weld) {
-            box.replaceChildren(Object.assign(document.createElement('dd'), { className: 'analysis-note',
-                textContent: state.info && currentGroup()?.layout === 'beams' ? "This file's setup has no weld geometry." : 'Weld overlays are for angle-beam weld scans.' }));
+    // ── the weld overlay: the file's weld, or as edited here (kept per file in this browser) ──
+    const weld = { shape: null, shift: 0 };   // shape null: the file's own
+    const thickness = () => state.info?.specimen?.thickness || 0;
+    const fileWeld = () => (state.info?.weld && Object.keys(state.info.weld).length && state.info.weld_outline?.length ? state.info.weld : null);
+    const weldKey = () => `analysisWeld:${state.path}`;
+    const weldEdited = () => !!weld.shape || Math.abs(weld.shift) > 1e-9;
+    const weldEditor = new WeldEditor($('weld-editor'), {
+        unitLength, format, units: () => units,
+        onShape: (shape, rebuild) => { weld.shape = shape; saveWeld(); drawWeld(); if (rebuild) showWeldEditor(); },
+        onShift: shift => weldShifted(shift, true),
+        onReset: () => { weld.shape = null; weld.shift = 0; saveWeld(); applyWeld(); },
+        onCreate: () => { weld.shape = defaultWeld(thickness()); saveWeld(); applyWeld(); },
+    });
+
+    function loadWeld() {
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(weldKey()) || 'null'); } catch { saved = null; }
+        weld.shape = saved?.shape || null;
+        weld.shift = Number.isFinite(saved?.shift) ? saved.shift : 0;
+    }
+    function saveWeld() {
+        try {
+            if (weldEdited()) localStorage.setItem(weldKey(), JSON.stringify({ shape: weld.shape, shift: weld.shift }));
+            else localStorage.removeItem(weldKey());
+        } catch { /* not kept */ }
+    }
+
+    /** A usual single-V butt weld for a file whose setup has none: 1.6 mm gap and land, 37.5 deg to the surface. */
+    function defaultWeld(t) {
+        const gap = 0.0008, land = Math.min(0.0016, t / 4), face = t - land;
+        const top = gap + face * Math.tan(37.5 * Math.PI / 180);
+        return { bevelShape: 'V', offset: gap, land: { height: land }, root: { angle: 0, height: 0 }, hotPass: { angle: 0, height: 0 },
+                 fills: [{ angle: 37.5, height: face }], upperCap: { width: 2 * top + 0.003, height: 0.0015 },
+                 lowerCap: { width: 2 * gap + 0.003, height: 0.001 } };
+    }
+
+    /** The overlay and the Geometry panel for this group (angle-beam groups only). */
+    function applyWeld() {
+        const g = state.info ? currentGroup() : null;
+        const beams = g?.layout === 'beams';
+        const shape = beams ? weld.shape || fileWeld() : null;
+        $('weld-toggle').hidden = !shape;
+        sscan.setWeldShift(weld.shift);
+        if (!shape) {
+            sscan.setWeld(null);
+            weldEditor.show({ message: !state.info ? 'Open a weld scan to see its weld.' : !beams ? 'Weld overlays are for angle-beam weld scans.'
+                              : thickness() ? "This file's setup has no weld geometry." : "This file's setup has no weld or part thickness.",
+                              canCreate: beams && thickness() > 0 });
             return;
         }
-        const rows = [];
-        const add = (name, text) => rows.push(Object.assign(document.createElement('dt'), { textContent: name }),
-                                              Object.assign(document.createElement('dd'), { className: 'mono', textContent: text }));
-        const pass = p => (p && p.height ? `${format(p.height)} at ${p.angle || 0}°` : null);
-        add('Bevel', `${weld.bevelShape || '-'}${weld.symmetry ? ' · ' + weld.symmetry.toLowerCase() : ''}`);
-        add('Root gap', format(2 * (weld.offset || 0)));
-        if (weld.land?.height) add('Land', format(weld.land.height));
-        if (pass(weld.root)) add('Root', pass(weld.root));
-        if (pass(weld.hotPass)) add('Hot pass', pass(weld.hotPass));
-        (weld.fills || []).forEach((f, i) => { if (pass(f)) add(weld.fills.length > 1 ? `Fill ${i + 1}` : 'Fill', pass(f)); });
-        if (weld.upperCap?.width) add('Cap', `${format(weld.upperCap.width)} × ${format(weld.upperCap.height)}`);
-        if (weld.lowerCap?.width) add('Root cap', `${format(weld.lowerCap.width)} × ${format(weld.lowerCap.height)}`);
-        if (weld.heatAffectedZoneWidth) add('HAZ', format(weld.heatAffectedZoneWidth));
-        rows.push(Object.assign(document.createElement('dd'), { className: 'analysis-note', style: 'grid-column: 1 / -1; text-align: left',
-                                                               textContent: "From the file's setup (MXU / OmniPC)." }));
-        box.replaceChildren(...rows);
+        showWeldEditor();
+        drawWeld();
+    }
+    function showWeldEditor() {
+        weldEditor.show({ shape: weld.shape || fileWeld(), shift: weld.shift, edited: weldEdited(), thickness: thickness() });
+    }
+
+    let weldRequest = 0;
+    async function drawWeld() {
+        if (!weld.shape) { sscan.setWeld(state.info.weld_outline, $('show-weld').checked); return; }
+        const mine = ++weldRequest;
+        let data;
+        try {
+            data = await send(urls.weldOutline, 'POST', { weld: weld.shape, thickness: thickness() });
+        } catch (e) {
+            show(e.message);
+            return;
+        }
+        if (mine === weldRequest) sscan.setWeld(data.lines, $('show-weld').checked);
+    }
+
+    /** The centre line moved (typed, nudged, or Alt+dragged on the S-scan; `done` when it settles). */
+    function weldShifted(shift, done) {
+        const wasEdited = weldEdited();
+        weld.shift = shift;
+        sscan.setWeldShift(shift);
+        weldEditor.setShift(shift);
+        $('sscan-readout').textContent = `Weld centre line ${format(shift)}`;
+        if (!done) return;
+        saveWeld();
+        if (wasEdited !== weldEdited()) showWeldEditor();   // the "edited" note and the reset button
     }
 
     // ── scan line, beam cursor ──
@@ -1402,7 +1457,7 @@
         sscan.drawOverlay();
         ascan.draw();
         if (state.info) {
-            showDetails(); renderGates(); renderReadings(); setLateral(state.lateral, true); renderWeldSummary(state.weldShown);
+            showDetails(); renderGates(); renderReadings(); setLateral(state.lateral, true); if (currentGroup()?.layout === 'beams' && (weld.shape || fileWeld())) showWeldEditor();
             $('scan-position').textContent = `= ${format(scanPosition(state.scan))}`;
             cview.drawOverlay(); bview.drawOverlay();
             if (state.cscan && state.cscan.mode !== 'amplitude') loadCscan(projectionRequest);
@@ -1448,7 +1503,7 @@
     }
     applyPalettes();
     grid.classList.add('is-empty');
-    renderWeldSummary(null);
+    applyWeld();
     page.views = { sscan, ascan, cview, bview };   // for checking the page in a test browser
     loadFiles().catch(e => show(e.message));
 })();

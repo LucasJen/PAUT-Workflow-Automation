@@ -107,10 +107,15 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-add-gates { display: flex; gap: 0.3rem; }
 .analysis-add-gates[hidden] { display: none; }
 
-/* Geometry */
-.analysis-weld-summary { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.75rem; margin: 0; font-size: 0.8125rem; }
-.analysis-weld-summary dt { font-weight: 500; color: var(--text-2); }
-.analysis-weld-summary dd { margin: 0; text-align: right; }
+/* Geometry: the weld overlay editor */
+.analysis-weld-editor { display: flex; flex-direction: column; gap: 0.5rem; }
+.analysis-weld-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.3rem 0.6rem; align-items: center; font-size: 0.8125rem; }
+.analysis-weld-grid > label { margin: 0; color: var(--text-2); cursor: help; white-space: nowrap; }
+.analysis-weld-controls { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.analysis-weld-controls .form-control { width: 4.6rem; flex: 0 1 4.6rem; min-width: 0; padding: 0.12rem 0.35rem; font-size: 0.8125rem; }
+.analysis-weld-controls .analysis-weld-angle { width: 3.4rem; flex-basis: 3.4rem; }
+.analysis-weld-controls .analysis-tool-note { margin: 0; }
+.analysis-weld-add { padding: 0; font-size: 0.75rem; text-decoration: none; }
 
 /* Indications */
 .analysis-indication-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }

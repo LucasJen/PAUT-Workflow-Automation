@@ -120,3 +120,36 @@ def weld_outline(weld, thickness):
     lower = cap(weld.get('lowerCap') or {}, thickness, 1.0)
     lines += [c for c in (upper, lower) if c]
     return lines
+
+
+def clean_weld(data):
+    """
+    A weld geometry as the page edits it, kept to what weld_outline reads (the .nde's weldGeometry
+    names), every value a number in range: lengths 0 - 0.5 m, angles 0 - 80 deg. Unknown keys are dropped.
+    """
+    def length(value):
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return min(max(v, 0.0), 0.5) if math.isfinite(v) else 0.0
+
+    def angle(value):
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        return min(max(v, 0.0), 80.0) if math.isfinite(v) else 0.0
+
+    data = data if isinstance(data, dict) else {}
+    part = lambda name: data.get(name) if isinstance(data.get(name), dict) else {}
+    passes = lambda p: {'angle': angle(p.get('angle')), 'height': length(p.get('height'))}
+    caps = lambda p: {'width': length(p.get('width')), 'height': length(p.get('height'))}
+    fills = [passes(f) for f in (data.get('fills') or []) if isinstance(f, dict)][:12]
+    return {
+        'bevelShape': str(data.get('bevelShape') or 'V')[:20],
+        'offset': length(data.get('offset')),
+        'land': {'height': length(part('land').get('height'))},
+        'root': passes(part('root')), 'hotPass': passes(part('hotPass')), 'fills': fills,
+        'upperCap': caps(part('upperCap')), 'lowerCap': caps(part('lowerCap')),
+    }
