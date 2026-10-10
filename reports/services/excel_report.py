@@ -454,19 +454,25 @@ def results_layout(rows):
     """
     Where each results row goes: ([(sheet, sheet row, cells)], rows that don't fit, sheet rows
     needed). Each weld after the first starts after a blank row (easier to read), except at the
-    top of a page; a weld's offsets go one per row.
+    top of a page; a weld's offsets go one per row. Rows that only fit without the blank rows (a
+    full report, e.g. one imported from a packed form) go without them.
     """
     rows = _stacked_offsets([r for r in rows if any(_v(c) for c in r)])
     slots = [('report', r) for r in REPORT_RESULT_ROWS] + [('continuation', r) for r in CONTINUATION_ROWS]
     page_tops = {0, len(REPORT_RESULT_ROWS)}
-    placed, at = [], 0
-    for n, cells in enumerate(rows):
-        if n and _v(cells[0]) and at not in page_tops:
-            at += 1   # the blank row before another weld
-        if at < len(slots):
-            placed.append((*slots[at], cells))
-        at += 1
-    return placed, len(rows) - len(placed), at
+
+    def lay_out(spaced):
+        placed, at = [], 0
+        for n, cells in enumerate(rows):
+            if spaced and n and _v(cells[0]) and at not in page_tops:
+                at += 1   # the blank row before another weld
+            if at < len(slots):
+                placed.append((*slots[at], cells))
+            at += 1
+        return placed, len(rows) - len(placed), at
+
+    spaced = lay_out(True)
+    return spaced if not spaced[1] or len(rows) > len(slots) else lay_out(False)
 
 
 def _results(rows):
