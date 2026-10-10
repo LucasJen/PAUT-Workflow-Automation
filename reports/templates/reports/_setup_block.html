@@ -45,6 +45,9 @@
         {% endif %}{% endfor %}
     </div>
 
+    {# Everything the .nde gave, to change before it's printed (setup_values.js) #}
+    <div class="setup-values" data-setup-values hidden></div>
+
     {# data-field lets a report type hide this part (report_types.py, hidden_fields) #}
     <div data-field="cal_images">
     <h3 class="panel-subtitle" data-label="cal_images">Calibration screenshots</h3>

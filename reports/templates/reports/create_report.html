@@ -224,6 +224,7 @@
 
 {{ results_data|json_script:"results-initial-data" }}
 {{ report_types|json_script:"report-types" }}
+{{ setup_values_schema|json_script:"setup-values-schema" }}
 {{ report_defaults|json_script:"report-defaults" }}
 {% include 'reports/components/inventory_pickers.html' %}
 {% endblock %}
@@ -231,6 +232,7 @@
 {% block scripts %}
 <script src="{% static_v 'reports/js/section_nav.js' %}"></script>
 <script src="{% static_v 'reports/js/create_report.js' %}"></script>
+<script src="{% static_v 'reports/js/setup_values.js' %}"></script>
 <script src="{% static_v 'reports/js/weld_grid.js' %}"></script>
 <script src="{% static_v 'reports/js/weld_results.js' %}"></script>
 <script src="{% static_v 'reports/js/materials.js' %}"></script>

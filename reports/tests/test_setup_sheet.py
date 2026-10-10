@@ -127,3 +127,52 @@ class SheetInReportsTests(TestCase):
         Setup.objects.create(report=report, title='HydroFORM', nde_sheet=fixture_sheet())
         page = self.client.get(reverse('create-report'), {'loaded': report.pk})
         self.assertContains(page, 'name="setups-0-nde_sheet"')
+
+
+class SheetEditsTests(TestCase):
+    """The Setup values table's changes: kept beside the file's values, used when the picture is drawn."""
+
+    def test_edits_replace_the_files_values_and_the_file_stays(self):
+        data = json.loads(fixture_sheet())
+        data['gates'] = [{'name': 'A', 'start': 2e-6, 'length': 8e-6, 'threshold': 20}]
+        data['edits'] = {'part.thickness': 0.0254, 'ut.velocity': 3000.0, 'gates.0.threshold': 35,
+                         'instrument.model': 'OmniScan X4', 'part.od': '', 'evil.__class__': 1, 'gates.9.start': 1}
+        setup = Setup(nde_sheet=json.dumps(data))
+        loaded = setup_sheet.load(setup)
+        self.assertEqual(loaded['part']['thickness'], 0.0254)
+        self.assertEqual(loaded['ut']['velocity'], 3000.0)
+        self.assertEqual(loaded['gates'][0]['threshold'], 35)
+        self.assertEqual(loaded['instrument']['model'], 'OmniScan X4')
+        self.assertNotIn('od', loaded['part'])                  # a blank edit takes the value off
+        self.assertNotIn('edits', loaded)
+        self.assertNotIn('evil', loaded)                        # paths are plain names only... and harmless
+        self.assertEqual(len(loaded['gates']), 1)               # a gate that isn't there isn't made
+        self.assertEqual(json.loads(setup.nde_sheet)['ut']['velocity'], data['ut']['velocity'])   # stored as the file gave it
+        velocity = dict(setup_sheet.sections(loaded, 'metric')[1][2])['Velocity']
+        self.assertEqual(velocity, '3000 m/s')
+        self.assertTrue(setup_sheet.sheet_png(setup, 7.0, 6.0).startswith(b'\x89PNG'))
+
+    def test_the_schema_names_every_editable_value_and_its_report_field(self):
+        schema = setup_sheet.editable_schema()
+        rows = {r['path']: r for s in schema for r in s['rows']}
+        self.assertEqual(rows['part.thickness']['field'], 'specimen_thickness')
+        self.assertEqual(rows['ut.velocity']['kind'], 'velocity')
+        self.assertTrue(all(field in {f.name for f in Setup._meta.fields} for field in (r['field'] for r in rows.values()) if field))
+
+    def test_preview_draws_the_picture_with_the_changes(self):
+        data = json.loads(fixture_sheet())
+        data['edits'] = {'part.thickness': 0.03}
+        response = self.client.post(reverse('setup-sheet-preview'), {'nde_sheet': json.dumps(data), 'units': 'imperial',
+                                                                     'specimen_thickness': '1.181', 'report_type': 'paut_corrosion'})
+        self.assertEqual(response['Content-Type'], 'image/png')
+        with Image.open(io.BytesIO(response.content)) as img:
+            self.assertEqual(img.size, (int(7.6 * 300), int(7.2 * 300)))   # the Short Form's picture box
+        self.assertEqual(self.client.post(reverse('setup-sheet-preview'), {'nde_sheet': ''}).status_code, 400)
+
+    def test_the_editor_has_the_table_and_its_schema(self):
+        report = Report.objects.create(report_type='paut_corrosion')
+        Setup.objects.create(report=report, title='HydroFORM', nde_sheet=fixture_sheet())
+        page = self.client.get(reverse('create-report'), {'loaded': report.pk})
+        self.assertContains(page, 'data-setup-values')
+        self.assertContains(page, 'id="setup-values-schema"')
+        self.assertContains(page, 'setup_values.js')

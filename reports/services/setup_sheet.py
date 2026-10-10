@@ -12,6 +12,7 @@ import io
 import json
 import math
 import os
+import re
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -30,12 +31,140 @@ TABLE_LINE = (120, 140, 190)
 
 
 def load(setup):
-    """The setup's sheet data, or None."""
+    """The setup's sheet data with the user's edits applied (see apply_edits), or None."""
     try:
         data = json.loads(setup.nde_sheet or '')
     except (TypeError, ValueError):
         return None
-    return data if isinstance(data, dict) and data else None
+    if not isinstance(data, dict) or not data:
+        return None
+    return apply_edits(data)
+
+
+# ── Values the user may change before they're printed (the editor's Setup values table) ─────
+#
+# The .nde's values stay in the sheet as the file gave them; the editor keeps the user's changes
+# beside them as {"edits": {"part.thickness": 0.0254, "gates.0.start": 3.9e-6, ...}} (SI, like the
+# file), so a change can always be put back. `kind` says how a value is shown and typed; `field` is
+# the setup's report field the value also fills (in the import's own format).
+
+EDITABLE = [
+    ('Part', [
+        ('part.thickness', 'Thickness', 'length', 'specimen_thickness'),
+        ('part.od', 'Outside diameter', 'length', 'specimen_od'),
+        ('part.material', 'Material', 'text', None),
+    ]),
+    ('Instrument & probe', [
+        ('instrument.platform', 'Instrument', 'text', 'scope_platform'),
+        ('instrument.model', 'Model', 'text', 'scope_model'),
+        ('instrument.serial', 'Instrument serial', 'text', 'scope_serial'),
+        ('instrument.software', 'Software', 'text', None),
+        ('probe.model', 'Probe model', 'text', 'transducer_model'),
+        ('probe.serial', 'Probe serial', 'text', 'transducer_serial'),
+        ('probe.frequency', 'Frequency', 'mhz', 'freq'),
+        ('probe.elements', 'Probe aperture (elements)', 'int', None),
+        ('probe.pitch', 'Pitch', 'length', None),
+        ('wedge.model', 'Wedge model', 'text', 'wedge_model'),
+        ('wedge.angle', 'Wedge angle', 'deg', 'wedge_angle'),
+        ('wedge.velocity', 'Wedge velocity', 'velocity', None),
+        ('wedge.first_element_height', 'First element height', 'length', None),
+        ('probe.scan_offset', 'Scan offset', 'length', None),
+        ('probe.index_offset', 'Index offset', 'length', None),
+        ('probe.skew', 'Probe skew', 'deg', None),
+    ]),
+    ('UT settings', [
+        ('ut.mode', 'Mode', 'text', None),
+        ('ut.wave_mode', 'Wave type', 'text', None),
+        ('ut.velocity', 'Velocity', 'velocity', 'sound_velocity'),
+        ('ut.gain', 'Gain', 'db', 'gain'),
+        ('ut.reference_gain', 'Reference gain', 'db', 'ref_gain'),
+        ('ut.beam_delay', 'Beam delay', 'us', None),
+        ('ut.ascan_start', 'Start (sound path)', 'path', None),
+        ('ut.ascan_length', 'Range (sound path)', 'path', None),
+        ('ut.digitizing', 'Digitizing frequency', 'mhz', None),
+        ('ut.compression', 'Compression', 'int', None),
+        ('ut.points', 'Points quantity', 'int', None),
+        ('ut.averaging', 'Averaging factor', 'int', None),
+        ('ut.rectification', 'Rectification', 'text', None),
+        ('ut.filter', 'Band-pass filter', 'text', None),
+        ('ut.smoothing', 'Video filter', 'text', None),
+        ('ut.pulse_width', 'Pulse width', 'ns', 'pulse_width'),
+        ('ut.voltage', 'Voltage', 'volts', 'voltage'),
+        ('instrument.acquisition_rate', 'Acquisition rate', 'hz', None),
+        ('axes.scan.resolution', 'Scan resolution', 'length', None),
+        ('axes.index.resolution', 'Index resolution', 'length', None),
+    ]),
+    ('Focal law', [
+        ('law.formation', 'Law configuration', 'text', None),
+        ('law.angles', 'Angles', 'text', None),
+        ('law.angle_step', 'Angle resolution', 'text', None),
+        ('law.aperture', 'Element qty used', 'int', None),
+        ('law.first_element', 'First element', 'int', None),
+        ('law.last_element', 'Last element', 'int', None),
+        ('law.element_step', 'Element step', 'number', None),
+        ('law.focus_mode', 'Focus', 'text', None),
+        ('law.focus_distance', 'Focus distance', 'length', 'foc_depth'),
+    ]),
+]
+
+
+EDITABLE_SECTIONS = {'part', 'instrument', 'probe', 'wedge', 'ut', 'law', 'axes', 'gates', 'tcg'}
+
+
+def editable_schema():
+    """EDITABLE for the editor's script: [{title, rows: [{path, label, kind, field}]}]."""
+    return [{'title': title, 'rows': [{'path': p, 'label': label, 'kind': kind, 'field': field}
+                                      for p, label, kind, field in rows]} for title, rows in EDITABLE]
+
+
+def _walk(data, path, create=False):
+    """(container, key) for a dotted path ('gates.0.start'), or (None, None)."""
+    parts = path.split('.')
+    node = data
+    for part in parts[:-1]:
+        key = int(part) if part.isdigit() else part
+        if isinstance(node, list):
+            if not isinstance(key, int) or key >= len(node):
+                return None, None
+            node = node[key]
+        elif isinstance(node, dict):
+            if key not in node:
+                if not create:
+                    return None, None
+                node[key] = {}
+            node = node[key]
+        else:
+            return None, None
+    last = parts[-1]
+    key = int(last) if last.isdigit() and isinstance(node, list) else last
+    if isinstance(node, list) and (not isinstance(key, int) or key >= len(node)):
+        return None, None
+    return (node, key) if isinstance(node, (dict, list)) else (None, None)
+
+
+def apply_edits(data):
+    """The sheet with its 'edits' put in place of the file's values (a blank edit removes the value)."""
+    edits = data.get('edits')
+    data = {k: v for k, v in data.items() if k != 'edits'}
+    if not isinstance(edits, dict):
+        return data
+    data = json.loads(json.dumps(data))   # the stored sheet stays as the file gave it
+    for path, value in edits.items():
+        if not isinstance(path, str) or not re.fullmatch(r'[a-z_]+(\.[a-z_0-9]+)*', path):
+            continue
+        section = path.split('.')[0]
+        # Only the sheet's own sections; the part may be missing from the file (its thickness can be typed)
+        if section not in EDITABLE_SECTIONS or (section not in data and section != 'part'):
+            continue
+        node, key = _walk(data, path, create=True)
+        if node is None:
+            continue
+        if value is None or value == '':
+            if isinstance(node, dict):
+                node.pop(key, None)
+            continue
+        node[key] = value
+    return data
 
 
 # ── Formatting (the file is SI; the sheet is in the setup's units) ───────────────────────────

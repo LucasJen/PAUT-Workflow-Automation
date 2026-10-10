@@ -1761,3 +1761,24 @@ body.drop-target .content { outline: 2px dashed var(--bs-primary); outline-offse
 .image-block.is-dragging-block { opacity: 0.5; }
 .image-block.drop-before { box-shadow: 0 -3px 0 var(--accent); }
 .image-block.drop-after { box-shadow: 0 3px 0 var(--accent); }
+
+
+/* Setup values table (setup_values.js): what the .nde gave, to change before it's printed */
+.setup-values { margin-top: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.setup-values details > summary { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.5rem 0.75rem; cursor: pointer; list-style: revert; }
+.setup-values-title { font-weight: 600; font-size: 0.875rem; }
+.setup-values-note { font-size: 0.75rem; color: var(--text-3); }
+.setup-values details > .form-text { margin: 0 0.75rem 0.5rem; }
+.setup-values-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 11rem) minmax(9rem, 1fr)); gap: 0.3rem 0.75rem;
+    padding: 0 0.75rem 0.5rem; align-items: center; }
+.setup-values-head { grid-column: 1 / -1; margin-top: 0.5rem; padding-bottom: 0.15rem; border-bottom: 1px solid var(--border);
+    font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); }
+.setup-values-label { margin: 0; font-size: 0.8125rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.setup-values-cell { display: flex; align-items: center; gap: 0.3rem; min-width: 0; }
+.setup-values-cell .form-control { min-width: 0; font-size: 0.8125rem; padding: 0.15rem 0.4rem; }
+.setup-values-cell.is-changed .form-control { border-color: var(--warning); background: var(--warning-soft); }
+.setup-values-unit { flex: 0 0 2.6rem; font-size: 0.75rem; color: var(--text-3); }
+.setup-values-reset { padding: 0 0.2rem; }
+.setup-values-actions { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.75rem 0.6rem; }
+.setup-values-preview { padding: 0 0.75rem 0.75rem; }
+.setup-values-preview img { display: block; max-width: 100%; border: 1px solid var(--border); background: #fff; }
