@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'equipment',
     'documents',
     'assistant',
+    'analysis',
 ]
 
 # Form fields rendered with {{ form.x.as_field_group }} use reports/components/field.html

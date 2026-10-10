@@ -47,6 +47,9 @@
         <a class="nav-item-link {% nav_active 'assistant' 'assistant-conversation' %}" href="{% url 'assistant' %}" title="Ask about your reports, setups and procedures">
             <i class="bi bi-chat-square-text"></i><span class="nav-label">Assistant</span>
         </a>
+        <a class="nav-item-link {% nav_active 'analysis' %}" href="{% url 'analysis' %}" title="Open .nde files and look through their data, like OmniPC">
+            <i class="bi bi-graph-up"></i><span class="nav-label">Analysis</span>
+        </a>
 
         <div class="nav-group" data-group="reports">
             <button type="button" class="nav-group-label" aria-expanded="true" title="Show or hide Reports">
