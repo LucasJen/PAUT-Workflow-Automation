@@ -30,6 +30,7 @@ window.AnalysisShell = (function () {
         title.textContent = body.dataset.title;
         drawer.hidden = false;
         app.classList.add('has-drawer');
+        app.classList.toggle('has-wide-drawer', 'wide' in body.dataset);
         set('analysisPanel', name);
         changed();
     }

@@ -123,6 +123,34 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-indication-table .form-control { padding: 0.1rem 0.3rem; font-size: 0.8125rem; min-width: 0; }
 .analysis-indication-table .btn { padding: 0 0.3rem; font-size: 0.7rem; }
 
+/* Send to report */
+.analysis-app.has-wide-drawer .analysis-drawer { width: 27rem; }
+.analysis-step { display: flex; flex-direction: column; gap: 0.4rem; }
+.analysis-step-head { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8125rem; font-weight: 600; }
+.analysis-step-number { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent-text); font-size: 0.6875rem; font-weight: 700; }
+.analysis-pick-list { display: flex; flex-direction: column; max-height: 12rem; overflow: auto; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 0.2rem; font-size: 0.8125rem; }
+.analysis-pick-list > * { flex-shrink: 0; }
+.analysis-pick { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.25rem 0.4rem; border: 0; border-radius: 4px;
+    background: none; color: var(--text); text-align: left; cursor: pointer; margin: 0; }
+.analysis-pick:hover { background: var(--surface-hover); }
+.analysis-pick.is-current { background: var(--accent-soft); }
+.analysis-pick .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.analysis-pick .meta { flex: 0 0 auto; font-size: 0.6875rem; color: var(--text-3); }
+.analysis-pick .tag { flex: 0 0 auto; font-size: 0.625rem; font-weight: 700; padding: 0 0.3rem; border-radius: 3px; background: var(--accent-soft); color: var(--accent-text); }
+.analysis-send-row { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.45rem; }
+.analysis-send-row > header { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.5rem; font-size: 0.75rem; font-weight: 600;
+    background: var(--surface-2); border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
+.analysis-send-cells { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0.25rem 0.5rem; padding: 0.4rem 0.5rem; align-items: center; font-size: 0.75rem; }
+.analysis-send-cells label { margin: 0; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.analysis-send-cells .form-control { padding: 0.1rem 0.35rem; font-size: 0.75rem; }
+.analysis-send-cells .is-blank { display: none; }
+.analysis-send-row.show-all .is-blank { display: block; }
+.analysis-send-more { font-size: 0.6875rem; padding: 0 0.5rem 0.35rem; }
+.analysis-send-bar { position: sticky; bottom: -0.7rem; display: flex; align-items: center; gap: 0.6rem; margin: 0 -0.75rem -0.7rem;
+    padding: 0.55rem 0.75rem; background: var(--surface); border-top: 1px solid var(--border); }
+
 /* ── The views ── */
 .analysis-main { grid-area: main; position: relative; min-width: 0; min-height: 0; padding: 0.4rem; }
 /* analysis_layout.js sets the height and the track sizes the splitters move: --c1 / --c2 the two

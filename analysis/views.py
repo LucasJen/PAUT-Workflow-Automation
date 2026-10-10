@@ -7,12 +7,15 @@ import numpy as np
 from django.http import HttpResponse, JsonResponse
 from django.db.models import Max
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
+from reports.models import Report
+
 from .models import Indication
 from .paths import PathNotAllowed, allowed_roots, checked_path
-from .services import geometry, projections, sizing
+from .services import geometry, projections, report_export, sizing
 from .services.nde_data import (
     RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame, read_status, usable,
 )
@@ -384,3 +387,64 @@ def indications_csv(request):
         row.append(i.comment)
         writer.writerow(row)
     return response
+
+
+# ── Send indications to a report ──
+
+def report_targets(request):
+    """GET ?path=: draft reports to send indications to (those made from this file's job folder first)."""
+    return JsonResponse({'reports': report_export.draft_reports(request.GET.get('path', ''))})
+
+
+def _send_request(request):
+    """(data, report, indications) of a send / preview request, or raises ValueError with the message."""
+    try:
+        data = json.loads(request.body or b'{}')
+        report = Report.objects.filter(pk=int(data.get('report'))).first()
+        ids = [int(i) for i in data.get('indications') or []]
+    except (ValueError, TypeError):
+        raise ValueError("The request couldn't be read.")
+    if report is None:
+        raise ValueError("That report doesn't exist any more.")
+    by_id = {i.pk: i for i in Indication.objects.filter(pk__in=ids)}
+    indications = [by_id[i] for i in ids if i in by_id]
+    if not indications:
+        raise ValueError('Pick the indications to send.')
+    return data, report, indications
+
+
+@require_http_methods(['POST'])
+def report_preview(request):
+    """POST (JSON report, indications [ids], units): the rows they'd make, in the report's columns."""
+    try:
+        data, report, indications = _send_request(request)
+    except ValueError as e:
+        return _error(str(e))
+    units = 'mm' if data.get('units') == 'mm' else 'in'
+    out = report_export.preview(report, indications, units)
+    out['report'] = {'id': report.pk, 'name': report.document_filename or f'Report {report.pk}',
+                     'type': report.report_type, 'issued': report.is_issued,
+                     'has_rows': bool(getattr(report, 'results_table', None) and report.results_table.rows.exists())}
+    out['field_names'] = report_export.FIELDS
+    return JsonResponse(out)
+
+
+@require_http_methods(['POST'])
+def report_send(request):
+    """
+    POST (JSON report, indications [ids], columns, rows [[cells]], pictures [data URL | null]):
+    adds the rows (as previewed, maybe edited) and pictures to the report's results.
+    """
+    try:
+        data, report, indications = _send_request(request)
+    except ValueError as e:
+        return _error(str(e))
+    rows = data.get('rows')
+    if not isinstance(rows, list) or len(rows) != len(indications) or not all(isinstance(r, list) for r in rows):
+        return _error('Each indication needs its row.')
+    captions = [f'{i.file_name} - indication {i.number}' for i in indications]
+    try:
+        added = report_export.append(report, data.get('columns') or [], rows, data.get('pictures'), captions)
+    except report_export.ExportError as e:
+        return _error(str(e), status=409)
+    return JsonResponse({'added': added, 'edit_url': reverse('edit-report', args=[report.pk])})

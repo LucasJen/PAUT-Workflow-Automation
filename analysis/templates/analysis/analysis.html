@@ -10,7 +10,8 @@
      data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
      data-bscan-url="{% url 'analysis-bscan' %}" data-size-url="{% url 'analysis-size' %}"
      data-indications-url="{% url 'analysis-indications' %}" data-indications-csv-url="{% url 'analysis-indications-csv' %}"
-     data-indication-url="{% url 'analysis-indication' 0 %}">
+     data-indication-url="{% url 'analysis-indication' 0 %}" data-report-targets-url="{% url 'analysis-report-targets' %}"
+     data-report-preview-url="{% url 'analysis-report-preview' %}" data-report-send-url="{% url 'analysis-report-send' %}">
 
     {# ── Top bar: what's always needed ── #}
     <header class="analysis-topbar">
@@ -58,6 +59,7 @@
         <button type="button" class="analysis-rail-button" data-panel="gates" title="Gates"><i class="bi bi-distribute-horizontal"></i></button>
         <button type="button" class="analysis-rail-button" data-panel="indications" title="Indications">
             <i class="bi bi-pin-map"></i><span class="analysis-rail-badge" id="indication-count" hidden></span></button>
+        <button type="button" class="analysis-rail-button" data-panel="report" title="Send indications to a report"><i class="bi bi-send"></i></button>
         <button type="button" class="analysis-rail-button" data-panel="geometry" title="Geometry and weld overlay"><i class="bi bi-triangle"></i></button>
         <button type="button" class="analysis-rail-button" data-panel="display" title="Display: units, palettes, reference level"><i class="bi bi-palette"></i></button>
     </nav>
@@ -89,8 +91,32 @@
             <div class="analysis-drawer-row">
                 <button type="button" class="btn btn-sm btn-primary" id="add-indication" title="Save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i> Add <kbd>N</kbd></button>
                 <a class="btn btn-sm btn-secondary" id="export-indications" href="#" title="The indications as a CSV like OmniPC's indications.csv"><i class="bi bi-download"></i> CSV</a>
+                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="open-send" title="Add these indications to a report's results"><i class="bi bi-send"></i> To report</button>
             </div>
             <div class="analysis-indications" id="indication-rows"></div>
+        </section>
+
+        <section class="analysis-drawer-body" data-panel-body="report" data-title="Send to report" data-wide hidden>
+            <p class="analysis-note">Adds indications as rows in a draft report's results table, in that report's own columns. Check and edit the rows before they're added.</p>
+            <div class="analysis-step">
+                <div class="analysis-step-head"><span class="analysis-step-number">1</span> Report</div>
+                <input type="search" class="form-control form-control-sm" id="report-filter" placeholder="Find a draft report…" aria-label="Find a report">
+                <div class="analysis-pick-list" id="report-list"><p class="analysis-note">Loading reports…</p></div>
+            </div>
+            <div class="analysis-step">
+                <div class="analysis-step-head"><span class="analysis-step-number">2</span> Indications
+                    <button type="button" class="btn btn-sm btn-ghost ms-auto" id="send-all" title="Pick every indication of this file">All</button></div>
+                <div class="analysis-pick-list" id="send-indications"></div>
+                <label class="analysis-check" title="A picture of the views at each indication, as laid out now, goes with its row"><input type="checkbox" id="send-pictures" checked> A picture of the views with each</label>
+            </div>
+            <div class="analysis-step">
+                <div class="analysis-step-head"><span class="analysis-step-number">3</span> Rows to add</div>
+                <div id="send-rows"><p class="analysis-note">Pick a report and indications to see the rows.</p></div>
+            </div>
+            <div class="analysis-send-bar">
+                <button type="button" class="btn btn-sm btn-primary" id="send-now" disabled><i class="bi bi-send"></i> Add to report</button>
+                <span class="analysis-note" id="send-result" role="status"></span>
+            </div>
         </section>
 
         <section class="analysis-drawer-body" data-panel-body="geometry" data-title="Geometry" hidden>

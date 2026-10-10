@@ -22,7 +22,8 @@
                    readings: page.dataset.readingsUrl, projections: page.dataset.projectionsUrl,
                    cscan: page.dataset.cscanUrl, bscan: page.dataset.bscanUrl, size: page.dataset.sizeUrl,
                    indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
-                   indication: page.dataset.indicationUrl };
+                   indication: page.dataset.indicationUrl, reportTargets: page.dataset.reportTargetsUrl,
+                   reportPreview: page.dataset.reportPreviewUrl, reportSend: page.dataset.reportSendUrl };
     const $ = id => document.getElementById(id);
     const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const shell = window.AnalysisShell;
@@ -331,6 +332,8 @@
         showDetails();
         show('');
         state.sizing = null;
+        targetsLoaded = false;
+        toReport.picked = new Set();
         await setGroup(chosen.id, scan, lateral);
         loadIndications();
     }
@@ -987,6 +990,7 @@
             state.indications = [];
         }
         renderIndications();
+        if (shell.current === 'report') renderSendIndications();
         linkCursors();
         $('export-indications').href = `${urls.indicationsCsv}?${new URLSearchParams({ path: state.path, units })}`;
     }
@@ -1088,10 +1092,201 @@
         goTo(list[at]);
     }
 
+    // ── send indications to a report ──
+    const toReport = { reports: [], report: null, picked: new Set(), preview: null, timer: null };
+    let targetsLoaded = false;
+
+    async function loadReportTargets() {
+        try {
+            const data = await NdeClient.readings({ readings: urls.reportTargets }, { path: state.path || '' });
+            toReport.reports = data.reports;
+        } catch (e) {
+            toReport.reports = [];
+            $('report-list').replaceChildren(note(e.message));
+            return;
+        }
+        targetsLoaded = true;
+        if (toReport.report && !toReport.reports.some(r => r.id === toReport.report)) toReport.report = null;
+        renderReportTargets();
+    }
+    const note = text => Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: text });
+
+    function renderReportTargets() {
+        const words = $('report-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
+        const list = toReport.reports.filter(r => words.every(w => `${r.name} ${r.type} ${r.client}`.toLowerCase().includes(w)));
+        if (!list.length) {
+            $('report-list').replaceChildren(note(toReport.reports.length ? 'No reports match.' : 'No draft reports. Start one under Reports › New report.'));
+            return;
+        }
+        $('report-list').replaceChildren(...list.map(r => {
+            const b = Object.assign(document.createElement('button'), { type: 'button', className: 'analysis-pick' });
+            b.classList.toggle('is-current', r.id === toReport.report);
+            b.title = `${r.name} · ${r.type}${r.client ? ' · ' + r.client : ''}`;
+            b.append(Object.assign(document.createElement('span'), { className: 'name', textContent: r.name }));
+            if (r.this_job) b.append(Object.assign(document.createElement('span'), { className: 'tag', textContent: 'This job' }));
+            b.append(Object.assign(document.createElement('span'), { className: 'meta', textContent: r.type }));
+            b.addEventListener('click', () => { toReport.report = r.id; renderReportTargets(); choiceChanged(); });
+            return b;
+        }));
+    }
+    $('report-filter').addEventListener('input', renderReportTargets);
+
+    function renderSendIndications() {
+        const list = state.indications || [];
+        const known = new Set(list.map(i => i.id));
+        toReport.picked = new Set([...toReport.picked].filter(id => known.has(id)));
+        if (!list.length) {
+            $('send-indications').replaceChildren(note('No indications saved for this file yet (N adds one).'));
+            schedulePreview();
+            return;
+        }
+        $('send-indications').replaceChildren(...list.map(item => {
+            const label = Object.assign(document.createElement('label'), { className: 'analysis-pick' });
+            const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: toReport.picked.has(item.id) });
+            box.addEventListener('change', () => { if (box.checked) toReport.picked.add(item.id); else toReport.picked.delete(item.id); choiceChanged(); });
+            const r = item.readings || {};
+            const where = isRaster() ? format(item.index_position, true) : (item.angle === null ? '' : `${item.angle}°`);
+            label.append(box, Object.assign(document.createElement('span'), { className: 'name',
+                textContent: `#${item.number} · ${format(item.scan_position, true)}${where ? ' · ' + where : ''}${item.comment ? ' · ' + item.comment : ''}` }),
+                Object.assign(document.createElement('span'), { className: 'meta', textContent: r['A%'] === undefined ? '' : `${r['A%'].toFixed(1)} %` }));
+            return label;
+        }));
+        schedulePreview();
+    }
+    $('send-all').addEventListener('click', () => {
+        const all = (state.indications || []).map(i => i.id);
+        toReport.picked = toReport.picked.size === all.length ? new Set() : new Set(all);
+        renderSendIndications();
+        choiceChanged();
+    });
+    $('open-send').addEventListener('click', () => {
+        if (!toReport.picked.size) toReport.picked = new Set((state.indications || []).map(i => i.id));
+        shell.open('report');
+    });
+
+    const pickedIndications = () => (state.indications || []).filter(i => toReport.picked.has(i.id));
+    /** The rows again for a changed choice (the last send's message goes: it was about other rows). */
+    function choiceChanged() {
+        $('send-result').textContent = '';
+        schedulePreview();
+    }
+    function schedulePreview() {
+        clearTimeout(toReport.timer);
+        toReport.timer = setTimeout(loadPreview, 120);
+    }
+
+    async function loadPreview() {
+        const box = $('send-rows');
+        const items = pickedIndications();
+        toReport.preview = null;
+        updateSendButton();
+        if (!toReport.report || !items.length) {
+            box.replaceChildren(note(!toReport.report ? 'Pick a report to see the rows.' : 'Pick the indications to send.'));
+            return;
+        }
+        let data;
+        try {
+            data = await send(urls.reportPreview, 'POST', { report: toReport.report, indications: items.map(i => i.id), units });
+        } catch (e) {
+            box.replaceChildren(note(e.message));
+            return;
+        }
+        toReport.preview = { ...data, ids: items.map(i => i.id) };
+        box.replaceChildren(...data.rows.map((row, r) => {
+            const item = items[r];
+            const card = Object.assign(document.createElement('div'), { className: 'analysis-send-row' });
+            const head = document.createElement('header');
+            head.textContent = `Indication #${item.number}`;
+            const cells = Object.assign(document.createElement('div'), { className: 'analysis-send-cells' });
+            let blank = 0;
+            data.columns.forEach((heading, c) => {
+                const id = `send-${r}-${c}`;
+                const label = Object.assign(document.createElement('label'), { htmlFor: id, textContent: heading });
+                label.title = data.fields[c] ? `${heading}: ${data.field_names[data.fields[c]]}` : `${heading}: nothing from the analysis, fill it in if you like`;
+                const input = Object.assign(document.createElement('input'), { type: 'text', id, value: row[c], className: 'form-control mono' });
+                input.addEventListener('input', () => { toReport.preview.rows[r][c] = input.value; });
+                if (!row[c]) { label.classList.add('is-blank'); input.classList.add('is-blank'); blank++; }
+                cells.append(label, input);
+            });
+            card.append(head, cells);
+            if (blank) {
+                const more = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-link analysis-send-more',
+                                                                             textContent: `+ ${blank} blank column${blank > 1 ? 's' : ''}` });
+                more.addEventListener('click', () => {
+                    const on = card.classList.toggle('show-all');
+                    more.textContent = on ? 'Hide the blank columns' : `+ ${blank} blank column${blank > 1 ? 's' : ''}`;
+                });
+                card.append(more);
+            }
+            return card;
+        }));
+        if (data.report.issued) box.prepend(note('This report is issued - reopen it before adding indications.'));
+        updateSendButton();
+    }
+
+    function updateSendButton() {
+        const p = toReport.preview;
+        const button = $('send-now');
+        button.disabled = !p || p.report.issued;
+        button.innerHTML = `<i class="bi bi-send"></i> ${p ? `Add ${p.rows.length} row${p.rows.length > 1 ? 's' : ''} to ${p.report.name}` : 'Add to report'}`;
+    }
+
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    /** Each indication's picture: the views at it (as laid out now), back where we were afterwards. */
+    async function picturesOf(items) {
+        const here = { group: state.group, scan: state.scan, lateral: state.lateral, cursors: { ...state.cursors }, sizing: state.sizing };
+        const out = [];
+        for (const [n, item] of items.entries()) {
+            $('send-result').textContent = `Taking the pictures… ${n + 1} of ${items.length}`;
+            await goTo(item);
+            await wait(150);
+            await loadReadings();
+            await wait(350);   // the B-scan and the overlays follow the cursor
+            out.push(composeImage().toDataURL('image/png'));
+        }
+        if (here.group !== state.group) await setGroup(here.group, here.scan, here.lateral);
+        state.sizing = here.sizing;
+        setCursors(here.cursors);
+        await setScan(here.scan);
+        setLateral(here.lateral, true);
+        return out;
+    }
+
+    $('send-now').addEventListener('click', async () => {
+        const p = toReport.preview;
+        if (!p) return;
+        const button = $('send-now'), result = $('send-result');
+        button.disabled = true;
+        const items = p.ids.map(id => (state.indications || []).find(i => i.id === id)).filter(Boolean);
+        let pictures = null;
+        try {
+            if ($('send-pictures').checked && state.info) pictures = await picturesOf(items);
+            result.textContent = 'Adding…';
+            const done = await send(urls.reportSend, 'POST', { report: p.report.id, indications: p.ids, columns: p.columns,
+                                                              rows: p.rows, pictures });
+            result.replaceChildren(`Added ${done.added} row${done.added > 1 ? 's' : ''}. `,
+                Object.assign(document.createElement('a'), { href: done.edit_url, target: '_blank', rel: 'noopener', textContent: 'Open the report' }));
+            toReport.picked = new Set();
+            toReport.preview = null;
+            renderSendIndications();
+            updateSendButton();
+        } catch (e) {
+            result.textContent = e.message;
+            button.disabled = false;
+        }
+    });
+
+    function reportPanelOpened(name) {
+        if (name !== 'report') return;
+        if (!targetsLoaded) loadReportTargets();
+        renderSendIndications();
+    }
+    shell.onChange(reportPanelOpened);
+    reportPanelOpened(shell.current);   // still open from last time
+
     // ── picture of the views ──
-    /** The visible views as laid out on screen, their titles, and the readings, saved as a PNG. */
-    function saveImage() {
-        if (!state.info) return;
+    /** The visible views as laid out on screen, their titles, and the readings, on one canvas. */
+    function composeImage() {
         const ratio = window.devicePixelRatio || 1;
         const origin = grid.getBoundingClientRect();
         const panelsShown = [...grid.querySelectorAll('.analysis-panel')]
@@ -1118,7 +1313,9 @@
             ctx.fillRect(x, y, box.width, 22);
             ctx.fillStyle = '#e2e8f0';
             ctx.font = '600 12px Inter, Arial, sans-serif';
-            const label = [...head.querySelectorAll(':scope > span')].map(s => s.textContent.trim()).filter(Boolean).join('  ');
+            // The title, what the view shows (e.g. the C-scan's kind) and its note
+            const label = [...head.querySelectorAll(':scope > span, :scope > select')]
+                .map(el => (el.tagName === 'SELECT' ? el.selectedOptions[0]?.text || '' : el.textContent).trim()).filter(Boolean).join('  ');
             ctx.fillText(label, x + 6, y + 15);
             const stage = panel.querySelector('.analysis-stage');
             const stageBox = stage.getBoundingClientRect();
@@ -1143,7 +1340,13 @@
             ctx.fillText(text, width + side - 10, ry);
             ctx.textAlign = 'left';
         }
-        out.toBlob(blob => {
+        return out;
+    }
+
+    /** The picture of the views, saved as a PNG. */
+    function saveImage() {
+        if (!state.info) return;
+        composeImage().toBlob(blob => {
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             const stem = state.info.path.split(/[\\/]/).pop().replace(/\.nde$/i, '');
