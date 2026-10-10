@@ -154,3 +154,66 @@ class WeldOutlineApiTests(TestCase):
         self.assertAlmostEqual(right[-1][1], 0.0)
         bad = self.client.post(reverse('analysis-weld-outline'), json.dumps({'weld': weld}), content_type='application/json')
         self.assertEqual(bad.status_code, 400)
+
+
+class OpenAnywhereTests(TestCase):
+    """Browse this PC: a .nde outside the working folders opened in place, and a new project from it."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()       # a working folder
+        self.outside = tempfile.mkdtemp()    # anywhere else on the PC
+        for folder in (self.root, self.outside):
+            self.addCleanup(shutil.rmtree, folder, True)
+        WorkingFolder.objects.all().delete()
+        WorkingFolder.objects.create(path=self.root, report_type='paut_weld', is_default=True)
+        self.loose = builders.weld_file(self.outside)
+        os.makedirs(os.path.join(self.outside, 'sub'))
+        with open(os.path.join(self.outside, 'notes.txt'), 'w') as f:
+            f.write('x')
+
+    def post(self, name, body):
+        return self.client.post(reverse(name), json.dumps(body), content_type='application/json')
+
+    def test_browse_lists_folders_and_nde_files_only(self):
+        data = self.client.get(reverse('analysis-browse'), {'path': self.outside}).json()
+        self.assertEqual([f['name'] for f in data['folders']], ['sub'])
+        self.assertEqual([f['name'] for f in data['files']], ['weld.nde'])
+        self.assertTrue(any(p['kind'] == 'drive' for p in self.client.get(reverse('analysis-browse')).json()['places']))
+        self.assertEqual(self.client.get(reverse('analysis-browse'), {'path': 'relative/x'}).status_code, 400)
+
+    def test_a_file_outside_is_readable_only_once_opened_and_until_forgotten(self):
+        self.assertEqual(self.client.get(reverse('analysis-file'), {'path': self.loose}).status_code, 400)
+        opened = self.post('analysis-open-file', {'path': self.loose})
+        self.assertEqual(opened.status_code, 200, opened.content)
+        self.assertEqual(self.client.get(reverse('analysis-file'), {'path': self.loose}).status_code, 200)
+        listed = self.client.get(reverse('analysis-files')).json()
+        self.assertEqual([f['name'] for f in listed['opened']], ['weld.nde'])
+        self.post('analysis-forget-file', {'path': self.loose})
+        self.assertEqual(self.client.get(reverse('analysis-file'), {'path': self.loose}).status_code, 400)
+        notes = os.path.join(self.outside, 'notes.txt')
+        self.assertEqual(self.post('analysis-open-file', {'path': notes}).status_code, 400)
+
+    def test_new_project_copies_the_files_into_a_job_folder_then_guided_creation(self):
+        self.post('analysis-open-file', {'path': self.loose})
+        options = self.post('analysis-project-options', {'paths': [self.loose]}).json()
+        weld = next(t for t in options['types'] if t['key'] == 'paut_weld')
+        self.assertTrue(weld['root_ok'])
+        self.assertEqual(options['name'], 'weld')
+        self.assertEqual(options['suggested_type'], 'paut_weld')     # an angle-beam scan
+        self.assertEqual(self.post('analysis-project', {'paths': [self.loose], 'type': 'paut_weld', 'name': 'bad:name'}).status_code, 400)
+        started = self.post('analysis-project', {'paths': [self.loose], 'type': 'paut_weld', 'name': 'PPI-1-W1'}).json()
+        for _ in range(100):
+            status = self.client.get(reverse('analysis-project-status'), {'job': started['job']}).json()
+            if status['state'] != 'running':
+                break
+            time.sleep(0.05)
+        self.assertEqual(status['state'], 'done', status)
+        copied = os.path.join(self.root, 'PPI-1-W1', 'weld.nde')
+        self.assertEqual(os.path.getsize(copied), os.path.getsize(self.loose))
+        self.assertIn('folder=PPI-1-W1', status['next_url'])
+        page = self.client.get(status['next_url'])
+        self.assertContains(page, 'value="PPI-1-W1" checked')
+
+    def test_a_project_needs_files_it_may_read(self):
+        response = self.post('analysis-project-options', {'paths': [self.loose]})   # not opened
+        self.assertEqual(response.status_code, 400)

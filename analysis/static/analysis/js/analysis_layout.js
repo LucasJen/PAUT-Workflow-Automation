@@ -12,12 +12,13 @@ window.AnalysisLayout = (function () {
 
     return function AnalysisLayout(grid) {
         const handles = {};
-        for (const name of ['col', 'side', 'row']) {
+        for (const name of ['col', 'side', 'row', 'corner']) {
             const el = Object.assign(document.createElement('div'), {
-                className: `analysis-splitter analysis-splitter-${name === 'row' ? 'row' : 'col'}`,
+                className: `analysis-splitter analysis-splitter-${name === 'col' || name === 'side' ? 'col' : name}`,
             });
             el.dataset.split = name;
-            el.title = name === 'row' ? 'Drag to resize the rows' : 'Drag to resize the columns';
+            el.title = name === 'row' ? 'Drag to resize the rows'
+                : name === 'corner' ? 'Drag to resize the columns and rows together' : 'Drag to resize the columns';
             grid.append(el);
             handles[name] = el;
         }
@@ -64,8 +65,12 @@ window.AnalysisLayout = (function () {
                 height: `${grid.dataset.layout === 'A-S-C' && rowSplit !== null ? rows[0] : height}px`,
             });
             Object.assign(handles.side.style, { left: `${x2}px`, top: '0px', height: `${height}px` });
-            handles.row.hidden = rowSplit === null;
-            if (rowSplit !== null) Object.assign(handles.row.style, { top: `${rowSplit}px`, left: '0px', width: `${cols[0] + cols[1] + gap}px` });
+            handles.row.hidden = handles.corner.hidden = rowSplit === null;
+            if (rowSplit !== null) {
+                Object.assign(handles.row.style, { top: `${rowSplit}px`, left: '0px', width: `${cols[0] + cols[1] + gap}px` });
+                // Where the column and row gaps cross: both at once
+                Object.assign(handles.corner.style, { left: `${x1}px`, top: `${rowSplit}px` });
+            }
         }
 
         function drag(name, e) {
@@ -79,7 +84,7 @@ window.AnalysisLayout = (function () {
             const start = { x: e.clientX, y: e.clientY, cols, rows };
             const move = ev => {
                 const dx = ev.clientX - start.x, dy = ev.clientY - start.y;
-                if (name === 'col') {
+                if (name === 'col' || name === 'corner') {
                     const total = start.cols[0] + start.cols[1];
                     const a = Math.min(Math.max(start.cols[0] + dx, MIN_VIEW), total - MIN_VIEW);
                     grid.style.setProperty('--c1', `${a}fr`);
@@ -87,7 +92,8 @@ window.AnalysisLayout = (function () {
                 } else if (name === 'side') {
                     const side = Math.min(Math.max(start.cols[2] - dx, MIN_SIDE), MAX_SIDE);
                     grid.style.setProperty('--side', `${side}px`);
-                } else {
+                }
+                if (name === 'row' || name === 'corner') {
                     const total = start.rows[0] + start.rows[1];
                     const a = Math.min(Math.max(start.rows[0] + dy, MIN_ROW), total - MIN_ROW);
                     grid.style.setProperty('--r1', `${a}fr`);
@@ -103,7 +109,8 @@ window.AnalysisLayout = (function () {
                 document.body.classList.remove('analysis-resizing');
                 const s = getComputedStyle(grid);
                 const c = tracks(s.gridTemplateColumns), r = tracks(s.gridTemplateRows);
-                save(name === 'row' ? { r1: r[0], r2: r[1] } : name === 'side' ? { side: c[2] } : { c1: c[0], c2: c[1] });
+                save(name === 'row' ? { r1: r[0], r2: r[1] } : name === 'side' ? { side: c[2] }
+                    : name === 'corner' ? { c1: c[0], c2: c[1], r1: r[0], r2: r[1] } : { c1: c[0], c2: c[1] });
             };
             handle.addEventListener('pointermove', move);
             handle.addEventListener('pointerup', end);

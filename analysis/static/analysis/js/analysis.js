@@ -67,10 +67,12 @@
     unitsSelect.value = units;
 
     const unitLength = () => (units === 'mm' ? 0.001 : 0.0254);
+    /** A length in the page's units: '0.402 in'; short=true an axis tick ('0.40'); short='value' a bare reading ('0.402'). */
     const format = (m, short = false) => {
         if (m === null || m === undefined || Number.isNaN(m)) return '-';
         const v = m / unitLength();
-        return units === 'mm' ? `${v.toFixed(short ? 1 : 2)}${short ? '' : ' mm'}` : `${v.toFixed(short ? 2 : 3)}${short ? '' : ' in'}`;
+        const places = (units === 'mm' ? 2 : 3) - (short === true ? 1 : 0);
+        return `${v.toFixed(places)}${short ? '' : units === 'mm' ? ' mm' : ' in'}`;
     };
     const show = text => { status.textContent = text || ''; status.hidden = !text; };
 
@@ -215,12 +217,17 @@
     }
 
     // ── files and groups ──
-    let allFiles = [];
-    async function loadFiles() {
+    let allFiles = [], openedFiles = [];
+    /** The working folders' files and those opened from elsewhere on this PC, listed in the Files panel. */
+    async function fetchFiles() {
         const data = await NdeClient.files(urls);
         allFiles = data.files;
+        openedFiles = data.opened || [];
         renderFiles();
-        const known = new Set(allFiles.map(f => f.path));
+    }
+    async function loadFiles() {
+        await fetchFiles();
+        const known = new Set([...allFiles, ...openedFiles].map(f => f.path));
         const wanted = params.get('path') || recentFiles().find(p => known.has(p));
         if (wanted && known.has(wanted)) {
             await openFile(wanted, +params.get('group') || 0, +params.get('scan') || 0, +params.get('lateral') || 0);
@@ -235,7 +242,11 @@
         const words = fileFilter.value.toLowerCase().split(/\s+/).filter(Boolean);
         // Shown and matched below the working folder: its own name, then the sub-folders
         const rootName = f => f.root.split(/[\\/]/).filter(Boolean).pop();
-        const folderOf = f => (f.folder === '.' ? rootName(f) : `${rootName(f)} › ${f.folder.split(/[\\/]/).join(' › ')}`);
+        // Long ones keep the working folder and the last two folders: 'Reports › … › Job › Sub'
+        const folderOf = f => {
+            const parts = [rootName(f), ...(f.folder === '.' ? [] : f.folder.split(/[\\/]/))];
+            return (parts.length > 3 ? [parts[0], '…', ...parts.slice(-2)] : parts).join(' › ');
+        };
         const matches = f => words.every(w => `${f.folder === '.' ? '' : f.folder} ${f.name}`.toLowerCase().includes(w));
         const item = (f, meta) => {
             const b = Object.assign(document.createElement('button'), { type: 'button', className: 'analysis-file-item', title: f.path });
@@ -248,7 +259,25 @@
         };
         const heading = text => Object.assign(document.createElement('div'), { className: 'analysis-file-folder', textContent: text, title: text });
         const out = [];
-        const byPath = new Map(allFiles.map(f => [f.path, f]));
+        const byPath = new Map([...allFiles, ...openedFiles].map(f => [f.path, f]));
+        // Opened from elsewhere on this PC (Browse PC): each can be forgotten; together, a new project
+        const opened = openedFiles.filter(f => words.every(w => f.path.toLowerCase().includes(w)));
+        if (opened.length) {
+            const head = heading('Opened from this PC');
+            const make = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-link', textContent: 'New project…',
+                                                                         title: 'Make a job folder with these files and start a report from them' });
+            make.addEventListener('click', () => filesPanel.newProject(opened.map(f => f.path)));
+            head.append(make);
+            out.push(head);
+            for (const f of opened) {
+                const row = item(f, f.folder.split(/[\\/]/).filter(Boolean).pop() || f.folder);
+                const forget = Object.assign(document.createElement('span'), { className: 'forget', role: 'button', tabIndex: 0,
+                                                                             title: 'Take it off this list', innerHTML: '<i class="bi bi-x"></i>' });
+                forget.addEventListener('click', e => { e.stopPropagation(); filesPanel.forget(f.path); });
+                row.append(forget);
+                out.push(row);
+            }
+        }
         const recent = recentFiles().map(p => byPath.get(p)).filter(f => f && matches(f));
         if (recent.length) {
             out.push(heading('Recent'));
@@ -265,7 +294,7 @@
         }
         if (!out.length) {
             out.push(Object.assign(document.createElement('p'), { className: 'analysis-note',
-                textContent: allFiles.length ? 'No files match.' : 'No .nde files in the working folders.' }));
+                textContent: allFiles.length || openedFiles.length ? 'No files match.' : 'No .nde files in the working folders - Browse PC opens one from anywhere.' }));
         }
         fileList.replaceChildren(...out);
     }
@@ -275,6 +304,7 @@
         const first = fileList.querySelector('.analysis-file-item');
         if (first) first.click();
     });
+    const filesPanel = AnalysisFiles({ page, send, openFile: path => openFile(path), refreshFiles: fetchFiles });
     $('file-button').addEventListener('click', () => { shell.toggle('files'); if (shell.current === 'files') fileFilter.focus(); });
 
     function groupLabel(g) {
@@ -371,13 +401,39 @@
         $('true-geometry').checked = sscan.trueGeometry;
         $('groups-toggle').hidden = otherGroups().length === 0;
         applyWeld();
-        slider.max = scanNumber.max = g.shape[0] - 1;
-        $('scan-count').textContent = `of ${g.shape[0]}`;
+        applyLegs();
+        slider.max = g.shape[0] - 1;
         state.lateral = Math.min(lateral, g.shape[1] - 1);
         await setScan(Math.min(scan, g.shape[0] - 1));
     }
 
     const currentGroup = () => state.info.groups.find(g => g.id === state.group);
+
+    /** The leg lines (T, 2T, ...) on the S-, A- and B-scans at the part's thickness, if it's known. */
+    function applyLegs() {
+        const on = $('show-legs').checked;
+        const t = state.info?.specimen?.thickness || 0;
+        sscan.setLegs(on);
+        ascan.setLegs(on && t ? t : null);
+        bview.setGuides(on && t ? Array.from({ length: 20 }, (_, i) => ({ y: (i + 1) * t, label: i ? `${i + 1}T` : 'T' })) : []);
+    }
+    try { $('show-legs').checked = localStorage.getItem('analysisLegs') !== '0'; } catch { /* on */ }
+    $('show-legs').addEventListener('change', () => {
+        try { localStorage.setItem('analysisLegs', $('show-legs').checked ? '1' : '0'); } catch { /* not kept */ }
+        applyLegs();
+    });
+    const toggleLegs = () => { $('show-legs').checked = !$('show-legs').checked; $('show-legs').dispatchEvent(new Event('change')); };
+
+    /** The top bar's scan position: the slider, the distance box and the line number. */
+    function showScanPosition() {
+        const g = currentGroup();
+        slider.value = state.scan;
+        const position = format(scanPosition(state.scan), 'value');
+        if (document.activeElement !== scanNumber) scanNumber.value = position;
+        slider.title = `${position} ${units} (scan line ${state.scan + 1})`;
+        $('scan-count').textContent = units;
+        $('scan-position').textContent = `line ${state.scan + 1} / ${g.shape[0]}`;
+    }
 
     // ── the weld overlay: the file's weld, or as edited here (kept per file in this browser) ──
     const weld = { shape: null, shift: 0 };   // shape null: the file's own
@@ -480,8 +536,7 @@
         const g = currentGroup();
         if (!g) return;
         state.scan = Math.max(0, Math.min(g.shape[0] - 1, scan));
-        slider.value = scanNumber.value = state.scan;
-        $('scan-position').textContent = `= ${format(scanPosition(state.scan))}`;
+        showScanPosition();
         linkCursors();
         const mine = ++frameRequest;
         let frame;
@@ -779,7 +834,7 @@
 
     // ── gates ──
     const halfVelocity = () => (currentGroup()?.beams[state.lateral]?.velocity || 0) / 2;   // sound path per s
-    const gateLength = t => format(t * halfVelocity(), true);
+    const gateLength = t => format(t * halfVelocity(), 'value');
 
     function renderGates() {
         const g = currentGroup();
@@ -898,6 +953,7 @@
         if (mine !== readingsRequest) return;
         show('');
         ascan.set({ gates: data.gates });
+        state.gateResults = data.gates;
         state.readings = data.readings;
         state.readingsNote = data.note || '';
         renderReadings();
@@ -1103,10 +1159,10 @@
             const r = item.readings || {};
             const depth = r['DA^'] ?? r['A/-I/'] ?? r['TminZ'];
             const length = r.Length ?? r.Width ?? r['S(m-r)'];
-            const cells = [item.number, format(item.scan_position, true),
-                           isRaster() ? format(item.index_position, true) : (item.angle === null ? '-' : `${item.angle}°`),
-                           r['A%'] === undefined ? '-' : r['A%'].toFixed(1), depth === undefined ? '-' : format(depth, true),
-                           length === undefined ? '-' : format(Math.abs(length), true)];
+            const cells = [item.number, format(item.scan_position, 'value'),
+                           isRaster() ? format(item.index_position, 'value') : (item.angle === null ? '-' : `${item.angle}°`),
+                           r['A%'] === undefined ? '-' : r['A%'].toFixed(1), depth === undefined ? '-' : format(depth, 'value'),
+                           length === undefined ? '-' : format(Math.abs(length), 'value')];
             for (const text of cells) tr.insertCell().textContent = text;
             const comment = Object.assign(document.createElement('input'), { type: 'text', className: 'form-control', value: item.comment || '',
                                                                             placeholder: 'Comment' });
@@ -1212,9 +1268,9 @@
             const box = Object.assign(document.createElement('input'), { type: 'checkbox', checked: toReport.picked.has(item.id) });
             box.addEventListener('change', () => { if (box.checked) toReport.picked.add(item.id); else toReport.picked.delete(item.id); choiceChanged(); });
             const r = item.readings || {};
-            const where = isRaster() ? format(item.index_position, true) : (item.angle === null ? '' : `${item.angle}°`);
+            const where = isRaster() ? format(item.index_position, 'value') : (item.angle === null ? '' : `${item.angle}°`);
             label.append(box, Object.assign(document.createElement('span'), { className: 'name',
-                textContent: `#${item.number} · ${format(item.scan_position, true)}${where ? ' · ' + where : ''}${item.comment ? ' · ' + item.comment : ''}` }),
+                textContent: `#${item.number} · ${format(item.scan_position, 'value')}${where ? ' · ' + where : ''}${item.comment ? ' · ' + item.comment : ''}` }),
                 Object.assign(document.createElement('span'), { className: 'meta', textContent: r['A%'] === undefined ? '' : `${r['A%'].toFixed(1)} %` }));
             return label;
         }));
@@ -1439,7 +1495,13 @@
     // ── controls ──
     groupSelect.addEventListener('change', () => setGroup(+groupSelect.value, state.scan, state.lateral));
     slider.addEventListener('input', () => setScan(+slider.value));
-    scanNumber.addEventListener('change', () => setScan(+scanNumber.value));
+    // The scan box: a distance in the page's units, to the nearest scan line
+    scanNumber.addEventListener('change', () => {
+        const v = parseFloat(scanNumber.value);
+        if (!state.info || !Number.isFinite(v)) { if (state.info) showScanPosition(); return; }
+        setScan(Math.round((v * unitLength() - scanAxis().offset) / scanAxis().resolution));
+    });
+    scanNumber.addEventListener('keydown', e => { if (e.key === 'Enter') scanNumber.dispatchEvent(new Event('change')); });
     $('scan-prev').addEventListener('click', () => setScan(state.scan - 1));
     $('scan-next').addEventListener('click', () => setScan(state.scan + 1));
 
@@ -1454,6 +1516,35 @@
         scheduleProjections(800);
     }
     gainInput.addEventListener('change', () => setGain(parseFloat(gainInput.value) || 0));
+
+    /**
+     * Auto 80%: the soft gain that brings the signal breaking gate A on the cursor's A-scan to 80% of
+     * full screen. Worked out from the gate's peak with no soft gain (with gain the samples clip at
+     * full scale, so a saturated peak can't say how far over it is).
+     */
+    async function auto80() {
+        if (!state.info) return;
+        const a = state.gateResults?.A;
+        if (!a) { show('Auto 80% needs a gate A.'); return; }
+        if (a.crossing_time === null || a.crossing_time === undefined) {
+            show('Auto 80%: no signal breaks gate A on this A-scan - move the cursor onto the indication.');
+            return;
+        }
+        const query = { path: state.path, group: state.group, scan: state.scan, lateral: state.lateral, gain: 0 };
+        if (state.gatesEdited) query.gates = JSON.stringify(state.gates);
+        let data;
+        try {
+            data = await NdeClient.readings(urls, query);
+        } catch (e) {
+            show(e.message);
+            return;
+        }
+        const peak = data.gates?.A?.amplitude;
+        if (!(peak > 0)) { show('Auto 80%: gate A has no signal here.'); return; }
+        show('');
+        setGain(20 * Math.log10(80 / peak));
+    }
+    $('auto-80').addEventListener('click', auto80);
     $('gain-down').addEventListener('click', () => setGain(state.gain - 1));
     $('gain-up').addEventListener('click', () => setGain(state.gain + 1));
     refInput.addEventListener('change', () => {
@@ -1470,7 +1561,7 @@
         ascan.draw();
         if (state.info) {
             showDetails(); renderGates(); renderReadings(); setLateral(state.lateral, true); if (currentGroup()?.layout === 'beams' && (weld.shape || fileWeld())) showWeldEditor();
-            $('scan-position').textContent = `= ${format(scanPosition(state.scan))}`;
+            showScanPosition();
             cview.drawOverlay(); bview.drawOverlay();
             if (state.cscan && state.cscan.mode !== 'amplitude') loadCscan(projectionRequest);
             renderIndications();
@@ -1497,7 +1588,7 @@
             PageUp: () => setScan(state.scan - 10), PageDown: () => setScan(state.scan + 10),
             ArrowUp: () => setLateral(state.lateral - 1), ArrowDown: () => setLateral(state.lateral + 1),
             '+': () => setGain(state.gain + 1), '=': () => setGain(state.gain + 1), '-': () => setGain(state.gain - 1),
-            l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, ']': () => stepIndication(1), '[': () => stepIndication(-1),
+            a: auto80, A: auto80, t: toggleLegs, T: toggleLegs, l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, ']': () => stepIndication(1), '[': () => stepIndication(-1),
         };
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });

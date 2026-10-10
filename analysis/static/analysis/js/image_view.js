@@ -167,6 +167,8 @@ void main() {
         setGain(db) { this.gain = Math.pow(10, db / 20); this.draw(); }
         setRange(range) { this.range = range; this.draw(); }
         setCursors(cursors) { this.cursors = cursors; this.drawOverlay(); }
+        /** Dashed lines across the view at these heights: [{y, label}] (e.g. the B-scan's legs). */
+        setGuides(guides) { this.guides = guides || []; this.drawOverlay(); }
 
         clear(message) {
             this.hasImage = false;
@@ -301,6 +303,19 @@ void main() {
                 ctx.save(); ctx.strokeStyle = 'rgba(8,10,14,0.9)'; ctx.lineWidth = 3 * ratio; ctx.lineJoin = 'round';
                 ctx.strokeText(text, x, y); ctx.restore(); ctx.fillStyle = '#e2e8f0'; ctx.fillText(text, x, y);
             };
+            if (this.guides?.length) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+                ctx.setLineDash([6 * ratio, 5 * ratio]);
+                ctx.lineWidth = ratio;
+                for (const guide of this.guides) {
+                    const [, gy] = this.toScreen(0, guide.y);
+                    if (gy < 0 || gy > h) continue;
+                    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();
+                    if (guide.label) label(guide.label, 46 * ratio, gy - 3 * ratio);   // left: clear of the colour legend
+                }
+                ctx.restore();
+            }
             ctx.strokeStyle = '#94a3b8';
             ctx.lineWidth = ratio;
             const xUnit = this.options.xUnit ? this.options.xUnit() : 1, yUnit = this.options.yUnit ? this.options.yUnit() : 1;

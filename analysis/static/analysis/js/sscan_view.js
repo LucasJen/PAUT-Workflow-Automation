@@ -228,6 +228,12 @@ void main() {
             this.drawOverlay();
         }
 
+        /** The leg lines (T, 2T, ...) on or off. */
+        setLegs(show) {
+            this.showLegs = show;
+            this.drawOverlay();
+        }
+
         /** Moves the weld's centre line across the index (m) - where the weld really is from the probe. */
         setWeldShift(shift) {
             this.weldShift = shift || 0;
@@ -316,16 +322,16 @@ void main() {
             const [cx, cy, width, height] = this.currentView();
             ctx.save();
             ctx.font = `${11 * ratio}px Inter, Arial, sans-serif`;
-            // Back wall and skips: dashed lines at each thickness
+            // Back wall and skips (the legs): dashed lines at each thickness, unless turned off
             if (this.thickness) {
                 ctx.strokeStyle = 'rgba(255,255,255,0.55)';
                 ctx.setLineDash([6 * ratio, 5 * ratio]);
                 ctx.lineWidth = ratio;
-                for (let k = 1; k * this.thickness < cy + height / 2; k++) {
+                for (let k = 1; this.showLegs !== false && k * this.thickness < cy + height / 2; k++) {
                     const [, y] = this.toScreen(0, k * this.thickness);
                     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
                     ctx.fillStyle = 'rgba(255,255,255,0.7)';
-                    ctx.fillText(k === 1 ? 'T' : `${k}T`, w - 22 * ratio, y - 3 * ratio);
+                    ctx.fillText(k === 1 ? 'T' : `${k}T`, 44 * ratio, y - 3 * ratio);   // left: clear of the colour legend
                 }
                 ctx.setLineDash([]);
                 // The weld outline in each leg: mirrored at the back wall on even legs

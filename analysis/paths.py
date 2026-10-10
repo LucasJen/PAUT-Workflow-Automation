@@ -1,7 +1,8 @@
 """
 Which .nde files the Analysis page may open. Files are read where they are (never copied), so a
 path from the browser is only accepted when it's a .nde file inside one of the working folders
-(Preferences › Working folders) or settings.ANALYSIS_EXTRA_ROOTS.
+(Preferences › Working folders) or settings.ANALYSIS_EXTRA_ROOTS, or one the user opened from
+elsewhere with Browse this PC (an OpenedFile).
 """
 import os
 
@@ -32,6 +33,20 @@ def _inside(path, root):
         return False
 
 
+def real_path(path):
+    """The form paths are compared in: the real path, case-folded on Windows."""
+    return os.path.normcase(os.path.realpath(path))
+
+
+def _opened(real):
+    from .models import OpenedFile
+    return OpenedFile.objects.filter(path=real).exists()
+
+
+def in_working_folders(real):
+    return any(_inside(real, root) for root in allowed_roots())
+
+
 def checked_path(path):
     """The real path of an allowed .nde file; PathNotAllowed otherwise."""
     if not path:
@@ -39,8 +54,9 @@ def checked_path(path):
     real = os.path.normcase(os.path.realpath(path))
     if not real.endswith('.nde'):
         raise PathNotAllowed('Only .nde files can be opened.')
-    if not any(_inside(real, root) for root in allowed_roots()):
-        raise PathNotAllowed('That file is outside the working folders (Preferences › Working folders).')
+    if not any(_inside(real, root) for root in allowed_roots()) and not _opened(real):
+        raise PathNotAllowed('That file is outside the working folders (Preferences › Working folders) - '
+                             'open it with Browse this PC first.')
     if not os.path.isfile(real):
         raise PathNotAllowed('That file no longer exists.')
     return real
