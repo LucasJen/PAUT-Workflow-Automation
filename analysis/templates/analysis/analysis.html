@@ -1,171 +1,226 @@
-{% extends 'reports/base.html' %}
+{% extends 'analysis/shell.html' %}
 {% load ui %}
 
-{% block title %}Analysis · PAUT Report Automation{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{% static_v 'analysis/css/analysis.css' %}">{% endblock %}
 
-{% block content %}
-<div class="analysis-page" id="analysis"
+{% block body %}
+<div class="analysis-app" id="analysis"
      data-files-url="{% url 'analysis-files' %}" data-file-url="{% url 'analysis-file' %}"
      data-frame-url="{% url 'analysis-frame' %}" data-readings-url="{% url 'analysis-readings' %}"
      data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
      data-bscan-url="{% url 'analysis-bscan' %}" data-size-url="{% url 'analysis-size' %}"
      data-indications-url="{% url 'analysis-indications' %}" data-indications-csv-url="{% url 'analysis-indications-csv' %}"
      data-indication-url="{% url 'analysis-indication' 0 %}">
-    <div class="analysis-toolbar panel">
-        <div class="analysis-tool analysis-file">
-            <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
-            <select class="form-select form-select-sm" id="file-select" aria-label=".nde file"><option value="">Loading files…</option></select>
-            <select class="form-select form-select-sm" id="group-select" aria-label="Group"></select>
-        </div>
+
+    {# ── Top bar: what's always needed ── #}
+    <header class="analysis-topbar">
+        <a class="analysis-brand" href="{% url 'home' %}" title="Back to PAUT Reports">
+            <span class="brand-mark"><i class="bi bi-activity"></i></span>
+            <span class="analysis-brand-text">Analysis</span>
+        </a>
+        <button type="button" class="analysis-file-button" id="file-button" title="Open a file (O)">
+            <i class="bi bi-folder2-open"></i><span id="file-name">Open a file…</span>
+        </button>
+        <select class="form-select form-select-sm analysis-group" id="group-select" aria-label="Group" hidden></select>
+        <span class="analysis-sep"></span>
         <div class="analysis-tool" title="Scan line (Left / Right, Shift for 10, PageUp / PageDown)">
-            <span class="analysis-tool-label">Scan line</span>
-            <button type="button" class="btn btn-sm btn-secondary" id="scan-prev" aria-label="Previous scan line"><i class="bi bi-chevron-left"></i></button>
+            <button type="button" class="btn btn-sm btn-ghost" id="scan-prev" aria-label="Previous scan line"><i class="bi bi-chevron-left"></i></button>
             <input type="range" class="form-range analysis-slider" id="scan-slider" min="0" max="0" value="0" aria-label="Scan line">
-            <button type="button" class="btn btn-sm btn-secondary" id="scan-next" aria-label="Next scan line"><i class="bi bi-chevron-right"></i></button>
+            <button type="button" class="btn btn-sm btn-ghost" id="scan-next" aria-label="Next scan line"><i class="bi bi-chevron-right"></i></button>
             <input type="number" class="form-control form-control-sm mono analysis-number" id="scan-number" min="0" value="0" aria-label="Scan line number">
-            <span class="analysis-tool-note" id="scan-count"></span>
-            <span class="analysis-tool-note mono" id="scan-position" title="Scan position (offset + line x resolution, from the file)"></span>
+            <span class="analysis-tool-note"><span id="scan-count"></span> <span class="mono" id="scan-position" title="Scan position (offset + line x resolution, from the file)"></span></span>
         </div>
+        <span class="analysis-sep"></span>
         <div class="analysis-tool" title="Soft gain added to the data, like OmniPC's Gain (+ / - keys)">
             <span class="analysis-tool-label">Gain</span>
-            <button type="button" class="btn btn-sm btn-secondary" id="gain-down" aria-label="1 dB less">−</button>
+            <button type="button" class="btn btn-sm btn-ghost" id="gain-down" aria-label="1 dB less"><i class="bi bi-dash-lg"></i></button>
             <input type="number" class="form-control form-control-sm mono analysis-number" id="gain" value="0.0" step="0.5" aria-label="Soft gain in dB">
-            <button type="button" class="btn btn-sm btn-secondary" id="gain-up" aria-label="1 dB more">+</button>
+            <button type="button" class="btn btn-sm btn-ghost" id="gain-up" aria-label="1 dB more"><i class="bi bi-plus-lg"></i></button>
             <span class="analysis-tool-note">dB</span>
         </div>
-        <div class="analysis-tool" title="The amplitude A dB(r) is measured against, % of full screen (OmniPC's reference level)">
-            <span class="analysis-tool-label">Ref</span>
-            <input type="number" class="form-control form-control-sm mono analysis-number" id="ref-level" value="80" min="1" step="1" aria-label="Reference level in %">
-            <span class="analysis-tool-note">%</span>
+        <span class="analysis-sep"></span>
+        <select class="form-select form-select-sm analysis-layout-select" id="layout" aria-label="Layout" title="Views shown, like OmniPC's layouts">
+            <option value="A-S">A-S</option><option value="A-S-C">A-S-C</option><option value="A-B-C-S">A-B-C-S</option>
+        </select>
+        <span class="analysis-status" id="analysis-status" role="status" hidden></span>
+        <div class="analysis-topbar-end">
+            <button type="button" class="btn btn-sm btn-ghost" id="save-image" title="Save the views as a picture (P)"><i class="bi bi-camera"></i></button>
+            <button type="button" class="btn btn-sm btn-ghost" id="show-help" title="Keys and mouse (?)"><i class="bi bi-keyboard"></i></button>
+            <button type="button" class="btn btn-sm btn-ghost" id="theme-toggle" title="Light / dark"><i class="bi bi-moon"></i></button>
+            <button type="button" class="btn btn-sm btn-ghost" id="readings-toggle" title="Show / hide the readings column (R)" aria-pressed="true"><i class="bi bi-layout-sidebar-reverse"></i></button>
+            <button type="button" class="btn btn-sm btn-ghost" id="full-screen" title="Full screen (Esc to leave)"><i class="bi bi-arrows-fullscreen"></i></button>
         </div>
-        <div class="analysis-tool">
-            <select class="form-select form-select-sm" id="layout" aria-label="Layout" title="Views shown, like OmniPC's layouts">
-                <option value="A-S">A-S</option><option value="A-S-C">A-S-C</option><option value="A-B-C-S">A-B-C-S</option>
-            </select>
-            <select class="form-select form-select-sm" id="units" aria-label="Units"><option value="in">in</option><option value="mm">mm</option></select>
-            <select class="form-select form-select-sm" id="axis" aria-label="A-scan axis" title="A-scan horizontal axis">
-                <option value="depth">True depth</option><option value="path">Sound path</option>
-            </select>
-            <select class="form-select form-select-sm" id="amplitude-palette" aria-label="Amplitude palette" title="Amplitude colours (S-scan, B-scan, amplitude C-scans)"></select>
-            <button type="button" class="btn btn-sm btn-secondary" id="show-help" title="Keys and mouse (?)"><i class="bi bi-keyboard"></i></button>
-            <button type="button" class="btn btn-sm btn-secondary" id="save-image" title="Save the views as a picture (PNG), as laid out, with the readings (P)"><i class="bi bi-camera"></i></button>
-            <button type="button" class="btn btn-sm btn-secondary" id="full-screen" title="Full screen (Esc to leave). Drag the gaps between the panels to resize them; double-click a gap to reset."><i class="bi bi-arrows-fullscreen"></i></button>
-        </div>
-    </div>
-    <p class="analysis-status" id="analysis-status" role="status" hidden></p>
-    <div class="analysis-help-panel panel" id="help-panel" hidden role="dialog" aria-label="Keys and mouse">
-        <div class="analysis-help-head"><strong>Keys and mouse</strong>
-            <button type="button" class="btn btn-sm btn-secondary" id="close-help" aria-label="Close"><i class="bi bi-x-lg"></i></button></div>
-        <div class="analysis-help-cols">
-            <dl>
-                <dt>← / →</dt><dd>Previous / next scan line (Shift: 10)</dd>
-                <dt>PgUp / PgDn</dt><dd>10 scan lines</dd>
-                <dt>↑ / ↓</dt><dd>Beam / index line</dd>
-                <dt>+ / −</dt><dd>Soft gain ±1 dB</dd>
-                <dt>L</dt><dd>Size the indication at the cursor</dd>
-                <dt>N</dt><dd>Add an indication</dd>
-                <dt>G</dt><dd>Next group</dd>
-                <dt>P</dt><dd>Save a picture of the views</dd>
-                <dt>F</dt><dd>Fit every view</dd>
-                <dt>?</dt><dd>This help</dd>
-            </dl>
-            <dl>
-                <dt>Click</dt><dd>Move the cursors there (S-scan: beam; C-scan: scan + line; B-scan: scan)</dd>
-                <dt>Ctrl+click</dt><dd>Reference cursors (red)</dd>
-                <dt>Shift+click</dt><dd>Measure cursors (green)</dd>
-                <dt>Drag a line</dt><dd>Move that cursor; on the A-scan, drag a gate's bar or its ends</dd>
-                <dt>Scroll</dt><dd>Zoom at the pointer</dd>
-                <dt>Right-drag</dt><dd>Pan</dd>
-                <dt>Double-click</dt><dd>Fit that view</dd>
-                <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
-            </dl>
-        </div>
-    </div>
-    {% if not roots %}<div class="alert alert-info">Add a working folder under Preferences › Working folders to open .nde files from it.</div>{% endif %}
+    </header>
 
-    <div class="analysis-grid" id="analysis-grid" data-layout="A-S">
-        <section class="analysis-panel analysis-panel-cscan">
-            <header class="analysis-panel-head">
-                <span>C-scan</span>
-                <select class="form-select form-select-sm analysis-head-select" id="cscan-kind" aria-label="C-scan shows"></select>
-                <span class="analysis-range" id="cscan-range" hidden>
-                    <select class="form-select form-select-sm analysis-head-select" id="range-palette" aria-label="Thickness palette" title="Thickness / depth colours"></select>
-                    <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-min" aria-label="Palette from" title="Palette from (red)">
-                    –
-                    <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-max" aria-label="Palette to" title="Palette to (blue)">
-                </span>
-                <span class="analysis-panel-note" id="cscan-note"></span>
-                <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
-                   title="Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors. Built once from the whole file (and again when the gates or gain change). Scroll to zoom, right-drag to pan, double-click to fit."></i>
-            </header>
-            <div class="analysis-stage" id="cscan-stage"></div>
-            <div class="analysis-readout mono" id="cscan-readout"></div>
+    {# ── Left rail: each button opens its panel ── #}
+    <nav class="analysis-rail" aria-label="Analysis panels">
+        <button type="button" class="analysis-rail-button" data-panel="files" title="Files (O)"><i class="bi bi-folder2-open"></i></button>
+        <button type="button" class="analysis-rail-button" data-panel="gates" title="Gates"><i class="bi bi-distribute-horizontal"></i></button>
+        <button type="button" class="analysis-rail-button" data-panel="indications" title="Indications">
+            <i class="bi bi-pin-map"></i><span class="analysis-rail-badge" id="indication-count" hidden></span></button>
+        <button type="button" class="analysis-rail-button" data-panel="geometry" title="Geometry and weld overlay"><i class="bi bi-triangle"></i></button>
+        <button type="button" class="analysis-rail-button" data-panel="display" title="Display: units, palettes, reference level"><i class="bi bi-palette"></i></button>
+    </nav>
+
+    {# ── The open panel (one at a time) ── #}
+    <aside class="analysis-drawer" id="drawer" hidden aria-label="Panel">
+        <header class="analysis-drawer-head">
+            <strong id="drawer-title"></strong>
+            <button type="button" class="btn btn-sm btn-ghost" id="drawer-close" aria-label="Close the panel" title="Close (Esc)"><i class="bi bi-x-lg"></i></button>
+        </header>
+
+        <section class="analysis-drawer-body" data-panel-body="files" data-title="Files" hidden>
+            <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
+            <div class="analysis-file-list" id="file-list"><p class="analysis-note">Loading files…</p></div>
+            {% if not roots %}<p class="analysis-note">Add a working folder under <a href="{% url 'working-folder-list' %}">Preferences › Working folders</a> to open .nde files from it.</p>{% endif %}
         </section>
-        <section class="analysis-panel analysis-panel-bscan">
-            <header class="analysis-panel-head"><span>B-scan</span><span class="analysis-panel-note" id="bscan-label"></span>
-                <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
-                   title="Side view of the cursor's beam / index line: scan position across, depth down. Click to move the scan cursor; Ctrl+click / Shift+click put the reference / measure depth cursors."></i>
-            </header>
-            <div class="analysis-stage" id="bscan-stage"></div>
-            <div class="analysis-readout mono" id="bscan-readout"></div>
-        </section>
-        <section class="analysis-panel analysis-panel-sscan">
-            <header class="analysis-panel-head">
-                <span>S-scan</span><span class="analysis-panel-note" id="sscan-label"></span>
-                <label class="analysis-check ms-auto" id="groups-toggle" hidden title="Every group of the file drawn together at this scan position (this group on top); G switches group"><input type="checkbox" id="all-groups"> All groups</label>
-                <label class="analysis-check" id="weld-toggle" hidden title="The weld from the file's weld geometry, in every leg"><input type="checkbox" id="show-weld" checked> Weld</label>
-                <label class="analysis-check" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry</label>
-                <button type="button" class="btn btn-sm btn-secondary" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
-                <i class="bi bi-question-circle analysis-help" tabindex="0"
-                   title="Click or drag to move the beam cursor (Up / Down keys too). Ctrl+click puts the reference cursors (red) at a point, Shift+click the measure cursors (green); drag a cursor line to move it. Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>
-            </header>
-            <div class="analysis-stage" id="sscan-stage" data-empty="Pick an .nde file above to start. ? shows the keys."></div>
-            <div class="analysis-readout mono" id="sscan-readout"></div>
-        </section>
-        <section class="analysis-panel analysis-panel-ascan">
-            <header class="analysis-panel-head"><span>A-scan</span><span class="analysis-panel-note" id="ascan-label"></span>
-                <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
-                   title="Click to put the reference cursor (red) there, Shift+click the measure cursor (green); drag a cursor to move it. Drag a gate's bar to move it (up / down changes its threshold) and its end ticks to change its start or width."></i>
-            </header>
-            <div class="analysis-stage" id="ascan-stage"></div>
-            <div class="analysis-readout mono" id="ascan-readout"></div>
-        </section>
-        <aside class="analysis-panel analysis-readings">
-            <header class="analysis-panel-head analysis-tabs" role="tablist">
-                <button type="button" class="analysis-tab is-active" data-tab="readings" role="tab">Readings</button>
-                <button type="button" class="analysis-tab" data-tab="indications" role="tab">Indications <span class="analysis-count" id="indication-count"></span></button>
-                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="clear-cursors" title="Clear the reference and measure cursors and the sizing" aria-label="Clear the cursors"><i class="bi bi-eraser"></i></button>
-            </header>
-            <div class="analysis-tab-body" data-tab-body="readings">
-            <dl class="analysis-reading-list" id="readings"></dl>
-            <header class="analysis-panel-head analysis-panel-subhead"><span>Sizing</span></header>
-            <div class="analysis-sizing">
-                <select class="form-select form-select-sm" id="size-method" aria-label="Sizing method" title="How the ends are found">
-                    <option value="6">−6 dB drop</option><option value="12">−12 dB drop</option><option value="20">−20 dB drop</option>
-                    <option value="threshold">Gate threshold</option>
-                </select>
-                <select class="form-select form-select-sm" id="size-over" aria-label="Size along" title="What to size along"></select>
-                <button type="button" class="btn btn-sm btn-primary" id="size-now" title="Size the indication at the cursor (L): the reference and measure cursors go to its ends">Size <kbd>L</kbd></button>
-                <span class="analysis-note" id="size-note"></span>
+
+        <section class="analysis-drawer-body" data-panel-body="gates" data-title="Gates" hidden>
+            <div class="analysis-drawer-row">
+                <span class="analysis-panel-note" id="gates-edited" hidden>Edited</span>
+                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="reset-gates" title="Back to the file's gates"><i class="bi bi-arrow-counterclockwise"></i> File's gates</button>
             </div>
-            <header class="analysis-panel-head analysis-panel-subhead"><span>Gates</span>
-                <span class="analysis-panel-note" id="gates-edited" hidden>edited</span>
-                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="reset-gates" title="Back to the file's gates"><i class="bi bi-arrow-counterclockwise"></i> File's</button>
-            </header>
-            <div class="analysis-gate-rows" id="gate-rows"></div>
+            <div class="analysis-gate-rows" id="gate-rows"><p class="analysis-note">Open a file to see its gates.</p></div>
             <div class="analysis-add-gates" id="add-gates"></div>
+            <p class="analysis-note">Drag a gate's bar on the A-scan to move it (up / down changes its threshold) and its end ticks to change its start or width.</p>
+        </section>
+
+        <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" hidden>
+            <div class="analysis-drawer-row">
+                <button type="button" class="btn btn-sm btn-primary" id="add-indication" title="Save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i> Add <kbd>N</kbd></button>
+                <a class="btn btn-sm btn-secondary" id="export-indications" href="#" title="The indications as a CSV like OmniPC's indications.csv"><i class="bi bi-download"></i> CSV</a>
             </div>
-            <div class="analysis-tab-body" data-tab-body="indications" hidden>
-                <div class="analysis-indication-actions">
-                    <button type="button" class="btn btn-sm btn-primary" id="add-indication" title="Save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i> Add indication <kbd>N</kbd></button>
-                    <a class="btn btn-sm btn-secondary" id="export-indications" href="#" title="The indications as a CSV like OmniPC's indications.csv"><i class="bi bi-download"></i> CSV</a>
+            <div class="analysis-indications" id="indication-rows"></div>
+        </section>
+
+        <section class="analysis-drawer-body" data-panel-body="geometry" data-title="Geometry" hidden>
+            <label class="analysis-check" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry S-scan</label>
+            <label class="analysis-check" id="groups-toggle" hidden title="Every group of the file drawn together at this scan position (this group on top); G switches group"><input type="checkbox" id="all-groups"> All groups on the S-scan</label>
+            <h3 class="analysis-drawer-subhead">Weld overlay</h3>
+            <label class="analysis-check" id="weld-toggle" hidden title="The weld from the file's weld geometry, in every leg"><input type="checkbox" id="show-weld" checked> Show the weld</label>
+            <dl class="analysis-weld-summary" id="weld-summary"></dl>
+        </section>
+
+        <section class="analysis-drawer-body" data-panel-body="display" data-title="Display" hidden>
+            <div class="analysis-field-grid">
+                <label for="units">Units</label>
+                <select class="form-select form-select-sm" id="units"><option value="in">Inches</option><option value="mm">Millimetres</option></select>
+                <label for="axis">A-scan axis</label>
+                <select class="form-select form-select-sm" id="axis"><option value="depth">True depth</option><option value="path">Sound path</option></select>
+                <label for="amplitude-palette">Amplitude colours</label>
+                <select class="form-select form-select-sm" id="amplitude-palette" title="S-scan, B-scan and amplitude C-scans"></select>
+                <label for="range-palette">Thickness colours</label>
+                <select class="form-select form-select-sm" id="range-palette" title="Thickness and depth C-scans"></select>
+                <label for="ref-level" title="The amplitude A dB(r) is measured against, % of full screen (OmniPC's reference level)">Reference level</label>
+                <div class="input-group input-group-sm"><input type="number" class="form-control mono" id="ref-level" value="80" min="1" step="1"><span class="input-group-text">%</span></div>
+            </div>
+        </section>
+    </aside>
+
+    {# ── The views ── #}
+    <main class="analysis-main">
+        <div class="analysis-help-panel panel" id="help-panel" hidden role="dialog" aria-label="Keys and mouse">
+            <div class="analysis-help-head"><strong>Keys and mouse</strong>
+                <button type="button" class="btn btn-sm btn-ghost" id="close-help" aria-label="Close"><i class="bi bi-x-lg"></i></button></div>
+            <div class="analysis-help-cols">
+                <dl>
+                    <dt>← / →</dt><dd>Previous / next scan line (Shift: 10)</dd>
+                    <dt>PgUp / PgDn</dt><dd>10 scan lines</dd>
+                    <dt>↑ / ↓</dt><dd>Beam / index line</dd>
+                    <dt>+ / −</dt><dd>Soft gain ±1 dB</dd>
+                    <dt>L</dt><dd>Size the indication at the cursor</dd>
+                    <dt>N</dt><dd>Add an indication</dd>
+                    <dt>[ / ]</dt><dd>Previous / next saved indication</dd>
+                    <dt>G</dt><dd>Next group</dd>
+                    <dt>O</dt><dd>Open a file</dd>
+                    <dt>R</dt><dd>Show / hide the readings</dd>
+                    <dt>P</dt><dd>Save a picture of the views</dd>
+                    <dt>F</dt><dd>Fit every view</dd>
+                    <dt>Esc</dt><dd>Close the panel / this help</dd>
+                    <dt>?</dt><dd>This help</dd>
+                </dl>
+                <dl>
+                    <dt>Click</dt><dd>Move the cursors there (S-scan: beam; C-scan: scan + line; B-scan: scan)</dd>
+                    <dt>Ctrl+click</dt><dd>Reference cursors (red)</dd>
+                    <dt>Shift+click</dt><dd>Measure cursors (green)</dd>
+                    <dt>Drag a line</dt><dd>Move that cursor; on the A-scan, drag a gate's bar or its ends</dd>
+                    <dt>Scroll</dt><dd>Zoom at the pointer</dd>
+                    <dt>Right-drag</dt><dd>Pan</dd>
+                    <dt>Double-click</dt><dd>Fit that view</dd>
+                    <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="analysis-grid" id="analysis-grid" data-layout="A-S">
+            <section class="analysis-panel analysis-panel-cscan">
+                <header class="analysis-panel-head">
+                    <span>C-scan</span>
+                    <select class="form-select form-select-sm analysis-head-select" id="cscan-kind" aria-label="C-scan shows"></select>
+                    <span class="analysis-range" id="cscan-range" hidden>
+                        <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-min" aria-label="Palette from" title="Palette from (red)">
+                        –
+                        <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-max" aria-label="Palette to" title="Palette to (blue)">
+                    </span>
+                    <span class="analysis-panel-note" id="cscan-note"></span>
+                    <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                       title="Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors. Built once from the whole file (and again when the gates or gain change). Scroll to zoom, right-drag to pan, double-click to fit."></i>
+                </header>
+                <div class="analysis-stage" id="cscan-stage"></div>
+                <div class="analysis-readout mono" id="cscan-readout"></div>
+            </section>
+            <section class="analysis-panel analysis-panel-bscan">
+                <header class="analysis-panel-head"><span>B-scan</span><span class="analysis-panel-note" id="bscan-label"></span>
+                    <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                       title="Side view of the cursor's beam / index line: scan position across, depth down. Click to move the scan cursor; Ctrl+click / Shift+click put the reference / measure depth cursors."></i>
+                </header>
+                <div class="analysis-stage" id="bscan-stage"></div>
+                <div class="analysis-readout mono" id="bscan-readout"></div>
+            </section>
+            <section class="analysis-panel analysis-panel-sscan">
+                <header class="analysis-panel-head">
+                    <span>S-scan</span><span class="analysis-panel-note" id="sscan-label"></span>
+                    <button type="button" class="btn btn-sm btn-ghost ms-auto" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
+                    <i class="bi bi-question-circle analysis-help" tabindex="0"
+                       title="Click or drag to move the beam cursor (Up / Down keys too). Ctrl+click puts the reference cursors (red) at a point, Shift+click the measure cursors (green); drag a cursor line to move it. Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>
+                </header>
+                <div class="analysis-stage" id="sscan-stage" data-empty="Open an .nde file to start (O, or the folder button). ? shows the keys."></div>
+                <div class="analysis-readout mono" id="sscan-readout"></div>
+            </section>
+            <section class="analysis-panel analysis-panel-ascan">
+                <header class="analysis-panel-head"><span>A-scan</span><span class="analysis-panel-note" id="ascan-label"></span>
+                    <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                       title="Click to put the reference cursor (red) there, Shift+click the measure cursor (green); drag a cursor to move it. Drag a gate's bar to move it (up / down changes its threshold) and its end ticks to change its start or width."></i>
+                </header>
+                <div class="analysis-stage" id="ascan-stage"></div>
+                <div class="analysis-readout mono" id="ascan-readout"></div>
+            </section>
+            <aside class="analysis-panel analysis-readings">
+                <header class="analysis-panel-head">
+                    <span>Readings</span>
+                    <button type="button" class="btn btn-sm btn-ghost ms-auto" id="clear-cursors" title="Clear the reference and measure cursors and the sizing" aria-label="Clear the cursors"><i class="bi bi-eraser"></i></button>
+                </header>
+                <div class="analysis-readings-body">
+                    <dl class="analysis-reading-list" id="readings"></dl>
                 </div>
-                <div class="analysis-indications" id="indication-rows"></div>
-            </div>
-            <p class="analysis-file-details" id="file-details"></p>
-        </aside>
-    </div>
+                <div class="analysis-sizing">
+                    <div class="analysis-sizing-row">
+                        <select class="form-select form-select-sm" id="size-method" aria-label="Sizing method" title="How the ends are found">
+                            <option value="6">−6 dB</option><option value="12">−12 dB</option><option value="20">−20 dB</option>
+                            <option value="threshold">Threshold</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="size-over" aria-label="Size along" title="What to size along"></select>
+                    </div>
+                    <div class="analysis-sizing-row">
+                        <button type="button" class="btn btn-sm btn-primary" id="size-now" title="Size the indication at the cursor (L): the reference and measure cursors go to its ends"><i class="bi bi-rulers"></i> Size <kbd>L</kbd></button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="quick-indication" title="Save the readings here as an indication (N)"><i class="bi bi-pin-map"></i> Add <kbd>N</kbd></button>
+                    </div>
+                    <span class="analysis-note" id="size-note"></span>
+                </div>
+                <p class="analysis-file-details" id="file-details"></p>
+            </aside>
+        </div>
+    </main>
 </div>
 {% endblock %}
 
@@ -175,6 +230,7 @@
 <script src="{% static_v 'analysis/js/sscan_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/image_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis_layout.js' %}"></script>
+<script src="{% static_v 'analysis/js/analysis_shell.js' %}"></script>
 <script src="{% static_v 'analysis/js/ascan_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis.js' %}"></script>
 {% endblock %}
