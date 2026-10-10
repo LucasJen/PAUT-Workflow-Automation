@@ -24,6 +24,7 @@ from ..services.job_folder import (
 )
 from ..services.corrosion_import import CORROSION_TYPE, PICTURE_TYPES, folder_pictures, read_corrosion_file
 from ..services.job_import import WELD_TYPE, build_report, read_job_file
+from ..services.weld_report_import import REPORT_EXTENSIONS, WeldReportError, folder_reports, import_weld_report
 from ..services.nde_parser import UNIT_SYSTEMS
 from .reports import wizard_url
 from .start_corrosion import confirm_corrosion
@@ -104,6 +105,8 @@ def start_from_files(request):
         return redirect(_start_url(rtype))
     # A corrosion or Long Form job may have no .nde files at all (manual UT): its pictures matter more
     picture_flow = rtype.key in PICTURE_TYPES
+    if request.method == 'POST' and rtype.key == WELD_TYPE and request.POST.get('source') == 'report':
+        return _start_from_report(request, rtype, mode, root)
     if request.method == 'POST':
         uploads = [f for f in request.FILES.getlist('nde_files') if f.name.lower().endswith('.nde')]
         try:
@@ -149,7 +152,69 @@ def start_from_files(request):
         'rtype': rtype, 'report_types': guided_report_types(),
         'root': root, 'root_exists': root is not None and os.path.isdir(root.path),
         'folders': folders, 'mode': mode, 'posted': request.POST,
+        'source': 'report' if (request.POST.get('source') or request.GET.get('source')) == 'report' else 'nde',
     })
+
+
+def _report_source(request, folder):
+    """(file to read, its name) for Start from an existing report: the chosen file, else the job
+    folder's newest .xlsx that is a weld report. Raises ValueError."""
+    upload = request.FILES.get('weld_report')
+    if upload is not None:
+        if not upload.name.lower().endswith(REPORT_EXTENSIONS):
+            raise ValueError(f"{upload.name} isn't an Excel workbook: choose the weld report's .xlsx (a PDF can't be read).")
+        return upload, upload.name
+    if folder is None:
+        raise ValueError('Choose the weld report (.xlsx) to start from.')
+    found = folder_reports(folder)
+    if not found:
+        raise ValueError(f'{folder.name} has no .xlsx report in it; choose the report file.')
+    return found, ''
+
+
+def _start_from_report(request, rtype, mode, root):
+    """
+    Start from an existing weld report: the workbook read back into a new report (header,
+    equipment, materials, calibration, results with their indications and pictures), tied to the
+    job folder picked (if any), then the guided editor to check it step by step.
+    """
+    uploads = [f for f in request.FILES.getlist('nde_files') if f.name.lower().endswith('.nde')]
+    defaults = ReportDefaults.objects.filter(pk=request.POST.get('defaults')).first()         if str(request.POST.get('defaults') or '').isdigit() else None
+    try:
+        folder = _job_folder(request, mode, uploads, root, needs_files=False)
+        if folder is not None and uploads:
+            saved = save_uploads(folder, uploads)
+            if saved:
+                messages.info(request, f'Copied {len(saved)} file{"s" if len(saved) != 1 else ""} into {folder.name}.')
+        source, name = _report_source(request, folder)
+        if isinstance(source, list):   # the folder's reports, newest first: the first that reads
+            problem = None
+            for path in source:
+                try:
+                    with open(path, 'rb') as f:
+                        report, notes, data = import_weld_report(f, path.name, defaults, folder)
+                    name = path.name
+                    break
+                except (WeldReportError, OSError) as e:
+                    problem = e
+            else:
+                raise ValueError(f'No weld report in {folder.name} could be read: {problem}')
+        else:
+            report, notes, data = import_weld_report(source, name, defaults, folder or '')
+    except (ValueError, WeldReportError) as e:
+        messages.error(request, str(e))
+        return redirect(f"{_start_url(rtype)}&source=report")
+
+    flaws = sum(1 for cells in data['rows'] if any(cells[9:16]))
+    pictures = report.images.count()
+    messages.success(request, (
+        f"Report made from {name}: the header, equipment, materials, calibration, {len(data['rows'])} results "
+        f"row{'s' if len(data['rows']) != 1 else ''} ({flaws} indication{'s' if flaws != 1 else ''}"
+        f"{f', {pictures} with its picture' if pictures == 1 else f', {pictures} with their pictures' if pictures else ''}). "
+        "Go through the steps and check each one; Next saves as you go."))
+    for note in notes:
+        messages.warning(request, note)
+    return redirect(wizard_url(report))
 
 
 def _folder_context(job, files):
