@@ -287,7 +287,7 @@ class StartFromReportViewTests(TestCase):
     def post(self, upload, **extra):
         data = {'type': 'paut_weld', 'source': 'report', 'folder_mode': 'none', 'defaults': '', **extra}
         if upload is not None:
-            data['weld_report'] = upload
+            data['existing_report'] = upload
         return self.client.post(reverse('start-from-files'), data)
 
     def test_upload_opens_the_guided_editor(self):
@@ -307,10 +307,10 @@ class StartFromReportViewTests(TestCase):
 
     def test_the_page_offers_it_for_weld_reports(self):
         page = self.client.get(reverse('start-from-files') + '?type=paut_weld&source=report').content.decode()
-        self.assertIn('name="weld_report"', page)
+        self.assertIn('name="existing_report"', page)
         self.assertIn('id="source-report" value="report" checked', page)
-        corrosion = self.client.get(reverse('start-from-files') + '?type=paut_corrosion').content.decode()
-        self.assertNotIn('name="weld_report"', corrosion)
+        long_form = self.client.get(reverse('start-from-files') + '?type=paut_long').content.decode()
+        self.assertNotIn('name="existing_report"', long_form)   # no reader for the Long Form's Word report
 
 
 REFERENCE = os.path.expanduser('~/Desktop/Reports/001 Welds/PPI-31-37575-FW5&6/PPI-31-37575-W5&W6-6inch.xlsx')

@@ -111,21 +111,25 @@
     </section>
 
     <section class="panel">
-        {% if rtype.key == 'paut_weld' %}
-        {# What the report is made from: the job's .nde files, or a weld report already written (its .xlsx read back) #}
+        {% if imports_reports %}
+        {# What the report is made from: the job's .nde files, or a report of this type already written (its .xlsx read back) #}
         <div class="panel-header">
             <h2 class="panel-title">Start from</h2>
             <div class="btn-group btn-group-sm" role="group" aria-label="Start from">
                 <input type="radio" class="btn-check" name="source" id="source-nde" value="nde"{% if source != 'report' %} checked{% endif %}>
                 <label class="btn btn-outline-secondary" for="source-nde"><i class="bi bi-file-earmark-binary"></i> The .nde files</label>
                 <input type="radio" class="btn-check" name="source" id="source-report" value="report"{% if source == 'report' %} checked{% endif %}>
-                <label class="btn btn-outline-secondary" for="source-report"><i class="bi bi-file-earmark-spreadsheet"></i> An existing weld report</label>
+                <label class="btn btn-outline-secondary" for="source-report"><i class="bi bi-file-earmark-spreadsheet"></i> An existing {% if rtype.key == 'paut_weld' %}weld report{% else %}{{ rtype.label }}{% endif %}</label>
             </div>
         </div>
-        <div class="field mb-3" data-source="report" hidden>
-            <label for="start-report" id="report-label">The weld report (.xlsx)</label>
-            <input type="file" class="form-control" id="start-report" name="weld_report" accept=".xlsx,.xlsm">
+        <div class="field mb-3" data-source="report" data-report-name="{% if rtype.key == 'paut_weld' %}weld report{% else %}{{ rtype.label }}{% endif %}" hidden>
+            <label for="start-report" id="report-label">The {% if rtype.key == 'paut_weld' %}weld report{% else %}{{ rtype.label }}{% endif %} (.xlsx)</label>
+            <input type="file" class="form-control" id="start-report" name="existing_report" accept=".xlsx,.xlsm">
+            {% if rtype.key == 'paut_weld' %}
             <div class="form-text" id="report-help">The weld form (100-UTFORM-010) as an Excel workbook, filled by hand or made here. Everything on it comes in: the header, testing instrument, probe and group columns, material information and TCG, calibration times, notes and signatures, every results row on the Report and Continuation pages (welds, offsets and indications) and each Indication page's picture.</div>
+            {% else %}
+            <div class="form-text" id="report-help">The Short Form (598-PAUTFORM-009) as an Excel workbook, filled by hand or made here. Everything on it comes in: the Summary page (title, client, dates, procedure, technicians, examination scope, summary of results and notes), each Setup Information page with its pictures, the drawings, the Thickness Table and every picture on the Images pages with its caption and description.</div>
+            {% endif %}
         </div>
         {% endif %}
         <div class="field-grid cols-3">

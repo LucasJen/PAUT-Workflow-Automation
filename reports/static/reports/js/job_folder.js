@@ -1,5 +1,5 @@
 // Guided Creation, step 1 (start_from_files.html): the job folder modes (existing / new / files
-// only), what the weld report starts from (the .nde files or an existing weld report) and the
+// only), what the report starts from (the .nde files or an existing weld report / Short Form) and the
 // folder list's search.
 
 (function () {
@@ -33,11 +33,13 @@
 
     form.querySelectorAll('input[name="folder_mode"]').forEach(r => r.addEventListener('change', () => { showMode(); showSource(); }));
 
-    // ── Start from: the .nde files or an existing weld report ───────────
+    // ── Start from: the .nde files or an existing report (weld report or Short Form) ──
+    const reportField = form.querySelector('[data-report-name]');
+    const reportName = reportField ? reportField.dataset.reportName : 'report';
     const REPORT_TEXT = {
-        existing: ['The weld report (.xlsx, optional)', "Leave it empty to read the folder's newest .xlsx report."],
-        new: ['The weld report (.xlsx)', null],
-        none: ['The weld report (.xlsx)', null],
+        existing: [`The ${reportName} (.xlsx, optional)`, "Leave it empty to read the folder's newest .xlsx report."],
+        new: [`The ${reportName} (.xlsx)`, null],
+        none: [`The ${reportName} (.xlsx)`, null],
     };
     const reportLabel = document.getElementById('report-label');
     const reportHelp = document.getElementById('report-help');
