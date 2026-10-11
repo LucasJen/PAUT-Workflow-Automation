@@ -1,5 +1,6 @@
 // Guided Creation, step 1 (start_from_files.html): the job folder modes (existing / new / files
-// only) and the folder list's search.
+// only), what the weld report starts from (the .nde files or an existing weld report) and the
+// folder list's search.
 
 (function () {
     const form = document.getElementById('start-form');
@@ -30,7 +31,35 @@
         }
     }
 
-    form.querySelectorAll('input[name="folder_mode"]').forEach(r => r.addEventListener('change', showMode));
+    form.querySelectorAll('input[name="folder_mode"]').forEach(r => r.addEventListener('change', () => { showMode(); showSource(); }));
+
+    // ── Start from: the .nde files or an existing weld report ───────────
+    const REPORT_TEXT = {
+        existing: ['The weld report (.xlsx, optional)', "Leave it empty to read the folder's newest .xlsx report."],
+        new: ['The weld report (.xlsx)', null],
+        none: ['The weld report (.xlsx)', null],
+    };
+    const reportLabel = document.getElementById('report-label');
+    const reportHelp = document.getElementById('report-help');
+    const reportHelpText = reportHelp ? reportHelp.textContent : '';
+
+    function source() {
+        const checked = form.querySelector('input[name="source"]:checked');
+        return checked ? checked.value : 'nde';
+    }
+
+    function showSource() {
+        if (!form.querySelector('input[name="source"]')) return;
+        const current = source();
+        form.querySelectorAll('[data-source]').forEach(el => { el.hidden = el.dataset.source !== current; });
+        const [label, help] = REPORT_TEXT[mode()];
+        reportLabel.textContent = label;
+        reportHelp.textContent = help ? `${help} ${reportHelpText}` : reportHelpText;
+        document.getElementById('start-submit').innerHTML = current === 'report'
+            ? '<i class="bi bi-arrow-right"></i> Read the report' : '<i class="bi bi-arrow-right"></i> Read the files';
+    }
+
+    form.querySelectorAll('input[name="source"]').forEach(r => r.addEventListener('change', showSource));
 
     // ── Existing folders: search ───────────────────────────────────────
     const search = document.getElementById('folder-search');
@@ -53,8 +82,9 @@
     form.addEventListener('submit', () => {
         const button = document.getElementById('start-submit');
         button.disabled = true;
-        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Reading the files…';
+        button.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${source() === 'report' ? 'Reading the report…' : 'Reading the files…'}`;
     });
 
     showMode();
+    showSource();
 })();

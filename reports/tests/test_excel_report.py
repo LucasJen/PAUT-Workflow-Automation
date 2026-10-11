@@ -13,7 +13,7 @@ from equipment.models import SensitivityBlock
 from reports.models import Report, ReportImage, ReportPerson, ResultsRow, ResultsTable, ScanPlan, Setup
 from reports.report_types import get_report_type
 from reports.services import excel_report
-from reports.services.excel_report import CHECK, CROSS, weld_pages
+from reports.services.excel_report import CHECK, CROSS, results_layout, weld_pages
 
 FAKE_XLSX = b'PK fake xlsx'
 FAKE_PDF = b'%PDF-1.7 fake'
@@ -134,6 +134,15 @@ class WeldCellMapTests(TestCase):
         self.assertEqual((pages.continuation['A15'], pages.continuation['A17']), ('W6', 'W7'))
         self.assertEqual(pages.continuation['C13'], 'Pipe rack')
         self.assertEqual(pages.page_count, 2)
+
+    def test_rows_that_only_fit_without_blank_rows_go_without_them(self):
+        rows = [weld_row(f'W{i}') for i in range(45)]   # the form's 12 + 33 rows exactly
+        placed, left_out, needed = results_layout(rows)
+        self.assertEqual((left_out, needed), (0, 45))
+        self.assertEqual([cells[0] for _, _, cells in placed[:3]], ['W0', 'W1', 'W2'])
+        self.assertEqual((placed[12][0], placed[12][1], placed[12][2][0]), ('continuation', 15, 'W12'))
+        # more than the form holds at all: spaced as usual, the last ones left out
+        self.assertEqual(results_layout(rows + [weld_row('W45')])[1], 23)
 
     def test_an_offset_row_prints_as_saved(self):
         one = weld_row('W5', 'LOF')
