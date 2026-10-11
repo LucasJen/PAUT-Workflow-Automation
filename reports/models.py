@@ -626,6 +626,11 @@ class Setup(models.Model):
     weld_root_face = models.CharField('Root face (land)', max_length=20, blank=True)
     weld_root_gap = models.CharField('Root gap', max_length=20, blank=True)
     weld_cap_width = models.CharField('Cap width', max_length=20, blank=True)
+    # The setup picture's scan plan (setup_sheet.py): the weld drawn in the part, at the index offset
+    # and at each further offset (a drawing per offset, side by side)
+    weld_on = models.BooleanField('Draw the weld on the scan plan', default=False)
+    extra_offsets = models.CharField('More offsets', max_length=200, blank=True,
+                                     help_text='Further wedge-front-to-centre-line offsets, comma separated.')
 
     # Wedge geometry as the .nde file records it (always mm and m/s, whatever the units above);
     # scan plans filled from this setup draw with it

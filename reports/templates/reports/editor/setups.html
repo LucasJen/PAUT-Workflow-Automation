@@ -5,7 +5,7 @@
     </div>
     {{ setup_formset.management_form }}
     {% if setup_formset.non_form_errors %}<div class="alert alert-danger">{{ setup_formset.non_form_errors }}</div>{% endif %}
-    <div id="setup-formset-container">
+    <div id="setup-formset-container" data-sheet-preview-url="{% url 'setup-sheet-preview' %}">
         {% for form in setup_formset %}
         {% include 'reports/_setup_block.html' with idx=forloop.counter0 num=forloop.counter %}
         {% endfor %}

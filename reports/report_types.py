@@ -81,6 +81,8 @@ CORROSION_SETUP_FIELDS = frozenset({
     'title', 'method_description', 'surface_prep', 'material_temp', 'tr_min', 'tr_max', 'inspection_material',
     'inspection_temp', 'scope_model', 'scope_serial', 'cal_material', 'cal_block_type', 'cal_block_serial',
     'transducer_model', 'transducer_serial',
+    # The Weld & offsets panel (the setup picture's scan plan)
+    'weld_on', 'weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width', 'index_offset', 'extra_offsets',
 })
 SETUP_FORM_FIELDS = frozenset({
     'title', 'method_description', 'procedure', 'units', 'manufacturer', 'scope_platform', 'scope_model',
@@ -97,7 +99,7 @@ SETUP_FORM_FIELDS = frozenset({
     'amplitude_range', 'transfer_db', 'scanning_db', 'source_file', 'acquisition_date', 'catalogue_probe',
     'catalogue_wedge', 'first_element', 'aperture_elements', 'index_offset', 'wedge_primary_offset',
     'wedge_first_element_height', 'wedge_velocity', 'wedge_length', 'wedge_height', 'weld_bevel_angle',
-    'weld_root_face', 'weld_root_gap', 'weld_cap_width',
+    'weld_root_face', 'weld_root_gap', 'weld_cap_width', 'weld_on', 'extra_offsets',
 })
 
 # The methods the corrosion form's Formulas sheet names: suggestions for a setup's Method (its

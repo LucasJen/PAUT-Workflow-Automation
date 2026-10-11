@@ -96,3 +96,33 @@ def nde_columns(request):
     if not columns:
         return JsonResponse({'error': 'This .nde file has no inspection groups to import.'}, status=400)
     return JsonResponse({'columns': columns, 'filename': uploaded.name})
+
+
+@require_POST
+def setup_sheet_preview(request):
+    """
+    POST (a setup block's nde_sheet, units, specimen_thickness, tr_max and the report type): the setup
+    picture as it would be printed, with the Setup values table's changes - before the report is saved.
+    """
+    from django.http import HttpResponse
+    from ..models import Setup
+    from ..services.corrosion_report import SETUP_SHEET_IN
+    from ..services.report_render import SHEET_HEIGHT_IN, SHEET_WIDTH_IN
+    from ..services.setup_sheet import sheet_png
+    setup = Setup(nde_sheet=request.POST.get('nde_sheet', ''),
+                  units='metric' if request.POST.get('units') == 'metric' else 'imperial',
+                  specimen_thickness=request.POST.get('specimen_thickness', '')[:100],
+                  tr_max=request.POST.get('tr_max', '')[:50],
+                  # The Weld & offsets panel: the weld on the scan plan at each offset
+                  weld_on=bool(request.POST.get('weld_on')),
+                  **{name: request.POST.get(name, '')[:200] for name in (
+                      'weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width', 'index_offset',
+                      'extra_offsets')})
+    size = SETUP_SHEET_IN if request.POST.get('report_type') == 'paut_corrosion' else (SHEET_WIDTH_IN, SHEET_HEIGHT_IN)
+    try:
+        png = sheet_png(setup, *size)
+    except (ValueError, TypeError, KeyError):
+        png = None
+    if not png:
+        return JsonResponse({'error': 'This setup has no .nde values to draw.'}, status=400)
+    return HttpResponse(png, content_type='image/png')
