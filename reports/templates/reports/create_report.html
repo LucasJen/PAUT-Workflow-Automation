@@ -101,7 +101,9 @@
         <div class="editor-sections">
             {# Sections in REPORT_SECTIONS order; special sections live in reports/editor/<key>.html #}
             {% for key, title, fields in form.all_sections %}
-            {% if fields %}
+            {% if key in wizard_merged_keys %}
+            {# Guided: shown at the bottom of another section's step (ReportType.wizard_merged) #}
+            {% elif fields %}
             <section class="panel editor-section" id="sec-{{ key }}" data-section="{{ key }}">
                 <div class="panel-header"><h2 class="panel-title">{{ title }}</h2></div>
                 <div class="{{ key|section_grid }}">
@@ -138,7 +140,7 @@
                     <button type="button" class="btn btn-secondary btn-sm" id="wizard-plan-reload"><i class="bi bi-arrow-clockwise"></i> Reload drawing</button>
                 </div>
                 {% else %}
-                <p class="mb-0">No scan plan is linked to this report. Pick one in the <em>Calibration, scan plan &amp; notes</em> step, or make one under <a href="{% url 'scan-plan-list' %}" target="_blank" rel="noopener">Scan plans</a>.</p>
+                <p class="mb-0">No scan plan is linked to this report. Pick one in the <em>Sensitivity block &amp; test material</em> step, or make one under <a href="{% url 'scan-plan-list' %}" target="_blank" rel="noopener">Scan plans</a>.</p>
                 {% endif %}
                 {% endwith %}
             </section>

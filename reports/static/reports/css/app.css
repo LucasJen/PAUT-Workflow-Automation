@@ -1097,6 +1097,9 @@ form[data-wizard] .section-nav { display: none; }
 .wizard-count { font-size: 0.8125rem; color: var(--text-3); }
 .wizard-status { font-size: 0.8125rem; color: var(--danger); }
 .wizard-status.is-complete { color: var(--success); }
+/* Another section's fields at the bottom of a guided step (ReportType.wizard_merged) */
+.wizard-merged { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.wizard-merged-title { margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600; }
 
 /* As the form's scan plan page: a row per index offset, the 90 deg skew left and 270 deg right */
 .wizard-plan { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }

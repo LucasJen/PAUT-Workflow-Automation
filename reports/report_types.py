@@ -181,6 +181,8 @@ class ReportType:
     wizard_last_step: str = 'scanplan'
     # Sections shown in `sections` order instead of the editor's usual order
     ordered: bool = False
+    # Guided editor: (section, into) pairs - a section shown at the bottom of another's step, not as its own
+    wizard_merged: tuple = ()
 
     @property
     def results_headings(self):
@@ -202,7 +204,8 @@ class ReportType:
     @property
     def wizard_step_count(self):
         """Steps of the guided editor: those done before it, the sections, the scan plan (weld), the preview."""
-        return len(self.wizard_done) + len(self.sections) + (self.wizard_last_step == 'scanplan') + 1
+        return (len(self.wizard_done) + len(self.sections) - len(self.wizard_merged)
+                + (self.wizard_last_step == 'scanplan') + 1)
 
 
 _TYPES = [
@@ -238,6 +241,8 @@ _TYPES = [
                       'and groups, the part, the welds and their offsets, the calibration times and the scan plan. '
                       'The folder name gives the report name and client, and the report is saved back into the '
                       'folder when you download it.'),
+        # The calibration times and scan plan pick go under the sensitivity block, one step for both
+        wizard_merged=(('weld_cal', 'materials'),),
     ),
     ReportType(
         'paut_corrosion', 'Short Form',

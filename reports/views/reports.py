@@ -345,6 +345,11 @@ def create_report(request):
             columns, rows = report_results(loaded_report)
             results_data = {'columns': columns, 'rows': rows}
 
+    # Guided editor: sections shown at the bottom of another's step (ReportType.wizard_merged)
+    rtype = get_report_type(form.instance.report_type)
+    merged = dict(rtype.wizard_merged) if wizard and form.instance.pk else {}
+    wizard_step = merged.get(wizard_step, wizard_step)
+
     return render(request, 'reports/create_report.html', {
         'form': form,
         'setup_formset': setup_formset,
@@ -380,7 +385,10 @@ def create_report(request):
         'wizard_step': wizard_step,
         'loaded_version': version,
         'kept_uploads': kept_uploads,
-        'rtype': get_report_type(form.instance.report_type),
+        'rtype': rtype,
+        'wizard_merged': [(merged[key], key, title, fields) for key, title, fields in form.all_sections()
+                          if key in merged],
+        'wizard_merged_keys': list(merged),
         # The guided editor's Scan plan step: every drawing the plan prints, with the welds at its offset
         'plan_drawings': plan_drawing_views(form.instance) if wizard and form.instance.pk else [],
     })

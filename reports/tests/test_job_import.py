@@ -197,6 +197,25 @@ class GuidedEditorTests(TestCase):
         plain = self.client.get(f'{self.editor}?loaded={self.report.pk}')
         self.assertNotContains(plain, 'data-wizard')
 
+    def test_calibration_is_under_the_sensitivity_block(self):
+        import re
+        from reports.report_types import get_report_type
+        page = self.client.get(f'{self.editor}?loaded={self.report.pk}&wizard=1&step=weld_cal').content.decode()
+        self.assertNotIn('id="sec-weld_cal"', page)
+        materials = re.search(r'id="sec-materials".*?</section>', page, re.S).group(0)
+        self.assertIn('Calibration, scan plan &amp; notes', materials)
+        for name in ('cal_time_initial', 'cal_time_check1', 'cal_time_check2', 'cal_time_out', 'scan_plan'):
+            self.assertEqual(page.count(f'name="{name}"'), 1)
+            self.assertIn(f'name="{name}"', materials)
+        self.assertLess(materials.index('id="id_sensitivity_block"'), materials.index('name="cal_time_initial"'))
+        # The old step's link opens the step it's in now
+        self.assertIn('name="wizard_step" id="wizard-step" value="materials"', page)
+        self.assertEqual(get_report_type('paut_weld').wizard_step_count, 2 + 5 + 1 + 1)
+        # The full editor keeps its own section
+        plain = self.client.get(f'{self.editor}?loaded={self.report.pk}').content.decode()
+        self.assertIn('id="sec-weld_cal"', plain)
+        self.assertNotIn('wizard-merged', plain)
+
     def test_the_scan_plan_step_shows_every_drawing(self):
         plan = self.report.scan_plan
         plan.index_offset, plan.skew_90, plan.skew_270 = 0.5, True, True
