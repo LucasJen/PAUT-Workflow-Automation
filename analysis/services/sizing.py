@@ -17,10 +17,11 @@ import math
 import numpy as np
 
 from .geometry import fold_depth, position
-from .nde_data import STATUS_SATURATED, read_frame, to_unit
+from .nde_data import read_frame, to_unit
 from .readings import evaluate_gates, peak_position
 
 FULL_SCREEN_TARGET = 80.0   # % - each indication is taken to this before it's sized
+SATURATED_SHARE = 0.99      # a peak sample this close to the raw maximum is clipped
 METHODS = {'6': 6.0, '12': 12.0, '20': 20.0}
 
 
@@ -144,7 +145,7 @@ def frame_extent(path, info, group, gates, letter, scan, line, drop, gain=0.0):
     OmniPC's Index). Returns {'peak_sample', 'peak_raw', 'saturated', 'peak_amplitude', 'sound_path',
     'depth', 'leg', 'axial', 'top', 'bottom', 'height', 'axial_start', 'axial_end', 'cells'}.
     """
-    raw, status = read_frame(path, group, scan)
+    raw, _ = read_frame(path, group, scan)
     amplitudes = to_unit(raw, group).astype(np.float64) * 10 ** (gain / 20)
     inside = np.zeros(amplitudes.shape, dtype=bool)
     period = group.ultrasound_axis.resolution
@@ -172,7 +173,9 @@ def frame_extent(path, info, group, gates, letter, scan, line, drop, gain=0.0):
     beam = group.beams[line]
     sp, depth, leg, index = peak_position(beam, beam.ultrasound_offset + sample * period, thickness)
     peak_raw = int(raw[line, sample])
-    saturated = peak_raw >= group.raw_max or bool(status is not None and int(status[line]) & STATUS_SATURATED)
+    # At the top of the digitizer's range (the files' own saturated status bit is set on every A-scan
+    # with data in the user's files, so it can't say which peak is clipped)
+    saturated = peak_raw >= SATURATED_SHARE * group.raw_max
     return {'peak_sample': sample, 'peak_raw': peak_raw, 'saturated': saturated, 'peak_amplitude': peak,
             'sound_path': sp, 'depth': depth, 'leg': leg, 'axial': index - probe,
             'top': min(depths), 'bottom': max(depths), 'height': max(depths) - min(depths),

@@ -13,6 +13,8 @@ the threshold" is the same test the readings use for a crossing).
 Each indication is then sized (sizing.size_indication): taken to 80 % of full screen, its length by
 the dB drop along the scan, its height and axial position by the same drop on the S-scan at its peak.
 """
+import math
+
 import numpy as np
 
 
@@ -123,3 +125,66 @@ def find_regions(amplitude, threshold, merge_gap=2, min_scans=1, min_lines=1):
     regions = [r for r in regions if r['scan_hi'] - r['scan_lo'] + 1 >= min_scans
                and r['line_hi'] - r['line_lo'] + 1 >= min_lines]
     return sorted(regions, key=lambda r: (r['scan_lo'], r['line_lo']))
+
+
+def readings_of(sized):
+    """The OmniPC readings an auto-sized indication carries (for the CSV and the indication table)."""
+    names = {'A%': 'peak_amplitude', 'SA^': 'sound_path', 'DA^': 'peak_depth', 'PA^': 'axial',
+             'Length': 'length', 'Height': 'height', 'Width': 'width'}
+    return {name: sized[key] for name, key in names.items() if sized.get(key) is not None}
+
+
+def _span(item):
+    """(scan lo, scan hi, line lo, line hi) an indication covers, in data positions."""
+    s = item.sizing or {}
+    if s.get('auto') and 'line_lo' in s:
+        return s.get('scan_lo', item.scan), s.get('scan_hi', item.scan), s['line_lo'], s['line_hi']
+    return item.scan, item.scan, item.lateral, item.lateral
+
+
+def overlaps(region, item):
+    lo, hi, line_lo, line_hi = _span(item)
+    return (region['scan_lo'] <= hi and lo <= region['scan_hi']
+            and region['line_lo'] <= line_hi and line_lo <= region['line_hi'])
+
+
+def detect(path, info, group, gates, cscan, letter, threshold=None, method='6', gain=0.0,
+           merge_gap=2, min_length=0.0, min_lines=1):
+    """
+    (sized, skipped): each indication found in gate `letter` sized (sizing.size_indication, with its
+    region's spans as scan_lo / scan_hi), and the regions that couldn't be sized with why. The
+    threshold defaults to the gate's own; min_length is in m along the scan.
+    """
+    from .sizing import SizingError, size_indication
+    key = f'{letter}_amplitude'
+    if key not in cscan:
+        raise ValueError(f'There is no gate {letter}.')
+    gate = next((g for g in gates if g.name.strip().split()[-1].upper() == letter), None)
+    if threshold is None:
+        threshold = gate.threshold if gate else 20.0
+    step = abs(group.axes[0].resolution) or 1.0
+    min_scans = max(1, int(math.ceil(min_length / step - 1e-9))) if min_length else 1
+    regions = find_regions(cscan[key], threshold, merge_gap, min_scans, min_lines)
+    while True:
+        sized, skipped = [], []
+        for region in regions:
+            try:
+                result = size_indication(path, info, group, gates, cscan, letter, region, method, gain)
+            except SizingError as e:
+                skipped.append({'region': region, 'error': str(e)})
+                continue
+            result.update({'scan_lo': region['scan_lo'], 'scan_hi': region['scan_hi'], 'detect_threshold': threshold})
+            sized.append((region, result))
+        # Two regions whose sized lengths overlap on lines that meet are one indication (a weaker part
+        # beside a stronger one climbs to the same peak): joined, and sized again as one
+        pair = next(((a, b) for i, a in enumerate(sized) for b in sized[i + 1:] if _same(a, b)), None)
+        if pair is None:
+            return sorted((result for _, result in sized), key=lambda r: (r['scan_start'], r['line_lo'])), skipped
+        (ra, _), (rb, _) = pair
+        regions = [r for r in regions if r is not ra and r is not rb] + [_merged(ra, rb)]
+
+
+def _same(a, b):
+    (ra, sa), (rb, sb) = a, b
+    lines_meet = ra['line_lo'] <= rb['line_hi'] + 1 and rb['line_lo'] <= ra['line_hi'] + 1
+    return lines_meet and sa['scan_start'] <= sb['scan_end'] and sb['scan_start'] <= sa['scan_end']

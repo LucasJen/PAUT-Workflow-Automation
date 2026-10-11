@@ -1,11 +1,16 @@
 """Finding indications on the gate map and sizing each one (80 % FSH, dB-drop length, height, PA^)."""
+import json
 import math
 import os
 import shutil
 import tempfile
+import time
 
 import numpy as np
-from django.test import SimpleTestCase, override_settings
+from urllib.parse import urlencode
+
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 
 from analysis.services import projections
 from analysis.services.detection import find_regions, label, merge
@@ -172,3 +177,80 @@ class SizeIndicationTests(SimpleTestCase):
         with self.assertRaises(SizingError):
             size_indication(path, info, group, group.gates, {'A_amplitude': np.zeros((20, 3))}, 'A',
                             {'peak_scan': 8, 'peak_line': 1, 'line_lo': 0, 'line_hi': 2}, method='9')
+
+
+class DetectApiTests(TestCase):
+    """Find indications (detect.json), the review status, and sizing again (resize.json)."""
+
+    def setUp(self):
+        from reports.models import WorkingFolder
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        override = override_settings(ANALYSIS_CACHE_DIR=os.path.join(self.folder, '.cache'))
+        override.enable()
+        self.addCleanup(override.disable)
+        WorkingFolder.objects.all().delete()
+        WorkingFolder.objects.create(path=self.folder, report_type='paut_weld')
+        self.path = weld_with_flaw(self.folder)
+        self.query = urlencode({'path': self.path, 'group': 0})
+
+    def detect(self, **settings):
+        return self.client.post(f"{reverse('analysis-detect')}?{self.query}", json.dumps(settings),
+                                content_type='application/json')
+
+    def built(self):
+        group = open_file(self.path).group(0)
+        projections.ensure(self.path, group, group.gates, background=False)
+
+    def test_builds_first_then_finds_and_sizes(self):
+        response = self.detect()
+        self.assertEqual(response.status_code, 409)           # the C-scan is being built (in the background)
+        for _ in range(200):
+            if response.status_code != 409:
+                break
+            time.sleep(0.05)
+            response = self.detect(method='6')
+        data = response.json()
+        self.assertEqual(data['found'], 1)
+        item = data['indications'][0]
+        self.assertEqual((item['status'], item['source'], item['number']), ('unreviewed', 'auto', 1))
+        self.assertEqual((item['scan'], item['lateral']), (8, 1))
+        self.assertAlmostEqual(item['sizing']['length'], item['readings']['Length'])
+        self.assertIn('Height', item['readings'])
+        self.assertAlmostEqual(item['gain'], item['sizing']['gain_db'])
+
+    def test_a_new_run_replaces_unreviewed_finds_only(self):
+        self.built()
+        self.detect()
+        self.assertEqual(len(self.detect().json()['indications']), 1)          # replaced, not doubled
+        edit = reverse('analysis-indication', args=[self.detect().json()['indications'][0]['id']])
+        self.client.post(edit, json.dumps({'status': 'accepted'}), content_type='application/json')
+        again = self.detect().json()
+        self.assertEqual((again['found'], again['kept'], again['overlapping']), (0, 1, 1))   # kept, the find on top left out
+        self.assertEqual(again['indications'][0]['status'], 'accepted')
+        bad = self.client.post(edit, json.dumps({'status': 'maybe'}), content_type='application/json')
+        self.assertEqual(bad.status_code, 400)
+
+    def test_settings_threshold_and_minimum_length(self):
+        self.built()
+        self.assertEqual(self.detect(threshold=150).json()['found'], 0)
+        self.assertEqual(self.detect(min_length=0.01).json()['found'], 0)      # 7 positions = 7 mm
+        self.assertEqual(self.detect(min_length=0.005).json()['found'], 1)
+        self.assertEqual(self.detect(method='9').status_code, 400)
+
+    def test_resize_by_another_drop_and_by_hand(self):
+        self.built()
+        item = self.detect(method='6').json()['indications'][0]
+        url = f"{reverse('analysis-resize', args=[item['id']])}?{self.query}"
+        twelve = self.client.post(url, json.dumps({'method': '12'}), content_type='application/json').json()
+        self.assertEqual(twelve['sizing']['method'], '12')
+        self.assertGreater(twelve['sizing']['length'], item['sizing']['length'])
+        self.assertEqual(twelve['sizing']['original']['method'], '6')
+        hand = self.client.post(url, json.dumps({'manual': {'scan_start': 0.009, 'scan_end': 0.005, 'top': 0.006, 'bottom': 0.0065}}),
+                                content_type='application/json').json()['sizing']
+        self.assertTrue(hand['edited'])
+        self.assertAlmostEqual(hand['length'], 0.004)                           # ends put in order
+        self.assertAlmostEqual(hand['height'], 0.0005)
+        self.assertEqual(hand['original']['method'], '6')                       # the first sizing kept
+        self.assertEqual(self.client.post(url, json.dumps({'manual': {'top': 'x'}}),
+                                          content_type='application/json').status_code, 400)

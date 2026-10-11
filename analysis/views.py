@@ -6,6 +6,7 @@ from dataclasses import asdict
 
 import numpy as np
 from django.http import HttpResponse, JsonResponse
+from django.db import transaction
 from django.db.models import Max
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -16,7 +17,7 @@ from reports.models import Report
 
 from .models import Indication, OpenedFile
 from .paths import PathNotAllowed, allowed_roots, checked_path, in_working_folders, real_path
-from .services import browse, geometry, projections, projects, report_export, sizing
+from .services import browse, detection, geometry, projections, projects, report_export, sizing
 from .services.nde_data import (
     RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame, read_status, usable,
 )
@@ -320,6 +321,153 @@ def size_indication(request):
     return JsonResponse(result)
 
 
+# ── Find indications: every signal in a gate over its threshold, sized ──
+
+def _settings(data):
+    """Find-indications settings from the JSON body, checked: gate, threshold, method, merge gap, minimums."""
+    def number(name, default, lo, hi):
+        value = data.get(name, default)
+        if value in (None, ''):
+            return default
+        value = float(value)
+        if not math.isfinite(value) or not lo <= value <= hi:
+            raise ValueError(name)
+        return value
+
+    method = str(data.get('method') or '6')
+    if method not in sizing.METHODS:
+        raise ValueError('method')
+    return {
+        'letter': str(data.get('gate') or 'A').upper()[:1],
+        'threshold': number('threshold', None, 0, 1000),
+        'method': method,
+        'merge_gap': int(number('merge_gap', 2, 0, 1000)),
+        'min_length': number('min_length', 0.0, 0, 10),
+        'min_lines': int(number('min_lines', 1, 1, 10000)),
+    }
+
+
+def _auto_indication(path, group, sized, number):
+    return Indication(
+        file_path=path, file_name=os.path.basename(path), group=group.id, number=number,
+        scan=sized['peak_scan'], lateral=sized['peak_line'], scan_position=sized['scan_position'],
+        index_position=sized.get('axial'), angle=sized.get('angle'), gain=sized['gain_db'],
+        readings=detection.readings_of(sized), sizing=sized,
+        status=Indication.UNREVIEWED, source=Indication.AUTO)
+
+
+@require_http_methods(['POST'])
+def detect_indications(request):
+    """
+    Finds and sizes every indication in a gate (query: path, group, gates, gain as for the C-scan; JSON
+    body: gate, threshold, method 6 / 12 / 20, merge_gap in scan positions, min_length in m, min_lines).
+    The file's unreviewed found indications on this group are replaced; reviewed and hand-added ones
+    are kept, and a find on top of one of them is left out. 409 while the C-scan is being built.
+    """
+    try:
+        path, info, group, gates, gain = _whole_file(request)
+        options = _settings(json.loads(request.body or b'{}'))
+    except (PathNotAllowed, NdeDataError) as e:
+        return _error(str(e))
+    except (ValueError, TypeError) as e:
+        return _error(f"The settings couldn't be read ({e}).")
+    data = projections.read_cscan(path, group, gates, gain)
+    if data is None:
+        return JsonResponse({'error': 'Not built yet.', **projections.ensure(path, group, gates, gain)}, status=409)
+    letter = options.pop('letter')
+    try:
+        found, skipped = detection.detect(path, info, group, gates, data, letter, gain=gain, **options)
+    except (ValueError, NdeDataError) as e:
+        return _error(str(e))
+    on_group = Indication.objects.filter(file_path=path, group=group.id)
+    with transaction.atomic():
+        on_group.filter(source=Indication.AUTO, status=Indication.UNREVIEWED).delete()
+        kept = list(on_group)
+        last = Indication.objects.filter(file_path=path).aggregate(m=Max('number'))['m'] or 0
+        added, overlapping = [], 0
+        for sized in found:
+            if any(detection.overlaps(sized, item) for item in kept):
+                overlapping += 1
+                continue
+            last += 1
+            added.append(_auto_indication(path, group, sized, last))
+        Indication.objects.bulk_create(added)
+    return JsonResponse({
+        'found': len(added), 'kept': len(kept), 'overlapping': overlapping,
+        'skipped': [s['error'] for s in skipped],
+        'indications': [i.as_dict() for i in Indication.objects.filter(file_path=path)],
+    })
+
+
+MANUAL_SIZING = ('scan_start', 'scan_end', 'top', 'bottom', 'axial_start', 'axial_end')
+
+
+@require_http_methods(['POST'])
+def resize_indication(request, pk):
+    """
+    Sizes a found indication again (query: path, group, gates, gain; JSON body {method}: 6 / 12 / 20 dB),
+    or takes the user's own ends ({manual: {scan_start, scan_end, top, bottom, axial_start, axial_end}},
+    m): the length, height and axial extent follow, it's marked edited, and the sizing it had first
+    is kept as 'original'.
+    """
+    item = get_object_or_404(Indication, pk=pk)
+    try:
+        body = json.loads(request.body or b'{}')
+    except ValueError:
+        return _error("The change couldn't be read.")
+    old = dict(item.sizing or {})
+    original = old.pop('original', None) or {k: v for k, v in old.items()}
+    manual = body.get('manual')
+    if isinstance(manual, dict):
+        new = dict(old)
+        try:
+            for name in MANUAL_SIZING:
+                if manual.get(name) is not None:
+                    value = float(manual[name])
+                    if not math.isfinite(value):
+                        raise ValueError(name)
+                    new[name] = value
+        except (TypeError, ValueError):
+            return _error("The sizing couldn't be read.")
+        for lo, hi in (('scan_start', 'scan_end'), ('top', 'bottom'), ('axial_start', 'axial_end')):
+            if new.get(lo) is not None and new.get(hi) is not None and new[lo] > new[hi]:
+                new[lo], new[hi] = new[hi], new[lo]
+        if new.get('scan_start') is not None and new.get('scan_end') is not None:
+            new['length'] = new['scan_end'] - new['scan_start']
+        if new.get('top') is not None and new.get('bottom') is not None:
+            new['height'] = new['bottom'] - new['top']
+            new['depth'] = new['top']
+        new['edited'] = True
+    else:
+        try:
+            path, info, group, gates, gain = _whole_file(request)
+        except (PathNotAllowed, NdeDataError) as e:
+            return _error(str(e))
+        if path != item.file_path or group.id != item.group:
+            return _error('That indication is in another file or group.')
+        method = str(body.get('method') or old.get('method') or '6')
+        letter = old.get('gate') or 'A'
+        data = projections.read_cscan(path, group, gates, gain)
+        if data is None:
+            return JsonResponse({'error': 'Not built yet.', **projections.ensure(path, group, gates, gain)}, status=409)
+        region = {'peak_scan': old.get('peak_scan', item.scan), 'peak_line': old.get('peak_line', item.lateral),
+                  'line_lo': old.get('line_lo', item.lateral), 'line_hi': old.get('line_hi', item.lateral)}
+        try:
+            new = sizing.size_indication(path, info, group, gates, data, letter, region, method, gain)
+        except sizing.SizingError as e:
+            return _error(str(e))
+        new.update({k: old[k] for k in ('scan_lo', 'scan_hi', 'detect_threshold') if k in old})
+        item.scan, item.lateral = new['peak_scan'], new['peak_line']
+        item.scan_position, item.index_position = new['scan_position'], new.get('axial')
+        item.gain = new['gain_db']
+    if old.get('auto') or old.get('edited'):
+        new['original'] = original
+    item.sizing = new
+    item.readings = {**(item.readings or {}), **detection.readings_of(new)}
+    item.save()
+    return JsonResponse(item.as_dict())
+
+
 # ── Indications (like OmniPC's indication table) ─────────────────────────
 
 def _float_or_none(value):
@@ -359,7 +507,7 @@ def indications(request):
 
 @require_http_methods(['POST', 'DELETE'])
 def indication(request, pk):
-    """POST (JSON {comment}): edits an indication's comment; DELETE removes it."""
+    """POST (JSON {comment} and / or {status}: unreviewed / accepted / rejected): edits an indication; DELETE removes it."""
     item = get_object_or_404(Indication, pk=pk)
     if request.method == 'DELETE':
         item.delete()
@@ -368,9 +516,16 @@ def indication(request, pk):
         data = json.loads(request.body or b'{}')
     except ValueError:
         return _error("The change couldn't be read.")
+    fields = ['updated_at']
     if 'comment' in data:
         item.comment = str(data['comment'] or '')[:2000]
-        item.save(update_fields=['comment', 'updated_at'])
+        fields.append('comment')
+    if 'status' in data:
+        if data['status'] not in dict(Indication.STATUS_CHOICES):
+            return _error('Unknown status.')
+        item.status = data['status']
+        fields.append('status')
+    item.save(update_fields=fields)
     return JsonResponse(item.as_dict())
 
 

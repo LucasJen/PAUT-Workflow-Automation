@@ -21,6 +21,12 @@ class Indication(models.Model):
     cursors = models.JSONField(default=dict, blank=True)
     sizing = models.JSONField(default=dict, blank=True)
     comment = models.TextField(blank=True)
+    # Found by Find indications (auto) or added by hand (N); an auto one waits for the user's review
+    UNREVIEWED, ACCEPTED, REJECTED = 'unreviewed', 'accepted', 'rejected'
+    STATUS_CHOICES = [(UNREVIEWED, 'Unreviewed'), (ACCEPTED, 'Accepted'), (REJECTED, 'Rejected')]
+    AUTO, MANUAL = 'auto', 'manual'
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=ACCEPTED)
+    source = models.CharField(max_length=8, choices=[(AUTO, 'Found'), (MANUAL, 'Added')], default=MANUAL)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -35,7 +41,8 @@ class Indication(models.Model):
             'id': self.pk, 'number': self.number, 'group': self.group, 'scan': self.scan, 'lateral': self.lateral,
             'scan_position': self.scan_position, 'index_position': self.index_position, 'angle': self.angle,
             'gain': self.gain, 'readings': self.readings, 'cursors': self.cursors, 'sizing': self.sizing,
-            'comment': self.comment, 'created_at': self.created_at.isoformat() if self.created_at else None,
+            'comment': self.comment, 'status': self.status, 'source': self.source,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
 
