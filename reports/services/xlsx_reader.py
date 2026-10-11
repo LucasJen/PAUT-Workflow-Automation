@@ -204,6 +204,17 @@ def _target(base, target):
     return '/'.join(out)
 
 
+_ESCAPE = re.compile(r'_x([0-9A-Fa-f]{4})_')
+
+
+def unescape(text):
+    """A cell's text with Excel's _xHHHH_ escapes decoded ('line_x000D_ / next': a carriage return); line
+    breaks as plain newlines."""
+    if '_x' not in text:
+        return text
+    return _ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text).replace('\r\n', '\n').replace('\r', '\n')
+
+
 def _shared_strings(zf):
     if 'xl/sharedStrings.xml' not in zf.namelist():
         return []
@@ -211,8 +222,8 @@ def _shared_strings(zf):
     out = []
     for si in root.findall('m:si', NS):
         # Rich text runs, without the phonetic (rPh) hints
-        out.append(''.join(t.text or '' for t in si.iter(f'{{{NS["m"]}}}t')
-                           if t.getparent().tag != f'{{{NS["m"]}}}rPh'))
+        out.append(unescape(''.join(t.text or '' for t in si.iter(f'{{{NS["m"]}}}t')
+                                    if t.getparent().tag != f'{{{NS["m"]}}}rPh')))
     return out
 
 
@@ -247,37 +258,42 @@ def read_workbook(path_or_file):
             targets = _rels(zf, 'xl/workbook.xml')
             strings = _shared_strings(zf)
             styles = _styles(zf)
+            in_cell = _cell_images(zf)
             sheets = {}
             for node in book.findall('m:sheets/m:sheet', NS):
                 target = targets.get(node.get(R_ID))
                 if not target or target not in names:
                     continue
                 hidden = node.get('state') in ('hidden', 'veryHidden')
-                sheets[node.get('name')] = _read_sheet(zf, target, node.get('name'), strings, styles, hidden)
+                sheets[node.get('name')] = _read_sheet(zf, target, node.get('name'), strings, styles, hidden, in_cell)
         except (etree.XMLSyntaxError, KeyError, ValueError, IndexError) as e:
             raise XlsxError(f'The workbook could not be read ({e}).') from e
         return sheets
 
 
-def _read_sheet(zf, target, name, strings, styles, hidden):
+def _read_sheet(zf, target, name, strings, styles, hidden, in_cell=()):
     root = _parse(zf, target)
-    cells, shown = {}, {}
+    cells, shown, placed = {}, {}, {}
     for c in root.iterfind('m:sheetData/m:row/m:c', NS):
         ref = c.get('r')
         if not ref:
             continue
+        if c.get('vm') and c.get('vm').isdigit() and 0 < int(c.get('vm')) <= len(in_cell):
+            image = in_cell[int(c.get('vm')) - 1]
+            if image:   # a picture placed in the cell (Insert › Picture › Place in Cell)
+                placed[ref] = image
         kind = c.get('t', 'n')
         v = c.find('m:v', NS)
         if kind == 'inlineStr':
             node = c.find('m:is', NS)
-            value = ''.join(node.itertext()) if node is not None else ''
+            value = unescape(''.join(node.itertext())) if node is not None else ''
         elif v is None or v.text is None:
             continue
         elif kind == 's':
             index = int(v.text)
             value = strings[index] if index < len(strings) else ''
         elif kind == 'str':
-            value = v.text
+            value = unescape(v.text)
         elif kind == 'e':
             continue    # #N/A, #REF!...
         elif kind == 'b':
@@ -305,7 +321,8 @@ def _read_sheet(zf, target, name, strings, styles, hidden):
         a, _, b = m.get('ref', '').partition(':')
         if a and b:
             merged.append((a, b))
-    sheet = Sheet(name, cells, merged, hidden, _pictures(zf, target, root))
+    pictures = _pictures(zf, target, root) + _placed_pictures(zf, root, placed, merged)
+    sheet = Sheet(name, cells, merged, hidden, pictures)
     sheet.shown = shown
     return sheet
 
@@ -380,4 +397,62 @@ def _pictures(zf, sheet_part, root):
                 ext = anchor.find('xdr:ext', NS)
                 w, h = int(ext.get('cx')) / EMU_PER_PIXEL, int(ext.get('cy')) / EMU_PER_PIXEL
         out.append(Picture(zf.read(image), image.rsplit('.', 1)[-1].lower(), row + 1, col + 1, x, y, w, h))
+    return out
+
+
+def _cell_images(zf):
+    """
+    The pictures placed in cells, by value metadata index (a cell's vm="n" is entry n, 1-based):
+    the image part, or None for other rich values. metadata.xml -> rich value -> its
+    _rvRel:LocalImageIdentifier -> richValueRel.xml -> the image.
+    """
+    names = set(zf.namelist())
+    needed = ('xl/metadata.xml', 'xl/richData/rdrichvalue.xml', 'xl/richData/richValueRel.xml')
+    if not all(n in names for n in needed):
+        return []
+    rd = {'rd': 'http://schemas.microsoft.com/office/spreadsheetml/2017/richdata',
+          'rv': 'http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel'}
+    meta = _parse(zf, 'xl/metadata.xml')
+    future = [bk.find('.//rd:rvb', rd) for bk in meta.findall('m:futureMetadata/m:bk', NS)]
+    future = [int(n.get('i')) if n is not None else None for n in future]
+    structures = []
+    if 'xl/richData/rdrichvaluestructure.xml' in names:
+        for st in _parse(zf, 'xl/richData/rdrichvaluestructure.xml').findall('rd:s', rd):
+            keys = [k.get('n') for k in st.findall('rd:k', rd)]
+            structures.append(keys.index('_rvRel:LocalImageIdentifier') if '_rvRel:LocalImageIdentifier' in keys else None)
+    values = []
+    for rv in _parse(zf, 'xl/richData/rdrichvalue.xml').findall('rd:rv', rd):
+        s = int(rv.get('s', 0))
+        at = structures[s] if s < len(structures) else 0
+        vs = [v.text for v in rv.findall('rd:v', rd)]
+        values.append(int(vs[at]) if at is not None and at < len(vs) and (vs[at] or '').isdigit() else None)
+    rels = _rels(zf, 'xl/richData/richValueRel.xml')
+    images = [rels.get(r.get(R_ID)) for r in _parse(zf, 'xl/richData/richValueRel.xml').findall('rv:rel', rd)]
+    out = []
+    for bk in meta.findall('m:valueMetadata/m:bk', NS):
+        rc = bk.find('m:rc', NS)
+        image = None
+        try:
+            value = values[future[int(rc.get('v'))]]
+            image = images[value] if value is not None else None
+        except (AttributeError, IndexError, TypeError, ValueError):
+            pass
+        out.append(image if image in names else None)
+    return out
+
+
+def _placed_pictures(zf, root, placed, merged):
+    """Pictures placed in cells, sized to the cell (its merged area)."""
+    if not placed:
+        return []
+    col_left, row_top = _grid(root)
+    areas = {a: b for a, b in merged}
+    out = []
+    for ref, image in placed.items():
+        col, row = split_ref(ref)
+        n = column_number(col)
+        end_col, end_row = split_ref(areas.get(ref, ref))
+        x, y = col_left(n - 1), row_top(row - 1)
+        w, h = col_left(column_number(end_col)) - x, row_top(end_row) - y
+        out.append(Picture(zf.read(image), image.rsplit('.', 1)[-1].lower(), row, n, x, y, w, h))
     return out
