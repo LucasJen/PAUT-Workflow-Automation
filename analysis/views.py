@@ -347,11 +347,14 @@ def _settings(data):
     }
 
 
-def _auto_indication(path, group, sized, number):
+def _auto_indication(path, info, group, sized, number):
+    # Index as on a hand-added one: the index line on a raster, else the probe's index position (the axial
+    # position, PA^, is in the sizing)
+    index = sized.get('axial') if group.layout == RASTER else info.probe.get('v_offset')
     return Indication(
         file_path=path, file_name=os.path.basename(path), group=group.id, number=number,
         scan=sized['peak_scan'], lateral=sized['peak_line'], scan_position=sized['scan_position'],
-        index_position=sized.get('axial'), angle=sized.get('angle'), gain=sized['gain_db'],
+        index_position=index, angle=sized.get('angle'), gain=sized['gain_db'],
         readings=detection.readings_of(sized), sizing=sized,
         status=Indication.UNREVIEWED, source=Indication.AUTO)
 
@@ -390,7 +393,7 @@ def detect_indications(request):
                 overlapping += 1
                 continue
             last += 1
-            added.append(_auto_indication(path, group, sized, last))
+            added.append(_auto_indication(path, info, group, sized, last))
         Indication.objects.bulk_create(added)
     return JsonResponse({
         'found': len(added), 'kept': len(kept), 'overlapping': overlapping,
@@ -399,16 +402,17 @@ def detect_indications(request):
     })
 
 
-MANUAL_SIZING = ('scan_start', 'scan_end', 'top', 'bottom', 'axial_start', 'axial_end')
+MANUAL_SIZING = ('scan_start', 'scan_end', 'view_top', 'view_bottom', 'top', 'bottom', 'axial_start', 'axial_end')
 
 
 @require_http_methods(['POST'])
 def resize_indication(request, pk):
     """
     Sizes a found indication again (query: path, group, gates, gain; JSON body {method}: 6 / 12 / 20 dB),
-    or takes the user's own ends ({manual: {scan_start, scan_end, top, bottom, axial_start, axial_end}},
-    m): the length, height and axial extent follow, it's marked edited, and the sizing it had first
-    is kept as 'original'.
+    or takes the user's own ends ({manual: {scan_start, scan_end, view_top, view_bottom, axial_start,
+    axial_end}}, m; view_top / view_bottom as the S-scan draws depth, unfolded - or top / bottom, true
+    depths): the length, height and axial extent follow, it's marked edited, and the sizing it had
+    first is kept as 'original'.
     """
     item = get_object_or_404(Indication, pk=pk)
     try:
@@ -429,9 +433,11 @@ def resize_indication(request, pk):
                     new[name] = value
         except (TypeError, ValueError):
             return _error("The sizing couldn't be read.")
-        for lo, hi in (('scan_start', 'scan_end'), ('top', 'bottom'), ('axial_start', 'axial_end')):
+        for lo, hi in (('scan_start', 'scan_end'), ('view_top', 'view_bottom'), ('top', 'bottom'), ('axial_start', 'axial_end')):
             if new.get(lo) is not None and new.get(hi) is not None and new[lo] > new[hi]:
                 new[lo], new[hi] = new[hi], new[lo]
+        if 'view_top' in manual and new.get('view_top') is not None and new.get('view_bottom') is not None:
+            new['top'], new['bottom'] = sizing.folded_span(new['view_top'], new['view_bottom'], new.get('thickness'))
         if new.get('scan_start') is not None and new.get('scan_end') is not None:
             new['length'] = new['scan_end'] - new['scan_start']
         if new.get('top') is not None and new.get('bottom') is not None:
@@ -458,7 +464,9 @@ def resize_indication(request, pk):
             return _error(str(e))
         new.update({k: old[k] for k in ('scan_lo', 'scan_hi', 'detect_threshold') if k in old})
         item.scan, item.lateral = new['peak_scan'], new['peak_line']
-        item.scan_position, item.index_position = new['scan_position'], new.get('axial')
+        item.scan_position = new['scan_position']
+        if group.layout == RASTER:
+            item.index_position = new.get('axial')
         item.gain = new['gain_db']
     if old.get('auto') or old.get('edited'):
         new['original'] = original

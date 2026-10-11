@@ -292,3 +292,31 @@ body.analysis-resizing { user-select: none; }
     .analysis-panel-sscan, .analysis-panel-ascan, .analysis-panel-cscan, .analysis-panel-bscan { height: 24rem; }
     .analysis-splitter { display: none; }
 }
+
+/* ── Find indications and the review (Indications panel) ── */
+.analysis-find { border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.55rem; margin-bottom: 0.5rem; }
+.analysis-find summary { cursor: pointer; font-size: 0.8125rem; }
+.analysis-find-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.4rem 0.5rem; align-items: end; margin: 0.45rem 0 0.25rem; }
+.analysis-find-grid label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.75rem; color: var(--text-2); }
+.analysis-find-grid .btn { align-self: end; }
+.analysis-review-filter .btn { font-size: 0.75rem; }
+.analysis-review { border: 1px solid var(--accent); border-radius: 6px; padding: 0.45rem 0.55rem; margin-bottom: 0.5rem; background: var(--accent-soft); }
+.analysis-review-head { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; }
+.analysis-review-values { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.1rem 0.75rem; margin: 0.35rem 0; font-size: 0.8125rem; }
+.analysis-review-values div { display: flex; justify-content: space-between; gap: 0.35rem; }
+.analysis-review-values dt { font-weight: 400; color: var(--text-2); }
+.analysis-review-values dd { margin: 0; }
+.analysis-review-values .is-warning dd, .analysis-review-values .is-warning dt { color: var(--danger, #ef4444); font-weight: 600; }
+.analysis-review-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.analysis-review-actions kbd { font-size: 0.65rem; }
+.analysis-review-status, .analysis-status-mark { font-size: 0.7rem; font-weight: 600; padding: 0 0.35rem; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.is-unreviewed { color: #f59e0b; }
+.is-accepted { color: #22c55e; }
+.is-rejected { color: #ef4444; }
+.analysis-indication-table tr.is-rejected-row td { opacity: 0.55; text-decoration: line-through; }
+.analysis-indication-table tr.is-rejected-row td:last-child, .analysis-indication-table tr.is-rejected-row td:nth-last-child(2) { text-decoration: none; }
+.analysis-review-values div { min-width: 0; }
+.analysis-review-values dd { white-space: nowrap; }
+.analysis-indications .analysis-indication-table th, .analysis-indications .analysis-indication-table td { padding-left: 0.15rem; padding-right: 0.15rem; }
+.analysis-indications { overflow-x: auto; }
+[data-panel-body="indications"] .analysis-drawer-row { flex-wrap: wrap; row-gap: 0.35rem; }

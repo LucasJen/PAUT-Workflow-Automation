@@ -73,6 +73,18 @@ class FindRegionTests(SimpleTestCase):
         self.assertEqual(find_regions(a, 20, min_scans=2)[0]['scan_lo'], 4)
 
 
+class FoldedSpanTests(SimpleTestCase):
+    def test_spans_as_drawn_fold_into_the_part(self):
+        from analysis.services.sizing import folded_span
+        T = 0.01
+        self.assertEqual(folded_span(0.002, 0.004, T), (0.002, 0.004))
+        lo, hi = folded_span(0.013, 0.016, T)             # leg 2: comes back up from the back wall
+        self.assertAlmostEqual(lo, 0.004); self.assertAlmostEqual(hi, 0.007)
+        lo, hi = folded_span(0.008, 0.012, T)             # across the back wall: down to it
+        self.assertAlmostEqual(lo, 0.008); self.assertAlmostEqual(hi, 0.01)
+        self.assertEqual(folded_span(0.004, 0.002, None), (0.002, 0.004))
+
+
 class GainTests(SimpleTestCase):
     def test_gain_to_eighty_percent(self):
         self.assertAlmostEqual(gain_to_target(40), 20 * math.log10(2))        # +6.02 dB
@@ -146,6 +158,8 @@ class SizeIndicationTests(SimpleTestCase):
         self.assertAlmostEqual(r['height'], 3240 * 1e-7 / 2 * math.cos(math.radians(55)), places=9)   # 0.093 mm
         self.assertAlmostEqual(r['top'], tops[0], places=9)
         self.assertAlmostEqual(r['depth'], r['top'])
+        self.assertAlmostEqual(r['view_top'], r['top'])          # leg 1: drawn where it is
+        self.assertAlmostEqual(r['thickness'], 0.0125)
         # The axial position is the peak's PA^, as the readings give it
         raw, _ = __import__('analysis.services.nde_data', fromlist=['read_frame']).read_frame(path, group, 8)
         results = evaluate_gates(group, beam, raw[1], group.gates)
@@ -252,5 +266,9 @@ class DetectApiTests(TestCase):
         self.assertAlmostEqual(hand['length'], 0.004)                           # ends put in order
         self.assertAlmostEqual(hand['height'], 0.0005)
         self.assertEqual(hand['original']['method'], '6')                       # the first sizing kept
+        drawn = self.client.post(url, json.dumps({'manual': {'view_top': 0.0130, 'view_bottom': 0.0136}}),
+                                 content_type='application/json').json()['sizing']
+        self.assertAlmostEqual(drawn['top'], 0.0125 - 0.0011)                    # leg 2, folded at the 12.5 mm back wall
+        self.assertAlmostEqual(drawn['height'], 0.0006)
         self.assertEqual(self.client.post(url, json.dumps({'manual': {'top': 'x'}}),
                                           content_type='application/json').status_code, 400)

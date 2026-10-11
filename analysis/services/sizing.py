@@ -165,9 +165,10 @@ def frame_extent(path, info, group, gates, letter, scan, line, drop, gain=0.0):
     cells = _grow(gated, (line, sample), peak * 10 ** (-drop / 20))
     thickness = info.specimen.get('thickness')
     probe = info.probe.get('v_offset', 0.0)
-    depths, axials = [], []
+    depths, unfolded, axials = [], [], []
     for b, i in cells:
         _, v, depth = position(group, group.beams[b], i)
+        unfolded.append(depth)
         depths.append(fold_depth(depth, thickness)[0])
         axials.append(v - probe)
     beam = group.beams[line]
@@ -179,7 +180,9 @@ def frame_extent(path, info, group, gates, letter, scan, line, drop, gain=0.0):
     return {'peak_sample': sample, 'peak_raw': peak_raw, 'saturated': saturated, 'peak_amplitude': peak,
             'sound_path': sp, 'depth': depth, 'leg': leg, 'axial': index - probe,
             'top': min(depths), 'bottom': max(depths), 'height': max(depths) - min(depths),
-            'axial_start': min(axials), 'axial_end': max(axials), 'cells': len(cells)}
+            'axial_start': min(axials), 'axial_end': max(axials), 'cells': len(cells),
+            # Where it is on the S-scan and B-scan, which draw depth unfolded (leg 2 below the back wall)
+            'view_top': min(unfolded), 'view_bottom': max(unfolded)}
 
 
 def size_indication(path, info, group, gates, cscan, letter, region, method='6', gain=0.0):
@@ -206,7 +209,7 @@ def size_indication(path, info, group, gates, cscan, letter, region, method='6',
     peak_scan = length['peak']   # the length's own peak (it can climb past the region's)
     ends = sorted((to_scan(length['start']), to_scan(length['end'])))
     result = {
-        'auto': True, 'method': method, 'gate': letter,
+        'auto': True, 'method': method, 'gate': letter, 'base_gain': gain,
         'scan_start': ends[0], 'scan_end': ends[1], 'length': ends[1] - ends[0],
         'scan_position': to_scan(peak_scan), 'peak_scan': peak_scan,
         'line_lo': region['line_lo'], 'line_hi': region['line_hi'],
@@ -221,6 +224,7 @@ def size_indication(path, info, group, gates, cscan, letter, region, method='6',
     frame = frame_extent(path, info, group, gates, letter, peak_scan, peak_line, drop, gain)
     result.update({
         'peak_line': peak_line, 'peak_sample': frame['peak_sample'],
+        # % at the file's gain plus the soft gain it was found at (base_gain); base_gain + gain_db shows it at 80 %
         'peak_amplitude': frame['peak_amplitude'], 'gain_db': gain_to_target(frame['peak_amplitude']),
         'saturated': frame['saturated'], 'sound_path': frame['sound_path'],
         'peak_depth': frame['depth'], 'leg': frame['leg'], 'angle': group.beams[peak_line].refracted_angle,
@@ -229,6 +233,17 @@ def size_indication(path, info, group, gates, cscan, letter, region, method='6',
         result['depth'] = frame['depth']
     else:
         result.update({'depth': frame['top'], 'height': frame['height'], 'top': frame['top'],
-                       'bottom': frame['bottom'], 'axial': frame['axial'],
+                       'bottom': frame['bottom'], 'view_top': frame['view_top'], 'view_bottom': frame['view_bottom'],
+                       'thickness': info.specimen.get('thickness'), 'axial': frame['axial'],
                        'axial_start': frame['axial_start'], 'axial_end': frame['axial_end']})
     return result
+
+
+def folded_span(top, bottom, thickness):
+    """(shallowest, deepest) true depth of an unfolded depth span (as drawn on the S-scan) in a part `thickness` thick."""
+    a, b = sorted((top, bottom))
+    if not thickness or thickness <= 0:
+        return a, b
+    points = [a, b] + [k * thickness for k in range(int(a // thickness) + 1, int(b // thickness) + 1)]
+    depths = [fold_depth(p, thickness)[0] for p in points]
+    return min(depths), max(depths)

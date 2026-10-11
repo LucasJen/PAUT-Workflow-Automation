@@ -32,11 +32,11 @@ FIELDS = {
     'scan_start': 'Scan start (reference cursor, else the scan line)',
     'scan_stop': 'Scan stop (measure cursor)',
     'scan_range': 'Scan start / stop',
-    'index_pos': 'Index position of the peak',
+    'index_pos': 'Axial position of the peak (PA^, from the sizing) or its index position',
     'index_range': 'Index start / stop',
     'length': 'Length from the sizing (or between the scan cursors)',
     'depth': 'Depth of the gate A peak',
-    'height': 'Height between the depth cursors',
+    'height': 'Height (from the sizing, else between the depth cursors)',
     'amplitude': 'Peak amplitude, % of full screen',
     'thickness_min': 'Least thickness (zone Tmin, else the thickness reading)',
     'thickness_avg': 'Average thickness in the zone',
@@ -127,6 +127,20 @@ def indication_values(indication, units='in', numbered=True):
     depth = next((r[k] for k in ('DA^', 'A/-I/') if has(r.get(k))), None)
     thickness = next((r[k] for k in ('TminZ', 'T(B/-A/)', 'A/-I/') if has(r.get(k))), None)
     amplitude = next((r[k] for k in ('Peak%', 'A%') if has(r.get(k))), None)
+    height = abs(u_meas - u_ref) if has(u_ref) and has(u_meas) else None
+    axial_range = None
+    s = indication.sizing or {}
+    if s.get('auto'):   # found and sized (detection.py): its own length, height, depth and axial position (PA^)
+        if has(s.get('scan_start')) and has(s.get('scan_end')):
+            scan_start, scan_stop, both_s = s['scan_start'], s['scan_end'], True
+            s_ref, s_meas = scan_start, scan_stop
+        length = s.get('length') if has(s.get('length')) else length
+        height = s.get('height') if has(s.get('height')) else height
+        depth = s.get('depth') if has(s.get('depth')) else depth
+        index_pos = s.get('axial') if has(s.get('axial')) else index_pos
+        amplitude = s.get('peak_amplitude') if has(s.get('peak_amplitude')) else amplitude
+        if has(s.get('axial_start')) and has(s.get('axial_end')):
+            axial_range = (s['axial_start'], s['axial_end'])
     stem = os.path.splitext(indication.file_name)[0]
 
     def fmt(metres):
@@ -141,10 +155,11 @@ def indication_values(indication, units='in', numbered=True):
         'scan_stop': fmt(scan_stop),
         'scan_range': pair(min(s_ref, s_meas), max(s_ref, s_meas)) if both_s else fmt(scan_start),
         'index_pos': fmt(index_pos),
-        'index_range': pair(min(i_ref, i_meas), max(i_ref, i_meas)) if both_i else fmt(index_pos),
+        'index_range': (pair(*axial_range) if axial_range else
+                        pair(min(i_ref, i_meas), max(i_ref, i_meas)) if both_i else fmt(index_pos)),
         'length': fmt(length),
         'depth': fmt(depth),
-        'height': fmt(abs(u_meas - u_ref)) if has(u_ref) and has(u_meas) else '',
+        'height': fmt(height) if has(height) else '',
         'amplitude': f'{amplitude:.1f}' if has(amplitude) else '',
         'thickness_min': fmt(thickness),
         'thickness_avg': fmt(r.get('TavgZ')) if has(r.get('TavgZ')) else '',

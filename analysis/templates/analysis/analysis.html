@@ -10,6 +10,7 @@
      data-frame-gates-url="{% url 'analysis-frame-gates' %}"
      data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
      data-bscan-url="{% url 'analysis-bscan' %}" data-size-url="{% url 'analysis-size' %}"
+     data-detect-url="{% url 'analysis-detect' %}" data-resize-url="{% url 'analysis-resize' 0 %}"
      data-indications-url="{% url 'analysis-indications' %}" data-indications-csv-url="{% url 'analysis-indications-csv' %}"
      data-indication-url="{% url 'analysis-indication' 0 %}" data-report-targets-url="{% url 'analysis-report-targets' %}"
      data-weld-outline-url="{% url 'analysis-weld-outline' %}"
@@ -138,11 +139,57 @@
             <p class="analysis-note">On the S-scan drag a gate's edges to change its start or end (a box: any side) and its letter tab to move it. On the A-scan drag a gate's bar (up / down changes its threshold) and its end ticks.</p>
         </section>
 
-        <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" hidden>
+        <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" data-wide hidden>
+            {# Find indications: every signal in the gate over its threshold, each taken to 80 % and sized #}
+            <details class="analysis-find" id="find-box" open>
+                <summary><strong>Find indications</strong> <span class="analysis-note">every signal breaking the gate, sized at 80 % FSH</span></summary>
+                <div class="analysis-find-grid">
+                    <label title="The gate whose signals are found and sized">Gate
+                        <select class="form-select form-select-sm" id="find-gate"></select></label>
+                    <label title="A signal at or above this breaks the gate (blank: the gate's own threshold)">Threshold %
+                        <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="find-threshold" placeholder="gate's"></label>
+                    <label title="Length, height and axial extent: where the signal drops this far below its peak">Sizing
+                        <select class="form-select form-select-sm" id="find-method"><option value="6">−6 dB</option><option value="12">−12 dB</option><option value="20">−20 dB</option></select></label>
+                    <label title="Signals this many scan lines apart or closer, on the same beams, are one indication">Join gaps of
+                        <span class="input-group input-group-sm"><input type="number" class="form-control mono" id="find-gap" value="2" min="0" step="1"><span class="input-group-text">lines</span></span></label>
+                    <label title="Shorter indications are left out (along the scan)">Shortest
+                        <span class="input-group input-group-sm"><input type="text" inputmode="decimal" class="form-control mono" id="find-min" value="0"><span class="input-group-text" id="find-min-unit">in</span></span></label>
+                    <button type="button" class="btn btn-sm btn-primary" id="find-now" title="Find and size every indication in the gate; indications you've reviewed or added are kept"><i class="bi bi-search"></i> Find</button>
+                </div>
+                <span class="analysis-note" id="find-note" role="status"></span>
+            </details>
             <div class="analysis-drawer-row">
-                <button type="button" class="btn btn-sm btn-primary" id="add-indication" title="Save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i> Add <kbd>N</kbd></button>
+                <div class="btn-group btn-group-sm analysis-review-filter" id="review-filter" role="group" aria-label="Show">
+                    <button type="button" class="btn btn-primary" data-filter="all">All</button>
+                    <button type="button" class="btn btn-secondary" data-filter="unreviewed">To review</button>
+                    <button type="button" class="btn btn-secondary" data-filter="accepted">Accepted</button>
+                    <button type="button" class="btn btn-secondary" data-filter="rejected">Rejected</button>
+                </div>
+                <span class="analysis-note" id="review-progress"></span>
+                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="add-indication" title="Save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i> Add <kbd>N</kbd></button>
                 <a class="btn btn-sm btn-secondary" id="export-indications" href="#" title="The indications as a CSV like OmniPC's indications.csv"><i class="bi bi-download"></i> CSV</a>
-                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="open-send" title="Add these indications to a report's results"><i class="bi bi-send"></i> To report</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="open-send" title="Add the accepted indications to a report's results, with their pictures"><i class="bi bi-send"></i> To report</button>
+            </div>
+            {# The indication being reviewed: what it measured, and accept / reject / size again #}
+            <div class="analysis-review" id="review-card" hidden>
+                <div class="analysis-review-head">
+                    <strong id="review-title"></strong>
+                    <span class="analysis-review-status" id="review-status"></span>
+                    <span class="analysis-note ms-auto">Drag the red / green cursors to correct the sizing</span>
+                </div>
+                <dl class="analysis-review-values mono" id="review-values"></dl>
+                <div class="analysis-review-actions">
+                    <button type="button" class="btn btn-sm btn-secondary" id="review-prev" title="Previous indication ([)"><i class="bi bi-chevron-left"></i></button>
+                    <button type="button" class="btn btn-sm btn-success" id="review-accept" title="It's real and the sizing is right (Enter); goes on to the next"><i class="bi bi-check-lg"></i> Accept <kbd>Enter</kbd></button>
+                    <button type="button" class="btn btn-sm btn-danger" id="review-reject" title="Not a real indication (X); goes on to the next"><i class="bi bi-x-lg"></i> Reject <kbd>X</kbd></button>
+                    <span class="btn-group btn-group-sm" role="group" aria-label="Size again">
+                        <button type="button" class="btn btn-secondary" data-resize="6" title="Size again at −6 dB (6)">−6</button>
+                        <button type="button" class="btn btn-secondary" data-resize="12" title="Size again at −12 dB (1)">−12</button>
+                        <button type="button" class="btn btn-secondary" data-resize="20" title="Size again at −20 dB (2)">−20</button>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-secondary" id="review-save" hidden title="Keep the sizing as the cursors are now (S)"><i class="bi bi-floppy"></i> Keep cursors <kbd>S</kbd></button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="review-next" title="Next indication (])"><i class="bi bi-chevron-right"></i></button>
+                </div>
             </div>
             <div class="analysis-indications" id="indication-rows"></div>
         </section>
@@ -158,7 +205,8 @@
                 <div class="analysis-step-head"><span class="analysis-step-number">2</span> Indications
                     <button type="button" class="btn btn-sm btn-ghost ms-auto" id="send-all" title="Pick every indication of this file">All</button></div>
                 <div class="analysis-pick-list" id="send-indications"></div>
-                <label class="analysis-check" title="A picture of the views at each indication, as laid out now, goes with its row"><input type="checkbox" id="send-pictures" checked> A picture of the views with each</label>
+                <label class="analysis-check" title="Leave out the found indications still to review and those rejected"><input type="checkbox" id="send-accepted" checked> Accepted only</label>
+                <label class="analysis-check" title="Each indication's snip goes with its row: the S-scan and A-scan at its peak, the C-scan around it and the B-scan, at its 80 % gain with the sizing drawn"><input type="checkbox" id="send-pictures" checked> A snip of the views with each</label>
             </div>
             <div class="analysis-step">
                 <div class="analysis-step-head"><span class="analysis-step-number">3</span> Rows to add</div>
@@ -211,7 +259,10 @@
                     <dt>T</dt><dd>Leg lines on / off</dd>
                     <dt>L</dt><dd>Size the indication at the cursor</dd>
                     <dt>N</dt><dd>Add an indication</dd>
-                    <dt>[ / ]</dt><dd>Previous / next saved indication</dd>
+                    <dt>[ / ]</dt><dd>Previous / next indication</dd>
+                    <dt>Enter / X</dt><dd>Accept / reject the indication being reviewed, then the next</dd>
+                    <dt>6 / 1 / 2</dt><dd>Size it again at −6 / −12 / −20 dB</dd>
+                    <dt>S</dt><dd>Keep its sizing as the cursors are now</dd>
                     <dt>G</dt><dd>Next group</dd>
                     <dt>O</dt><dd>Open a file</dd>
                     <dt>R</dt><dd>Show / hide the readings</dd>
