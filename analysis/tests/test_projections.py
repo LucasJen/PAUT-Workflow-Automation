@@ -1,3 +1,4 @@
+import math
 import os
 import shutil
 import tempfile
@@ -9,7 +10,7 @@ from django.test import SimpleTestCase, override_settings
 
 from analysis.services import projections
 from analysis.services.nde_data import Gate, open_file, read_ascan, read_frame
-from analysis.services.readings import evaluate_gates
+from analysis.services.readings import evaluate_gates, gate_window
 from analysis.tests import builders
 
 REPORTS = os.path.expanduser('~/Desktop/Reports')
@@ -49,6 +50,35 @@ class ProjectionTests(SimpleTestCase):
                  Gate(1, 'Gate B', start=1e-7, length=1e-6, threshold=5.0, sync_mode='GateRelative', sync_gate=0)]
         self.assert_same_as_readings(path, group, 2, gates)
         self.assert_same_as_readings(path, group, 2, gates, gain=6.0)
+
+    def test_true_depth_and_box_gates_per_beam_match_the_readings(self):
+        path = builders.weld_file(self.folder, samples=400)
+        group = open_file(path).group(0)
+        depth = Gate(0, 'Gate A', start=0.0, length=1e-6, threshold=5.0, geometry='TrueDepth',
+                     depth_start=0.002, depth_end=0.010)
+        box = Gate(1, 'Gate B', start=0.0, length=1e-6, threshold=5.0, geometry='Box',
+                   depth_start=0.0, depth_end=0.012, index_start=-0.012, index_end=-0.004)
+        self.assert_same_as_readings(path, group, 2, [depth, box])
+        # The windows: a true depth gate's sound path grows with the angle; a narrow box misses the 45 deg beam
+        b45, b65 = group.beams[0], group.beams[2]
+        s45, e45 = gate_window(depth, b45, group)
+        self.assertAlmostEqual(e45 * b45.velocity / 2 * math.cos(math.radians(45)), 0.010, places=9)
+        s65, e65 = gate_window(depth, b65, group)
+        self.assertGreater(e65, e45)
+        narrow = Gate(2, 'Gate B', start=0.0, length=1e-6, threshold=5.0, geometry='Box',
+                      depth_start=0.0, depth_end=0.004, index_start=-0.0145, index_end=-0.013)
+        self.assertIsNone(gate_window(narrow, b45, group))
+        # Missed beams: no gate, or (outside='zero') amplitude 0 - the same in the readings and the whole-file block
+        zero = Gate(2, 'Gate B', start=0.0, length=1e-6, threshold=5.0, geometry='Box', outside='zero',
+                    depth_start=0.0, depth_end=0.004, index_start=-0.0145, index_end=-0.013)
+        self.assert_same_as_readings(path, group, 2, [zero])
+        raw, _ = read_frame(path, group, 2)
+        block = projections.gates_block(group, raw, [narrow], projections.line_times(group, raw.shape[1]))
+        self.assertTrue(np.isnan(block['B']['amplitude'][0]))
+        block = projections.gates_block(group, raw, [zero], projections.line_times(group, raw.shape[1]))
+        self.assertEqual(block['B']['amplitude'][0], 0.0)
+        self.assertTrue(np.isnan(block['B']['crossing_time'][0]))       # 4 mm deep it has only reached -16 mm
+        self.assertIsNotNone(gate_window(narrow, b65, group))
 
     def test_build_makes_the_volume_and_cscan(self):
         path = builders.weld_file(self.folder, scans=5, samples=1100)   # > MAX_BINS: max-pooled by 3

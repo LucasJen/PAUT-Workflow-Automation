@@ -1,5 +1,6 @@
 import csv
 import json
+import math
 import os
 from dataclasses import asdict
 
@@ -13,9 +14,9 @@ from django.views.decorators.http import require_http_methods
 
 from reports.models import Report
 
-from .models import Indication
-from .paths import PathNotAllowed, allowed_roots, checked_path
-from .services import geometry, projections, report_export, sizing
+from .models import Indication, OpenedFile
+from .paths import PathNotAllowed, allowed_roots, checked_path, in_working_folders, real_path
+from .services import browse, geometry, projections, projects, report_export, sizing
 from .services.nde_data import (
     RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame, read_status, usable,
 )
@@ -53,7 +54,22 @@ def files(request):
                     if len(found) >= MAX_FILES:
                         break
     found.sort(key=lambda f: f['modified'], reverse=True)
-    return JsonResponse({'roots': allowed_roots(), 'files': found})
+    return JsonResponse({'roots': allowed_roots(), 'files': found, 'opened': _opened_files()})
+
+
+def _opened_files():
+    """The files opened from outside the working folders that are still there, newest first."""
+    out = []
+    for item in OpenedFile.objects.all():
+        try:
+            stat = os.stat(item.path)
+        except OSError:
+            continue
+        if in_working_folders(item.path):
+            continue   # moved under a working folder since: listed there
+        out.append({'path': item.path, 'folder': os.path.dirname(item.path), 'root': '', 'name': os.path.basename(item.path),
+                    'size': stat.st_size, 'modified': stat.st_mtime, 'opened': True})
+    return out
 
 
 def _open(request):
@@ -117,7 +133,8 @@ def frame(request):
 
 def _gates(request, group):
     """The file's gates, or the editor's own (?gates= JSON list, SI: start / length in s from the
-    pulse or from the sync gate's crossing, threshold in %)."""
+    pulse or from the sync gate's crossing, threshold in %; a TrueDepth gate's depth_start / depth_end
+    and a Box gate's index_start / index_end in m - those two are always from the pulse)."""
     text = request.GET.get('gates')
     if not text:
         return group.gates
@@ -125,13 +142,23 @@ def _gates(request, group):
         items = json.loads(text)
         gates = []
         for item in items:
-            sync = item.get('sync_gate')
+            geometry = item.get('geometry') if item.get('geometry') in ('TrueDepth', 'Box') else 'SoundPath'
+            sync = item.get('sync_gate') if geometry == 'SoundPath' else None
+            extra = {}
+            if geometry != 'SoundPath':
+                names = ('depth_start', 'depth_end') + (('index_start', 'index_end') if geometry == 'Box' else ())
+                extra = {name: float(item[name]) for name in names}
+                if not all(math.isfinite(v) for v in extra.values()):
+                    raise ValueError
+                if geometry == 'Box':
+                    extra['outside'] = 'zero' if item.get('outside') == 'zero' else 'none'
             gate = Gate(
                 id=int(item['id']), name=str(item.get('name') or '')[:20], start=float(item['start']),
                 length=float(item['length']), threshold=float(item['threshold']),
                 sync_mode='GateRelative' if sync is not None else 'Pulse',
                 sync_gate=int(sync) if sync is not None else None,
                 trigger='MaxPeak' if item.get('trigger') == 'MaxPeak' else 'Crossing',
+                geometry=geometry, **extra,
             )
             if gate.length <= 0 or not 0 <= gate.threshold <= 1000:
                 raise ValueError
@@ -464,3 +491,129 @@ def weld_outline(request):
     weld = geometry.clean_weld(data.get('weld'))
     return JsonResponse({'weld': weld, 'lines': geometry.weld_outline(weld, thickness, caps=False),
                          'caps': geometry.weld_outline(weld, thickness, caps='only')})
+
+
+# ── Files from anywhere on this PC, and new projects from them ──
+
+def browse_pc(request):
+    """GET ?path=: a folder's sub-folders and .nde files; no path: the drives and usual places."""
+    path = request.GET.get('path', '')
+    if not path:
+        return JsonResponse({'path': '', 'parent': '', 'places': browse.places(), 'folders': [], 'files': []})
+    try:
+        return JsonResponse(browse.listing(path))
+    except ValueError as e:
+        return _error(str(e))
+
+
+def _json_body(request):
+    try:
+        data = json.loads(request.body or b'{}')
+    except ValueError:
+        raise ValueError("The request couldn't be read.")
+    return data if isinstance(data, dict) else {}
+
+
+@require_http_methods(['POST'])
+def open_external(request):
+    """POST (JSON path): opens a .nde file from anywhere on this PC - checked, then recorded so the page may read it."""
+    try:
+        data = _json_body(request)
+        path = str(data.get('path') or '')
+        real = real_path(path)
+        if not real.endswith('.nde') or not os.path.isfile(real):
+            raise ValueError('Pick a .nde file.')
+        open_file(real)   # a readable .nde (raises NdeDataError otherwise)
+    except (ValueError, NdeDataError) as e:
+        return _error(str(e))
+    item, _ = OpenedFile.objects.update_or_create(path=real, defaults={'name': os.path.basename(real)})
+    return JsonResponse({'path': real, 'name': item.name, 'in_working_folders': in_working_folders(real)})
+
+
+@require_http_methods(['POST'])
+def forget_external(request):
+    """POST (JSON path): takes a file off the opened list (it can't be read again until reopened)."""
+    try:
+        data = _json_body(request)
+    except ValueError as e:
+        return _error(str(e))
+    deleted, _ = OpenedFile.objects.filter(path=real_path(str(data.get('path') or 'x'))).delete()
+    return JsonResponse({'forgotten': bool(deleted)})
+
+
+def _project_paths(data):
+    paths = data.get('paths') or []
+    if not isinstance(paths, list):
+        raise ValueError('Pick the .nde files for the project.')
+    try:
+        checked = [checked_path(str(p)) for p in paths]
+    except PathNotAllowed as e:
+        raise ValueError(str(e))
+    return list(dict.fromkeys(checked))
+
+
+@require_http_methods(['POST'])
+def project_options(request):
+    """POST (JSON paths): the report types and working folders a new project can go in, and a name for it."""
+    try:
+        paths = _project_paths(_json_body(request))
+    except ValueError as e:
+        return _error(str(e))
+    out = projects.options(paths)
+    out['files'] = [{'path': p, 'name': os.path.basename(p), 'size': os.path.getsize(p)} for p in paths]
+    return JsonResponse(out)
+
+
+@require_http_methods(['POST'])
+def project_start(request):
+    """POST (JSON paths, type, name): makes the job folder and starts copying the files into it."""
+    try:
+        data = _json_body(request)
+        paths = _project_paths(data)
+        job = projects.start(paths, str(data.get('type') or ''), str(data.get('name') or ''))
+    except (ValueError, projects.ProjectError) as e:
+        return _error(str(e))
+    return JsonResponse({'job': job, **projects.status(job)})
+
+
+def project_status(request):
+    """GET ?job=: how the copying is going; when done, where Guided Creation picks up."""
+    job = projects.status(request.GET.get('job', ''))
+    if job is None:
+        return _error('That project job is unknown (was the server restarted?).', status=404)
+    return JsonResponse(job)
+
+
+def frame_gates(request):
+    """
+    Every beam's gate windows at one scan line, for drawing the gates on the S-scan:
+    {letters, windows: {letter: [[start, end] s | null per beam]}, paths: the same as sound paths (m),
+    crossings: {letter: [s | null]}}.
+    Same rules as the readings (synced gates follow each beam's own sync crossing).
+    """
+    try:
+        path, info = _open(request)
+        group = _group(info, request)
+        scan = _int(request, 'scan')
+        raw, status = read_frame(path, group, scan)
+        gain = float(request.GET.get('gain') or 0)
+        gates = _gates(request, group)
+    except (PathNotAllowed, NdeDataError, ValueError) as e:
+        return _error(str(e))
+    if gain:
+        raw = np.clip(np.round(raw.astype(np.float64) * 10 ** (gain / 20)), -32768, 32767).astype(np.int16)
+    letters = [gate_letter(g.name) for g in gates]
+    windows = {letter: [] for letter in letters}
+    paths = {letter: [] for letter in letters}
+    crossings = {letter: [] for letter in letters}
+    for line, beam in enumerate(group.beams):
+        results = {}
+        if status is None or usable(group, int(status[line])):
+            results = evaluate_gates(group, beam, raw[line], gates)
+        for letter in letters:
+            r = results.get(letter)
+            ok = r is not None and r.found and r.start is not None
+            windows[letter].append([r.start, r.end] if ok else None)
+            paths[letter].append([beam.velocity * r.start / 2, beam.velocity * r.end / 2] if ok else None)
+            crossings[letter].append(r.crossing_time if ok else None)
+    return JsonResponse({'letters': letters, 'windows': windows, 'paths': paths, 'crossings': crossings})

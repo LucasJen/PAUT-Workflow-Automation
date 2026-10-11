@@ -40,6 +40,7 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-tool-note { font-size: 0.75rem; color: var(--text-3); white-space: nowrap; margin-left: 0.2rem; }
 .analysis-slider { width: 11rem; }
 .analysis-number { width: 4.6rem !important; font-size: 0.8125rem; }
+.analysis-scan-distance { width: 5.6rem !important; text-align: right; }
 .analysis-layout-select { width: auto; font-size: 0.8125rem; }
 .analysis-status { font-size: 0.8125rem; color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .analysis-topbar-end { display: flex; align-items: center; gap: 0.1rem; margin-left: auto; }
@@ -87,13 +88,25 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-file-list > * { flex-shrink: 0; }
 .analysis-file-folder { position: sticky; top: -0.7rem; z-index: 1; padding: 0.45rem 0.35rem 0.2rem; background: var(--surface);
     font-size: 0.6875rem; font-weight: 600; color: var(--text-3); letter-spacing: 0.02em;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .analysis-file-item { display: flex; align-items: baseline; gap: 0.5rem; width: 100%; padding: 0.22rem 0.35rem; border: 0;
     border-radius: 4px; background: none; color: var(--text); text-align: left; }
 .analysis-file-item:hover { background: var(--surface-hover); }
 .analysis-file-item.is-current { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
 .analysis-file-item .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .analysis-file-item .meta { flex: 0 0 auto; font-size: 0.6875rem; color: var(--text-3); }
+
+/* Files: the list, Browse this PC, New project */
+.analysis-files-view { display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; }
+.analysis-files-view[hidden] { display: none; }
+.analysis-pc-path { flex: 1 1 auto; min-width: 0; font-size: 0.75rem; color: var(--text-2); overflow: hidden; white-space: nowrap; }
+.analysis-pc-list .analysis-file-item i { color: var(--text-3); }
+.analysis-pc-list .analysis-file-item input { margin: 0; flex: 0 0 auto; }
+.analysis-file-item .forget { flex: 0 0 auto; border: 0; background: none; color: var(--text-3); padding: 0 0.15rem; line-height: 1; }
+.analysis-file-item .forget:hover { color: var(--danger); }
+.analysis-file-folder .btn-link { float: right; padding: 0; font-size: 0.6875rem; text-decoration: none; }
+.analysis-project-progress { display: block; height: 0.4rem; border-radius: 2px; background: var(--border); overflow: hidden; flex: 1 1 auto; }
+.analysis-project-progress span { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
 
 /* Gates */
 .analysis-gates { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
@@ -102,10 +115,30 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-gates .form-control, .analysis-gates .form-select { min-width: 0; padding: 0.15rem 0.35rem; font-size: 0.8125rem; }
 .analysis-gates .form-select { padding-right: 1.4rem; background-position: right 0.3rem center; }
 .analysis-gates td:last-child { width: 4.6rem; } .analysis-gates td:first-child { width: 1.7rem; }
+.analysis-gates .analysis-gate-type { width: 5.6rem; }
+.analysis-gates tr.analysis-gate-index td { padding-top: 0; }
+.analysis-gates tr.analysis-gate-index .analysis-tool-note { font-size: 0.6875rem; }
 .gate-letter { display: inline-block; width: 1.3rem; text-align: center; font-weight: 700; border-radius: 3px; color: #111; }
 .gate-I { background: #facc15; } .gate-A { background: #ef4444; color: #fff; } .gate-B { background: #22c55e; }
 .analysis-add-gates { display: flex; gap: 0.3rem; }
 .analysis-add-gates[hidden] { display: none; }
+
+/* Gate cards */
+.analysis-gate-rows { display: flex; flex-direction: column; gap: 0.6rem; }
+.analysis-gate-card { border: 1px solid var(--border); border-left: 3px solid var(--gate-colour, var(--border-strong)); border-radius: var(--radius); }
+.gate-card-I { --gate-colour: #facc15; } .gate-card-A { --gate-colour: #ef4444; } .gate-card-B { --gate-colour: #22c55e; }
+.analysis-gate-card > header { display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.5rem; background: var(--surface-2);
+    border-bottom: 1px solid var(--border); border-radius: 0 var(--radius) 0 0; font-size: 0.8125rem; }
+.analysis-gate-card > header strong { font-weight: 600; white-space: nowrap; }
+.analysis-gate-types { margin-left: auto; }
+.analysis-gate-types .btn { padding: 0.1rem 0.45rem; font-size: 0.75rem; white-space: nowrap; }
+.analysis-gate-remove { padding: 0.15rem 0.35rem; color: var(--text-3); }
+.analysis-gate-remove:hover { color: var(--danger); }
+.analysis-gate-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem 0.6rem; padding: 0.55rem 0.6rem 0.6rem; }
+.analysis-gate-field { display: flex; flex-direction: column; gap: 0.15rem; margin: 0; min-width: 0; cursor: help; }
+.analysis-gate-field > span { font-size: 0.6875rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+.analysis-gate-field .form-control, .analysis-gate-field .form-select { font-size: 0.8125rem; cursor: auto; }
+.analysis-gate-field.is-wide { grid-column: 1 / -1; }
 
 /* Geometry: the weld overlay editor */
 .analysis-weld-editor { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -225,6 +258,10 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-splitter-row { height: 10px; margin-top: -5px; cursor: row-resize; }
 .analysis-splitter-row::after { top: 4px; height: 2px; left: 0; right: 0; }
 body.analysis-resizing { user-select: none; }
+.analysis-splitter-corner { z-index: 6; width: 18px; height: 18px; margin: -9px 0 0 -9px; cursor: move; }
+.analysis-splitter-corner::after { left: 5px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
+.analysis-splitter-corner:hover::after, .analysis-splitter-corner.is-dragging::after { background: var(--accent); }
+.analysis-splitter[hidden] { display: none; }
 
 /* Keys and mouse help */
 .analysis-help-panel { position: absolute; z-index: 20; right: 1rem; top: 0.75rem; width: min(46rem, calc(100% - 2rem)); padding: 0.75rem 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }

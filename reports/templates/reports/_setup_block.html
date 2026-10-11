@@ -37,12 +37,45 @@
 
     {# Compact label / value cells, like the weld form's testing instrument #}
     <div class="cell-grid-wrap">
-        {% for title, fields in form.fieldsets %}{% if fields %}
+        {% for title, fields in form.fieldsets %}{% if fields and title != form.WELD_PANEL %}
         <div class="cell-grid-head">{{ title }}</div>
         <div class="cell-grid">
             {% for field in fields %}{% include 'reports/components/field_cell.html' %}{% endfor %}
         </div>
         {% endif %}{% endfor %}
+    </div>
+
+    {# Everything the .nde gave, to change before it's printed (setup_values.js) #}
+    <div class="setup-values" data-setup-values hidden></div>
+
+    {# The weld and the probe's offsets, drawn on the setup picture's scan plan (setup_weld.js, setup_sheet.py) #}
+    <div class="setup-weld" data-setup-weld>
+        <div class="setup-weld-head">
+            <span class="setup-weld-title">Weld &amp; offsets</span>
+            {% with field=form.weld_on %}
+            <label class="form-check form-switch mb-0" data-field="weld_on" title="Draw the weld in the part on the setup picture's scan plan, at each offset">
+                {{ field }} <span class="form-check-label">{{ field.label }}</span>
+            </label>
+            {% endwith %}
+        </div>
+        <div class="setup-weld-body">
+            <div class="cell-grid">
+                {% for field in form.weld_panel %}{% if field.name != 'weld_on' and field.name != 'index_offset' and field.name != 'extra_offsets' %}{% include 'reports/components/field_cell.html' %}{% endif %}{% endfor %}
+            </div>
+            <div class="setup-weld-offsets" data-field="index_offset">
+                <span class="setup-weld-label" title="Wedge front to the weld centre line. Each offset gets its own scan plan drawing, side by side.">Offsets</span>
+                <div class="setup-weld-offset-list" data-offset-list>
+                    {{ form.index_offset }}
+                    <span hidden>{{ form.extra_offsets }}</span>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" data-add-offset title="Another probe position (wedge front to the weld centre line)"><i class="bi bi-plus-lg"></i> Offset</button>
+                <span class="setup-weld-unit" data-offset-unit></span>
+            </div>
+            <div class="setup-weld-foot">
+                <p class="form-text mb-0">Filled from the .nde when it's imported (the file's weld and its index offset). Each offset gets its own scan plan drawing beside the others on the setup picture; they shrink to fit the page.</p>
+                <button type="button" class="btn btn-secondary btn-sm text-nowrap" data-weld-preview><i class="bi bi-image"></i> Preview</button>
+            </div>
+        </div>
     </div>
 
     {# data-field lets a report type hide this part (report_types.py, hidden_fields) #}

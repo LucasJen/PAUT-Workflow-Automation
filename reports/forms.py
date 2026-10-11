@@ -181,7 +181,7 @@ class ReportForm(StyledFormMixin, ModelForm):
 SETUP_UNIT_FIELDS = {
     'length': ['probe_diameter', 'foc_depth', 'x_res', 'y_res', 'scan_length', 'scan_width', 'specimen_od',
                'specimen_thickness', 'specimen_dimensions', 'tr_min', 'tr_max', 'pcs', 'index_offset',
-               'weld_root_face', 'weld_root_gap', 'weld_cap_width'],
+               'weld_root_face', 'weld_root_gap', 'weld_cap_width', 'extra_offsets'],
     'velocity': ['sound_velocity'],
     'per_length': ['encoder_resolution'],
 }
@@ -237,6 +237,9 @@ def catalogue_choices(form, probe_name, wedge_name):
     wedge_field.widget.choices = CallableChoiceIterator(wedge_choices)
 
 
+WELD_PANEL = 'Weld & offsets (scan plan)'
+
+
 class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
     fieldsets_spec = [
         ('Technique', ['title', 'method_description', 'procedure', 'units']),
@@ -261,11 +264,17 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
                                          'scanning_db']),
         ('Source', ['source_file', 'acquisition_date']),
         ('Catalogue probe and wedge (for scan plans)', ['catalogue_probe', 'catalogue_wedge', 'first_element',
-                                                        'aperture_elements', 'index_offset', 'wedge_primary_offset',
+                                                        'aperture_elements', 'wedge_primary_offset',
                                                         'wedge_first_element_height', 'wedge_velocity',
                                                         'wedge_length', 'wedge_height']),
-        ('Weld (for scan plans)', ['weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width']),
+        # The report editor shows this group as its own panel under the setup (_setup_block.html)
+        (WELD_PANEL, ['weld_on', 'weld_bevel_angle', 'weld_root_face', 'weld_root_gap', 'weld_cap_width',
+                      'index_offset', 'extra_offsets']),
     ]
+    WELD_PANEL = WELD_PANEL
+
+    def weld_panel(self):
+        return dict(self.fieldsets()).get(WELD_PANEL, [])
 
     class Meta:
         model = Setup
@@ -302,7 +311,9 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
             'specimen_dimensions': 'Specimen dimensions',
             'source_file': 'Source data file',
             'acquisition_date': 'Acquisition date',
-            'index_offset': 'Index offset',
+            'index_offset': 'Offset 1',
+            'weld_bevel_angle': 'Bevel angle (°)',
+            'weld_root_face': 'Root face (land)',
         }
         widgets = {
             'wave_propagation': TextInput(attrs={'list': 'wave_propagation_options'}),
@@ -314,6 +325,7 @@ class SetupForm(UnitsCleanMixin, StyledFormMixin, ModelForm):
         help_texts = {'title': 'Heads this setup\'s "Equipment Details" section. The Introduction\'s technique '
                                'bullet uses the Text library description with this name.',
                       'index_offset': 'Wedge front to the weld centre line.',
+                      'extra_offsets': 'Further offsets (wedge front to the centre line), comma separated: each gets its own scan plan drawing.',
                       'weld_cap_width': 'Leave blank to have scan plans calculate it from the bevel.'}
 
     def __init__(self, *args, **kwargs):

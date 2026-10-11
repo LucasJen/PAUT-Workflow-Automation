@@ -194,6 +194,8 @@ function fillSetupBlock(prefix, values) {
     }
     markDirty();
     window.FillMarks?.refresh();
+    // The Setup values table follows the setup's new .nde values (setup_values.js)
+    document.getElementById(`id_${prefix}-nde_sheet`)?.dispatchEvent(new CustomEvent('setup-filled', { bubbles: true }));
 }
 
 // "Fill from saved setup…" copies a saved setup's values into this block

@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
 from django.db.models.functions import Trim
+from ..services.setup_sheet import editable_schema
 from ..services.excel_report import (
     CONTINUATION_ROWS, REPORT_RESULT_ROWS, ExcelReportError, build_workbook, excel_available, output_warnings,
 )
@@ -365,6 +366,8 @@ def create_report(request):
         'known_people': _known_people(),
         'results_data': results_data,
         'report_types': {key: t.as_json() for key, t in REPORT_TYPES.items()},
+        # The Setup values table: what of the .nde's setup can be changed before it's printed
+        'setup_values_schema': editable_schema(),
         # The 'Fill from saved setup…' menus; a picked setup's values are fetched (saved_setup_json)
         'saved_setups': _saved_setup_choices(),
         'report_defaults': all_defaults(),

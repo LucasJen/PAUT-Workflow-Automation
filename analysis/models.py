@@ -37,3 +37,20 @@ class Indication(models.Model):
             'gain': self.gain, 'readings': self.readings, 'cursors': self.cursors, 'sizing': self.sizing,
             'comment': self.comment, 'created_at': self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class OpenedFile(models.Model):
+    """
+    A .nde file opened on the Analysis page from outside the working folders (Browse this PC). Only
+    files recorded here, or inside a working folder, can be read by the page; forgetting one takes
+    it off the list and back out of reach.
+    """
+    path = models.CharField(max_length=500, unique=True, help_text='Real path, as os.path.normcase(realpath) gives it.')
+    name = models.CharField(max_length=255)
+    opened_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-opened_at']
+
+    def __str__(self):
+        return self.name

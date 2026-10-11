@@ -100,6 +100,8 @@ def start_from_files(request):
     # The page opens on Existing folder; a post without a mode is files only (as before job folders)
     mode = request.POST.get('folder_mode') if request.POST.get('folder_mode') in FOLDER_MODES else (
         'none' if request.method == 'POST' else 'existing')
+    # ?folder=: that job folder ticked (a project just made from the Analysis page)
+    posted = request.POST if request.method == 'POST' else {'job_folder': request.GET.get('folder', '')}
     if request.method == 'POST' and not rtype.guided:
         messages.error(request, f'Guided Creation can\'t build {rtype.label} reports yet; use New report.')
         return redirect(_start_url(rtype))
@@ -151,7 +153,7 @@ def start_from_files(request):
         'picture_flow': picture_flow,
         'rtype': rtype, 'report_types': guided_report_types(),
         'root': root, 'root_exists': root is not None and os.path.isdir(root.path),
-        'folders': folders, 'mode': mode, 'posted': request.POST,
+        'folders': folders, 'mode': mode, 'posted': posted,
         'source': 'report' if (request.POST.get('source') or request.GET.get('source')) == 'report' else 'nde',
     })
 
