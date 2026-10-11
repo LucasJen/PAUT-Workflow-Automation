@@ -23,7 +23,8 @@
                    cscan: page.dataset.cscanUrl, bscan: page.dataset.bscanUrl, size: page.dataset.sizeUrl,
                    indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
                    indication: page.dataset.indicationUrl, reportTargets: page.dataset.reportTargetsUrl,
-                   reportPreview: page.dataset.reportPreviewUrl, weldOutline: page.dataset.weldOutlineUrl, reportSend: page.dataset.reportSendUrl };
+                   reportPreview: page.dataset.reportPreviewUrl, weldOutline: page.dataset.weldOutlineUrl, reportSend: page.dataset.reportSendUrl,
+                   detect: page.dataset.detectUrl, resize: page.dataset.resizeUrl };
     const $ = id => document.getElementById(id);
     const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const shell = window.AnalysisShell;
@@ -61,7 +62,10 @@
 
     const state = { path: '', group: 0, scan: 0, lateral: 0, gain: 0, info: null, frame: null, values: null,
                     gates: [], gatesEdited: false, cursors: { ...NO_CURSORS }, refLevel: 80, readings: {},
-                    cscan: null, cscanGain: 0, cscanRanges: {} };
+                    cscan: null, cscanGain: 0, cscanRanges: {},
+                    // The soft gain the whole-file views are built at: reviewing an indication shows it at its own
+                    // 80 % gain without building them again (the views' shaders take the difference)
+                    buildGain: 0, reviewing: null, filter: 'all' };
     const params = new URLSearchParams(location.search);
     let units = localStorage.getItem('analysisUnits') || 'in';
     unitsSelect.value = units;
@@ -377,6 +381,7 @@
         showDetails();
         show('');
         state.sizing = null;
+        state.reviewing = null;
         loadWeld();
         targetsLoaded = false;
         toReport.picked = new Set();
@@ -656,10 +661,11 @@
         const scanLines = [{ value: c.s_ref, colour: '#f87171' }, { value: c.s_meas, colour: '#4ade80' },
                            { value: scanPosition(state.scan), colour: CURSOR }];
         const z = zoneBox();
-        const saved = (state.indications || []).filter(i => i.group === state.group)
-            .map(i => ({ x: scanPosition(i.scan), y: lineY(i.lateral), colour: '#f472b6', label: `#${i.number}` }));
+        const saved = (state.indications || []).filter(i => i.group === state.group && i.status !== 'rejected')
+            .map(i => ({ x: scanPosition(i.scan), y: lineY(i.lateral), label: `#${i.number}`,
+                         colour: i.status === 'unreviewed' ? '#f59e0b' : '#f472b6' }));
         cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR }, ...index],
-                           box: z ? z.box : null, marks: [...(z?.mark ? [z.mark] : []), ...saved] });
+                           box: reviewBox() || (z ? z.box : null), marks: [...(z?.mark ? [z.mark] : []), ...saved] });
         bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171' }, { value: c.u_meas, colour: '#4ade80' }] });
     }
 
@@ -667,7 +673,7 @@
     let projectionTimer = null, projectionRequest = 0, bscanTimer = null, bscanRequest = 0;
     const wholeShown = () => grid.dataset.layout !== 'A-S';
     function projectionParams() {
-        const q = { path: state.path, group: state.group, gain: state.gain };
+        const q = { path: state.path, group: state.group, gain: state.buildGain };
         if (state.gatesEdited) q.gates = JSON.stringify(state.gates);
         return q;
     }
@@ -709,6 +715,7 @@
         if (letters.includes('A') && letters.includes('I')) options.push(['A:thickness:I', 'Thickness A−I (interface to A)']);
         if (letters.includes('A') && letters.includes('B')) options.push(['B:thickness:A', 'Thickness B−A (peak to peak)']);
         kindSelect.replaceChildren(...options.map(([v, t]) => new Option(t, v)));
+        fillFindGates();
         const saved = localStorage.getItem(`analysisKind:${isRaster() ? 'raster' : 'beams'}`);
         const has = v => options.some(o => o[0] === v);
         // A 0 deg raster (HydroFORM): interface to A when there's an I gate, else A to B
@@ -743,8 +750,8 @@
         const g = currentGroup();
         const keep = !!state.cscan && state.cscan.scans === scans && state.cscan.lines === lines;
         state.cscan = { data: result.data, scans, lines, mode };
-        state.cscanGain = state.gain;
-        cview.setGain(0);
+        state.cscanGain = state.buildGain;
+        cview.setGain(state.gain - state.cscanGain);
         cview.setImage(result.data, scans, lines, {
             transpose: true, mode, range, keepView: keep, smooth: !isRaster(),
             axes: { x0: g.axes[0].offset, dx: g.axes[0].resolution, y0: lineY(0), dy: isRaster() ? g.axes[1].resolution : 1 },
@@ -808,6 +815,7 @@
         ascan.set({ cursors: ascanCursors() });
         renderReadings();
         save();
+        if (state.reviewing) $('review-save').hidden = !cursorsMoved();
     }
     $('clear-cursors').addEventListener('click', () => { state.sizing = null; $('size-note').textContent = ''; setCursors({ ...NO_CURSORS }); });
 
@@ -1215,7 +1223,13 @@
             const r = state.sizing;
             add(`Sizing (${r.method === 'threshold' ? 'threshold' : '−' + r.method + ' dB'})`, '', true);
             add(r.axis === 'index' ? 'Width' : 'Length', format(r.length));
-            add('Peak%', `${r.peak_amplitude.toFixed(1)} %`);
+            if (r.auto) {
+                if (has(r.height)) add('Height', format(r.height));
+                if (has(r.width)) add('Width', format(r.width));
+                if (has(r.depth)) add('Depth', format(r.depth));
+                if (has(r.axial)) add(isRaster() ? 'Index' : 'PA^', format(r.axial));
+            }
+            if (has(r.peak_amplitude)) add('Peak%', `${r.peak_amplitude.toFixed(1)} %`);
         }
         if ([c.u_ref, c.u_meas, c.i_ref, c.i_meas, c.s_ref, c.s_meas].some(has)) {
             add('Cursors', '', true);
@@ -1262,6 +1276,7 @@
         if (state.sizing) {
             out[state.sizing.axis === 'index' ? 'Width' : 'Length'] = state.sizing.length;
             out['Peak%'] = state.sizing.peak_amplitude;
+            if (state.sizing.auto && has(state.sizing.height)) out.Height = state.sizing.height;
         }
         const z = zoneBox();
         if (z && z.stats && state.cscan) {
@@ -1364,75 +1379,303 @@
         loadIndications();
     }
 
+    const STATUS_TEXT = { unreviewed: 'To review', accepted: 'Accepted', rejected: 'Rejected' };
+    const STATUS_SHORT = { unreviewed: 'Review', accepted: 'OK', rejected: 'No' };
+    const shownIndications = () => (state.indications || []).filter(i => state.filter === 'all' || i.status === state.filter)
+        .sort((a, b) => a.group - b.group || (a.sizing?.scan_start ?? a.scan_position ?? 0) - (b.sizing?.scan_start ?? b.scan_position ?? 0) || a.lateral - b.lateral);
+
+    /** The Indications panel: the review card, then a row each (# · scan · length · height · depth · PA^ · A% · status). */
     function renderIndications() {
-        const list = state.indications || [];
-        $('indication-count').textContent = list.length;
-        $('indication-count').hidden = !list.length;
+        const all = state.indications || [];
+        const list = shownIndications();
+        $('indication-count').textContent = all.length;
+        $('indication-count').hidden = !all.length;
+        const left = all.filter(i => i.status === 'unreviewed').length;
+        $('review-progress').textContent = all.some(i => i.source === 'auto')
+            ? (left ? `${all.length - left} of ${all.length} reviewed` : `All ${all.length} reviewed`) : '';
+        for (const b of $('review-filter').querySelectorAll('[data-filter]')) {
+            b.className = `btn ${b.dataset.filter === state.filter ? 'btn-primary' : 'btn-secondary'}`;
+        }
+        renderReview();
         const box = $('indication-rows');
         if (!list.length) {
             box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note',
-                textContent: 'No indications yet. Size the indication, then Add indication (N) to keep its readings.' }));
+                textContent: all.length ? 'None to show here.' : 'No indications yet. Find them above, or size one at the cursor (L) and Add it (N).' }));
             return;
         }
         const table = document.createElement('table');
         table.className = 'analysis-indication-table';
         const head = table.createTHead().insertRow();
-        for (const h of ['#', 'Scan', isRaster() ? 'Index' : 'Angle', 'A%', 'Depth', 'Length', '']) {
-            head.append(Object.assign(document.createElement('th'), { textContent: h }));
+        const raster = isRaster();
+        for (const h of ['#', 'Scan', 'Length', raster ? 'Width' : 'Height', 'Depth', raster ? 'Index' : 'PA^', 'A%', '', '']) {
+            head.append(Object.assign(document.createElement('th'), {
+                textContent: h, title: h === 'PA^' ? "Axial position: the peak from the probe's index offset (OmniPC's Index)" : '' }));
         }
         const body = table.createTBody();
+        const value = v => (has(v) ? format(Math.abs(v), 'value') : '-');
         for (const item of list) {
             const tr = body.insertRow();
-            if (item.scan === state.scan && item.lateral === state.lateral) tr.className = 'is-current';
-            const r = item.readings || {};
-            const depth = r['DA^'] ?? r['A/-I/'] ?? r['TminZ'];
-            const length = r.Length ?? r.Width ?? r['S(m-r)'];
-            const cells = [item.number, format(item.scan_position, 'value'),
-                           isRaster() ? format(item.index_position, 'value') : (item.angle === null ? '-' : `${item.angle}°`),
-                           r['A%'] === undefined ? '-' : r['A%'].toFixed(1), depth === undefined ? '-' : format(depth, 'value'),
-                           length === undefined ? '-' : format(Math.abs(length), 'value')];
+            const current = item.id === state.reviewing || (!state.reviewing && item.scan === state.scan && item.lateral === state.lateral);
+            tr.className = [current ? 'is-current' : '', item.status === 'rejected' ? 'is-rejected-row' : ''].join(' ').trim();
+            const r = item.readings || {}, z = item.sizing || {};
+            const depth = z.depth ?? r['DA^'] ?? r['A/-I/'] ?? r['TminZ'];
+            const length = z.length ?? r.Length ?? r.Width ?? r['S(m-r)'];
+            const cursors = item.cursors || {};
+            const across = raster ? (z.width ?? r.Width)
+                : (z.height ?? (has(cursors.u_ref) && has(cursors.u_meas) ? cursors.u_meas - cursors.u_ref : null));
+            const where = raster ? (z.axial ?? item.index_position) : (z.axial ?? r['PA^']);
+            const cells = [item.number, format(z.scan_start ?? item.scan_position, 'value'), value(length), value(across), value(depth),
+                           has(where) ? format(where, 'value') : '-', r['A%'] === undefined ? '-' : r['A%'].toFixed(1)];
             for (const text of cells) tr.insertCell().textContent = text;
-            const comment = Object.assign(document.createElement('input'), { type: 'text', className: 'form-control', value: item.comment || '',
-                                                                            placeholder: 'Comment' });
-            comment.addEventListener('click', e => e.stopPropagation());
-            comment.addEventListener('change', () => send(indicationUrl(item.id), 'POST', { comment: comment.value })
-                .then(saved => { item.comment = saved.comment; }).catch(e => show(e.message)));
+            const mark = Object.assign(document.createElement('span'), {
+                className: `analysis-status-mark is-${item.status}`,
+                textContent: item.source === 'auto' || item.status !== 'accepted' ? STATUS_SHORT[item.status] : 'Added' });
+            const notes = [item.source === 'auto' ? STATUS_TEXT[item.status] : 'Added by hand'];
+            if (z.edited) { mark.textContent += ' ✎'; notes.push('Sizing corrected by hand'); }
+            if (z.saturated) { mark.textContent += ' !'; notes.push('Saturated peak: the sizing may be short'); }
+            mark.title = notes.join('. ');
+            tr.insertCell().append(mark);
             const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-secondary',
-                                                                           title: 'Delete this indication', innerHTML: '<i class="bi bi-x-lg"></i>' });
+                                                                           title: 'Delete this indication', innerHTML: '<i class="bi bi-trash3"></i>' });
             remove.addEventListener('click', async e => {
                 e.stopPropagation();
                 try { await send(indicationUrl(item.id), 'DELETE'); } catch (err) { show(err.message); return; }
+                if (state.reviewing === item.id) state.reviewing = null;
                 loadIndications();
             });
             tr.insertCell().append(remove);
             tr.addEventListener('click', () => goTo(item));
             // The comment on its own line under the row
+            const comment = Object.assign(document.createElement('input'), { type: 'text', className: 'form-control', value: item.comment || '',
+                                                                            placeholder: 'Comment' });
+            comment.addEventListener('click', e => e.stopPropagation());
+            comment.addEventListener('change', () => send(indicationUrl(item.id), 'POST', { comment: comment.value })
+                .then(saved => { item.comment = saved.comment; }).catch(e => show(e.message)));
             const note = body.insertRow();
-            note.className = `analysis-indication-note${tr.className ? ' is-current' : ''}`;
+            note.className = `analysis-indication-note${current ? ' is-current' : ''}`;
             const cell = note.insertCell();
-            cell.colSpan = 7;
+            cell.colSpan = 9;
             cell.append(comment);
         }
         box.replaceChildren(table);
+        box.querySelector('tr.is-current')?.scrollIntoView({ block: 'nearest' });
     }
+    for (const b of $('review-filter').querySelectorAll('[data-filter]')) {
+        b.addEventListener('click', () => { state.filter = b.dataset.filter; renderIndications(); });
+    }
+
+    /** The card of the indication being reviewed: what it measured, and Keep cursors when they were moved off it. */
+    function renderReview() {
+        const item = reviewed();
+        $('review-card').hidden = !item;
+        if (!item) return;
+        const s = item.sizing, raster = isRaster();
+        $('review-title').textContent = `Indication #${item.number}`;
+        const statusMark = $('review-status');
+        statusMark.className = `analysis-review-status is-${item.status}`;
+        statusMark.textContent = STATUS_TEXT[item.status] + (s.edited ? ' · corrected' : '');
+        const rows = [
+            ['Sizing', s.edited ? 'by hand' : `−${s.method} dB`], ['Scan', `${format(s.scan_start, 'value')}–${format(s.scan_end, 'value')}`],
+            ['Length', format(s.length)],
+            raster ? ['Width', format(s.width)] : ['Height', format(s.height)],
+            ['Depth', format(s.depth)], [raster ? 'Index' : 'PA^', format(s.axial)],
+            [raster ? 'Index span' : 'Axial span', `${format(s.axial_start, 'value')}–${format(s.axial_end, 'value')}`],
+            ['Peak', `${(s.peak_amplitude ?? 0).toFixed(1)} %`], ['To 80 %', `${s.gain_db >= 0 ? '+' : ''}${(s.gain_db ?? 0).toFixed(1)} dB`],
+            ...(raster ? [] : [['Angle', `${s.angle}°`], ['Leg', String(s.leg ?? '')]]),
+            ...(s.saturated ? [['Saturated', 'sizing may be short']] : []),
+        ];
+        $('review-values').replaceChildren(...rows.map(([name, text]) => {
+            const div = document.createElement('div');
+            if (name === 'Saturated') div.className = 'is-warning';
+            div.append(Object.assign(document.createElement('dt'), { textContent: name }), Object.assign(document.createElement('dd'), { textContent: text }));
+            return div;
+        }));
+        for (const b of $('review-card').querySelectorAll('[data-resize]')) b.classList.toggle('active', b.dataset.resize === s.method && !s.edited);
+        $('review-save').hidden = !cursorsMoved();
+    }
+
+    /** Whether the reference / measure cursors were moved off the reviewed indication's sizing. */
+    function cursorsMoved() {
+        const item = reviewed();
+        if (!item) return false;
+        const want = sizingCursors(item.sizing), c = state.cursors;
+        return Object.keys(want).some(k => (has(want[k]) || has(c[k])) && !(has(want[k]) && has(c[k]) && Math.abs(want[k] - c[k]) < 1e-7));
+    }
+
+    /** The sizing taken from the cursors as they are now (S, or on Accept after moving them). */
+    async function keepCursors() {
+        const item = reviewed();
+        if (!item || !cursorsMoved()) return item;
+        const c = state.cursors, raster = isRaster(), probe = state.info?.probe?.v_offset ?? 0;
+        const manual = { scan_start: c.s_ref, scan_end: c.s_meas };
+        if (!raster) Object.assign(manual, { view_top: c.u_ref, view_bottom: c.u_meas });   // as drawn: unfolded
+        if (has(c.i_ref)) manual.axial_start = raster ? c.i_ref : c.i_ref - probe;
+        if (has(c.i_meas)) manual.axial_end = raster ? c.i_meas : c.i_meas - probe;
+        let saved;
+        try {
+            saved = await send(resizeUrl(item.id), 'POST', { manual });
+        } catch (e) {
+            show(e.message);
+            return null;
+        }
+        Object.assign(item, saved);
+        renderIndications();
+        return item;
+    }
+    const resizeUrl = id => `${urls.resize.replace('/0/', `/${id}/`)}?${new URLSearchParams(projectionParams())}`;
+
+    /** Accept (or reject) the indication being reviewed - moved cursors become its sizing - then on to the next to review. */
+    async function review(status) {
+        let item = reviewed();
+        if (!item) return;
+        if (status === 'accepted') item = await keepCursors();
+        if (!item) return;
+        try {
+            Object.assign(item, await send(indicationUrl(item.id), 'POST', { status }));
+        } catch (e) {
+            show(e.message);
+            return;
+        }
+        const next = nextToReview(item);
+        if (next) { goTo(next); return; }
+        $('find-note').textContent = 'Every found indication is reviewed.';
+        renderIndications();
+    }
+    /** The next indication still to review after `item` (along the scan, round to the start), else null. */
+    function nextToReview(item) {
+        const list = [...(state.indications || [])].sort((a, b) => a.group - b.group || (a.sizing?.scan_start ?? 0) - (b.sizing?.scan_start ?? 0));
+        const at = list.indexOf(item);
+        return [...list.slice(at + 1), ...list.slice(0, at)].find(i => i.status === 'unreviewed') || null;
+    }
+
+    /** POST that waits for the whole-file build once if the server is still reading the file (409). */
+    async function postBuilt(url, body, note) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const response = await fetch(url, { method: 'POST', body: JSON.stringify(body),
+                                                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': decodeURIComponent(csrf()) } });
+            const data = await response.json().catch(() => ({}));
+            if (response.status === 409 && attempt === 0) {
+                if (note) note.textContent = 'Reading the whole file first…';
+                if (await waitForBuild()) continue;
+                throw new Error("Couldn't read the whole file.");
+            }
+            if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+            return data;
+        }
+        throw new Error("Couldn't read the whole file.");
+    }
+
+    /** Size the reviewed indication again at another dB drop. */
+    async function resize(method) {
+        const item = reviewed();
+        if (!item) return;
+        try {
+            Object.assign(item, await postBuilt(resizeUrl(item.id), { method }));
+        } catch (e) {
+            show(e.message);
+            return;
+        }
+        await goTo(item);
+    }
+
+    // ── find indications ──
+    function fillFindGates() {
+        const letters = state.gates.map(x => letterOf(x.name)).filter(L => !(L === 'I' && currentGroup()?.synced_to_interface));
+        const select = $('find-gate');
+        const was = select.value;
+        select.replaceChildren(...letters.map(L => new Option(`Gate ${L}`, L)));
+        select.value = letters.includes(was) ? was : letters.includes('A') ? 'A' : letters[0] || '';
+        $('find-min-unit').textContent = units;
+    }
+
+    async function findIndications() {
+        if (!state.info) return;
+        const note = $('find-note');
+        const threshold = parseFloat($('find-threshold').value);
+        const minimum = parseFloat($('find-min').value);
+        const body = { gate: $('find-gate').value || 'A', method: $('find-method').value,
+                       merge_gap: Math.max(0, parseInt($('find-gap').value, 10) || 0),
+                       min_length: Number.isFinite(minimum) && minimum > 0 ? minimum * unitLength() : 0 };
+        if (Number.isFinite(threshold)) body.threshold = threshold;
+        $('find-now').disabled = true;
+        note.textContent = 'Finding…';
+        let data;
+        try {
+            data = await postBuilt(`${urls.detect}?${new URLSearchParams(projectionParams())}`, body, note);
+        } catch (e) {
+            note.textContent = e.message;
+            return;
+        } finally {
+            $('find-now').disabled = false;
+            $('size-note').textContent = '';
+        }
+        state.indications = data.indications;
+        const parts = [`Found ${data.found} indication${data.found === 1 ? '' : 's'} to review`];
+        if (data.kept) parts.push(`${data.kept} kept (reviewed or added)`);
+        if (data.overlapping) parts.push(`${data.overlapping} on top of kept ones left out`);
+        if (data.skipped.length) parts.push(`${data.skipped.length} couldn't be sized`);
+        note.textContent = `${parts.join(' · ')}.`;
+        state.filter = 'all';
+        linkCursors();
+        const first = shownIndications().find(i => i.status === 'unreviewed' && i.group === state.group);
+        if (first) goTo(first);
+        else renderIndications();
+    }
+    $('find-now').addEventListener('click', findIndications);
+    $('review-accept').addEventListener('click', () => review('accepted'));
+    $('review-reject').addEventListener('click', () => review('rejected'));
+    $('review-save').addEventListener('click', keepCursors);
+    $('review-prev').addEventListener('click', () => stepIndication(-1));
+    $('review-next').addEventListener('click', () => stepIndication(1));
+    for (const b of $('review-card').querySelectorAll('[data-resize]')) b.addEventListener('click', () => resize(b.dataset.resize));
 
     async function goTo(item) {
         if (item.group !== state.group) await setGroup(item.group, item.scan, item.lateral);
+        const auto = item.sizing?.auto;
+        state.reviewing = auto ? item.id : null;
         state.sizing = item.sizing && item.sizing.length !== undefined ? item.sizing : null;
-        setCursors({ ...NO_CURSORS, ...(item.cursors || {}) });
+        setCursors({ ...NO_CURSORS, ...(auto ? sizingCursors(item.sizing) : item.cursors || {}) });
+        if (auto) setGain((item.sizing.base_gain || 0) + (item.sizing.gain_db || 0), true);   // at its 80 %
+        else if (Math.abs(state.gain - state.buildGain) > 1e-9) setGain(state.buildGain);    // back from a review gain
         await setScan(item.scan);
         setLateral(item.lateral, true);
         renderIndications();
     }
 
+    /** A found indication's sizing as the reference / measure cursors: its scan ends, its top and bottom, its axial extent. */
+    function sizingCursors(s) {
+        const probe = state.info?.probe?.v_offset ?? 0;
+        const raster = isRaster();
+        const index = v => (has(v) ? (raster ? v : v + probe) : null);   // PA^ back to the index position
+        return { s_ref: s.scan_start ?? null, s_meas: s.scan_end ?? null,
+                 u_ref: raster ? null : s.view_top ?? s.top ?? null, u_meas: raster ? null : s.view_bottom ?? s.bottom ?? null,
+                 i_ref: index(s.axial_start), i_meas: index(s.axial_end) };
+    }
+
+    /** The C-scan box of the indication being reviewed: its sized length across its beams / index lines. */
+    function reviewBox() {
+        const item = reviewed();
+        if (!item || item.group !== state.group) return null;
+        const s = item.sizing, g = currentGroup();
+        const c = state.cursors;
+        const x0 = has(c.s_ref) ? c.s_ref : s.scan_start, x1 = has(c.s_meas) ? c.s_meas : s.scan_end;
+        if (isRaster()) {
+            const y0 = has(c.i_ref) ? c.i_ref : s.axial_start, y1 = has(c.i_meas) ? c.i_meas : s.axial_end;
+            return { x0, x1, y0, y1 };
+        }
+        return { x0, x1, y0: Math.max(0, s.line_lo) - 0.5, y1: Math.min(g.shape[1] - 1, s.line_hi) + 0.5 };
+    }
+    const reviewed = () => (state.reviewing ? (state.indications || []).find(i => i.id === state.reviewing) : null);
+
     $('add-indication').addEventListener('click', addIndication);
     $('quick-indication').addEventListener('click', addIndication);
 
-    /** The next (step 1) or previous (-1) saved indication along the scan from here. */
+    /** The next (step 1) or previous (-1) indication in the list as shown, from the one reviewed (or along the scan from here). */
     function stepIndication(step) {
-        const list = [...(state.indications || [])].sort((a, b) => a.group - b.group || a.scan - b.scan || a.lateral - b.lateral);
+        const list = shownIndications();
         if (!list.length) return;
-        const here = list.findIndex(i => i.group === state.group && i.scan === state.scan && i.lateral === state.lateral);
+        const here = state.reviewing ? list.findIndex(i => i.id === state.reviewing)
+            : list.findIndex(i => i.group === state.group && i.scan === state.scan && i.lateral === state.lateral);
         let at;
         if (here >= 0) at = (here + step + list.length) % list.length;
         else if (step > 0) at = Math.max(0, list.findIndex(i => i.group > state.group || (i.group === state.group && i.scan > state.scan)));
@@ -1482,8 +1725,9 @@
     }
     $('report-filter').addEventListener('input', renderReportTargets);
 
+    const sendable = () => (state.indications || []).filter(i => !$('send-accepted').checked || i.status === 'accepted');
     function renderSendIndications() {
-        const list = state.indications || [];
+        const list = sendable();
         const known = new Set(list.map(i => i.id));
         toReport.picked = new Set([...toReport.picked].filter(id => known.has(id)));
         if (!list.length) {
@@ -1505,17 +1749,18 @@
         schedulePreview();
     }
     $('send-all').addEventListener('click', () => {
-        const all = (state.indications || []).map(i => i.id);
+        const all = sendable().map(i => i.id);
         toReport.picked = toReport.picked.size === all.length ? new Set() : new Set(all);
         renderSendIndications();
         choiceChanged();
     });
     $('open-send').addEventListener('click', () => {
-        if (!toReport.picked.size) toReport.picked = new Set((state.indications || []).map(i => i.id));
+        if (!toReport.picked.size) toReport.picked = new Set(sendable().map(i => i.id));
         shell.open('report');
     });
 
-    const pickedIndications = () => (state.indications || []).filter(i => toReport.picked.has(i.id));
+    const pickedIndications = () => sendable().filter(i => toReport.picked.has(i.id));
+    $('send-accepted').addEventListener('change', () => { renderSendIndications(); choiceChanged(); });
     /** The rows again for a changed choice (the last send's message goes: it was about other rows). */
     function choiceChanged() {
         $('send-result').textContent = '';
@@ -1585,22 +1830,63 @@
     const wait = ms => new Promise(r => setTimeout(r, ms));
     /** Each indication's picture: the views at it (as laid out now), back where we were afterwards. */
     async function picturesOf(items) {
-        const here = { group: state.group, scan: state.scan, lateral: state.lateral, cursors: { ...state.cursors }, sizing: state.sizing };
-        const out = [];
-        for (const [n, item] of items.entries()) {
-            $('send-result').textContent = `Taking the pictures… ${n + 1} of ${items.length}`;
-            await goTo(item);
-            await wait(150);
-            await loadReadings();
-            await wait(350);   // the B-scan and the overlays follow the cursor
-            out.push(composeImage().toDataURL('image/png'));
+        const here = { group: state.group, scan: state.scan, lateral: state.lateral, cursors: { ...state.cursors }, sizing: state.sizing,
+                       gain: state.gain, review: state.gain !== state.buildGain, reviewing: state.reviewing, layout: layoutSelect.value };
+        // Every snip in the same four views: C-scan and B-scan over the S-scan and A-scan
+        const snipLayout = here.layout !== 'A-B-C-S';
+        if (snipLayout) {
+            grid.dataset.layout = 'A-B-C-S';
+            panels.refresh();
+            await wait(50);
+            panels.fit();
+            scheduleProjections();
         }
-        if (here.group !== state.group) await setGroup(here.group, here.scan, here.lateral);
-        state.sizing = here.sizing;
-        setCursors(here.cursors);
-        await setScan(here.scan);
-        setLateral(here.lateral, true);
+        const out = [];
+        try {
+            for (const [n, item] of items.entries()) {
+                $('send-result').textContent = `Taking the snips… ${n + 1} of ${items.length}`;
+                await goTo(item);
+                if (snipLayout && n === 0) await waitForViews();
+                await wait(150);
+                await loadReadings();
+                await wait(350);   // the B-scan and the overlays follow the cursor
+                zoomOn(item);
+                out.push(composeImage().toDataURL('image/png'));
+            }
+        } finally {
+            cview.view = null; cview.draw();
+            bview.view = null; bview.draw();
+            if (snipLayout) { grid.dataset.layout = here.layout; panels.refresh(); }
+            if (here.group !== state.group) await setGroup(here.group, here.scan, here.lateral);
+            state.sizing = here.sizing;
+            state.reviewing = here.reviewing;
+            setCursors(here.cursors);
+            setGain(here.gain, here.review);
+            await setScan(here.scan);
+            setLateral(here.lateral, true);
+            renderIndications();
+        }
         return out;
+    }
+
+    /** Waits (a while at most) for the C-scan and B-scan to have their pictures after a layout change. */
+    async function waitForViews() {
+        for (let i = 0; i < 100 && !(cview.hasImage && bview.hasImage); i++) await wait(100);
+    }
+
+    /** The C-scan and B-scan zoomed in on an indication along the scan: its length and as much again each side (their full height). */
+    function zoomOn(item) {
+        const s = item.sizing || {};
+        const start = s.scan_start ?? item.scan_position, end = s.scan_end ?? item.scan_position;
+        if (!has(start) || !has(end)) return;
+        const step = Math.abs(currentGroup().axes[0].resolution);
+        const width = Math.max((end - start) * 3, step * 40);
+        for (const view of [cview, bview]) {
+            if (!view.hasImage) continue;
+            const [, cy, , h] = view.fitView();
+            view.view = [(start + end) / 2, cy, width, h];
+            view.draw();
+        }
     }
 
     $('send-now').addEventListener('click', async () => {
@@ -1733,15 +2019,24 @@
     $('scan-prev').addEventListener('click', () => setScan(state.scan - 1));
     $('scan-next').addEventListener('click', () => setScan(state.scan + 1));
 
-    function setGain(db) {
+    /**
+     * The soft gain. review=true: only to look at an indication at its 80 % gain - the whole-file views
+     * keep the gain they were built at (their shaders show the difference), so nothing is rebuilt.
+     */
+    function setGain(db, review = false) {
         state.gain = Math.round(Math.max(-40, Math.min(40, db)) * 10) / 10;
         gainInput.value = state.gain.toFixed(1);
+        gainInput.classList.toggle('is-review', review);
+        gainInput.title = review ? 'The indication at 80 % of full screen (its own gain); change it to set the soft gain' : 'Soft gain in dB';
         sscan.setGain(state.gain);
         ascan.setGain(state.gain);
         bview.setGain(state.gain);
         cview.setGain(state.gain - state.cscanGain);   // straight away; the rebuilt C-scan follows
         scheduleReadings();
-        scheduleProjections(800);
+        if (!review && Math.abs(state.gain - state.buildGain) > 1e-9) {
+            state.buildGain = state.gain;
+            scheduleProjections(800);
+        }
         loadFrameGates(300);
     }
     gainInput.addEventListener('change', () => setGain(parseFloat(gainInput.value) || 0));
@@ -1794,6 +2089,7 @@
             cview.drawOverlay(); bview.drawOverlay();
             if (state.cscan && state.cscan.mode !== 'amplitude') loadCscan(projectionRequest);
             renderIndications();
+            fillFindGates();
             if (state.path) $('export-indications').href = `${urls.indicationsCsv}?${new URLSearchParams({ path: state.path, units })}`;
         }
     });
@@ -1818,6 +2114,8 @@
             ArrowUp: () => setLateral(state.lateral - 1), ArrowDown: () => setLateral(state.lateral + 1),
             '+': () => setGain(state.gain + 1), '=': () => setGain(state.gain + 1), '-': () => setGain(state.gain - 1),
             a: auto80, A: auto80, t: toggleLegs, T: toggleLegs, l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, ']': () => stepIndication(1), '[': () => stepIndication(-1),
+            ...(state.reviewing ? { Enter: () => review('accepted'), x: () => review('rejected'), X: () => review('rejected'),
+                                    6: () => resize('6'), 1: () => resize('12'), 2: () => resize('20'), s: keepCursors, S: keepCursors } : {}),
         };
         if (actions[e.key]) { e.preventDefault(); actions[e.key](); }
     });

@@ -36,10 +36,10 @@ def weld_amplitudes(scans=4, beams=3, samples=50):
 
 
 def weld_file(folder=None, scans=4, beams=(45.0, 55.0, 65.0), samples=50, thickness=0.0125,
-              ultrasound_offset=4e-6, period=5e-8, status=True):
+              ultrasound_offset=4e-6, period=5e-8, status=True, amplitudes=None):
     """A sectorial weld scan: (UCoordinate, Beam, Ultrasound), skew 90, exit points at -20 mm."""
     folder = folder or tempfile.mkdtemp()
-    data = weld_amplitudes(scans, len(beams), samples)
+    data = weld_amplitudes(scans, len(beams), samples) if amplitudes is None else amplitudes
     beam_dims = [{'velocity': SHEAR, 'skewAngle': 90.0, 'refractedAngle': a, 'uCoordinateOffset': 0.0,
                   'vCoordinateOffset': -0.02 + 0.0005 * k, 'ultrasoundOffset': ultrasound_offset}
                  for k, a in enumerate(beams)]

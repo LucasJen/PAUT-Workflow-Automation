@@ -89,6 +89,25 @@ class MappingTests(TestCase):
         self.assertEqual((image.kind, image.scan_id), (ReportImage.INDICATION, key))
         self.assertGreater(Report.objects.get(pk=report.pk).updated_at, before)
 
+    def test_a_found_indication_fills_from_its_sizing(self):
+        report = Report.objects.create(report_type='paut_weld', document_filename='PPI weld')
+        sizing = {'auto': True, 'method': '6', 'scan_start': 3.0 * IN, 'scan_end': 3.45 * IN, 'length': 0.45 * IN,
+                  'height': 0.062 * IN, 'top': 0.141 * IN, 'depth': 0.141 * IN, 'axial': 0.343 * IN,
+                  'axial_start': 0.30 * IN, 'axial_end': 0.39 * IN, 'peak_amplitude': 96.1, 'gain_db': -1.6}
+        ind = weld_indication(readings={'A%': 96.1, 'Length': 0.45 * IN, 'PA^': 0.343 * IN}, cursors={}, sizing=sizing,
+                              status=Indication.ACCEPTED, source=Indication.AUTO)
+        out = report_export.preview(report, [ind], 'in')
+        row = dict(zip(out['columns'], out['rows'][0]))
+        self.assertEqual(row['Length (in)'], '0.450')
+        self.assertEqual(row['Height (in)'], '0.062')
+        self.assertEqual(row['Depth (in)'], '0.141')
+        self.assertEqual(row['Axial Pos. (in)'], '0.343')     # PA^, from the probe's index offset
+        self.assertEqual(row['Circ Start (in)'], '3.000')
+        self.assertEqual(row['% Amp'], '96.1')
+        values = report_export.indication_values(ind)
+        self.assertEqual(values['index_range'], '0.300 - 0.390')
+        self.assertEqual(values['scan_range'], '3.000 - 3.450')
+
     def test_corrosion_row_ranges_thickness_and_scan_picture(self):
         folder = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, folder, True)
