@@ -41,6 +41,8 @@ window.AScanView = (function () {
 
         setGain(db) { this.gain = Math.pow(10, db / 20); this.draw(); }
         setAxis(axis) { this.axis = axis; this.draw(); }
+        /** The part's thickness (m) for the leg lines (T, 2T, ... in depth), or null for none. */
+        setLegs(thickness) { this.legs = thickness || null; this.draw(); }
 
         // ── positions along the axis ──
         along(sample) {
@@ -109,6 +111,22 @@ window.AScanView = (function () {
                 ctx.beginPath(); ctx.moveTo(px, h - f.bottom); ctx.lineTo(px, h - f.bottom + 5 * ratio); ctx.stroke();
                 ctx.fillText(this.options.format(x, true), px + 2 * ratio, h - 5 * ratio);
             }
+            // The legs: dashed lines where the beam reaches each multiple of the thickness (along this axis)
+            if (this.legs && this.ray) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                ctx.setLineDash([6 * ratio, 5 * ratio]);
+                ctx.lineWidth = ratio;
+                for (let k = 1; k < 50; k++) {
+                    const along = this.depthToAlong(k * this.legs);
+                    if (along > f.x1) break;
+                    if (along < f.x0) continue;
+                    const x = f.sx(along);
+                    ctx.beginPath(); ctx.moveTo(x, f.top); ctx.lineTo(x, h - f.bottom); ctx.stroke();
+                    ctx.fillText(k === 1 ? 'T' : `${k}T`, x + 3 * ratio, h - f.bottom - 6 * ratio);
+                }
+                ctx.restore();
+            }
             // Cursors: full-height lines with their value at the top
             for (const which of ['ref', 'meas']) {
                 const depth = this.cursors[which];
@@ -118,7 +136,7 @@ window.AScanView = (function () {
                 ctx.strokeStyle = ctx.fillStyle = CURSOR_COLOURS[which];
                 ctx.lineWidth = ratio;
                 ctx.beginPath(); ctx.moveTo(x, f.top); ctx.lineTo(x, h - f.bottom); ctx.stroke();
-                ctx.fillText(this.options.format(this.depthToAlong(depth), true), x + 3 * ratio, f.top + 10 * ratio);
+                ctx.fillText(this.options.format(this.depthToAlong(depth), 'value'), x + 3 * ratio, f.top + 10 * ratio);
             }
             this.gateBars = [];
             for (const [letter, gate] of Object.entries(this.gates || {})) {

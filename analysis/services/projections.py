@@ -29,7 +29,7 @@ import numpy as np
 from django.conf import settings
 
 from .nde_data import open_file, usable
-from .readings import _order, gate_letter
+from .readings import _order, gate_letter, gate_window
 
 MAX_BINS = 512
 VOLUME_FULL = 200.0       # % at uint8 255
@@ -106,6 +106,7 @@ def gates_block(group, raw, gates, times, gain=0.0):
     results, by_id = {}, {}
     for gate in _order(gates):
         letter = gate_letter(gate.name)
+        zero = None   # lines a box gate misses that read amplitude 0 (outside='zero')
         if gate.sync_mode == 'GateRelative':
             ref = by_id.get(gate.sync_gate)
             if ref is None:
@@ -115,15 +116,22 @@ def gates_block(group, raw, gates, times, gain=0.0):
                 event = ref['peak_time'] if gate.trigger == 'MaxPeak' else ref['crossing_time']
                 found = ref['found'] & ~np.isnan(event)
             start = np.where(found, event, 0.0) + gate.start
+            end = start + gate.length
         elif group.synced_to_interface and any(g.sync_gate == gate.id for g in gates):
             zeros = np.zeros(lines)
             by_id[gate.id] = results[letter] = {'found': np.ones(lines, dtype=bool), 'amplitude': np.full(lines, np.nan),
                                                 'peak_time': zeros, 'crossing_time': zeros}
             continue
         else:
-            found = np.ones(lines, dtype=bool)
-            start = np.full(lines, gate.start)
-        end = start + gate.length
+            # Each line's own window (a true-depth or box gate differs per beam; a box may miss some)
+            windows = [gate_window(gate, beam, group) for beam in group.beams]
+            per_beam = np.array([w if w is not None else (np.nan, np.nan) for w in windows], dtype=float)
+            reps = lines // max(1, len(windows))   # blocks of several scan positions, one after another
+            per_line = np.tile(per_beam, (reps, 1)) if reps * len(windows) == lines else np.tile(per_beam[:1], (lines, 1))
+            found = ~np.isnan(per_line[:, 0])
+            start, end = np.nan_to_num(per_line[:, 0]), np.nan_to_num(per_line[:, 1])
+            if gate.geometry == 'Box' and gate.outside == 'zero':   # missed lines: amplitude 0, not no data
+                zero = ~found
         inside = (times >= start[:, None]) & (times <= end[:, None]) & found[:, None]
         any_inside = inside.any(axis=1)
         masked = np.where(inside, amplitudes, -np.inf)
@@ -135,6 +143,9 @@ def gates_block(group, raw, gates, times, gain=0.0):
         crossed = over.any(axis=1)
         first = np.argmax(over, axis=1)
         crossing_time = np.where(crossed, times[rows, first], np.nan)
+        if zero is not None:
+            amplitude = np.where(zero, 0.0, amplitude)
+            found = found | zero
         by_id[gate.id] = results[letter] = {'found': found, 'amplitude': amplitude, 'peak_time': peak_time,
                                             'crossing_time': crossing_time}
     return results

@@ -7,11 +7,15 @@
 <div class="analysis-app" id="analysis"
      data-files-url="{% url 'analysis-files' %}" data-file-url="{% url 'analysis-file' %}"
      data-frame-url="{% url 'analysis-frame' %}" data-readings-url="{% url 'analysis-readings' %}"
+     data-frame-gates-url="{% url 'analysis-frame-gates' %}"
      data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
      data-bscan-url="{% url 'analysis-bscan' %}" data-size-url="{% url 'analysis-size' %}"
      data-indications-url="{% url 'analysis-indications' %}" data-indications-csv-url="{% url 'analysis-indications-csv' %}"
      data-indication-url="{% url 'analysis-indication' 0 %}" data-report-targets-url="{% url 'analysis-report-targets' %}"
      data-weld-outline-url="{% url 'analysis-weld-outline' %}"
+     data-browse-url="{% url 'analysis-browse' %}" data-open-file-url="{% url 'analysis-open-file' %}"
+     data-forget-file-url="{% url 'analysis-forget-file' %}" data-project-options-url="{% url 'analysis-project-options' %}"
+     data-project-url="{% url 'analysis-project' %}" data-working-folders-url="{% url 'working-folder-list' %}" data-project-status-url="{% url 'analysis-project-status' %}"
      data-report-preview-url="{% url 'analysis-report-preview' %}" data-report-send-url="{% url 'analysis-report-send' %}">
 
     {# ── Top bar: what's always needed ── #}
@@ -25,12 +29,12 @@
         </button>
         <select class="form-select form-select-sm analysis-group" id="group-select" aria-label="Group" hidden></select>
         <span class="analysis-sep"></span>
-        <div class="analysis-tool" title="Scan line (Left / Right, Shift for 10, PageUp / PageDown)">
+        <div class="analysis-tool" title="Scan position (Left / Right a line, Shift for 10, PageUp / PageDown)">
             <button type="button" class="btn btn-sm btn-ghost" id="scan-prev" aria-label="Previous scan line"><i class="bi bi-chevron-left"></i></button>
             <input type="range" class="form-range analysis-slider" id="scan-slider" min="0" max="0" value="0" aria-label="Scan line">
             <button type="button" class="btn btn-sm btn-ghost" id="scan-next" aria-label="Next scan line"><i class="bi bi-chevron-right"></i></button>
-            <input type="number" class="form-control form-control-sm mono analysis-number" id="scan-number" min="0" value="0" aria-label="Scan line number">
-            <span class="analysis-tool-note"><span id="scan-count"></span> <span class="mono" id="scan-position" title="Scan position (offset + line x resolution, from the file)"></span></span>
+            <input type="text" inputmode="decimal" class="form-control form-control-sm mono analysis-number analysis-scan-distance" id="scan-number" value="0" aria-label="Scan position" title="Scan position (type a distance to go to the nearest scan line)">
+            <span class="analysis-tool-note"><span id="scan-count"></span> <span class="mono" id="scan-position" title="Scan line number (of the file's lines)"></span></span>
         </div>
         <span class="analysis-sep"></span>
         <div class="analysis-tool" title="Soft gain added to the data, like OmniPC's Gain (+ / - keys)">
@@ -39,6 +43,7 @@
             <input type="number" class="form-control form-control-sm mono analysis-number" id="gain" value="0.0" step="0.5" aria-label="Soft gain in dB">
             <button type="button" class="btn btn-sm btn-ghost" id="gain-up" aria-label="1 dB more"><i class="bi bi-plus-lg"></i></button>
             <span class="analysis-tool-note">dB</span>
+            <button type="button" class="btn btn-sm btn-secondary analysis-auto80" id="auto-80" title="Auto 80%: set the soft gain so the gate A signal on the cursor's A-scan peaks at 80% of full screen (A)">80%</button>
         </div>
         <span class="analysis-sep"></span>
         <select class="form-select form-select-sm analysis-layout-select" id="layout" aria-label="Layout" title="Views shown, like OmniPC's layouts">
@@ -73,19 +78,64 @@
         </header>
 
         <section class="analysis-drawer-body" data-panel-body="files" data-title="Files" hidden>
-            <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
-            <div class="analysis-file-list" id="file-list"><p class="analysis-note">Loading files…</p></div>
+            <div class="analysis-files-view" id="files-view">
+                <div class="analysis-drawer-row">
+                    <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
+                    <button type="button" class="btn btn-sm btn-secondary text-nowrap" id="browse-pc" title="Open .nde files from anywhere on this PC (they're read where they are)"><i class="bi bi-hdd"></i> Browse PC</button>
+                </div>
+                <div class="analysis-file-list" id="file-list"><p class="analysis-note">Loading files…</p></div>
+            </div>
+            <div class="analysis-files-view" id="pc-view" hidden>
+                <div class="analysis-drawer-row">
+                    <button type="button" class="btn btn-sm btn-ghost" id="pc-back" title="Back to the file list"><i class="bi bi-arrow-left"></i></button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="pc-up" title="Up a folder"><i class="bi bi-arrow-up"></i></button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="pc-home" title="Drives and usual places"><i class="bi bi-hdd-stack"></i></button>
+                    <span class="analysis-pc-path mono" id="pc-path"></span>
+                </div>
+                <div class="analysis-file-list analysis-pc-list" id="pc-list"></div>
+                <div class="analysis-send-bar">
+                    <span class="analysis-note" id="pc-picked">Click a file to open it, or tick files for a project.</span>
+                    <button type="button" class="btn btn-sm btn-primary ms-auto" id="pc-project" disabled title="Make a job folder with the ticked files and start a report from them"><i class="bi bi-folder-plus"></i> New project</button>
+                </div>
+            </div>
+            <div class="analysis-files-view" id="project-view" hidden>
+                <div class="analysis-drawer-row">
+                    <button type="button" class="btn btn-sm btn-ghost" id="project-back" title="Back"><i class="bi bi-arrow-left"></i></button>
+                    <strong>New project</strong>
+                </div>
+                <p class="analysis-note">Makes a job folder in the report type's working folder, copies the files into it, then starts Guided Creation from them.</p>
+                <div class="analysis-step">
+                    <div class="analysis-step-head"><span class="analysis-step-number">1</span> Files</div>
+                    <div class="analysis-pick-list" id="project-files"></div>
+                </div>
+                <div class="analysis-step">
+                    <div class="analysis-step-head"><span class="analysis-step-number">2</span> Report type</div>
+                    <select class="form-select form-select-sm" id="project-type" aria-label="Report type"></select>
+                    <span class="analysis-note" id="project-root"></span>
+                </div>
+                <div class="analysis-step">
+                    <div class="analysis-step-head"><span class="analysis-step-number">3</span> Job folder name</div>
+                    <input type="text" class="form-control form-control-sm mono" id="project-name" aria-label="Job folder name" placeholder="e.g. PPI-32-27119-FW6-4in">
+                    <span class="analysis-note">The name gives the report its name and client, as on Guided Creation.</span>
+                </div>
+                <div class="analysis-send-bar">
+                    <button type="button" class="btn btn-sm btn-primary" id="project-create"><i class="bi bi-folder-plus"></i> Create project</button>
+                    <span class="analysis-note" id="project-status" role="status"></span>
+                </div>
+            </div>
             {% if not roots %}<p class="analysis-note">Add a working folder under <a href="{% url 'working-folder-list' %}">Preferences › Working folders</a> to open .nde files from it.</p>{% endif %}
         </section>
 
-        <section class="analysis-drawer-body" data-panel-body="gates" data-title="Gates" hidden>
+        <section class="analysis-drawer-body" data-panel-body="gates" data-title="Gates" data-wide hidden>
             <div class="analysis-drawer-row">
                 <span class="analysis-panel-note" id="gates-edited" hidden>Edited</span>
                 <button type="button" class="btn btn-sm btn-secondary ms-auto" id="reset-gates" title="Back to the file's gates"><i class="bi bi-arrow-counterclockwise"></i> File's gates</button>
             </div>
             <div class="analysis-gate-rows" id="gate-rows"><p class="analysis-note">Open a file to see its gates.</p></div>
             <div class="analysis-add-gates" id="add-gates"></div>
-            <p class="analysis-note">Drag a gate's bar on the A-scan to move it (up / down changes its threshold) and its end ticks to change its start or width.</p>
+            <label class="analysis-check" title="Each gate drawn along every beam of the S-scan, where it can be dragged"><input type="checkbox" id="show-sscan-gates" checked> Show the gates on the S-scan</label>
+            <p class="analysis-note"><strong>Type:</strong> <em>Sound path</em> - the same stretch of time on every beam (an arc on a sectorial scan); <em>True depth</em> - between two depths on every beam; <em>Box</em> - inside a box of depth and index; beams that miss it have no gate (grey on the C-scan) or, if you choose, zero amplitude (white). Depth and box gates start from the pulse. Gates you add can be removed (bin icon).</p>
+            <p class="analysis-note">On the S-scan drag a gate's edges to change its start or end (a box: any side) and its letter tab to move it. On the A-scan drag a gate's bar (up / down changes its threshold) and its end ticks.</p>
         </section>
 
         <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" hidden>
@@ -122,6 +172,7 @@
 
         <section class="analysis-drawer-body" data-panel-body="geometry" data-title="Geometry" hidden>
             <label class="analysis-check" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry S-scan</label>
+            <label class="analysis-check" title="Dashed lines at the part thickness and its multiples (T, 2T, ...) - the back wall and each leg - on the A-, B- and S-scans (T)"><input type="checkbox" id="show-legs" checked> Leg lines (T, 2T…) on the A-, B- and S-scans</label>
             <label class="analysis-check" id="groups-toggle" hidden title="Every group of the file drawn together at this scan position (this group on top); G switches group"><input type="checkbox" id="all-groups"> All groups on the S-scan</label>
             <h3 class="analysis-drawer-subhead">Weld overlay</h3>
             <label class="analysis-check" id="weld-toggle" hidden title="The weld outline on the S-scan, in every leg"><input type="checkbox" id="show-weld" checked> Show the weld</label>
@@ -156,6 +207,8 @@
                     <dt>PgUp / PgDn</dt><dd>10 scan lines</dd>
                     <dt>↑ / ↓</dt><dd>Beam / index line</dd>
                     <dt>+ / −</dt><dd>Soft gain ±1 dB</dd>
+                    <dt>A</dt><dd>Auto 80%: gate A peak at the cursor to 80%</dd>
+                    <dt>T</dt><dd>Leg lines on / off</dd>
                     <dt>L</dt><dd>Size the indication at the cursor</dd>
                     <dt>N</dt><dd>Add an indication</dd>
                     <dt>[ / ]</dt><dd>Previous / next saved indication</dd>
@@ -262,5 +315,6 @@
 <script src="{% static_v 'analysis/js/analysis_shell.js' %}"></script>
 <script src="{% static_v 'analysis/js/ascan_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/weld_editor.js' %}"></script>
+<script src="{% static_v 'analysis/js/analysis_files.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis.js' %}"></script>
 {% endblock %}
