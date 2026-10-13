@@ -823,7 +823,17 @@
         save();
         if (state.reviewing) $('review-save').hidden = !cursorsMoved();
     }
-    $('clear-cursors').addEventListener('click', () => { state.sizing = null; $('size-note').textContent = ''; setCursors({ ...NO_CURSORS }); });
+    function clearAllCursors() { state.sizing = null; $('size-note').textContent = ''; setCursors({ ...NO_CURSORS }); }
+    $('clear-cursors').addEventListener('click', clearAllCursors);
+    /** The cursors each view shows (u depth / sound path, i index, s scan); they're shared, so linked views lose them too. */
+    const VIEW_CURSORS = { ascan: ['u'], sscan: ['u', 'i'], bscan: ['s', 'u'], cscan: ['s', 'i'] };
+    for (const button of document.querySelectorAll('[data-clear]')) {
+        button.addEventListener('click', () => {
+            const cleared = {};
+            for (const axis of VIEW_CURSORS[button.dataset.clear]) { cleared[`${axis}_ref`] = null; cleared[`${axis}_meas`] = null; }
+            setCursors(cleared);
+        });
+    }
 
     // ── zone between the scan (and, on a raster, index) cursors ──
     const has = v => v !== null && v !== undefined && Number.isFinite(v);
@@ -2143,6 +2153,7 @@
             PageUp: () => setScan(state.scan - 10), PageDown: () => setScan(state.scan + 10),
             ArrowUp: () => setLateral(state.lateral - 1), ArrowDown: () => setLateral(state.lateral + 1),
             '+': () => setGain(state.gain + 1), '=': () => setGain(state.gain + 1), '-': () => setGain(state.gain - 1),
+            ...(e.shiftKey ? { Delete: clearAllCursors } : {}),
             a: auto80, A: auto80, t: toggleLegs, T: toggleLegs, l: sizeNow, L: sizeNow, n: addIndication, N: addIndication, g: nextGroup, G: nextGroup, p: saveImage, P: saveImage, f: fitAll, F: fitAll, ']': () => stepIndication(1), '[': () => stepIndication(-1),
             ...(state.reviewing ? { Enter: () => review('accepted'), x: () => review('rejected'), X: () => review('rejected'),
                                     6: () => resize('6'), 1: () => resize('12'), 2: () => resize('20'), s: keepCursors, S: keepCursors } : {}),

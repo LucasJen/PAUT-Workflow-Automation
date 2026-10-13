@@ -52,6 +52,7 @@
         </select>
         <span class="analysis-status" id="analysis-status" role="status" hidden></span>
         <div class="analysis-topbar-end">
+            <button type="button" class="btn btn-sm btn-ghost" id="clear-cursors" title="Clear every cursor in every view, and the sizing (Shift+Del)" aria-label="Clear all cursors"><i class="bi bi-eraser"></i></button>
             <button type="button" class="btn btn-sm btn-ghost" id="save-image" title="Save the views as a picture (P)"><i class="bi bi-camera"></i></button>
             <button type="button" class="btn btn-sm btn-ghost" id="show-help" title="Keys and mouse (?)"><i class="bi bi-keyboard"></i></button>
             <button type="button" class="btn btn-sm btn-ghost" id="theme-toggle" title="Light / dark"><i class="bi bi-moon"></i></button>
@@ -263,6 +264,7 @@
                     <dt>Enter / X</dt><dd>Accept / reject the indication being reviewed, then the next</dd>
                     <dt>6 / 1 / 2</dt><dd>Size it again at −6 / −12 / −20 dB</dd>
                     <dt>S</dt><dd>Keep its sizing as the cursors are now</dd>
+                    <dt>Shift+Del</dt><dd>Clear every cursor (the eraser on a view clears just its own)</dd>
                     <dt>G</dt><dd>Next group</dd>
                     <dt>O</dt><dd>Open a file</dd>
                     <dt>R</dt><dd>Show / hide the readings</dd>
@@ -296,7 +298,8 @@
                         <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-max" aria-label="Palette to" title="Palette to (blue)">
                     </span>
                     <span class="analysis-panel-note" id="cscan-note"></span>
-                    <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="cscan" title="Clear the scan and index cursors" aria-label="Clear the cscan cursors"><i class="bi bi-eraser"></i></button>
+                    <i class="bi bi-question-circle analysis-help" tabindex="0"
                        title="Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors. Built once from the whole file (and again when the gates or gain change). Scroll to zoom, right-drag to pan, double-click to fit."></i>
                 </header>
                 <div class="analysis-stage" id="cscan-stage"></div>
@@ -304,7 +307,8 @@
             </section>
             <section class="analysis-panel analysis-panel-bscan">
                 <header class="analysis-panel-head"><span>B-scan</span><span class="analysis-panel-note" id="bscan-label"></span>
-                    <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="bscan" title="Clear the scan and depth cursors" aria-label="Clear the bscan cursors"><i class="bi bi-eraser"></i></button>
+                    <i class="bi bi-question-circle analysis-help" tabindex="0"
                        title="Side view of the cursor's beam / index line: scan position across, depth down. Click to move the scan cursor; Ctrl+click / Shift+click put the reference / measure depth cursors."></i>
                 </header>
                 <div class="analysis-stage" id="bscan-stage"></div>
@@ -313,7 +317,8 @@
             <section class="analysis-panel analysis-panel-sscan">
                 <header class="analysis-panel-head">
                     <span>S-scan</span><span class="analysis-panel-note" id="sscan-label"></span>
-                    <button type="button" class="btn btn-sm btn-ghost ms-auto" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
+                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="sscan" title="Clear the depth and index cursors" aria-label="Clear the sscan cursors"><i class="bi bi-eraser"></i></button>
+                    <button type="button" class="btn btn-sm btn-ghost" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
                     <i class="bi bi-question-circle analysis-help" tabindex="0"
                        title="Click or drag to move the beam cursor (Up / Down keys too). Ctrl+click puts the reference cursors (red) at a point, Shift+click the measure cursors (green); drag a cursor line to move it. Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>
                 </header>
@@ -322,7 +327,8 @@
             </section>
             <section class="analysis-panel analysis-panel-ascan">
                 <header class="analysis-panel-head"><span>A-scan</span><span class="analysis-panel-note" id="ascan-label"></span>
-                    <i class="bi bi-question-circle analysis-help ms-auto" tabindex="0"
+                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="ascan" title="Clear the depth (sound path) cursors" aria-label="Clear the ascan cursors"><i class="bi bi-eraser"></i></button>
+                    <i class="bi bi-question-circle analysis-help" tabindex="0"
                        title="Click to put the reference cursor (red) there, Shift+click the measure cursor (green); drag a cursor to move it. Drag a gate's bar to move it (up / down changes its threshold) and its end ticks to change its start or width."></i>
                 </header>
                 <div class="analysis-stage" id="ascan-stage"></div>
@@ -331,7 +337,6 @@
             <aside class="analysis-panel analysis-readings">
                 <header class="analysis-panel-head">
                     <span>Readings</span>
-                    <button type="button" class="btn btn-sm btn-ghost ms-auto" id="clear-cursors" title="Clear the reference and measure cursors and the sizing" aria-label="Clear the cursors"><i class="bi bi-eraser"></i></button>
                 </header>
                 <div class="analysis-readings-body">
                     <dl class="analysis-reading-list" id="readings"></dl>
