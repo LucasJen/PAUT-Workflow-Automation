@@ -519,6 +519,33 @@ def indications(request):
     return JsonResponse(item.as_dict(), status=201)
 
 
+# What "Clear" in the Find box removes from a group: the filters on its indications
+CLEAR_WHICH = {
+    'unreviewed': {'source': Indication.AUTO, 'status': Indication.UNREVIEWED},   # found, not reviewed yet
+    'rejected': {'status': Indication.REJECTED},                                  # rejected, found or added
+    'found': {'source': Indication.AUTO},                                         # everything found
+    'all': {},                                                                    # everything, added ones too
+}
+
+
+@require_http_methods(['POST'])
+def clear_indications(request):
+    """POST (JSON path, group, which: unreviewed / rejected / found / all): deletes those indications of
+    the file's group; returns how many and the file's indications left."""
+    try:
+        data = _json_body(request)
+        path = checked_path(data.get('path', ''))
+        group = int(data.get('group') or 0)
+        which = CLEAR_WHICH[data.get('which')]
+    except (ValueError, TypeError, PathNotAllowed) as e:
+        return _error(str(e) or "The request couldn't be read.")
+    except KeyError:
+        return _error('Clear which indications?')
+    deleted, _ = Indication.objects.filter(file_path=path, group=group, **which).delete()
+    return JsonResponse({'deleted': deleted,
+                         'indications': [i.as_dict() for i in Indication.objects.filter(file_path=path)]})
+
+
 @require_http_methods(['POST', 'DELETE'])
 def indication(request, pk):
     """POST (JSON {comment} and / or {status}: unreviewed / accepted / rejected): edits an indication; DELETE removes it."""

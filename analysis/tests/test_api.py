@@ -139,6 +139,32 @@ class ApiTests(TestCase):
         outside = self.client.post(url, json.dumps({**body, 'path': 'C:/elsewhere/x.nde'}), content_type='application/json')
         self.assertEqual(outside.status_code, 400)
 
+    def test_clear_indications_by_which(self):
+        from analysis.models import Indication
+        from analysis.paths import checked_path
+        weld, raster = checked_path(self.weld), checked_path(self.raster)   # as the views store them
+        A, M = Indication.AUTO, Indication.MANUAL
+        U, OK, NO = Indication.UNREVIEWED, Indication.ACCEPTED, Indication.REJECTED
+        kinds = [(A, U), (A, U), (A, OK), (A, NO), (M, OK), (M, NO)]
+
+        def make():
+            Indication.objects.all().delete()
+            for n, (source, status) in enumerate(kinds, 1):
+                for path, group in ((weld, 0), (weld, 1), (raster, 0)):
+                    Indication.objects.create(file_path=path, file_name='x.nde', group=group, number=n, scan=0,
+                                              lateral=0, source=source, status=status)
+
+        url = reverse('analysis-clear-indications')
+        for which, gone in (('unreviewed', 2), ('rejected', 2), ('found', 4), ('all', 6)):
+            make()
+            data = self.client.post(url, json.dumps({'path': self.weld, 'group': 0, 'which': which}),
+                                    content_type='application/json').json()
+            self.assertEqual(data['deleted'], gone, which)
+            self.assertEqual(len(data['indications']), 12 - gone, which)        # the file's other group kept
+            self.assertEqual(Indication.objects.filter(file_path=raster).count(), 6, which)
+        bad = self.client.post(url, json.dumps({'path': self.weld, 'group': 0, 'which': 'some'}), content_type='application/json')
+        self.assertEqual(bad.status_code, 400)
+
     def test_size_endpoint(self):
         with override_settings(ANALYSIS_CACHE_DIR=os.path.join(self.folder, '.cache')):
             from analysis.services import projections

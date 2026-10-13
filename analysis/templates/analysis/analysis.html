@@ -10,7 +10,7 @@
      data-frame-gates-url="{% url 'analysis-frame-gates' %}"
      data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
      data-bscan-url="{% url 'analysis-bscan' %}" data-size-url="{% url 'analysis-size' %}"
-     data-detect-url="{% url 'analysis-detect' %}" data-resize-url="{% url 'analysis-resize' 0 %}"
+     data-detect-url="{% url 'analysis-detect' %}" data-clear-indications-url="{% url 'analysis-clear-indications' %}" data-resize-url="{% url 'analysis-resize' 0 %}"
      data-indications-url="{% url 'analysis-indications' %}" data-indications-csv-url="{% url 'analysis-indications-csv' %}"
      data-indication-url="{% url 'analysis-indication' 0 %}" data-report-targets-url="{% url 'analysis-report-targets' %}"
      data-weld-outline-url="{% url 'analysis-weld-outline' %}"
@@ -156,6 +156,16 @@
                     <label title="Shorter indications are left out (along the scan)">Shortest
                         <span class="input-group input-group-sm"><input type="text" inputmode="decimal" class="form-control mono" id="find-min" value="0"><span class="input-group-text" id="find-min-unit">in</span></span></label>
                     <button type="button" class="btn btn-sm btn-primary" id="find-now" title="Find and size every indication in the gate; indications you've reviewed or added are kept"><i class="bi bi-search"></i> Find</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="clear-finds" aria-expanded="false" title="Delete indications on this group: the found ones still to review, the rejected ones, every found one, or all"><i class="bi bi-trash3"></i> Clear <i class="bi bi-caret-down-fill"></i></button>
+                </div>
+                {# Clear: pick which, then confirm #}
+                <div class="analysis-clear-finds" id="clear-finds-menu" hidden>
+                    <div class="analysis-clear-choices" id="clear-finds-choices"></div>
+                    <div class="analysis-clear-confirm" id="clear-finds-confirm" hidden>
+                        <span id="clear-finds-question"></span>
+                        <button type="button" class="btn btn-sm btn-danger" id="clear-finds-yes">Delete</button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="clear-finds-no">Cancel</button>
+                    </div>
                 </div>
                 <span class="analysis-note" id="find-note" role="status"></span>
             </details>

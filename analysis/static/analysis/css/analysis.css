@@ -301,6 +301,9 @@ body.analysis-resizing { user-select: none; }
 .analysis-find-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.4rem 0.5rem; align-items: end; margin: 0.45rem 0 0.25rem; }
 .analysis-find-grid label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.75rem; color: var(--text-2); }
 .analysis-find-grid .btn { align-self: end; }
+.analysis-clear-finds { border-top: 1px solid var(--border); margin-top: 0.35rem; padding-top: 0.4rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.analysis-clear-choices { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.analysis-clear-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.8125rem; }
 .analysis-review-filter .btn { font-size: 0.75rem; }
 .analysis-review { border: 1px solid var(--accent); border-radius: 6px; padding: 0.45rem 0.55rem; margin-bottom: 0.5rem; background: var(--accent-soft); }
 .analysis-review-head { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; }

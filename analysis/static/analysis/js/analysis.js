@@ -24,7 +24,7 @@
                    indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
                    indication: page.dataset.indicationUrl, reportTargets: page.dataset.reportTargetsUrl,
                    reportPreview: page.dataset.reportPreviewUrl, weldOutline: page.dataset.weldOutlineUrl, reportSend: page.dataset.reportSendUrl,
-                   detect: page.dataset.detectUrl, resize: page.dataset.resizeUrl };
+                   detect: page.dataset.detectUrl, clearIndications: page.dataset.clearIndicationsUrl, resize: page.dataset.resizeUrl };
     const $ = id => document.getElementById(id);
     const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const shell = window.AnalysisShell;
@@ -1425,6 +1425,7 @@
 
     /** The Indications panel: the review card, then a row each (# · scan · length · height · depth · PA^ · A% · status). */
     function renderIndications() {
+        if (!$('clear-finds-menu').hidden) showClearMenu(true);   // its counts follow the list
         const all = state.indications || [];
         const list = shownIndications();
         $('indication-count').textContent = all.length;
@@ -1616,6 +1617,61 @@
         }
         await goTo(item);
     }
+
+    // ── clear indications (Find box): which ones, how many on this group, then confirm ──
+    const CLEAR_CHOICES = [
+        ['unreviewed', 'Found, to review', i => i.source === 'auto' && i.status === 'unreviewed'],
+        ['rejected', 'Rejected', i => i.status === 'rejected'],
+        ['found', 'All found', i => i.source === 'auto'],
+        ['all', 'Everything', () => true],
+    ];
+    let clearChoice = null;
+    function renderClearChoices() {
+        const here = (state.indications || []).filter(i => i.group === state.group);
+        $('clear-finds-choices').replaceChildren(...CLEAR_CHOICES.map(([which, text, test]) => {
+            const count = here.filter(test).length;
+            const b = Object.assign(document.createElement('button'), {
+                type: 'button', className: `btn btn-sm ${clearChoice === which ? 'btn-primary' : 'btn-secondary'}`,
+                textContent: `${text} (${count})`, disabled: !count });
+            b.addEventListener('click', () => {
+                clearChoice = which;
+                $('clear-finds-question').textContent = which === 'all'
+                    ? `Delete all ${count} indication${count === 1 ? '' : 's'} on this group, added ones too?`
+                    : `Delete ${count} ${text.toLowerCase()} indication${count === 1 ? '' : 's'} on this group?`;
+                $('clear-finds-confirm').hidden = false;
+                renderClearChoices();
+            });
+            return b;
+        }));
+    }
+    function showClearMenu(open) {
+        clearChoice = null;
+        $('clear-finds-menu').hidden = !open;
+        $('clear-finds-confirm').hidden = true;
+        $('clear-finds').setAttribute('aria-expanded', String(open));
+        if (open) renderClearChoices();
+    }
+    $('clear-finds').addEventListener('click', () => showClearMenu($('clear-finds-menu').hidden));
+    $('clear-finds-no').addEventListener('click', () => showClearMenu(false));
+    $('clear-finds-yes').addEventListener('click', async () => {
+        if (!clearChoice || !state.path) return;
+        let data;
+        try {
+            data = await send(urls.clearIndications, 'POST', { path: state.path, group: state.group, which: clearChoice });
+        } catch (e) {
+            $('find-note').textContent = e.message;
+            return;
+        }
+        state.indications = data.indications;
+        if (state.reviewing && !state.indications.some(i => i.id === state.reviewing)) {
+            state.reviewing = null;
+            if (Math.abs(state.gain - state.buildGain) > 1e-9) setGain(state.buildGain);   // back from its review gain
+        }
+        $('find-note').textContent = `Deleted ${data.deleted} indication${data.deleted === 1 ? '' : 's'}.`;
+        showClearMenu(false);
+        renderIndications();
+        linkCursors();
+    });
 
     // ── find indications ──
     function fillFindGates() {
