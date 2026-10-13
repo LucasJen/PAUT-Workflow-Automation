@@ -25,6 +25,9 @@ Peak readings, confirmed on the angle-beam sample (ppi 45-19662 fw6 n off1.nde, 
     only when the signal breaks the gate: no crossing of the threshold, no SA^ / DA^ / PA^ / ViA^
                (the user, 2026-10-09); X% is still the gate's highest sample
 
+Floating gates (set on the page, not in OmniPC files): the threshold follows each A-scan's peak at
+the ratio it was calibrated at (threshold / reference level), within +/- float_db - see gate_level.
+
 Times are seconds on the A-scan's own time axis (geometry.sample_times).
 """
 import math
@@ -46,7 +49,8 @@ class GateResult:
     amplitude: float = None     # highest sample in the gate (dataset unit, e.g. %)
     peak_time: float = None     # s, time of that sample (first one, if repeated)
     crossing_time: float = None  # s, first sample at or above the threshold; None = no crossing
-    threshold: float = 0.0
+    threshold: float = 0.0      # a floating gate: its height on this A-scan (None: peak under the floor)
+    band: tuple = None          # a floating gate: (lowest, highest) height it may float to
 
     @property
     def crossed(self):
@@ -104,6 +108,24 @@ def gate_window(gate, beam, group):
     return max(lo, 0.0) * to_time, hi * to_time
 
 
+def gate_level(gate, peak):
+    """
+    The level a signal must reach to break `gate`, given the highest sample in it. A fixed gate: its
+    threshold. A floating gate: the threshold's calibrated ratio to the reference (threshold /
+    float_ref) times this peak, kept within +/- float_db of the threshold; None (it can't be broken)
+    when the peak is under float_floor. `peak` may be a numpy array (NaN = no peak).
+    """
+    if gate.float_db is None:
+        return gate.threshold
+    spread = 10 ** (abs(gate.float_db) / 20)
+    level = np.clip(gate.threshold / (gate.float_ref or 80.0) * np.asarray(peak, dtype=float),
+                    gate.threshold / spread, gate.threshold * spread)
+    level = np.where(np.asarray(peak, dtype=float) >= gate.float_floor, level, np.nan)
+    if level.ndim:
+        return level
+    return None if np.isnan(level) else float(level)
+
+
 def evaluate_gates(group, beam, raw, gates=None):
     """{letter: GateResult} for a raw A-scan (int16 samples) of `beam` in `group`."""
     gates = group.gates if gates is None else gates
@@ -139,12 +161,18 @@ def evaluate_gates(group, beam, raw, gates=None):
             end = start + gate.length
         inside = np.nonzero((times >= start) & (times <= end))[0]
         result = GateResult(letter, True, start=start, end=end, threshold=gate.threshold)
+        if gate.float_db is not None:
+            spread = 10 ** (abs(gate.float_db) / 20)
+            result.band = (gate.threshold / spread, gate.threshold * spread)
         if len(inside):
             window = amplitudes[inside]
             top = int(np.argmax(window))
             result.amplitude = float(window[top])
             result.peak_time = float(times[inside[top]])
-            over = np.nonzero(window >= gate.threshold)[0]
+            level = gate_level(gate, result.amplitude)
+            if gate.float_db is not None:
+                result.threshold = level   # the height on this A-scan (None: the peak is under the floor)
+            over = np.nonzero(window >= level)[0] if level is not None else []
             if len(over):
                 result.crossing_time = float(times[inside[over[0]]])
         by_id[gate.id] = results[letter] = result

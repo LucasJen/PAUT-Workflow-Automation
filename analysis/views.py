@@ -135,7 +135,8 @@ def frame(request):
 def _gates(request, group):
     """The file's gates, or the editor's own (?gates= JSON list, SI: start / length in s from the
     pulse or from the sync gate's crossing, threshold in %; a TrueDepth gate's depth_start / depth_end
-    and a Box gate's index_start / index_end in m - those two are always from the pulse)."""
+    and a Box gate's index_start / index_end in m - those two are always from the pulse; a floating
+    gate's float_db, float_ref and float_floor - see readings.gate_level)."""
     text = request.GET.get('gates')
     if not text:
         return group.gates
@@ -153,6 +154,11 @@ def _gates(request, group):
                     raise ValueError
                 if geometry == 'Box':
                     extra['outside'] = 'zero' if item.get('outside') == 'zero' else 'none'
+            if item.get('float_db') is not None:   # a floating gate
+                extra.update(float_db=float(item['float_db']), float_ref=float(item.get('float_ref') or 80.0),
+                             float_floor=float(item.get('float_floor') or 0.0))
+                if not (0 <= extra['float_db'] <= 40 and 1 <= extra['float_ref'] <= 1000 and 0 <= extra['float_floor'] <= 1000):
+                    raise ValueError
             gate = Gate(
                 id=int(item['id']), name=str(item.get('name') or '')[:20], start=float(item['start']),
                 length=float(item['length']), threshold=float(item['threshold']),

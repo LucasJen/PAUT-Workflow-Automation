@@ -70,6 +70,11 @@ class Gate:
     index_end: float = None
     # A Box gate's beams that miss the box: 'none' (no gate - no data on the C-scan) or 'zero' (amplitude 0)
     outside: str = 'none'
+    # A floating gate (set on the page): its height keeps the calibrated ratio threshold / float_ref
+    # to each A-scan's own peak, within +/- float_db of the threshold; peaks under float_floor don't count
+    float_db: float = None           # dB the height may move; None = a fixed gate
+    float_ref: float = 80.0          # % the threshold was set against (the page's reference level)
+    float_floor: float = 0.0         # %
 
 
 @dataclass

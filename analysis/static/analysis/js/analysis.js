@@ -112,10 +112,16 @@
         format, unitLength,
         onHover: text => { $('ascan-readout').textContent = text || ''; },
         onCursor: (which, depth) => setCursors({ [`u_${which}`]: depth }),
-        onGateDragStart: letter => { gateSnapshot = { ...gateByLetter(letter) }; },
-        onGateDrag: (letter, { part, dt, threshold }) => {
+        onGateDragStart: letter => {
+            gateSnapshot = { ...gateByLetter(letter) };
+            const shown = state.gateResults?.[letter];   // a floating gate's bar is at its height here, not its threshold
+            gateSnapshot.drawn = shown?.band ? (shown.threshold ?? shown.band[0]) : gateSnapshot.threshold;
+        },
+        onGateDrag: (letter, { part, dt, threshold: dragged }) => {
             const gate = gateByLetter(letter);
             if (!gate || !gateSnapshot) return;
+            const threshold = dragged === undefined || !isFloating(gate) || !gateSnapshot.drawn ? dragged
+                : gateSnapshot.threshold * dragged / gateSnapshot.drawn;   // keep the ratio: move the calibrated height
             const minimum = currentGroup().axes[2].resolution;
             if ((gate.geometry || 'SoundPath') !== 'SoundPath') {
                 const dd = dt * halfVelocity() * (currentGroup().rays[state.lateral]?.dz || 1);
@@ -674,7 +680,7 @@
     const wholeShown = () => grid.dataset.layout !== 'A-S';
     function projectionParams() {
         const q = { path: state.path, group: state.group, gain: state.buildGain };
-        if (state.gatesEdited) q.gates = JSON.stringify(state.gates);
+        if (state.gatesEdited) q.gates = gatesParam();
         return q;
     }
     function scheduleProjections(delay = 0) {
@@ -859,6 +865,10 @@
     const halfVelocity = () => (currentGroup()?.beams[state.lateral]?.velocity || 0) / 2;   // sound path per s
     const gateLength = t => format(t * halfVelocity(), 'value');
 
+    const isFloating = gate => gate.float_db !== null && gate.float_db !== undefined;
+    /** The edited gates for a ?gates= query; floating ones are set against the page's reference level. */
+    const gatesParam = () => JSON.stringify(state.gates.map(g => (isFloating(g) ? { ...g, float_ref: state.refLevel } : g)));
+
     /** A gate the user added on this page (the file's own gates can't be removed). */
     const addedGate = gate => gate.added || !currentGroup()?.gates.some(f => f.id === gate.id);
 
@@ -929,7 +939,9 @@
                 grid.append(field(`Start (${units})`, `Sound path ${from}`, number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); })));
                 grid.append(field(`Width (${units})`, 'Sound path the gate spans', number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); })));
             }
-            grid.append(field('Threshold (%)', 'The level a signal must reach to break the gate, % of full screen',
+            grid.append(field('Threshold (%)', isFloating(gate)
+                                  ? `The height set against the ${state.refLevel} % reference level; on each A-scan it keeps that ratio to the peak`
+                                  : 'The level a signal must reach to break the gate, % of full screen',
                               number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); })));
             const sync = el('select', { className: 'form-select form-select-sm' });
             sync.add(new Option('Pulse', ''));
@@ -951,6 +963,23 @@
                 const wide = field('Beams that miss the box', 'A beam that never passes through the box: no gate at all (the C-scan shows no data), or a gate with no amplitude (0 %, the palette\'s lowest colour)', outside);
                 wide.classList.add('is-wide');
                 grid.append(wide);
+            }
+            // Floating: the height follows each A-scan's peak at the calibrated ratio, within +/- dB
+            const floating = el('input', { type: 'checkbox', className: 'form-check-input', checked: isFloating(gate) });
+            floating.addEventListener('change', () => {
+                if (floating.checked) { gate.float_db = 6; gate.float_floor = gate.float_floor ?? 10; } else gate.float_db = null;
+                gatesChanged();
+                renderGates();
+            });
+            const floatLabel = el('label', { className: 'analysis-gate-float is-wide',
+                                             title: `Floating gate: the height keeps its ratio to the reference level (${Math.round(gate.threshold * 10) / 10} % on ${state.refLevel} %) on every A-scan's own peak, within ± the dB set; peaks under the floor don't break it` },
+                                  floating, el('span', { textContent: `Floating (ratio ${Math.round(gate.threshold / state.refLevel * 100)} % of the peak)` }));
+            grid.append(floatLabel);
+            if (isFloating(gate)) {
+                grid.append(field('Float ± (dB)', 'How far the height may move from the threshold, up or down',
+                                  number(String(gate.float_db), v => { gate.float_db = Math.max(0, Math.min(40, v)); })));
+                grid.append(field('Peak floor (%)', 'A peak under this never breaks the gate (no crossing, no position readings)',
+                                  number(String(gate.float_floor ?? 0), v => { gate.float_floor = Math.max(0, Math.min(100, v)); })));
             }
             card.append(grid);
             return card;
@@ -1029,7 +1058,7 @@
             if (!state.info || !$('show-sscan-gates').checked || !state.gates.some(synced)) { state.frameGatePaths = null; renderSscanGates(); return; }
             const mine = ++frameGatesRequest;
             const query = { path: state.path, group: state.group, scan: state.scan, gain: state.gain };
-            if (state.gatesEdited) query.gates = JSON.stringify(state.gates);
+            if (state.gatesEdited) query.gates = gatesParam();
             try {
                 const data = await NdeClient.readings({ readings: urls.frameGates }, query);
                 if (mine !== frameGatesRequest) return;
@@ -1178,7 +1207,7 @@
     async function loadReadings() {
         const mine = ++readingsRequest;
         const query = { path: state.path, group: state.group, scan: state.scan, lateral: state.lateral, gain: state.gain };
-        if (state.gatesEdited) query.gates = JSON.stringify(state.gates);
+        if (state.gatesEdited) query.gates = gatesParam();
         let data;
         try {
             data = await NdeClient.readings(urls, query);
@@ -2055,7 +2084,7 @@
             return;
         }
         const query = { path: state.path, group: state.group, scan: state.scan, lateral: state.lateral, gain: 0 };
-        if (state.gatesEdited) query.gates = JSON.stringify(state.gates);
+        if (state.gatesEdited) query.gates = gatesParam();
         let data;
         try {
             data = await NdeClient.readings(urls, query);
@@ -2076,6 +2105,7 @@
         state.refLevel = Number.isFinite(v) && v > 0 ? v : 80;
         refInput.value = state.refLevel;
         save();
+        if (state.gates.some(isFloating)) { gatesChanged(); renderGates(); }   // their ratio is set against it
         renderReadings();
     });
     unitsSelect.addEventListener('change', () => {

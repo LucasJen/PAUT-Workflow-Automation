@@ -3,6 +3,7 @@
 // the beam. Gates come from the server's readings (where they really were placed, after synced gates
 // moved them) and are drawn as bars at their thresholds with marks at the crossing and the peak.
 //
+// A floating gate's bar sits at its height on this A-scan, with the band it may float in shaded.
 // Editing: drag a gate's bar to move it (and up / down for its threshold), its ends to change its
 // start or width. Reference (red) and measure (green) ultrasound cursors: click to put the reference
 // there, Shift+click the measure; drag either line. Cursors are kept as true depth (m).
@@ -145,12 +146,25 @@ window.AScanView = (function () {
                 ctx.strokeStyle = colour;
                 ctx.fillStyle = colour;
                 ctx.lineWidth = 2 * ratio;
-                const y = f.sy(gate.threshold);
+                // A floating gate: drawn at its height on this A-scan, over a faint band of the heights it
+                // may float to; dashed at the bottom of the band when the peak is under its floor
+                const under = gate.band && (gate.threshold === null || gate.threshold === undefined);
+                const y = f.sy(under ? gate.band[0] : gate.threshold);
                 const a = f.sx(this.timeToAlong(gate.start)), b = f.sx(this.timeToAlong(gate.end));
                 this.gateBars.push({ letter, a, b, y });
                 const ca = Math.max(f.left, a), cb = Math.min(w - f.right, b);
                 if (cb > ca) {
+                    if (gate.band) {
+                        const y0 = f.sy(gate.band[0]), y1 = f.sy(gate.band[1]);
+                        ctx.save();
+                        ctx.globalAlpha = 0.14;
+                        ctx.fillRect(ca, Math.min(y0, y1), cb - ca, Math.abs(y0 - y1));
+                        ctx.restore();
+                    }
+                    ctx.save();
+                    if (under) ctx.setLineDash([5 * ratio, 4 * ratio]);
                     ctx.beginPath(); ctx.moveTo(ca, y); ctx.lineTo(cb, y); ctx.stroke();
+                    ctx.restore();
                     ctx.fillText(letter, ca + 3 * ratio, y - 4 * ratio);
                     for (const end of [a, b]) {   // end ticks: grab them to change the start / width
                         if (end >= f.left && end <= w - f.right) {
