@@ -17,7 +17,7 @@ from analysis.services.detection import find_regions, label, merge
 from analysis.services.geometry import fold_depth, position
 from analysis.services.nde_data import open_file
 from analysis.services.readings import evaluate_gates, omnipc_reading
-from analysis.services.sizing import SizingError, gain_to_target, size_indication
+from analysis.services.sizing import SizingError, gain_to_target, size_in_box, size_indication
 from analysis.tests import builders
 
 RAW = 32767 / 200.0   # raw per % (unitMax 200 %)
@@ -183,6 +183,25 @@ class SizeIndicationTests(SimpleTestCase):
         _, _, _, _, r = self.sized(saturate=True)
         self.assertTrue(r['saturated'])
         self.assertLess(r['gain_db'], 0)
+
+    def test_contour_sizing_keeps_inside_the_box(self):
+        path, info, group, _, whole = self.sized()
+        cscan = projections.read_cscan(path, group, group.gates)
+        # The box cuts the flaw after position 9: its -6 dB end stops there (9 is 90 %, nothing after)
+        r = size_in_box(path, info, group, group.gates, cscan, 'A', (3, 9, 0, 2))
+        self.assertEqual((r['peak_scan'], r['peak_line']), (8, 1))
+        self.assertAlmostEqual(r['scan_start'], whole['scan_start'], places=9)
+        self.assertLess(r['scan_end'], whole['scan_end'])
+        self.assertLessEqual(r['scan_end'], 9.5 * 0.001 + 1e-12)
+        self.assertTrue(r['contour'])
+        self.assertFalse(r['auto'])
+        self.assertAlmostEqual(r['height'], whole['height'], places=9)
+        # Only the tail in the box: its own peak (60 % at position 10) is sized, not the stronger one outside
+        tail = size_in_box(path, info, group, group.gates, cscan, 'A', (10, 14, 0, 2))
+        self.assertEqual(tail['peak_scan'], 10)
+        self.assertGreaterEqual(tail['scan_start'], 9.5 * 0.001 - 1e-12)
+        with self.assertRaises(SizingError):
+            size_in_box(path, info, group, group.gates, cscan, 'A', (15, 19, 0, 2))
 
     def test_unknown_method(self):
         path = weld_with_flaw(self.folder)

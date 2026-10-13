@@ -169,6 +169,12 @@
         return [col, row, col >= 0 && col < g.shape[0] && row >= 0 && row < g.shape[1]];
     };
     const cview = new ImageView($('cscan-stage'), {
+        onBox: (box, done) => {   // contour sizing: a box drawn with Alt+drag
+            state.contour = { ...box };
+            linkCursors();
+            if (done) sizeInBox();
+        },
+        onDraw: () => drawEcho(),
         formatX: x => format(x, true), formatY: y => (isRaster() ? format(y, true) : lineText(y)),
         formatRange: v => format(v, true),
         xUnit: unitLength, yUnit: () => (isRaster() ? unitLength() : 1),
@@ -387,6 +393,7 @@
         showDetails();
         show('');
         state.sizing = null;
+        state.contour = null;
         state.reviewing = null;
         loadWeld();
         targetsLoaded = false;
@@ -415,6 +422,7 @@
         restore();
         applyLayout();
         state.cscan = null;
+        state.contour = null;   // a box on the other group's C-scan
         cview.clear('');
         bview.clear('');
         fillKinds();
@@ -670,8 +678,9 @@
         const saved = (state.indications || []).filter(i => i.group === state.group && i.status !== 'rejected')
             .map(i => ({ x: scanPosition(i.scan), y: lineY(i.lateral), label: `#${i.number}`,
                          colour: i.status === 'unreviewed' ? '#f59e0b' : '#f472b6' }));
-        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR }, ...index],
+        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR }, ...index], contour: state.contour,
                            box: reviewBox() || (z ? z.box : null), marks: [...(z?.mark ? [z.mark] : []), ...saved] });
+        drawEcho();
         bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171' }, { value: c.u_meas, colour: '#4ade80' }] });
     }
 
@@ -823,7 +832,7 @@
         save();
         if (state.reviewing) $('review-save').hidden = !cursorsMoved();
     }
-    function clearAllCursors() { state.sizing = null; $('size-note').textContent = ''; setCursors({ ...NO_CURSORS }); }
+    function clearAllCursors() { state.sizing = null; state.contour = null; $('size-note').textContent = ''; setCursors({ ...NO_CURSORS }); }
     $('clear-cursors').addEventListener('click', clearAllCursors);
     /** The cursors each view shows (u depth / sound path, i index, s scan); they're shared, so linked views lose them too. */
     const VIEW_CURSORS = { ascan: ['u'], sscan: ['u', 'i'], bscan: ['s', 'u'], cscan: ['s', 'i'] };
@@ -831,6 +840,7 @@
         button.addEventListener('click', () => {
             const cleared = {};
             for (const axis of VIEW_CURSORS[button.dataset.clear]) { cleared[`${axis}_ref`] = null; cleared[`${axis}_meas`] = null; }
+            if (button.dataset.clear === 'cscan') state.contour = null;   // and its contour box
             setCursors(cleared);
         });
     }
@@ -1262,7 +1272,7 @@
             const r = state.sizing;
             add(`Sizing (${r.method === 'threshold' ? 'threshold' : '−' + r.method + ' dB'})`, '', true);
             add(r.axis === 'index' ? 'Width' : 'Length', format(r.length));
-            if (r.auto) {
+            if (r.auto || r.contour) {
                 if (has(r.height)) add('Height', format(r.height));
                 if (has(r.width)) add('Width', format(r.width));
                 if (has(r.depth)) add('Depth', format(r.depth));
@@ -1315,7 +1325,7 @@
         if (state.sizing) {
             out[state.sizing.axis === 'index' ? 'Width' : 'Length'] = state.sizing.length;
             out['Peak%'] = state.sizing.peak_amplitude;
-            if (state.sizing.auto && has(state.sizing.height)) out.Height = state.sizing.height;
+            if ((state.sizing.auto || state.sizing.contour) && has(state.sizing.height)) out.Height = state.sizing.height;
         }
         const z = zoneBox();
         if (z && z.stats && state.cscan) {
@@ -1374,6 +1384,147 @@
         setCursors({ [`${which}_ref`]: data.start, [`${which}_meas`]: data.end });
     }
     $('size-now').addEventListener('click', sizeNow);
+
+    /** Contour sizing: the strongest signal inside the Alt+drag box on the C-scan, sized by the drop chosen (as a found one is). */
+    async function sizeInBox() {
+        const b = state.contour, cs = state.cscan;
+        if (!b || !cs || !state.info) return;
+        const [c0, r0] = cscanCell(Math.min(b.x0, b.x1), Math.min(b.y0, b.y1));
+        const [c1, r1] = cscanCell(Math.max(b.x0, b.x1), Math.max(b.y0, b.y1));
+        const note = $('size-note');
+        if (c1 < 0 || r1 < 0 || c0 >= cs.scans || r0 >= cs.lines || (c0 === c1 && r0 === r1)) {
+            state.contour = null;   // a click, or outside the data: no box
+            linkCursors();
+            return;
+        }
+        const [gate, kind] = kindSelect.value.split(':');
+        const method = $('size-method').value === 'threshold' ? '6' : $('size-method').value;
+        note.textContent = 'Sizing in the box…';
+        let response, data;
+        try {
+            response = await fetch(`${urls.size}?${new URLSearchParams({ ...projectionParams(), scan: state.scan, lateral: state.lateral,
+                                                                          gate: kind === 'amplitude' ? gate : 'A', method,
+                                                                          box: [c0, c1, r0, r1].join(',') })}`);
+            data = await response.json();
+        } catch {
+            note.textContent = "Couldn't size: is the server running?";
+            return;
+        }
+        if (response.status === 409) {   // the whole-file data isn't built yet: build it, then size
+            note.textContent = 'Reading the whole file first…';
+            if (await waitForBuild()) return sizeInBox();
+            note.textContent = "Couldn't read the whole file.";
+            return;
+        }
+        if (!response.ok) { note.textContent = data.error || "Couldn't size in the box."; return; }
+        state.sizing = data;
+        note.textContent = data.saturated ? 'Saturated peak: the sizing may be short.' : '';
+        setCursors({ ...NO_CURSORS, ...sizingCursors(data) });
+        if (data.peak_scan !== state.scan) setScan(data.peak_scan);
+        if (data.peak_line !== state.lateral) setLateral(data.peak_line);
+    }
+
+    // ── echo-dynamic: the gate's highest amplitude along the scan, under the C-scan ──
+    const echo = $('echo-strip');
+    let echoDrag = null;
+    try { $('show-echo').checked = localStorage.getItem('analysisEcho') !== '0'; } catch { /* on */ }
+    $('show-echo').addEventListener('change', e => {
+        try { localStorage.setItem('analysisEcho', e.target.checked ? '1' : '0'); } catch { /* not kept */ }
+        drawEcho();
+    });
+    /** The C-scan lines the curve takes the most of: the box's, the sized indication's, else the cursor's. */
+    function echoLines() {
+        const cs = state.cscan, b = state.contour, s = state.sizing;
+        const clamp = r => Math.max(0, Math.min(cs.lines - 1, r));
+        if (b) return [clamp(cscanCell(0, Math.min(b.y0, b.y1))[1]), clamp(cscanCell(0, Math.max(b.y0, b.y1))[1])];
+        if (s && (s.auto || s.contour) && has(s.line_lo) && has(s.line_hi)) return [clamp(s.line_lo), clamp(s.line_hi)];
+        return [state.lateral, state.lateral];
+    }
+    /** Strip x (device pixels) of a scan position, through the C-scan's view. */
+    const echoX = v => cview.toScreen(v, 0)[0] * echo.width / (cview.overlay.width || 1);
+    function drawEcho() {
+        const cs = state.cscan;
+        const show = $('show-echo').checked && wholeShown() && cs?.mode === 'amplitude' && cview.hasImage;
+        echo.hidden = !show;
+        if (!show) return;
+        const ratio = window.devicePixelRatio || 1;
+        const rect = echo.getBoundingClientRect();
+        const w = Math.max(1, Math.round(rect.width * ratio)), h = Math.max(1, Math.round(rect.height * ratio));
+        if (echo.width !== w || echo.height !== h) { echo.width = w; echo.height = h; }
+        const ctx = echo.getContext('2d');
+        ctx.clearRect(0, 0, w, h);
+        const pad = 6 * ratio, sy = v => h - pad - Math.min(100, Math.max(0, v)) / 100 * (h - 2 * pad);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+        ctx.lineWidth = ratio;
+        for (const v of [0, 50, 100]) { ctx.beginPath(); ctx.moveTo(0, sy(v)); ctx.lineTo(w, sy(v)); ctx.stroke(); }
+        // The curve: the most of the lines at each scan position, at the soft gain shown
+        const [r0, r1] = echoLines();
+        const k = Math.pow(10, (state.gain - state.cscanGain) / 20);
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 1.4 * ratio;
+        ctx.beginPath();
+        let started = false, peak = -1;
+        for (let i = 0; i < cs.scans; i++) {
+            let top = -1;
+            for (let j = r0; j <= r1; j++) { const v = cs.data[i * cs.lines + j]; if (v > top) top = v; }
+            if (top < 0) { started = false; continue; }
+            const x = echoX(scanPosition(i)), v = top * k;
+            if (x >= 0 && x <= w && v > peak) peak = v;
+            if (!started) { ctx.moveTo(x, sy(v)); started = true; } else ctx.lineTo(x, sy(v));
+        }
+        ctx.stroke();
+        // The drop level under the sized peak (or the highest point on show)
+        const s = state.sizing;
+        const drop = s?.method && s.method !== 'threshold' ? +s.method : +$('size-method').value || 6;
+        const top = s && has(s.peak_amplitude) && has(s.base_gain) ? s.peak_amplitude * Math.pow(10, (state.gain - s.base_gain) / 20) : peak;
+        if (top > 0) {
+            const y = sy(top * Math.pow(10, -drop / 20));
+            ctx.save();
+            ctx.setLineDash([5 * ratio, 4 * ratio]);
+            ctx.strokeStyle = ctx.fillStyle = '#94a3b8';
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            ctx.font = `${10 * ratio}px Inter, Arial, sans-serif`;
+            ctx.fillText(`−${drop} dB`, 4 * ratio, y - 3 * ratio);
+            ctx.restore();
+        }
+        // The ends (scan cursors, draggable here) and the scan cursor
+        for (const [key, colour] of [['s_ref', '#f87171'], ['s_meas', '#4ade80'], [null, CURSOR]]) {
+            const v = key ? state.cursors[key] : scanPosition(state.scan);
+            if (!has(v)) continue;
+            const x = echoX(v);
+            ctx.strokeStyle = colour; ctx.lineWidth = (key ? 1.5 : 1) * ratio;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        }
+    }
+    /** Scan position (m) under the pointer on the strip, through the C-scan's view. */
+    function echoScan(e) {
+        const rect = echo.getBoundingClientRect();
+        const [cx, , vw] = cview.currentView();
+        return cx + ((e.clientX - rect.left) / rect.width - 0.5) * vw;
+    }
+    /** The end cursor within a few pixels of the pointer on the strip, or null. */
+    function echoEnd(e) {
+        const rect = echo.getBoundingClientRect();
+        const px = (e.clientX - rect.left) * echo.width / (rect.width || 1);
+        const ratio = window.devicePixelRatio || 1;
+        return ['s_ref', 's_meas'].filter(k => has(state.cursors[k]))
+            .map(k => [k, Math.abs(echoX(state.cursors[k]) - px)])
+            .filter(([, d]) => d < 6 * ratio).sort((a, b) => a[1] - b[1])[0]?.[0] || null;
+    }
+    echo.addEventListener('pointerdown', e => {
+        if (e.button !== 0 || !state.cscan) return;
+        echo.setPointerCapture(e.pointerId);
+        echoDrag = echoEnd(e);
+        if (echoDrag) return;
+        const [column] = cscanCell(echoScan(e), 0);
+        if (column >= 0 && column < state.cscan.scans && column !== state.scan) setScan(column);
+    });
+    echo.addEventListener('pointermove', e => {
+        if (echoDrag) { setCursors({ [echoDrag]: echoScan(e) }); return; }
+        echo.style.cursor = echoEnd(e) ? 'ew-resize' : 'crosshair';
+    });
+    for (const type of ['pointerup', 'pointercancel']) echo.addEventListener(type, () => { echoDrag = null; });
+    new ResizeObserver(() => drawEcho()).observe(echo);
 
     // ── indications ──
     const csrf = () => (document.cookie.split('; ').find(c => c.startsWith('csrftoken=')) || '').split('=')[1] || '';

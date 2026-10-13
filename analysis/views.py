@@ -306,6 +306,8 @@ def size_indication(request):
     Length (along the scan) or width (along a raster's index axis) of the indication at the cursor,
     by an amplitude drop (?method=6 / 12 / 20 dB) or down to the gate threshold (?method=threshold),
     on the cached gate map; ?lines=all sizes the most of every line at each scan position.
+    ?box=scan_lo,scan_hi,line_lo,line_hi (C-scan cells): contour sizing of the strongest signal inside
+    that box (sizing.size_in_box).
     """
     try:
         path, info, group, gates, gain = _whole_file(request)
@@ -317,6 +319,19 @@ def size_indication(request):
         return JsonResponse({'error': 'Not built yet.', **projections.ensure(path, group, gates, gain)}, status=409)
     letter = request.GET.get('gate', 'A').upper()
     gate = next((g for g in gates if gate_letter(g.name) == letter), None)
+    if request.GET.get('box'):   # contour sizing: the strongest signal inside a box of C-scan cells
+        try:
+            box = [int(v) for v in request.GET['box'].split(',')]
+            if len(box) != 4:
+                raise ValueError
+        except ValueError:
+            return _error('Bad box.')
+        method = request.GET.get('method', '6')
+        try:
+            return JsonResponse(sizing.size_in_box(path, info, group, gates, data, letter, box,
+                                                   method if method in sizing.METHODS else '6', gain))
+        except (sizing.SizingError, NdeDataError) as e:
+            return _error(str(e))
     try:
         result = sizing.size_length(
             data, group, letter, scan, line, axis=request.GET.get('axis', 'scan'),

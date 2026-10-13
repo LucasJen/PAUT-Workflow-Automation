@@ -252,6 +252,7 @@
                 <label for="ref-level" title="The amplitude A dB(r) is measured against, % of full screen (OmniPC's reference level)">Reference level</label>
                 <div class="input-group input-group-sm"><input type="number" class="form-control mono" id="ref-level" value="80" min="1" step="1"><span class="input-group-text">%</span></div>
             </div>
+            <label class="analysis-check" title="The gate's highest amplitude along the scan, drawn under an amplitude C-scan"><input type="checkbox" id="show-echo" checked> Echo-dynamic curve under the C-scan</label>
         </section>
     </aside>
 
@@ -274,6 +275,7 @@
                     <dt>Enter / X</dt><dd>Accept / reject the indication being reviewed, then the next</dd>
                     <dt>6 / 1 / 2</dt><dd>Size it again at −6 / −12 / −20 dB</dd>
                     <dt>S</dt><dd>Keep its sizing as the cursors are now</dd>
+                    <dt>Alt+drag</dt><dd>On the C-scan: a box to size the indication inside it</dd>
                     <dt>Shift+Del</dt><dd>Clear every cursor (the eraser on a view clears just its own)</dd>
                     <dt>G</dt><dd>Next group</dd>
                     <dt>O</dt><dd>Open a file</dd>
@@ -310,9 +312,10 @@
                     <span class="analysis-panel-note" id="cscan-note"></span>
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="cscan" title="Clear the scan and index cursors" aria-label="Clear the cscan cursors"><i class="bi bi-eraser"></i></button>
                     <i class="bi bi-question-circle analysis-help" tabindex="0"
-                       title="Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors. Built once from the whole file (and again when the gates or gain change). Scroll to zoom, right-drag to pan, double-click to fit."></i>
+                       title="Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors; Alt+drag a box around an indication to size it inside the box (contour sizing, by the drop chosen in the readings column). Built once from the whole file (and again when the gates or gain change). Scroll to zoom, right-drag to pan, double-click to fit."></i>
                 </header>
                 <div class="analysis-stage" id="cscan-stage"></div>
+                <canvas class="analysis-echo" id="echo-strip" hidden title="Echo-dynamic: the gate's highest amplitude along the scan (over the box's or indication's lines, else the cursor's), with the sizing drop level; drag the red / green lines to move the ends, click to go to a scan position"></canvas>
                 <div class="analysis-readout mono" id="cscan-readout"></div>
             </section>
             <section class="analysis-panel analysis-panel-bscan">
