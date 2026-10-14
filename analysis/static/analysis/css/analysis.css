@@ -366,6 +366,12 @@ body.analysis-resizing { user-select: none; }
 .analysis-review-actions kbd { font-size: 0.65rem; }
 .analysis-review-status, .analysis-status-mark { font-size: 0.7rem; font-weight: 600; padding: 0 0.35rem; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
 .analysis-indication-table .analysis-status-mark { border: 0; padding: 0; font-size: 0.8rem; cursor: help; }
+/* Graded against the criteria: the row's number cell and its left edge in the grade's colour */
+.analysis-indication-table tr[data-grade] > td:first-child { border-left: 3px solid var(--grade); background: color-mix(in srgb, var(--grade) 22%, transparent); font-weight: 700; cursor: help; }
+.analysis-indication-table tr[data-grade="fail"] { --grade: #ef4444; }
+.analysis-indication-table tr[data-grade="assess"] { --grade: #f59e0b; }
+.analysis-indication-table tr[data-grade="pass"] { --grade: #22c55e; }
+.analysis-grade-summary .fail { color: #ef4444; } .analysis-grade-summary .assess { color: #f59e0b; } .analysis-grade-summary .pass { color: #22c55e; }
 .is-unreviewed { color: #f59e0b; }
 .is-accepted { color: #22c55e; }
 .is-rejected { color: #ef4444; }

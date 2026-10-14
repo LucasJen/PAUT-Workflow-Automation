@@ -2006,6 +2006,58 @@
     const shownIndications = () => (state.indications || []).filter(i => state.filter === 'all' || i.status === state.filter)
         .sort((a, b) => a.group - b.group || (a.sizing?.scan_start ?? a.scan_position ?? 0) - (b.sizing?.scan_start ?? b.scan_position ?? 0) || a.lateral - b.lateral);
 
+    // ── grading against the acceptance criteria of 100-UT-020 (Rev 9) ──
+    // B31.1 (§8): cracks, lack of fusion and incomplete penetration fail at any length; other discontinuities
+    // fail over the reference level and longer than allowed. B31.3 (§9): over the reference level and longer
+    // than allowed. Allowed: 0.25 in for T up to 0.75 in, T/3 up to 2.25 in, 0.75 in over (T: the thinner member).
+    // The page can't tell what a discontinuity is, so under B31.1 one over 20 % of reference (§7.2's
+    // investigation level) that doesn't fail on amplitude and length is yellow: characterise it.
+    const IN = 0.0254;
+    const allowedLength = T => (T <= 0.75 * IN + 1e-9 ? 0.25 * IN : T <= 2.25 * IN + 1e-9 ? T / 3 : 0.75 * IN);
+    let gradeCriteria = '';
+    try { gradeCriteria = localStorage.getItem('analysisCriteria') || ''; } catch { /* none */ }
+    $('grade-criteria').value = gradeCriteria;
+    $('grade-criteria').addEventListener('change', e => {
+        gradeCriteria = e.target.value;
+        try { localStorage.setItem('analysisCriteria', gradeCriteria); } catch { /* not kept */ }
+        renderIndications();
+    });
+    /** An indication's peak at the file's reference gain (% FSH), or null; Infinity when saturated. */
+    function amplitudeAtReference(item) {
+        const z = item.sizing || {}, r = item.readings || {}, g = currentGroup();
+        let recorded = null;   // % at the file's own gain (no soft gain)
+        if (z.saturated) recorded = Infinity;
+        else if (has(z.peak_amplitude)) recorded = z.peak_amplitude * 10 ** (-(z.base_gain ?? item.gain ?? 0) / 20);
+        else if (has(r['A%'])) recorded = r['A%'] * 10 ** (-(item.gain || 0) / 20);
+        if (recorded === null) return null;
+        const ref = g?.reference_gain, scanned = g?.instrument_gain;
+        return has(ref) && ref > 0 && has(scanned) ? recorded * 10 ** ((ref - scanned) / 20) : recorded;
+    }
+    /** {grade: 'fail' | 'assess' | 'pass', reason} for the chosen criteria, or null when none chosen. */
+    function gradeOf(item) {
+        if (!gradeCriteria) return null;
+        const z = item.sizing || {}, r = item.readings || {};
+        const T = state.info?.specimen?.thickness;
+        const refAmp = currentGroup()?.reference_amplitude || state.refLevel || 80;
+        const amp = amplitudeAtReference(item);
+        const length = z.length ?? r.Length ?? (has(r['S(m-r)']) ? Math.abs(r['S(m-r)']) : null);
+        if (!has(amp) && amp !== Infinity) return { grade: 'assess', reason: 'No amplitude to grade - assess it' };
+        const db = amp === Infinity ? null : 20 * Math.log10(amp / refAmp);
+        const ampText = amp === Infinity ? 'saturated (over reference)' : `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB to reference (${amp.toFixed(0)} % at reference gain)`;
+        const overRef = amp > refAmp;
+        if (!T || !has(length)) {
+            if (!overRef && !(gradeCriteria === 'b31.1' && amp > 0.2 * refAmp)) return { grade: 'pass', reason: `${ampText}: not over the reference level` };
+            return { grade: 'assess', reason: `${ampText}; ${!T ? 'no part thickness T' : 'no length'} to compare - assess it` };
+        }
+        const allowed = allowedLength(T);
+        const lengthText = `${format(length)} ${length > allowed ? '>' : '≤'} ${format(allowed)} allowed (T ${format(T)})`;
+        if (overRef && length > allowed) return { grade: 'fail', reason: `Fails: ${ampText}, ${lengthText}` };
+        if (gradeCriteria === 'b31.1' && amp > 0.2 * refAmp) {
+            return { grade: 'assess', reason: `Characterise it: ${ampText}, ${lengthText}. Under B31.1 a crack, lack of fusion or incomplete penetration fails at any length` };
+        }
+        return { grade: 'pass', reason: `Passes: ${ampText}, ${lengthText}` };
+    }
+
     /** The Indications panel: the review card, then a row each (# · scan · length · height · depth · PA^ · A% · status). */
     function renderIndications() {
         if (!$('clear-finds-menu').hidden) showClearMenu(true);   // its counts follow the list
@@ -2014,8 +2066,17 @@
         $('indication-count').textContent = all.length;
         $('indication-count').hidden = !all.length;
         const left = all.filter(i => i.status === 'unreviewed').length;
-        $('review-progress').textContent = all.some(i => i.source === 'auto')
-            ? (left ? `${all.length - left} of ${all.length} reviewed` : `All ${all.length} reviewed`) : '';
+        const reviewed = all.some(i => i.source === 'auto') ? (left ? `${all.length - left} of ${all.length} reviewed` : `All ${all.length} reviewed`) : '';
+        // With criteria chosen: how many fail / need characterising / pass (rejected indications left out)
+        const grades = { fail: 0, assess: 0, pass: 0 };
+        for (const i of all) { const g = i.status !== 'rejected' && gradeOf(i); if (g) grades[g.grade] += 1; }
+        $('review-progress').replaceChildren(reviewed);
+        if (gradeCriteria && all.length) {
+            const summary = Object.assign(document.createElement('span'), { className: 'analysis-grade-summary' });
+            summary.append(reviewed ? ' · ' : '', ...[['fail', 'fail'], ['assess', 'to characterise'], ['pass', 'pass']].flatMap(([k, text], n) => [
+                n ? ' · ' : '', Object.assign(document.createElement('span'), { className: k, textContent: `${grades[k]} ${text}` })]));
+            $('review-progress').append(summary);
+        }
         for (const b of $('review-filter').querySelectorAll('[data-filter]')) {
             b.className = `btn ${b.dataset.filter === state.filter ? 'btn-primary' : 'btn-secondary'}`;
         }
@@ -2040,6 +2101,8 @@
             const tr = body.insertRow();
             const current = item.id === state.reviewing || (!state.reviewing && item.scan === state.scan && item.lateral === state.lateral);
             tr.className = [current ? 'is-current' : '', item.status === 'rejected' ? 'is-rejected-row' : ''].join(' ').trim();
+            const grade = item.status !== 'rejected' ? gradeOf(item) : null;
+            if (grade) tr.dataset.grade = grade.grade;
             const r = item.readings || {}, z = item.sizing || {};
             const depth = z.depth ?? r['DA^'] ?? r['A/-I/'] ?? r['TminZ'];
             const length = z.length ?? r.Length ?? r.Width ?? r['S(m-r)'];
@@ -2050,6 +2113,7 @@
             const cells = [item.number, format(z.scan_start ?? item.scan_position, 'value'), value(length), value(across), value(depth),
                            has(where) ? format(where, 'value') : '-', r['A%'] === undefined ? '-' : r['A%'].toFixed(1)];
             for (const text of cells) tr.insertCell().textContent = text;
+            if (grade) tr.cells[0].title = grade.reason;
             // The status as one mark (its words in the tooltip): • to review, ✓ accepted, ✕ rejected, + added by hand
             const added = item.source !== 'auto' && item.status === 'accepted';
             const mark = Object.assign(document.createElement('span'), {
