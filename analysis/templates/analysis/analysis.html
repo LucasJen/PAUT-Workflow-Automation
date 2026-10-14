@@ -253,6 +253,10 @@
                 <div class="input-group input-group-sm"><input type="number" class="form-control mono" id="ref-level" value="80" min="1" step="1"><span class="input-group-text">%</span></div>
             </div>
             <label class="analysis-check" title="The gate's highest amplitude along the scan, drawn under an amplitude C-scan"><input type="checkbox" id="show-echo" checked> Echo-dynamic curve under the C-scan</label>
+            <div class="analysis-reading-section">Link zoom</div>
+            <label class="analysis-check" title="Zooming or panning the scan axis of the C-scan or B-scan does the same to the other"><input type="checkbox" id="link-scan"> Scan axis: C-scan and B-scan</label>
+            <label class="analysis-check" title="Zooming or panning depth on the B-scan, S-scan or A-scan (when it shows true depth) does the same to the others"><input type="checkbox" id="link-depth"> Depth: B-scan, S-scan and A-scan</label>
+            <label class="analysis-check" title="Zooming or panning the index axis of the S-scan does the same to the C-scan's (raster scans, where the C-scan is down the index axis)"><input type="checkbox" id="link-index"> Index axis: S-scan and C-scan (raster)</label>
         </section>
     </aside>
 
@@ -297,6 +301,7 @@
                     <dt>Right-drag</dt><dd>Pan</dd>
                     <dt>Double-click</dt><dd>Fit that view</dd>
                     <dt>Zoom bars</dt><dd>Under and left of each view: drag an end of the bar to zoom that axis, its middle to move along it (the A-scan's side bar is the amplitude); double-click a bar to fit that axis</dd>
+                    <dt>Link zoom</dt><dd>Display panel: zoom the scan axis (C ↔ B), depth (B ↔ S ↔ A) or index axis (S ↔ C on a raster) together</dd>
                     <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
                 </dl>
                 <dl>

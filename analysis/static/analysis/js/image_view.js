@@ -201,6 +201,7 @@ void main() {
             v[i] = (a + b) / 2; v[i + 2] = b - a;
             this.view = v;
             this.draw();
+            this.options.onViewChange?.(this);
         }
 
         toWorld(e) {
@@ -394,6 +395,7 @@ void main() {
                     const [cx, cy, w, h] = drag.view;
                     this.view = [cx - (e.clientX - drag.x) / box.width * w, cy - (e.clientY - drag.y) / box.height * h, w, h];
                     this.draw();
+                    this.options.onViewChange?.(this);
                 } else {
                     pick(e);
                 }
@@ -405,7 +407,7 @@ void main() {
             el.addEventListener('pointerup', end);
             el.addEventListener('pointercancel', end);
             el.addEventListener('pointerleave', () => this.options.onHover?.(null));
-            el.addEventListener('dblclick', () => { this.view = null; this.draw(); });
+            el.addEventListener('dblclick', () => { this.view = null; this.draw(); this.options.onViewChange?.(this); });
             el.addEventListener('wheel', e => {
                 if (!this.hasImage) return;
                 e.preventDefault();
@@ -416,6 +418,7 @@ void main() {
                 const k = Math.min(Math.max(Math.exp(e.deltaY * 0.0015), fit[2] / MAX_ZOOM / w), fit[2] * 2 / w);
                 this.view = [px - (px - cx) * k, py - (py - cy) * k, w * k, h * k];
                 this.draw();
+                this.options.onViewChange?.(this);
             }, { passive: false });
         }
     }

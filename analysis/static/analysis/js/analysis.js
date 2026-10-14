@@ -230,6 +230,48 @@
         ZoomBars.attach(view, $(`${name}-zoom-x`), $(`${name}-zoom-y`));
     }
 
+    // Linked zooms (Display panel): a view zoomed or panned along a linked axis takes the others with it,
+    // in world units - scan (C- and B-scan across), depth (B- and S-scan down, the A-scan across when it
+    // shows true depth), index (S-scan across, a raster's C-scan down)
+    const ZOOM_LINKS = {
+        scan: [[cview, 'x'], [bview, 'x']],
+        depth: [[bview, 'y'], [sscan, 'y'], [ascan, 'x']],
+        index: [[sscan, 'x'], [cview, 'y']],
+    };
+    const zoomLinks = { scan: false, depth: false, index: false };
+    try { Object.assign(zoomLinks, JSON.parse(localStorage.getItem('analysisZoomLinks') || '{}')); } catch { /* none */ }
+    /** Whether `view` can share `link`: the A-scan's depth only in true depth, the C-scan's index only on a raster. */
+    const linkable = (link, view) => !(link === 'depth' && view === ascan && ascan.axis !== 'depth')
+        && !(link === 'index' && view === cview && !isRaster());
+    let linking = false;
+    function zoomFollow(view, only = null) {
+        if (linking) return;   // a view moved by a link doesn't pass it on again
+        linking = true;
+        try {
+            for (const [link, members] of Object.entries(ZOOM_LINKS)) {
+                if (!zoomLinks[link] || (only && link !== only)) continue;
+                const mine = members.find(([v]) => v === view);
+                if (!mine || !linkable(link, view)) continue;
+                const range = view.axisRange(mine[1]);
+                if (!range) continue;
+                for (const [other, axis] of members) {
+                    if (other !== view && linkable(link, other) && other.axisRange(axis)) other.setAxisRange(axis, range.shown);
+                }
+            }
+        } finally { linking = false; }
+    }
+    for (const view of [sscan, ascan, cview, bview]) view.options.onViewChange = zoomFollow;
+    for (const link of Object.keys(ZOOM_LINKS)) {
+        const box = $(`link-${link}`);
+        box.checked = zoomLinks[link];
+        box.addEventListener('change', () => {
+            zoomLinks[link] = box.checked;
+            try { localStorage.setItem('analysisZoomLinks', JSON.stringify(zoomLinks)); } catch { /* not kept */ }
+            const first = ZOOM_LINKS[link].find(([v, axis]) => linkable(link, v) && v.axisRange(axis));
+            if (box.checked && first) zoomFollow(first[0], link);   // line them up now
+        });
+    }
+
     // ── the selected cursor / gate: the wheel moves it a step a notch (Shift: 10), Ctrl+wheel zooms ──
     /** {kind: 'cursor', key: 'u_ref' ...} | {kind: 'scan'} | {kind: 'lateral'} | {kind: 'gate', view, letter, part, line} | null */
     function select(selected) {
@@ -2315,10 +2357,13 @@
     $('show-help').addEventListener('click', () => toggleHelp());
     $('close-help').addEventListener('click', () => toggleHelp(false));
     function fitAll() {
-        sscan.view = null; sscan.draw();
-        cview.view = null; cview.draw();
-        bview.view = null; bview.draw();
-        ascan.resetZoom();
+        linking = true;   // each to its own fit, not to a linked view's
+        try {
+            sscan.view = null; sscan.draw();
+            cview.view = null; cview.draw();
+            bview.view = null; bview.draw();
+            ascan.resetZoom();
+        } finally { linking = false; }
     }
 
     // ── controls ──

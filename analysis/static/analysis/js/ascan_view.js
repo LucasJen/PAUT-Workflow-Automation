@@ -209,7 +209,7 @@ window.AScanView = (function () {
             ctx.restore();
         }
 
-        resetZoom() { this.zoom = null; this.amp = [0, 100]; this.draw(); }
+        resetZoom() { this.zoom = null; this.amp = [0, 100]; this.draw(); this.options.onViewChange?.(this); }
         maxZoom() { return MAX_ZOOM; }
 
         /** The full and shown stretch of an axis, for the zoom bars: 'x' along the beam (m), 'y' the
@@ -230,6 +230,7 @@ window.AScanView = (function () {
                 this.zoom = b - a >= f.full1 - f.full0 - 1e-12 ? null : [Math.max(f.full0, a), Math.min(f.full1, b)];
             }
             this.draw();
+            this.options.onViewChange?.(this);
         }
 
         // ── pointer ──
@@ -273,6 +274,7 @@ window.AScanView = (function () {
                 a = Math.max(f.full0, Math.min(f.full1 - span, a));
                 this.zoom = span >= f.full1 - f.full0 - 1e-12 ? null : [a, a + span];
                 this.draw();
+                this.options.onViewChange?.(this);
             }, { passive: false });
             c.addEventListener('pointerdown', e => {
                 if ((e.button === 2 || e.button === 1) && this.values && this.zoom) {
@@ -316,6 +318,7 @@ window.AScanView = (function () {
                     const lo = Math.max(f.full0, Math.min(f.full1 - span, drag.zoom[0] + shift));
                     this.zoom = [lo, lo + span];
                     this.draw();
+                    this.options.onViewChange?.(this);
                     return;
                 }
                 if (drag.kind === 'cursor') {
