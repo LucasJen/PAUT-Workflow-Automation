@@ -59,7 +59,12 @@
         <select class="form-select form-select-sm analysis-layout-select" id="layout" aria-label="Layout" title="Views shown, like OmniPC's layouts">
             <option value="A-S">A-S</option><option value="A-S-C">A-S-C</option><option value="A-B-C-S">A-B-C-S</option>
         </select>
-        <span class="analysis-selection" id="selection-readout" hidden></span>
+        <label class="analysis-selection" id="selection-readout" hidden title="The selection: type a value (Enter) or scroll over it to move it; the wheel over its view moves it too (Esc deselects)">
+            <span class="name" id="selection-name"></span>
+            <input type="text" inputmode="decimal" class="mono" id="selection-value" aria-label="Selection position" autocomplete="off">
+            <span class="unit" id="selection-unit"></span>
+            <span class="note mono" id="selection-note" hidden></span>
+        </label>
         <span class="analysis-status" id="analysis-status" role="status" hidden></span>
         <div class="analysis-topbar-end">
             <button type="button" class="btn btn-sm btn-ghost" id="clear-cursors" title="Clear every cursor in every view, and the sizing (Shift+Del)" aria-label="Clear all cursors"><i class="bi bi-eraser"></i></button>
@@ -362,7 +367,7 @@
                     <dt>Scroll</dt><dd>Move the selection: a scan line or beam a notch; a cursor or gate about 1/200 of the view (zoom in for finer steps). Shift: 10 times. With nothing selected, zoom at the pointer</dd>
                     <dt>Scan / beam / dB</dt><dd>The top bar's boxes: type a value, or scroll over one to step it (scan and beam a line, Shift 10; gain 1 dB, Shift 0.1 dB). The beam box is the angle, the VPA on a linear scan or the index position on a raster</dd>
                     <dt>Opening a file</dt><dd>Each open starts as if for the first time: the file's own gates, no cursors, weld or skew changes, and no indications saved from an earlier session (they're deleted). Refreshing the page keeps the current session</dd>
-                    <dt>Top bar</dt><dd>The selection and where it is: a cursor's value, the beam or scan line, a gate's start (its end: the width; a box's side), following drags and the wheel</dd>
+                    <dt>Top bar</dt><dd>The selection and where it is: a cursor's value, the beam or scan line, a gate's start (its end: the width; a box's side), following drags and the wheel. Type a new value (Enter) or scroll over it to move it</dd>
                     <dt>Ctrl+scroll</dt><dd>Zoom at the pointer</dd>
                     <dt>Right-drag</dt><dd>Pan</dd>
                     <dt>Double-click</dt><dd>Reset that view's zoom (the echo curve: the C-scan's)</dd>

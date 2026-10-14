@@ -341,54 +341,80 @@
     }
     const selectedIs = (kind, key) => state.selected?.kind === kind && (key === undefined || state.selected.key === key);
 
-    /** The selection and where it is, in the top bar: a cursor's value, the beam / scan line, or the gate
-     *  part being moved (its start; its width when the end is picked; a box's side). */
+    /** The selection and where it is, in the top bar - an editable value: type a new one (Enter) or scroll
+     *  over it. A cursor's value, the beam (angle / VPA / index) or scan line, the gate part being moved (its
+     *  start; its width when the end is picked; a true-depth gate's top or height; a box's side). */
     const CURSOR_NAMES = { u: 'U', s: 'S', i: 'I' };
+    let selectionApply = null;   // sets the selection to a typed value (page units)
     function renderSelection() {
-        const sel = state.selected, out = $('selection-readout');
-        let colour = null, name = '', value = '';
-        const g = currentGroup();
+        const sel = state.selected, out = $('selection-readout'), input = $('selection-value');
+        const g = currentGroup(), L = unitLength();
+        let colour = null, name = '', value = null, unit = units, note = '', apply = null;
         if (sel && g && state.info) {
             if (sel.kind === 'cursor') {
                 const v = state.cursors[sel.key];
                 colour = sel.key.endsWith('ref') ? '#f87171' : '#4ade80';
                 name = `${CURSOR_NAMES[sel.key[0]]}(${sel.key.endsWith('ref') ? 'r' : 'm'})`;
-                value = has(v) ? format(v) : '-';
+                value = has(v) ? format(v, 'value') : '';
+                apply = x => setCursors({ [sel.key]: x * L });
             } else if (sel.kind === 'scan') {
                 colour = CURSOR; name = 'Scan';
-                value = `${format(scanPosition(state.scan))} · line ${state.scan + 1}`;
+                value = format(scanPosition(state.scan), 'value');
+                note = `line ${state.scan + 1}`;
+                apply = x => setScan(Math.round((x * L - scanAxis().offset) / scanAxis().resolution));
             } else if (sel.kind === 'lateral') {
                 colour = CURSOR;
-                const beam = g.beams[state.lateral];
-                name = isRaster() ? 'Index' : 'Beam';
-                value = isRaster() ? format(lineY(state.lateral)) : `${state.lateral + 1} · ${beam?.refracted_angle ?? ''}°`;
+                const mode = beamMode(), beam = g.beams[state.lateral];
+                name = mode === 'index' ? 'Index' : mode === 'vpa' ? 'VPA' : 'Beam';
+                value = mode === 'angle' ? String(beam?.refracted_angle ?? '') : mode === 'vpa' ? String(state.lateral + 1) : format(lineY(state.lateral), 'value');
+                unit = mode === 'angle' ? '°' : mode === 'vpa' ? '' : units;
+                apply = x => goToBeam(String(x));
             } else if (sel.kind === 'gate') {
                 const gate = gateByLetter(sel.letter);
                 if (gate) {
                     colour = GATE_COLOURS[sel.letter] || '#a78bfa';
-                    const geometry = gate.geometry || 'SoundPath';
-                    const part = sel.part;
+                    const geometry = gate.geometry || 'SoundPath', part = sel.part;
+                    const hv = () => halfVelocity() || 1, least = currentGroup().axes[2].resolution;
+                    let what;
                     if (geometry === 'SoundPath') {
-                        [name, value] = part === 'end' ? ['width', gateLength(gate.length)] : ['start', gateLength(gate.start)];
-                        value = `${value} ${units}`;
-                    } else if (part === 'end' || part === 'd1') {
-                        [name, value] = part === 'end' ? ['height', format(gate.depth_end - gate.depth_start)] : ['bottom', format(gate.depth_end)];
+                        what = part === 'end' ? 'width' : 'start';
+                        value = gateLength(part === 'end' ? gate.length : gate.start);
+                        apply = part === 'end' ? x => { gate.length = Math.max(least, x * L / hv()); }
+                            : x => { gate.start = x * L / hv(); };   // the end moves with it
+                    } else if (part === 'end') {
+                        what = 'height'; value = format(gate.depth_end - gate.depth_start, 'value');
+                        apply = x => { if (x > 0) gate.depth_end = gate.depth_start + x * L; };
+                    } else if (part === 'd1') {
+                        what = 'bottom'; value = format(gate.depth_end, 'value');
+                        apply = x => { gate.depth_end = x * L; };
                     } else if (part === 'i0' || part === 'i1') {
-                        [name, value] = [part === 'i0' ? 'index from' : 'index to', format(part === 'i0' ? gate.index_start : gate.index_end)];
+                        const key = part === 'i0' ? 'index_start' : 'index_end';
+                        what = part === 'i0' ? 'index from' : 'index to'; value = format(gate[key], 'value');
+                        apply = x => { gate[key] = x * L; };
                     } else {
-                        [name, value] = ['top', format(gate.depth_start)];
+                        what = 'top'; value = format(gate.depth_start, 'value');
+                        apply = x => {   // a true-depth gate's top carries its bottom; a box's top is its own side
+                            const h = gate.depth_end - gate.depth_start;
+                            gate.depth_start = x * L;
+                            if (geometry !== 'Box' || part !== 'd0') gate.depth_end = gate.depth_start + h;
+                        };
                     }
-                    name = `Gate ${sel.letter} ${name}`;
-                    if (part === 'move' && sel.view === 'ascan') value += ` · ${Math.round(gate.threshold * 10) / 10} %`;   // up / down there is the threshold
+                    name = `Gate ${sel.letter} ${what}`;
+                    if (part === 'move' && sel.view === 'ascan') note = `${Math.round(gate.threshold * 10) / 10} %`;   // up / down there is the threshold
+                    const set = apply;
+                    apply = x => { set(x); gatesChanged(); renderGates(); };
                 }
             }
         }
         out.hidden = !colour;
+        selectionApply = colour ? apply : null;
         if (!colour) return;
         out.style.setProperty('--sel-colour', colour);
-        out.replaceChildren(Object.assign(document.createElement('span'), { className: 'name', textContent: name }),
-                            Object.assign(document.createElement('span'), { className: 'mono', textContent: value }));
-        out.title = 'The selection: the wheel moves it (Esc deselects)';
+        $('selection-name').textContent = name;
+        $('selection-unit').textContent = unit;
+        $('selection-note').textContent = note;
+        $('selection-note').hidden = !note;
+        if (document.activeElement !== input) input.value = value ?? '';
     }
     /** A view's wheel: moves the selection and returns true, or false (nothing selected: the view zooms). */
     function wheelSelected(e, view) {
@@ -2671,6 +2697,26 @@
     onScroll(scanNumber.closest('.analysis-value-box'), (d, big) => setScan(state.scan + d * (big ? 10 : 1)));
     onScroll($('beam-box'), (d, big) => { setLateral(state.lateral + d * (big ? 10 : 1)); });
     onScroll(gainInput.closest('.analysis-value-box'), (d, fine) => setGain(state.gain + d * (fine ? 0.1 : 1)));
+    // The selection box: a typed value (Enter), or scrolled over a step at a time (Shift: 10)
+    const selectionInput = $('selection-value');
+    const applySelection = () => {
+        const v = parseFloat(selectionInput.value);
+        if (selectionApply && Number.isFinite(v)) selectionApply(v);
+        renderSelection();
+    };
+    selectionInput.addEventListener('change', applySelection);
+    selectionInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); applySelection(); }
+        if (e.key === 'Escape') { selectionInput.blur(); renderSelection(); }
+    });
+    selectionInput.addEventListener('blur', () => renderSelection());
+    onScroll($('selection-readout'), (d, big) => {
+        const sel = state.selected;
+        if (!sel) return;
+        // Steps scaled to the item's own view, as the wheel over that view would
+        const view = sel.kind === 'cursor' ? { u: ascan, s: cview, i: sscan }[sel.key[0]] : sel.kind === 'gate' ? (sel.view === 'sscan' ? sscan : ascan) : null;
+        nudge(d * (big ? 10 : 1), view);
+    });
     $('beam-number').addEventListener('change', e => goToBeam(e.target.value));
     $('beam-number').addEventListener('keydown', e => { if (e.key === 'Enter') goToBeam(e.target.value); });
     $('beam-number').addEventListener('blur', showBeam);

@@ -68,6 +68,12 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-selection .mono { font-weight: 600; }
 .analysis-selection[hidden] { display: none; }
 .analysis-selection .name { color: var(--text-2); }
+.analysis-selection input { width: 4.4rem; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text);
+    font-size: 0.9375rem; font-weight: 600; text-align: right; }
+.analysis-selection:focus-within { border-color: var(--accent); }
+.analysis-selection .unit { color: var(--text-3); font-size: 0.75rem; }
+.analysis-selection .note { color: var(--text-3); font-size: 0.75rem; }
+.analysis-selection .note[hidden] { display: none; }
 .analysis-topbar-end { display: flex; align-items: center; gap: 0.1rem; margin-left: auto; }
 
 /* ── Left rail ── */
