@@ -86,9 +86,9 @@
         onCursor: lateral => setLateral(lateral),
         onCursors: partial => setCursors(partial),
         onWeldShift: (shift, done) => weldShifted(shift, done),
-        onGateDragStart: letter => { gateSnapshot = structuredClone(gateByLetter(letter)); },
+        onGateDragStart: letter => { gateSnapshot = structuredClone(gateByLetter(letter)); gateDragStarted(); },
         onGateDrag: (letter, part, delta) => dragGateOnSscan(letter, part, delta),
-        onGateDragEnd: () => { gateSnapshot = null; loadFrameGates(); },
+        onGateDragEnd: () => gateDragEnded(),
         onSelect: select, onWheel: e => wheelSelected(e, sscan),
         onHover: (x, y) => {
             if (x === null) { $('sscan-readout').textContent = ''; return; }
@@ -118,10 +118,11 @@
             gateSnapshot = { ...gateByLetter(letter) };
             const shown = state.gateResults?.[letter];   // a floating gate's bar is at its height here, not its threshold
             gateSnapshot.drawn = shown?.band ? (shown.threshold ?? shown.band[0]) : gateSnapshot.threshold;
+            gateDragStarted();
         },
         onGateDrag: (letter, drag) => dragGateOnAscan(letter, drag),
         onSelect: select, onWheel: e => wheelSelected(e, ascan),
-        onGateDragEnd: () => { gateSnapshot = null; },
+        onGateDragEnd: () => gateDragEnded(),
     });
 
     /** A gate dragged (or wheeled) on the A-scan: part move / start / end by dt (s) since the press; threshold: the bar's new height. */
@@ -141,6 +142,7 @@
                 gate.depth_start = lo + dd; gate.depth_end = hi + dd;
             } else gate.depth_end = Math.max(hi + dd, lo + least);
             gatesChanged(20);
+            previewDraggedGate(letter);
             return;
         }
         if (part === 'move') {
@@ -152,6 +154,47 @@
             gate.length = Math.max(minimum, gateSnapshot.length + dt);
         }
         gatesChanged(20);
+        previewDraggedGate(letter);
+    }
+
+    /**
+     * While a gate is dragged the A-scan draws it from its settings at once (the server's last readings
+     * moved by what the drag changed); the readings, the synced gates' windows and the C- / B-scans follow
+     * when it's let go - so the drag doesn't wait on the server.
+     */
+    let dragBase = null;
+    function gateDragStarted() {
+        state.draggingGate = true;
+        dragBase = state.gateResults ? structuredClone(state.gateResults) : null;
+    }
+    function gateDragEnded() {
+        state.draggingGate = false;
+        gateSnapshot = null;
+        dragBase = null;
+        scheduleReadings(0);
+        loadFrameGates();
+        scheduleProjections(300);
+    }
+    /** The A-scan's gates with the dragged one where its settings now put it. */
+    function previewDraggedGate(letter) {
+        const base = dragBase?.[letter], gate = gateByLetter(letter), s = gateSnapshot;
+        if (!base || !gate || !s || base.start === null || base.start === undefined) return;
+        const g = currentGroup(), r = g.rays[state.lateral], hv = halfVelocity() || 1;
+        let d0, d1;
+        if ((gate.geometry || 'SoundPath') === 'SoundPath') {
+            d0 = gate.start - s.start;
+            d1 = gate.start + gate.length - s.start - s.length;
+        } else {   // depths to this beam's times
+            const per = 1 / (hv * (Math.abs(r?.dz) || 1));
+            d0 = (gate.depth_start - s.depth_start) * per;
+            d1 = (gate.depth_end - s.depth_end) * per;
+        }
+        const scale = s.threshold ? gate.threshold / s.threshold : 1;
+        const moved = { ...base, start: base.start + d0, end: base.end + d1,
+                        threshold: base.threshold === null || base.threshold === undefined ? base.threshold
+                            : (base.band ? base.threshold * scale : gate.threshold),
+                        band: base.band ? base.band.map(b => b * scale) : base.band };
+        ascan.set({ gates: { ...(state.gateResults || dragBase), [letter]: moved } });
     }
 
     const CURSOR = '#38bdf8';
@@ -1471,6 +1514,7 @@
         }
         renderSscanGates();
         gatesChanged(20);
+        previewDraggedGate(letter);
     }
 
     /**
@@ -1542,9 +1586,12 @@
         save();
         renderSelection();
         renderSscanGates();
-        loadFrameGates(150);
         if (!document.activeElement?.closest('#gate-rows')) renderGates();
         $('gates-edited').hidden = false;
+        if (state.draggingGate) {   // drawn here at once; the server catches up when it's let go (gateDragEnded)
+            return;
+        }
+        loadFrameGates(150);
         scheduleReadings(delay);
         scheduleProjections(700);   // the C-scan follows the gates once they settle
     }
