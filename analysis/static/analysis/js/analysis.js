@@ -698,8 +698,10 @@
     const fileWeld = () => (state.info?.weld && Object.keys(state.info.weld).length && state.info.weld_outline?.length ? state.info.weld : null);
     const weldKey = () => `analysisWeld:${state.path}`;
     const weldEdited = () => !!weld.shape || Math.abs(weld.shift) > 1e-9;
-    // The S-scan's skew view for angle-beam data (90 / 270 button in its head): skew 90 numbers the index
-    // axis positive to the left, 270 positive to the right. Starts at the file's skew; kept per file.
+    // The S-scan's skew view for angle-beam data (90 / 270 button in its head). 90: beams top left to bottom
+    // right, the index increasing to the right; 270: top right to bottom left, increasing to the left - so the
+    // probe, upstream of the weld, reads negative either way. A view other than the file's skew mirrors the
+    // picture. Only the S-scan's axis numbers change; readings keep the file's. Starts at the file's skew; kept per file.
     const angleBeam = () => {
         const g = currentGroup();
         return !!g && g.layout === 'beams' && g.beams.some(b => Math.abs(b.refracted_angle) > 1e-6)
@@ -709,13 +711,14 @@
     function applySkew() {
         const on = angleBeam();
         $('skew-toggle').hidden = !on;
-        if (!on) { sscan.setFlipIndex(false); return; }
-        let skew = Math.round(currentGroup().beams[0].skew_angle);
+        if (!on) { sscan.setSkewView({}); return; }
+        const fileSkew = Math.round(currentGroup().beams[0].skew_angle);
+        let skew = fileSkew;
         try { skew = +localStorage.getItem(skewKey()) || skew; } catch { /* the file's */ }
         state.skewView = skew === 270 ? 270 : 90;
         $('skew-toggle').textContent = `${state.skewView}°`;
-        $('skew-toggle').title = `Skew ${state.skewView}° view: the index axis positive to the ${state.skewView === 90 ? 'left' : 'right'} - click for ${state.skewView === 90 ? 270 : 90}°`;
-        sscan.setFlipIndex(state.skewView === 90);
+        $('skew-toggle').title = `Skew ${state.skewView}° view: beams top ${state.skewView === 90 ? 'left to bottom right' : 'right to bottom left'}, the index increasing to the ${state.skewView === 90 ? 'right' : 'left'} - click for ${state.skewView === 90 ? 270 : 90}°`;
+        sscan.setSkewView({ mirror: state.skewView !== fileSkew, labelsLeft: state.skewView === 270 });
     }
     $('skew-toggle').addEventListener('click', () => {
         try { localStorage.setItem(skewKey(), String(state.skewView === 90 ? 270 : 90)); } catch { state.skewView = state.skewView === 90 ? 270 : 90; }

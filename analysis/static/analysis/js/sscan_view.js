@@ -7,8 +7,9 @@
 // World coordinates: x = position along the index axis (m), y = depth (m, down). Rotated (for 0 deg
 // longitudinal data such as HydroFORM), the screen shows depth across and the index axis down, so it
 // lines up with the A-scan's depth axis and a raster C-scan's index axis; the view ([cx, cy, ...],
-// zoom bars) is then in those display axes, and toScreen / toWorld swap. Flipped (setFlipIndex - the
-// skew 90 view of angle-beam data), the index axis runs the other way: positive to the left. Click or drag
+// zoom bars) is then in those display axes, and toScreen / toWorld swap. The skew view (setSkewView):
+// the picture mirrored across the index axis (the probe drawn facing the other way), and the index
+// numbers increasing to the left (skew 270: the probe upstream reads negative either way). Click or drag
 // to move the beam cursor, scroll to zoom at the pointer, right-drag to pan, double-click to fit.
 // True geometry keeps one scale both ways (a sectorial fan); stretched fills the panel (a 0 deg
 // raster's index x depth end view, e.g. 12 in wide and 0.5 in deep).
@@ -88,7 +89,8 @@ void main() {
                                     // vertical zoom over its horizontal one, from the zoom bars)
             this.trueGeometry = true;
             this.rotated = false;   // depth across, index down
-            this.flipIndex = false; // the index axis positive to the left (skew 90 view)
+            this.flipIndex = false; // the picture mirrored across the index axis
+            this.indexLabelsLeft = false;   // the index numbers increasing to the left (skew 270 view)
             this.cursors = { u_ref: null, u_meas: null, i_ref: null, i_meas: null };
             this.lateral = 0;
             this.hasFrame = false;
@@ -201,11 +203,13 @@ void main() {
             this.draw();
         }
 
-        /** The index axis the other way round: positive to the left (the skew 90 view of angle-beam data). */
-        setFlipIndex(on) {
-            if (this.flipIndex === !!on) return;
-            this.flipIndex = !!on;
-            this.view = null;
+        /** The skew view: mirror - the picture flipped across the index axis; labelsLeft - the index
+         *  numbers increasing to the left (they're the screen position, so negated, not the file's). */
+        setSkewView({ mirror = false, labelsLeft = false }) {
+            const changed = this.flipIndex !== !!mirror;
+            this.flipIndex = !!mirror;
+            this.indexLabelsLeft = !!labelsLeft;
+            if (changed) this.view = null;
             this.draw();
         }
 
@@ -646,13 +650,13 @@ void main() {
                 const [sx] = this.displayToScreen(x, 0);
                 if (sx < 46 * ratio) continue;
                 ctx.beginPath(); ctx.moveTo(sx, h - 18 * ratio); ctx.lineTo(sx, h - 13 * ratio); ctx.stroke();
-                label(this.options.format(!this.rotated && this.flipIndex ? -x : x, true), sx + 2 * ratio, h - 5 * ratio);
+                label(this.options.format(!this.rotated && this.indexLabelsLeft ? -x : x, true), sx + 2 * ratio, h - 5 * ratio);
             }
             for (let y = Math.ceil((cy - height / 2) / ys) * ys; y <= cy + height / 2; y += ys) {
                 const [, sy] = this.displayToScreen(0, y);
                 if (sy > h - 18 * ratio) continue;
                 ctx.beginPath(); ctx.moveTo(40 * ratio, sy); ctx.lineTo(46 * ratio, sy); ctx.stroke();
-                label(this.options.format(this.rotated && this.flipIndex ? -y : y, true), 3 * ratio, sy + 4 * ratio);
+                label(this.options.format(this.rotated && this.indexLabelsLeft ? -y : y, true), 3 * ratio, sy + 4 * ratio);
             }
             ctx.restore();
         }
