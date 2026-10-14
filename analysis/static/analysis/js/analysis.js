@@ -24,7 +24,8 @@
                    indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
                    indication: page.dataset.indicationUrl, reportTargets: page.dataset.reportTargetsUrl,
                    reportPreview: page.dataset.reportPreviewUrl, weldOutline: page.dataset.weldOutlineUrl, reportSend: page.dataset.reportSendUrl,
-                   detect: page.dataset.detectUrl, clearIndications: page.dataset.clearIndicationsUrl, resize: page.dataset.resizeUrl };
+                   detect: page.dataset.detectUrl, clearIndications: page.dataset.clearIndicationsUrl, resize: page.dataset.resizeUrl,
+                   forgetIndications: page.dataset.forgetIndicationsUrl };
     const $ = id => document.getElementById(id);
     const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const shell = window.AnalysisShell;
@@ -394,18 +395,31 @@
         gateSnapshot = null;
     }
 
-    // ── per file / group memory ──
+    // ── per file / group memory: this tab's session only. Every open of a file starts fresh, as if for
+    // the first time (its own gates, no cursors or saved indications - see openFile); a refresh of the
+    // same file in the same tab carries on. Older versions kept this in localStorage: dropped once here.
+    const PER_FILE = ['analysis:', 'analysisWeld:', 'analysisSkew:'];
+    try {
+        Object.keys(localStorage).filter(k => PER_FILE.some(prefix => k.startsWith(prefix))).forEach(k => localStorage.removeItem(k));
+    } catch { /* nothing kept */ }
+    /** Forgets what this tab kept for a file (gates, cursors, reference level, weld edits, skew view). */
+    function forgetFileState(path) {
+        try {
+            Object.keys(sessionStorage).filter(k => PER_FILE.some(prefix => k === `${prefix}${path}` || k.startsWith(`${prefix}${path}:`)))
+                .forEach(k => sessionStorage.removeItem(k));
+        } catch { /* nothing kept */ }
+    }
     const memoryKey = () => `analysis:${state.path}:${state.group}`;
     function save() {
         try {
-            localStorage.setItem(memoryKey(), JSON.stringify({
+            sessionStorage.setItem(memoryKey(), JSON.stringify({
                 gates: state.gatesEdited ? state.gates : null, cursors: state.cursors, refLevel: state.refLevel,
             }));
         } catch { /* storage full or blocked: nothing to keep */ }
     }
     function restore() {
         let saved = null;
-        try { saved = JSON.parse(localStorage.getItem(memoryKey()) || 'null'); } catch { saved = null; }
+        try { saved = JSON.parse(sessionStorage.getItem(memoryKey()) || 'null'); } catch { saved = null; }
         const g = currentGroup();
         state.gates = saved?.gates || fileGates(g);
         state.gatesEdited = !!saved?.gates;
@@ -439,7 +453,9 @@
         const known = new Set([...allFiles, ...openedFiles].map(f => f.path));
         const wanted = params.get('path') || recentFiles().find(p => known.has(p));
         if (wanted && known.has(wanted)) {
-            await openFile(wanted, +params.get('group') || 0, +params.get('scan') || 0, +params.get('lateral') || 0);
+            let carryOn = false;
+            try { carryOn = sessionStorage.getItem('analysisOpen') === wanted; } catch { /* fresh */ }
+            await openFile(wanted, +params.get('group') || 0, +params.get('scan') || 0, +params.get('lateral') || 0, { fresh: !carryOn });
         } else {
             shell.open('files');
             fileFilter.focus();
@@ -539,7 +555,9 @@
         try { localStorage.setItem('analysisRecent', JSON.stringify(list)); } catch { /* not kept */ }
     }
 
-    async function openFile(path, group = 0, scan = 0, lateral = 0) {
+    /** Opens a file. fresh (every open but a refresh of this tab's file): as if for the first time - what
+     *  this tab kept for it is forgotten and its saved indications are deleted. */
+    async function openFile(path, group = 0, scan = 0, lateral = 0, { fresh = true } = {}) {
         show('Opening…');
         grid.classList.remove('is-empty');
         try {
@@ -548,6 +566,13 @@
             show(e.message);
             return;
         }
+        let cleared = 0;
+        if (fresh) {
+            forgetFileState(path);
+            try { cleared = (await send(urls.forgetIndications, 'POST', { path })).deleted || 0; } catch (e) { show(e.message); }
+        }
+        try { sessionStorage.setItem('analysisOpen', path); } catch { /* every load fresh */ }
+        $('find-note').textContent = cleared ? `Opened fresh - cleared ${cleared} saved indication${cleared === 1 ? '' : 's'}.` : '';
         state.path = path;
         rememberRecent(path);
         const name = path.split(/[\\/]/).pop();
@@ -714,14 +739,14 @@
         if (!on) { sscan.setSkewView({}); return; }
         const fileSkew = Math.round(currentGroup().beams[0].skew_angle);
         let skew = fileSkew;
-        try { skew = +localStorage.getItem(skewKey()) || skew; } catch { /* the file's */ }
+        try { skew = +sessionStorage.getItem(skewKey()) || skew; } catch { /* the file's */ }
         state.skewView = skew === 270 ? 270 : 90;
         $('skew-toggle').textContent = `${state.skewView}°`;
         $('skew-toggle').title = `Skew ${state.skewView}° view: beams top ${state.skewView === 90 ? 'left to bottom right' : 'right to bottom left'}, the index increasing to the ${state.skewView === 90 ? 'right' : 'left'} - click for ${state.skewView === 90 ? 270 : 90}°`;
         sscan.setSkewView({ mirror: state.skewView !== fileSkew, labelsLeft: state.skewView === 270 });
     }
     $('skew-toggle').addEventListener('click', () => {
-        try { localStorage.setItem(skewKey(), String(state.skewView === 90 ? 270 : 90)); } catch { state.skewView = state.skewView === 90 ? 270 : 90; }
+        try { sessionStorage.setItem(skewKey(), String(state.skewView === 90 ? 270 : 90)); } catch { state.skewView = state.skewView === 90 ? 270 : 90; }
         applySkew();
     });
 
@@ -735,14 +760,14 @@
 
     function loadWeld() {
         let saved = null;
-        try { saved = JSON.parse(localStorage.getItem(weldKey()) || 'null'); } catch { saved = null; }
+        try { saved = JSON.parse(sessionStorage.getItem(weldKey()) || 'null'); } catch { saved = null; }
         weld.shape = saved?.shape || null;
         weld.shift = Number.isFinite(saved?.shift) ? saved.shift : 0;
     }
     function saveWeld() {
         try {
-            if (weldEdited()) localStorage.setItem(weldKey(), JSON.stringify({ shape: weld.shape, shift: weld.shift }));
-            else localStorage.removeItem(weldKey());
+            if (weldEdited()) sessionStorage.setItem(weldKey(), JSON.stringify({ shape: weld.shape, shift: weld.shift }));
+            else sessionStorage.removeItem(weldKey());
         } catch { /* not kept */ }
     }
 
