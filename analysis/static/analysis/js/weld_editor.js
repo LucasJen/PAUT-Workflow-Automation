@@ -38,10 +38,10 @@ window.WeldEditor = (function () {
                 return;
             }
             const u = this.options.units();
-            const grid = el('div', { className: 'analysis-weld-grid' });
+            const grid = el('div', { className: 'ana-props analysis-weld-grid' });
             const row = (label, help, ...controls) => {
                 const name = el('label', { textContent: label, title: help });
-                grid.append(name, el('div', { className: 'analysis-weld-controls' }, ...controls));
+                grid.append(name, el('div', { className: 'ana-value analysis-weld-controls' }, ...controls));
             };
 
             // Centre line: where the weld is across the index
@@ -57,17 +57,17 @@ window.WeldEditor = (function () {
                 });
                 return b;
             };
-            row('Centre line', 'Where the weld centre is across the index, from the file\'s index origin. Alt+drag the weld on the S-scan to move it.',
-                nudge(-1, 'chevron-left'), this.shiftInput, nudge(1, 'chevron-right'), el('span', { className: 'analysis-tool-note', textContent: u }));
+            row('Centre', 'The centre line: where the weld centre is across the index, from the file\'s index origin. Alt+drag the weld on the S-scan to move it.',
+                nudge(-1, 'chevron-left'), this.shiftInput, nudge(1, 'chevron-right'), el('span', { className: 'ana-unit', textContent: u }));
 
             const s = this.shape;
             row('Root gap', 'The gap between the plates at the root (both sides)',
                 this.number(2 * (s.offset || 0) / this.options.unitLength(), v => { s.offset = Math.max(0, v) * this.options.unitLength() / 2; }),
-                el('span', { className: 'analysis-tool-note', textContent: u }));
+                el('span', { className: 'ana-unit', textContent: u }));
             s.land = s.land || {};
             row('Land', 'Height of the root face (straight up from the root)',
                 this.number((s.land.height || 0) / this.options.unitLength(), v => { s.land.height = Math.max(0, v) * this.options.unitLength(); }),
-                el('span', { className: 'analysis-tool-note', textContent: u }));
+                el('span', { className: 'ana-unit', textContent: u }));
             s.root = s.root || {};
             s.hotPass = s.hotPass || {};
             s.fills = s.fills || [];
@@ -89,9 +89,10 @@ window.WeldEditor = (function () {
 
             this.note = el('p', { className: 'analysis-note' });
             const status = el('div', { className: 'analysis-drawer-row' },
-                el('span', { className: 'analysis-note', textContent: edited ? 'Edited here (kept for this file).' : "From the file's setup (MXU / OmniPC)." }));
+                el('span', { className: 'analysis-note', textContent: edited ? 'Edited' : 'From the file',
+                             title: edited ? 'Edited here (kept for this file)' : "From the file's setup (MXU / OmniPC)" }));
             if (edited) {
-                const reset = el('button', { type: 'button', className: 'btn btn-sm btn-secondary ms-auto', innerHTML: '<i class="bi bi-arrow-counterclockwise"></i> File\'s weld' });
+                const reset = el('button', { type: 'button', className: 'ana-icon-btn ms-auto', innerHTML: '<i class="bi bi-arrow-counterclockwise"></i>' });
                 reset.title = "Back to the weld from the file's setup, centred";
                 reset.addEventListener('click', () => this.options.onReset());
                 status.append(reset);
@@ -134,14 +135,14 @@ window.WeldEditor = (function () {
 
         pass(p) {
             return [this.number((p.height || 0) / this.options.unitLength(), v => { p.height = Math.max(0, v) * this.options.unitLength(); }),
-                    el('span', { className: 'analysis-tool-note', textContent: '@' }), this.angle(p), el('span', { className: 'analysis-tool-note', textContent: '°' })];
+                    el('span', { className: 'ana-unit', textContent: '@' }), this.angle(p), el('span', { className: 'ana-unit', textContent: '°' })];
         }
 
         cap(c) {
             const width = this.number((c.width || 0) / this.options.unitLength(), v => { c.width = Math.max(0, v) * this.options.unitLength(); });
             const height = this.number((c.height || 0) / this.options.unitLength(), v => { c.height = Math.max(0, v) * this.options.unitLength(); });
             width.title = 'Width'; height.title = 'Height';
-            return [width, el('span', { className: 'analysis-tool-note', textContent: '×' }), height];
+            return [width, el('span', { className: 'ana-unit', textContent: '×' }), height];
         }
 
         /** Tells the page; `rebuild` when rows were added / removed. */

@@ -241,34 +241,64 @@
         </section>
 
         <section class="analysis-drawer-body" data-panel-body="geometry" data-title="Geometry" hidden>
-            <label class="analysis-check" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry S-scan</label>
-            <label class="analysis-check" title="Dashed lines at the part thickness and its multiples (T, 2T, ...) - the back wall and each leg - on the A-, B- and S-scans (T)"><input type="checkbox" id="show-legs" checked> Leg lines (T, 2T…) on the A-, B- and S-scans</label>
-            <label class="analysis-check" id="groups-toggle" hidden title="Every group of the file drawn together at this scan position (this group on top); G switches group"><input type="checkbox" id="all-groups"> All groups on the S-scan</label>
-            <h3 class="analysis-drawer-subhead">Weld overlay</h3>
-            <label class="analysis-check" id="weld-toggle" hidden title="The weld outline on the S-scan, in every leg"><input type="checkbox" id="show-weld" checked> Show the weld</label>
-            <label class="analysis-check" id="caps-toggle" hidden title="The weld cap above the surface and the root reinforcement below the back wall"><input type="checkbox" id="show-caps"> Show the caps</label>
-            <div class="analysis-weld-editor" id="weld-editor"></div>
+            <div class="ana-props">
+                <label for="true-geometry" title="One scale both ways (true geometry), or stretched to fill the panel">True geometry</label>
+                <input type="checkbox" class="form-check-input" id="true-geometry">
+                <label for="show-legs" title="Dashed lines at the part thickness and its multiples (T, 2T, ...) - the back wall and each leg - on the A-, B- and S-scans (T)">Leg lines</label>
+                <input type="checkbox" class="form-check-input" id="show-legs" checked>
+                <div class="ana-row" id="groups-toggle" hidden>
+                    <label for="all-groups" title="Every group of the file drawn together at this scan position (this group on top); G switches group">All groups</label>
+                    <input type="checkbox" class="form-check-input" id="all-groups">
+                </div>
+            </div>
+            <details class="ana-section" data-section="weld" open>
+                <summary title="The weld outline on the S-scan, in every leg; Alt+drag it on the S-scan to move its centre line">Weld overlay</summary>
+                <div class="ana-body">
+                    <div class="ana-props">
+                        <div class="ana-row" id="weld-toggle" hidden>
+                            <label for="show-weld" title="The weld outline on the S-scan, in every leg">Show</label>
+                            <input type="checkbox" class="form-check-input" id="show-weld" checked>
+                        </div>
+                        <div class="ana-row" id="caps-toggle" hidden>
+                            <label for="show-caps" title="The weld cap above the surface and the root reinforcement below the back wall">Caps</label>
+                            <input type="checkbox" class="form-check-input" id="show-caps">
+                        </div>
+                    </div>
+                    <div class="analysis-weld-editor" id="weld-editor"></div>
+                </div>
+            </details>
         </section>
 
         <section class="analysis-drawer-body" data-panel-body="display" data-title="Display" hidden>
-            <div class="analysis-field-grid">
+            <div class="ana-props">
                 <label for="units">Units</label>
-                <select class="form-select form-select-sm" id="units"><option value="in">Inches</option><option value="mm">Millimetres</option></select>
-                <label for="axis">A-scan axis</label>
-                <select class="form-select form-select-sm" id="axis"><option value="depth">True depth</option><option value="path">Sound path</option></select>
-                <label for="amplitude-palette">Amplitude colours</label>
-                <select class="form-select form-select-sm" id="amplitude-palette" title="S-scan, B-scan and amplitude C-scans"></select>
-                <label for="range-palette">Thickness colours</label>
-                <select class="form-select form-select-sm" id="range-palette" title="Thickness and depth C-scans"></select>
-                <label for="ref-level" title="The amplitude A dB(r) is measured against, % of full screen (OmniPC's reference level)">Reference level</label>
-                <div class="input-group input-group-sm"><input type="number" class="form-control mono" id="ref-level" value="80" min="1" step="1"><span class="input-group-text">%</span></div>
+                <div class="ana-value"><select class="form-select form-select-sm" id="units"><option value="in">Inches</option><option value="mm">Millimetres</option></select></div>
+                <label for="axis" title="What the A-scan's horizontal axis shows">A-scan axis</label>
+                <div class="ana-value"><select class="form-select form-select-sm" id="axis"><option value="depth">True depth</option><option value="path">Sound path</option></select></div>
+                <label for="amplitude-palette" title="S-scan, B-scan and amplitude C-scans">Amplitude</label>
+                <div class="ana-value"><select class="form-select form-select-sm" id="amplitude-palette"></select></div>
+                <label for="range-palette" title="Thickness and depth C-scans">Thickness</label>
+                <div class="ana-value"><select class="form-select form-select-sm" id="range-palette"></select></div>
+                <label for="ref-level" title="The amplitude A dB(r) is measured against, % of full screen (OmniPC's reference level)">Ref. level</label>
+                <div class="ana-value"><input type="number" class="form-control form-control-sm mono" id="ref-level" value="80" min="1" step="1"><span class="ana-unit">%</span></div>
+                <label for="show-echo" title="The gate's highest amplitude along the scan, drawn under an amplitude C-scan">Echo curve</label>
+                <input type="checkbox" class="form-check-input" id="show-echo" checked>
+                <label for="sscan-rotate" title="For 0 deg longitudinal data (HydroFORM and other raster scans): depth across, lined up with the A-scan's depth axis, and the index axis down, lined up with the C-scan's index axis and its cursors">Rotate S-scan</label>
+                <input type="checkbox" class="form-check-input" id="sscan-rotate">
             </div>
-            <label class="analysis-check" title="The gate's highest amplitude along the scan, drawn under an amplitude C-scan"><input type="checkbox" id="show-echo" checked> Echo-dynamic curve under the C-scan</label>
-            <label class="analysis-check" title="For 0 deg longitudinal data (HydroFORM and other raster scans): depth across, lined up with the A-scan's depth axis, and the index axis down, lined up with the C-scan's index axis and its cursors"><input type="checkbox" id="sscan-rotate"> Rotate the S-scan 90° (depth across, index down)</label>
-            <div class="analysis-reading-section">Link zoom</div>
-            <label class="analysis-check" title="Zooming or panning the scan axis of the C-scan or B-scan does the same to the other"><input type="checkbox" id="link-scan"> Scan axis: C-scan and B-scan</label>
-            <label class="analysis-check" title="Zooming or panning depth on the B-scan, S-scan or A-scan (when it shows true depth) does the same to the others"><input type="checkbox" id="link-depth"> Depth: B-scan, S-scan and A-scan</label>
-            <label class="analysis-check" title="Zooming or panning the index axis of the S-scan does the same to the C-scan's (raster scans, where the C-scan is down the index axis)"><input type="checkbox" id="link-index"> Index axis: S-scan and C-scan (raster)</label>
+            <details class="ana-section" data-section="link-zoom" open>
+                <summary title="Zooming or panning one view along a linked axis does the same to the others">Link zoom</summary>
+                <div class="ana-body">
+                    <div class="ana-props">
+                        <label for="link-scan" title="Zooming or panning the scan axis of the C-scan or B-scan does the same to the other">Scan C↔B</label>
+                        <input type="checkbox" class="form-check-input" id="link-scan">
+                        <label for="link-depth" title="Zooming or panning depth on the B-scan, S-scan or A-scan (when it shows true depth) does the same to the others">Depth B↔S↔A</label>
+                        <input type="checkbox" class="form-check-input" id="link-depth">
+                        <label for="link-index" title="Zooming or panning the index axis of the S-scan does the same to the C-scan's (raster scans, where the C-scan is down the index axis)">Index S↔C</label>
+                        <input type="checkbox" class="form-check-input" id="link-index">
+                    </div>
+                </div>
+            </details>
         </section>
     </aside>
 

@@ -95,6 +95,8 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .ana-props .form-check-input { margin: 0; justify-self: end; cursor: pointer; }
 .ana-props > .ana-wide { grid-column: 1 / -1; }
 .ana-unit { flex: 0 0 auto; color: var(--text-3); font-size: 0.6875rem; }
+.ana-row { display: contents; }
+.ana-row[hidden] { display: none; }
 /* A collapsible section: a thin header row, open / closed remembered (shell.rememberSections) */
 .ana-section { border-top: 1px solid var(--border); }
 .ana-section:first-child { border-top: 0; }
@@ -111,9 +113,6 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .ana-icon-btn:hover { color: var(--text); }
 .ana-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
 .ana-dot[hidden] { display: none; }
-.analysis-drawer-subhead { margin: 0.4rem 0 0; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); }
-.analysis-field-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.45rem 0.75rem; align-items: center; font-size: 0.8125rem; }
-.analysis-field-grid label { color: var(--text-2); margin: 0; }
 
 /* Files */
 .analysis-file-list { display: flex; flex-direction: column; flex: none; font-size: 0.75rem; margin: 0 -0.25rem; }
@@ -152,13 +151,10 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-add-gates:empty { display: none; }
 
 /* Geometry: the weld overlay editor */
-.analysis-weld-editor { display: flex; flex-direction: column; gap: 0.5rem; }
-.analysis-weld-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.3rem 0.6rem; align-items: center; font-size: 0.8125rem; }
-.analysis-weld-grid > label { margin: 0; color: var(--text-2); cursor: help; white-space: nowrap; }
-.analysis-weld-controls { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
-.analysis-weld-controls .form-control { width: 4.6rem; flex: 0 1 4.6rem; min-width: 0; padding: 0.12rem 0.35rem; font-size: 0.8125rem; }
-.analysis-weld-controls .analysis-weld-angle { width: 3.4rem; flex-basis: 3.4rem; }
-.analysis-weld-controls .analysis-tool-note { margin: 0; }
+.analysis-weld-editor { display: flex; flex-direction: column; gap: 0.3rem; }
+.analysis-weld-controls { gap: 0.15rem !important; }
+.analysis-weld-controls .form-control { flex: 1 1 0 !important; width: auto; min-width: 0; }
+.analysis-weld-controls .btn-ghost { padding: 0 0.1rem; font-size: 0.7rem; }
 .analysis-weld-add { padding: 0; font-size: 0.75rem; text-decoration: none; }
 
 /* Indications */
