@@ -104,6 +104,7 @@ class Group:
     synchro_mode: str = 'Pulse'
     # The thickness process's expected range (m) - OmniPC's thickness palette runs over it
     thickness_range: tuple = None
+    reference_gain: float = None     # dB: the setup's reference gain (OmniPC / MXU's Ref. gain)
     single: bool = False             # stored (UCoordinate, Ultrasound): one line, shown as one beam
 
     @property
@@ -275,7 +276,7 @@ def _group(setup, raw_group, h5):
         formation=_formation(process), wave_mode=process.get('waveMode', ''), velocity=velocity,
         wedge_delay=process.get('wedgeDelay', 0.0), digitizing_frequency=process.get('digitizingFrequency', 0.0),
         rectification=process.get('rectification', ''), synchro_mode=process.get('ascanSynchroMode', 'Pulse'),
-        thickness_range=_thickness_range(raw_group), single=single,
+        thickness_range=_thickness_range(raw_group), single=single, reference_gain=process.get('referenceGain'),
     )
 
 

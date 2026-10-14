@@ -38,6 +38,11 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-value-box .unit[hidden] { display: none; }
 #beam-box input { width: 3.4rem; }
 .analysis-value-box.is-gain input { width: 3.2rem; }
+/* The gain box with the file's reference gain under it */
+.analysis-gain-stack { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 1px; }
+.analysis-gain-stack .analysis-value-box { height: 1.6rem; }
+.analysis-ref-gain { font-size: 0.625rem; line-height: 1; color: var(--text-3); text-align: right; padding-right: 0.55rem; white-space: nowrap; }
+.analysis-ref-gain[hidden] { display: none; }
 .analysis-value-box input.is-review { color: #f59e0b; }
 .analysis-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--text); text-decoration: none; font-weight: 600; padding-right: 0.25rem; }
 .analysis-brand:hover { color: var(--accent-text); }

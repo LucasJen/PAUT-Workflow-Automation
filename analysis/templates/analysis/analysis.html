@@ -46,10 +46,13 @@
         </label>
         <span class="analysis-sep"></span>
         <div class="analysis-tool">
-            <label class="analysis-value-box is-gain" title="Soft gain added to the data, like OmniPC's Gain: type it, or scroll over it 1 dB at a time (Shift: 0.1 dB; + / - keys)">
-                <input type="text" inputmode="decimal" class="mono" id="gain" value="0.0" aria-label="Soft gain in dB" autocomplete="off">
-                <span class="unit">dB</span>
-            </label>
+            <div class="analysis-gain-stack">
+                <label class="analysis-value-box is-gain" title="Soft gain added to the data, like OmniPC's Gain: type it, or scroll over it 1 dB at a time (Shift: 0.1 dB; + / - keys)">
+                    <input type="text" inputmode="decimal" class="mono" id="gain" value="0.0" aria-label="Soft gain in dB" autocomplete="off">
+                    <span class="unit">dB</span>
+                </label>
+                <span class="analysis-ref-gain mono" id="ref-gain" title="The file's reference gain (its setup's Ref. gain)" hidden></span>
+            </div>
             <button type="button" class="btn btn-sm btn-secondary analysis-auto80" id="auto-80" title="Auto 80%: set the soft gain so the gate A signal on the cursor's A-scan peaks at 80% of full screen (A)">80%</button>
         </div>
         <span class="analysis-sep"></span>

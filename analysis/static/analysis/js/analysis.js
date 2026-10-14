@@ -668,6 +668,12 @@
         box.value = mode === 'angle' ? String(g.beams[state.lateral]?.refracted_angle ?? '')
             : mode === 'vpa' ? String(state.lateral + 1) : format(lineY(state.lateral), 'value');
     }
+    /** The file's reference gain (this group's setup) under the soft gain box. */
+    function showRefGain() {
+        const ref = currentGroup()?.reference_gain;
+        $('ref-gain').hidden = ref === null || ref === undefined;
+        if (!$('ref-gain').hidden) $('ref-gain').textContent = `Ref ${(+ref).toFixed(1)} dB`;
+    }
     /** A typed beam: the nearest angle, the VPA, or the nearest index position. */
     function goToBeam(text) {
         const g = currentGroup(), v = parseFloat(text);
@@ -830,6 +836,7 @@
                     period: g.axes[2].resolution, gates: null, cursors: ascanCursors() });
         renderGates();   // its lengths use this beam's velocity
         showBeam();
+        showRefGain();
         remember();
         scheduleReadings();
         linkCursors();
