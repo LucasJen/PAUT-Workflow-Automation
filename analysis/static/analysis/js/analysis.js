@@ -1024,7 +1024,7 @@
         const box = $('gate-rows');
         if (!g) return;
         if (!state.gates.length) {
-            box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: 'This group has no gates - add one below.' }));
+            box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: 'No gates.' }));
             $('gates-edited').hidden = !state.gatesEdited;
             renderAddGates();
             return;
@@ -2111,7 +2111,7 @@
         const known = new Set(list.map(i => i.id));
         toReport.picked = new Set([...toReport.picked].filter(id => known.has(id)));
         if (!list.length) {
-            $('send-indications').replaceChildren(note('No indications saved for this file yet (N adds one).'));
+            $('send-indications').replaceChildren(note('None for this file yet.'));
             schedulePreview();
             return;
         }
@@ -2157,7 +2157,7 @@
         toReport.preview = null;
         updateSendButton();
         if (!toReport.report || !items.length) {
-            box.replaceChildren(note(!toReport.report ? 'Pick a report to see the rows.' : 'Pick the indications to send.'));
+            box.replaceChildren(note(!toReport.report ? 'Pick a report.' : 'Pick indications.'));
             return;
         }
         let data;
