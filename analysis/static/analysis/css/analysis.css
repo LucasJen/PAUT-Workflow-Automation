@@ -48,6 +48,11 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-scan-distance { width: 5.6rem !important; text-align: right; }
 .analysis-layout-select { width: auto; font-size: 0.75rem; }
 .analysis-status { font-size: 0.8125rem; color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+/* The selection and its value (renderSelection) */
+.analysis-selection { display: inline-flex; align-items: center; gap: 0.4rem; height: 1.5rem; padding: 0 0.5rem; white-space: nowrap;
+    border: 1px solid var(--border); border-left: 3px solid var(--sel-colour, var(--accent)); border-radius: 3px; background: var(--surface-2); font-size: 0.75rem; }
+.analysis-selection[hidden] { display: none; }
+.analysis-selection .name { color: var(--text-2); }
 .analysis-topbar-end { display: flex; align-items: center; gap: 0.1rem; margin-left: auto; }
 
 /* ── Left rail ── */

@@ -295,8 +295,59 @@
         sscan.setSelected(selected);
         ascan.setSelected(selected);
         linkCursors();
+        renderSelection();
     }
     const selectedIs = (kind, key) => state.selected?.kind === kind && (key === undefined || state.selected.key === key);
+
+    /** The selection and where it is, in the top bar: a cursor's value, the beam / scan line, or the gate
+     *  part being moved (its start; its width when the end is picked; a box's side). */
+    const CURSOR_NAMES = { u: 'U', s: 'S', i: 'I' };
+    function renderSelection() {
+        const sel = state.selected, out = $('selection-readout');
+        let colour = null, name = '', value = '';
+        const g = currentGroup();
+        if (sel && g && state.info) {
+            if (sel.kind === 'cursor') {
+                const v = state.cursors[sel.key];
+                colour = sel.key.endsWith('ref') ? '#f87171' : '#4ade80';
+                name = `${CURSOR_NAMES[sel.key[0]]}(${sel.key.endsWith('ref') ? 'r' : 'm'})`;
+                value = has(v) ? format(v) : '-';
+            } else if (sel.kind === 'scan') {
+                colour = CURSOR; name = 'Scan';
+                value = `${format(scanPosition(state.scan))} · line ${state.scan + 1}`;
+            } else if (sel.kind === 'lateral') {
+                colour = CURSOR;
+                const beam = g.beams[state.lateral];
+                name = isRaster() ? 'Index' : 'Beam';
+                value = isRaster() ? format(lineY(state.lateral)) : `${state.lateral + 1} · ${beam?.refracted_angle ?? ''}°`;
+            } else if (sel.kind === 'gate') {
+                const gate = gateByLetter(sel.letter);
+                if (gate) {
+                    colour = GATE_COLOURS[sel.letter] || '#a78bfa';
+                    const geometry = gate.geometry || 'SoundPath';
+                    const part = sel.part;
+                    if (geometry === 'SoundPath') {
+                        [name, value] = part === 'end' ? ['width', gateLength(gate.length)] : ['start', gateLength(gate.start)];
+                        value = `${value} ${units}`;
+                    } else if (part === 'end' || part === 'd1') {
+                        [name, value] = part === 'end' ? ['height', format(gate.depth_end - gate.depth_start)] : ['bottom', format(gate.depth_end)];
+                    } else if (part === 'i0' || part === 'i1') {
+                        [name, value] = [part === 'i0' ? 'index from' : 'index to', format(part === 'i0' ? gate.index_start : gate.index_end)];
+                    } else {
+                        [name, value] = ['top', format(gate.depth_start)];
+                    }
+                    name = `Gate ${sel.letter} ${name}`;
+                    if (part === 'move' && sel.view === 'ascan') value += ` · ${Math.round(gate.threshold * 10) / 10} %`;   // up / down there is the threshold
+                }
+            }
+        }
+        out.hidden = !colour;
+        if (!colour) return;
+        out.style.setProperty('--sel-colour', colour);
+        out.replaceChildren(Object.assign(document.createElement('span'), { className: 'name', textContent: name }),
+                            Object.assign(document.createElement('span'), { className: 'mono', textContent: value }));
+        out.title = 'The selection: the wheel moves it (Esc deselects)';
+    }
     /** A view's wheel: moves the selection and returns true, or false (nothing selected: the view zooms). */
     function wheelSelected(e, view) {
         if (!state.selected || !state.info) return false;
@@ -807,6 +858,7 @@
         cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR, width: wide(selectedIs('lateral')) }, ...index], contour: state.contour,
                            box: reviewBox() || (z ? z.box : null), marks: [...(z?.mark ? [z.mark] : []), ...saved] });
         drawEcho();
+        renderSelection();   // cursors, scan and beam moved: the top bar's value follows
         bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171', width: wide(selectedIs('cursor', 'u_ref')) },
                                              { value: c.u_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 'u_meas')) }] });
     }
@@ -1383,6 +1435,7 @@
     function gatesChanged(delay = 60) {
         state.gatesEdited = true;
         save();
+        renderSelection();
         renderSscanGates();
         loadFrameGates(150);
         if (!document.activeElement?.closest('#gate-rows')) renderGates();

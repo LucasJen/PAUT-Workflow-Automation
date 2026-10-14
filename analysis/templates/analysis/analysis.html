@@ -50,6 +50,7 @@
         <select class="form-select form-select-sm analysis-layout-select" id="layout" aria-label="Layout" title="Views shown, like OmniPC's layouts">
             <option value="A-S">A-S</option><option value="A-S-C">A-S-C</option><option value="A-B-C-S">A-B-C-S</option>
         </select>
+        <span class="analysis-selection" id="selection-readout" hidden></span>
         <span class="analysis-status" id="analysis-status" role="status" hidden></span>
         <div class="analysis-topbar-end">
             <button type="button" class="btn btn-sm btn-ghost" id="clear-cursors" title="Clear every cursor in every view, and the sizing (Shift+Del)" aria-label="Clear all cursors"><i class="bi bi-eraser"></i></button>
@@ -350,6 +351,7 @@
                     <dt>Alt+drag</dt><dd>On the S-scan: move the weld overlay's centre line (Geometry panel to edit its shape)</dd>
                     <dt>Select</dt><dd>Click a cursor line, a gate (its bar, edge or letter) or a view (S-scan: the beam cursor; C- / B-scan: the scan cursor); the selection is drawn thicker. Esc deselects</dd>
                     <dt>Scroll</dt><dd>Move the selection: a scan line or beam a notch; a cursor or gate about 1/200 of the view (zoom in for finer steps). Shift: 10 times. With nothing selected, zoom at the pointer</dd>
+                    <dt>Top bar</dt><dd>The selection and where it is: a cursor's value, the beam or scan line, a gate's start (its end: the width; a box's side), following drags and the wheel</dd>
                     <dt>Ctrl+scroll</dt><dd>Zoom at the pointer</dd>
                     <dt>Right-drag</dt><dd>Pan</dd>
                     <dt>Double-click</dt><dd>Reset that view's zoom (the echo curve: the C-scan's)</dd>
