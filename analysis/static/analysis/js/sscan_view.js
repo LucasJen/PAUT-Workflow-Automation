@@ -262,7 +262,7 @@ void main() {
                     const a = Math.max(p[0], first), b = Math.min(p[1], last);
                     return b > a ? [a, b] : null;
                 });
-                // Runs of neighbouring lines the gate reaches: a band from its start curve to its end curve
+                // Runs of neighbouring lines the gate reaches: its start curve and its end curve
                 const runs = [];
                 let run = [];
                 paths.forEach((p, i) => {
@@ -278,12 +278,7 @@ void main() {
                         const [x, y] = this.alongRay(i, paths[i][end]);
                         if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
                     });
-                    // Filled from the start curve to the end curve; only those two curves outlined
-                    ctx.beginPath();
-                    curve(0, lines);
-                    [...lines].reverse().forEach(i => { const [x, y] = this.alongRay(i, paths[i][1]); ctx.lineTo(x, y); });
-                    ctx.closePath();
-                    ctx.globalAlpha = 0.16; ctx.fillStyle = gate.colour; ctx.fill();
+                    // Just the start and end curves, unshaded (the user, 2026-10-13: shading hid the data)
                     ctx.globalAlpha = 0.95;
                     ctx.beginPath(); curve(0, lines); ctx.stroke();
                     ctx.beginPath(); curve(1, lines); ctx.stroke();
