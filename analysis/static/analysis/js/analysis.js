@@ -1225,6 +1225,18 @@
         });
     }
 
+    /**
+     * A synced gate on each line: the server's windows (each beam's own sync crossing), moved by what its
+     * start and width have changed since they were fetched - so dragging or wheeling it shows at once.
+     */
+    function syncedPaths(gate, letter) {
+        const base = state.frameGatePaths?.[letter], at = state.frameGateAt?.[letter];
+        if (!base) return null;
+        if (!at) return base;
+        const ds = gate.start - at.start, de = gate.start + gate.length - at.start - at.length;
+        return base.map((p, i) => (p ? [p[0] + halfV(i) * ds, p[1] + halfV(i) * de] : null));
+    }
+
     /** The S-scan's gates: drawn from their own settings, or (synced gates) from the server's per-beam windows. */
     function renderSscanGates() {
         const g = currentGroup();
@@ -1233,10 +1245,9 @@
         for (const gate of state.gates) {
             const letter = letterOf(gate.name);
             if (letter === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files
-            const editable = !synced(gate);
-            const paths = editable ? localPaths(gate) : state.frameGatePaths?.[letter];
+            const paths = synced(gate) ? syncedPaths(gate, letter) : localPaths(gate);
             if (!paths) continue;
-            list.push({ letter, colour: GATE_COLOURS[letter] || '#a78bfa', editable, paths,
+            list.push({ letter, colour: GATE_COLOURS[letter] || '#a78bfa', editable: true, paths,
                         box: gate.geometry === 'Box' ? { i0: gate.index_start, i1: gate.index_end, d0: gate.depth_start, d1: gate.depth_end } : null });
         }
         sscan.setGates(list);
@@ -1249,12 +1260,15 @@
         frameGatesTimer = setTimeout(async () => {
             if (!state.info || !$('show-sscan-gates').checked || !state.gates.some(synced)) { state.frameGatePaths = null; renderSscanGates(); return; }
             const mine = ++frameGatesRequest;
+            // The synced gates' settings these windows are for (syncedPaths moves them by later changes)
+            const at = Object.fromEntries(state.gates.filter(synced).map(x => [letterOf(x.name), { start: x.start, length: x.length }]));
             const query = { path: state.path, group: state.group, scan: state.scan, gain: state.gain };
             if (state.gatesEdited) query.gates = gatesParam();
             try {
                 const data = await NdeClient.readings({ readings: urls.frameGates }, query);
                 if (mine !== frameGatesRequest) return;
                 state.frameGatePaths = data.paths;
+                state.frameGateAt = at;
             } catch {
                 state.frameGatePaths = null;
             }
