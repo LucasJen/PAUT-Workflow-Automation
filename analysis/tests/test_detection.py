@@ -46,6 +46,24 @@ class FindRegionTests(SimpleTestCase):
         self.assertEqual((first['peak_scan'], first['peak_line'], first['peak_amplitude']), (4, 2, 90.0))
         self.assertEqual((second['peak_scan'], second['peak_line']), (13, 3))
 
+    def test_peaks_standing_the_drop_apart_inside_one_region_are_separate(self):
+        # One run over the threshold all along (a root signal at 30 %), with two flaws in it: 120 % at
+        # scan 5 and 90 % at scan 14 - each 6 dB and more over the 30 % between them
+        a = np.full((20, 3), np.nan)
+        a[:, 1] = 30
+        a[4:7, 1] = [60, 120, 60]
+        a[13:16, 1] = [50, 90, 50]
+        a[9, 1] = 40                  # a bump only 2.5 dB over the run: stays with a peak
+        regions = find_regions(a, 20)
+        self.assertEqual([(r['peak_scan'], r['peak_amplitude']) for r in regions], [(5, 120.0), (14, 90.0)])
+        self.assertEqual(sum(r['cells'] for r in regions), 20)          # every cell belongs to one of them
+        self.assertTrue(regions[0]['scan_hi'] < regions[1]['scan_lo'])   # side by side, not overlapping
+        # Split by 12 dB, the 90 % (9.5 dB over the run) stays with the 120 %; unsplit, one region
+        self.assertEqual(len(find_regions(a, 20, split_db=12)), 1)
+        self.assertEqual(len(find_regions(a, 20, split_db=None)), 1)
+        # Pieces of one region aren't joined again by the gap merge
+        self.assertEqual(len(find_regions(a, 20, merge_gap=5)), 2)
+
     def test_a_short_dip_under_the_threshold_merges(self):
         a = np.zeros((20, 3))
         a[2:6, 1] = 50
