@@ -68,17 +68,49 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 
 /* ── The open panel ── */
 .analysis-drawer {
-    grid-area: drawer; display: flex; flex-direction: column; width: 21rem; min-height: 0;
+    grid-area: drawer; display: flex; flex-direction: column; width: 15rem; min-height: 0;
     background: var(--surface); border-right: 1px solid var(--border);
 }
 .analysis-drawer[hidden] { display: none; }
 .analysis-drawer-head {
-    display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.5rem 0.45rem 0.85rem;
-    border-bottom: 1px solid var(--border); font-size: 0.875rem;
+    display: flex; align-items: center; justify-content: space-between; height: 1.75rem; flex: 0 0 auto; padding: 0 0.25rem 0 0.6rem;
+    border-bottom: 1px solid var(--border); background: var(--surface-2); font-size: 0.8125rem;
 }
-.analysis-drawer-body { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.7rem 0.75rem; overflow: auto; min-height: 0; flex: 1 1 auto; }
+.analysis-drawer-head .btn { padding: 0 0.3rem; line-height: 1.35; }
+.analysis-drawer-body { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.4rem 0.5rem; overflow: auto; min-height: 0; flex: 1 1 auto; font-size: 0.75rem; }
 .analysis-drawer-body[hidden] { display: none; }
-.analysis-drawer-row { display: flex; align-items: center; gap: 0.4rem; }
+.analysis-drawer-row { display: flex; align-items: center; gap: 0.3rem; }
+
+/* ── Dense building blocks (like OmniPC's property panels) ── */
+/* Small buttons in the drawer: icon first, tight */
+.analysis-drawer-body .btn-sm, .analysis-drawer-body .btn-group-sm > .btn { padding: 0.1rem 0.4rem; font-size: 0.75rem; line-height: 1.3; }
+.analysis-drawer-body .form-control-sm, .analysis-drawer-body .form-select-sm { min-height: 0; height: 1.35rem; padding: 0 0.3rem; font-size: 0.75rem; border-radius: 3px; }
+.analysis-drawer-body .form-select-sm { padding-right: 1.3rem; background-position: right 0.25rem center; background-size: 12px 9px; }
+/* A property grid: one row per setting, the label left and its value right */
+.ana-props { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.15rem 0.5rem; align-items: center; font-size: 0.75rem; }
+.ana-props > label, .ana-props > .ana-label { margin: 0; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ana-props > label[title], .ana-props > .ana-label[title] { cursor: help; }
+.ana-props > .ana-value { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.ana-props > .ana-value > .form-control, .ana-props > .ana-value > .form-select { flex: 1 1 auto; min-width: 0; }
+.ana-props .form-check-input { margin: 0; justify-self: end; cursor: pointer; }
+.ana-props > .ana-wide { grid-column: 1 / -1; }
+.ana-unit { flex: 0 0 auto; color: var(--text-3); font-size: 0.6875rem; }
+/* A collapsible section: a thin header row, open / closed remembered (shell.rememberSections) */
+.ana-section { border-top: 1px solid var(--border); }
+.ana-section:first-child { border-top: 0; }
+.ana-section > summary {
+    display: flex; align-items: center; gap: 0.35rem; height: 1.5rem; list-style: none; cursor: pointer;
+    font-size: 0.75rem; font-weight: 600; color: var(--text); user-select: none;
+}
+.ana-section > summary::-webkit-details-marker { display: none; }
+.ana-section > summary::before { content: "\F285"; font-family: "bootstrap-icons"; font-size: 0.6rem; color: var(--text-3); transition: transform 0.1s; }
+.ana-section[open] > summary::before { transform: rotate(90deg); }
+.ana-section > summary .ana-tools { margin-left: auto; display: flex; align-items: center; gap: 0.15rem; font-weight: 400; }
+.ana-section > .ana-body { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.1rem 0 0.45rem 0.85rem; }
+.ana-icon-btn { border: 0; background: none; color: var(--text-3); padding: 0 0.2rem; line-height: 1; font-size: 0.8rem; }
+.ana-icon-btn:hover { color: var(--text); }
+.ana-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+.ana-dot[hidden] { display: none; }
 .analysis-drawer-subhead { margin: 0.4rem 0 0; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3); }
 .analysis-field-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.45rem 0.75rem; align-items: center; font-size: 0.8125rem; }
 .analysis-field-grid label { color: var(--text-2); margin: 0; }
@@ -164,7 +196,7 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-indication-table .btn { padding: 0 0.3rem; font-size: 0.7rem; }
 
 /* Send to report */
-.analysis-app.has-wide-drawer .analysis-drawer { width: 27rem; }
+.analysis-app.has-wide-drawer .analysis-drawer { width: 20rem; }
 .analysis-step { display: flex; flex-direction: column; gap: 0.4rem; }
 .analysis-step-head { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8125rem; font-weight: 600; }
 .analysis-step-number { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%;
@@ -301,7 +333,7 @@ body.analysis-resizing { user-select: none; }
 @media (max-width: 1000px) {
     body.analysis-body { overflow: auto; }
     .analysis-app { height: auto; min-height: 100vh; }
-    .analysis-drawer { width: 17rem; }
+    .analysis-drawer { width: 15rem; }
     .analysis-grid, .analysis-grid[data-layout] {
         height: auto !important; grid-template-columns: minmax(0, 1fr); grid-template-areas: "s" "a" "c" "b" "r"; grid-template-rows: none;
     }
