@@ -77,10 +77,16 @@ window.AnalysisShell = (function () {
     });
     showTheme();
 
-    // Full screen: the whole window
-    document.getElementById('full-screen').addEventListener('click', () => {
+    // Full screen: the whole window; the button's arrows point in while it's on (leave full screen)
+    const fullButton = document.getElementById('full-screen');
+    fullButton.addEventListener('click', () => {
         if (document.fullscreenElement) document.exitFullscreen();
         else root.requestFullscreen?.().catch(() => {});
+    });
+    document.addEventListener('fullscreenchange', () => {
+        const full = !!document.fullscreenElement;
+        fullButton.querySelector('i').className = `bi ${full ? 'bi-fullscreen-exit' : 'bi-arrows-fullscreen'}`;
+        fullButton.title = full ? 'Leave full screen (Esc)' : 'Full screen (Esc to leave)';
     });
 
     showReadings(get('analysisReadings') !== '0');
