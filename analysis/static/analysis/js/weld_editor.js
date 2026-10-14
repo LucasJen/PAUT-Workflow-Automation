@@ -50,8 +50,8 @@ window.WeldEditor = (function () {
             const nudge = (sign, icon) => {
                 const b = el('button', { type: 'button', className: 'btn btn-sm btn-ghost', innerHTML: `<i class="bi bi-${icon}"></i>` });
                 b.title = `Move it ${sign < 0 ? 'left' : 'right'} by ${step} ${u}`;
-                b.addEventListener('click', () => {
-                    const v = (parseFloat(this.shiftInput.value) || 0) + sign * step;
+                b.addEventListener('click', () => {   // left / right on screen: the other way when the index axis is flipped
+                    const v = (parseFloat(this.shiftInput.value) || 0) + (this.options.flipped?.() ? -sign : sign) * step;
                     this.shiftInput.value = this.fmt(v);
                     this.options.onShift(v * this.options.unitLength());
                 });

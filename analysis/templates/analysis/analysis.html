@@ -367,6 +367,7 @@
                     <dt>Double-click</dt><dd>Reset that view's zoom (the echo curve: the C-scan's)</dd>
                     <dt>Palette bar</dt><dd>Right of a thickness / depth C-scan, over the range typed at its top: drag its top down to lower the ceiling, its bottom up to raise the floor, its middle to shift the colours; double-click for the whole range</dd>
                     <dt>Zoom bars</dt><dd>Under and left of each view: drag an end of the bar to zoom that axis, its middle to move along it (the A-scan's side bar is the amplitude); double-click a bar to fit that axis</dd>
+                    <dt>90° / 270°</dt><dd>The S-scan's skew view for angle-beam data (button in its head): 90° numbers the index axis positive to the left, 270° positive to the right; it starts at the file's skew</dd>
                     <dt>Rotate S-scan</dt><dd>Display panel: depth across and the index axis down, to line up with the A-scan's depth and a raster C-scan's index axis (link the zooms to keep them together)</dd>
                     <dt>Link zoom</dt><dd>Display panel: zoom the scan axis (C ↔ B), depth (B ↔ S ↔ A) or index axis (S ↔ C on a raster) together</dd>
                     <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
@@ -418,6 +419,7 @@
             </section>
             <section class="analysis-panel analysis-panel-sscan">
                 <header class="analysis-panel-head">
+                    <button type="button" class="btn btn-sm btn-secondary analysis-skew" id="skew-toggle" hidden>90°</button>
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="sscan" title="Clear the depth and index cursors" aria-label="Clear the sscan cursors"><i class="bi bi-eraser"></i></button>
                     <button type="button" class="btn btn-sm btn-ghost" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
                 </header>

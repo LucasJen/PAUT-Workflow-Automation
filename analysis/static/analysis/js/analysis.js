@@ -609,6 +609,7 @@
         scheduleProjections();
         renderGates();
         sscan.setGeometry(g.rays, g.shape[2], state.info.specimen?.thickness);
+        applySkew();
         sscan.setCursors(state.cursors);
         $('true-geometry').checked = sscan.trueGeometry;
         $('groups-toggle').hidden = otherGroups().length === 0;
@@ -697,8 +698,32 @@
     const fileWeld = () => (state.info?.weld && Object.keys(state.info.weld).length && state.info.weld_outline?.length ? state.info.weld : null);
     const weldKey = () => `analysisWeld:${state.path}`;
     const weldEdited = () => !!weld.shape || Math.abs(weld.shift) > 1e-9;
+    // The S-scan's skew view for angle-beam data (90 / 270 button in its head): skew 90 numbers the index
+    // axis positive to the left, 270 positive to the right. Starts at the file's skew; kept per file.
+    const angleBeam = () => {
+        const g = currentGroup();
+        return !!g && g.layout === 'beams' && g.beams.some(b => Math.abs(b.refracted_angle) > 1e-6)
+            && [90, 270].includes(Math.round(g.beams[0]?.skew_angle));
+    };
+    const skewKey = () => `analysisSkew:${state.path}`;
+    function applySkew() {
+        const on = angleBeam();
+        $('skew-toggle').hidden = !on;
+        if (!on) { sscan.setFlipIndex(false); return; }
+        let skew = Math.round(currentGroup().beams[0].skew_angle);
+        try { skew = +localStorage.getItem(skewKey()) || skew; } catch { /* the file's */ }
+        state.skewView = skew === 270 ? 270 : 90;
+        $('skew-toggle').textContent = `${state.skewView}°`;
+        $('skew-toggle').title = `Skew ${state.skewView}° view: the index axis positive to the ${state.skewView === 90 ? 'left' : 'right'} - click for ${state.skewView === 90 ? 270 : 90}°`;
+        sscan.setFlipIndex(state.skewView === 90);
+    }
+    $('skew-toggle').addEventListener('click', () => {
+        try { localStorage.setItem(skewKey(), String(state.skewView === 90 ? 270 : 90)); } catch { state.skewView = state.skewView === 90 ? 270 : 90; }
+        applySkew();
+    });
+
     const weldEditor = new WeldEditor($('weld-editor'), {
-        unitLength, format, units: () => units,
+        unitLength, format, units: () => units, flipped: () => sscan.flipIndex,
         onShape: (shape, rebuild) => { weld.shape = shape; saveWeld(); drawWeld(); if (rebuild) showWeldEditor(); },
         onShift: shift => weldShifted(shift, true),
         onReset: () => { weld.shape = null; weld.shift = 0; saveWeld(); applyWeld(); },
