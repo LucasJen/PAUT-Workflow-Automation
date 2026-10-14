@@ -142,65 +142,70 @@
             </div>
         </section>
 
-        <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" data-wide hidden>
+        <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" data-wide hidden
+                 data-help="Find them (every signal breaking a gate, sized at 80 % FSH) or size one at the cursor (L) and Add it (N); click a row to go to it">
             {# Find indications: every signal in the gate over its threshold, each taken to 80 % and sized #}
-            <details class="analysis-find" id="find-box" open>
-                <summary><strong>Find indications</strong> <span class="analysis-note">every signal breaking the gate, sized at 80 % FSH</span></summary>
-                <div class="analysis-find-grid">
-                    <label title="The gate whose signals are found and sized">Gate
-                        <select class="form-select form-select-sm" id="find-gate"></select></label>
-                    <label title="A signal at or above this breaks the gate (blank: the gate's own threshold)">Threshold %
-                        <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="find-threshold" placeholder="gate's"></label>
-                    <label title="Length, height and axial extent: where the signal drops this far below its peak">Sizing
-                        <select class="form-select form-select-sm" id="find-method"><option value="6">−6 dB</option><option value="12">−12 dB</option><option value="20">−20 dB</option></select></label>
-                    <label title="Signals this many scan lines apart or closer, on the same beams, are one indication">Join gaps of
-                        <span class="input-group input-group-sm"><input type="number" class="form-control mono" id="find-gap" value="2" min="0" step="1"><span class="input-group-text">lines</span></span></label>
-                    <label title="Shorter indications are left out (along the scan)">Shortest
-                        <span class="input-group input-group-sm"><input type="text" inputmode="decimal" class="form-control mono" id="find-min" value="0"><span class="input-group-text" id="find-min-unit">in</span></span></label>
-                    <button type="button" class="btn btn-sm btn-primary" id="find-now" title="Find and size every indication in the gate; indications you've reviewed or added are kept"><i class="bi bi-search"></i> Find</button>
-                    <button type="button" class="btn btn-sm btn-secondary" id="clear-finds" aria-expanded="false" title="Delete indications on this group: the found ones still to review, the rejected ones, every found one, or all"><i class="bi bi-trash3"></i> Clear <i class="bi bi-caret-down-fill"></i></button>
-                </div>
-                {# Clear: pick which, then confirm #}
-                <div class="analysis-clear-finds" id="clear-finds-menu" hidden>
-                    <div class="analysis-clear-choices" id="clear-finds-choices"></div>
-                    <div class="analysis-clear-confirm" id="clear-finds-confirm" hidden>
-                        <span id="clear-finds-question"></span>
-                        <button type="button" class="btn btn-sm btn-danger" id="clear-finds-yes">Delete</button>
-                        <button type="button" class="btn btn-sm btn-secondary" id="clear-finds-no">Cancel</button>
+            <details class="ana-section" id="find-box" data-section="find" open>
+                <summary title="Every signal breaking the gate, each taken to 80 % FSH and sized">Find</summary>
+                <div class="ana-body">
+                    <div class="ana-props">
+                        <label for="find-gate" title="The gate whose signals are found and sized">Gate</label>
+                        <div class="ana-value"><select class="form-select form-select-sm" id="find-gate"></select></div>
+                        <label for="find-threshold" title="A signal at or above this breaks the gate (blank: the gate's own threshold)">Threshold</label>
+                        <div class="ana-value"><input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="find-threshold" placeholder="gate's"><span class="ana-unit">%</span></div>
+                        <label for="find-method" title="Length, height and axial extent: where the signal drops this far below its peak">Sizing</label>
+                        <div class="ana-value"><select class="form-select form-select-sm" id="find-method"><option value="6">−6 dB</option><option value="12">−12 dB</option><option value="20">−20 dB</option></select></div>
+                        <label for="find-gap" title="Signals this many scan lines apart or closer, on the same beams, are one indication">Join gaps</label>
+                        <div class="ana-value"><input type="number" class="form-control form-control-sm mono" id="find-gap" value="2" min="0" step="1"><span class="ana-unit">lines</span></div>
+                        <label for="find-min" title="Shorter indications are left out (along the scan)">Shortest</label>
+                        <div class="ana-value"><input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="find-min" value="0"><span class="ana-unit" id="find-min-unit">in</span></div>
+                    </div>
+                    <div class="analysis-drawer-row">
+                        <button type="button" class="btn btn-sm btn-primary" id="find-now" title="Find and size every indication in the gate; indications you've reviewed or added are kept"><i class="bi bi-search"></i> Find</button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="clear-finds" aria-expanded="false" title="Delete indications on this group: the found ones still to review, the rejected ones, every found one, or all"><i class="bi bi-trash3"></i> Clear <i class="bi bi-caret-down-fill"></i></button>
+                        <span class="analysis-note" id="find-note" role="status"></span>
+                    </div>
+                    {# Clear: pick which, then confirm #}
+                    <div class="analysis-clear-finds" id="clear-finds-menu" hidden>
+                        <div class="analysis-clear-choices" id="clear-finds-choices"></div>
+                        <div class="analysis-clear-confirm" id="clear-finds-confirm" hidden>
+                            <span id="clear-finds-question"></span>
+                            <button type="button" class="btn btn-sm btn-danger" id="clear-finds-yes">Delete</button>
+                            <button type="button" class="btn btn-sm btn-secondary" id="clear-finds-no">Cancel</button>
+                        </div>
                     </div>
                 </div>
-                <span class="analysis-note" id="find-note" role="status"></span>
             </details>
             <div class="analysis-drawer-row">
                 <div class="btn-group btn-group-sm analysis-review-filter" id="review-filter" role="group" aria-label="Show">
                     <button type="button" class="btn btn-primary" data-filter="all">All</button>
-                    <button type="button" class="btn btn-secondary" data-filter="unreviewed">To review</button>
-                    <button type="button" class="btn btn-secondary" data-filter="accepted">Accepted</button>
-                    <button type="button" class="btn btn-secondary" data-filter="rejected">Rejected</button>
+                    <button type="button" class="btn btn-secondary" data-filter="unreviewed" title="Found, still to review">To review</button>
+                    <button type="button" class="btn btn-secondary" data-filter="accepted" title="Accepted">✓</button>
+                    <button type="button" class="btn btn-secondary" data-filter="rejected" title="Rejected">✕</button>
                 </div>
-                <span class="analysis-note" id="review-progress"></span>
-                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="add-indication" title="Save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i> Add <kbd>N</kbd></button>
-                <a class="btn btn-sm btn-secondary" id="export-indications" href="#" title="The indications as a CSV like OmniPC's indications.csv"><i class="bi bi-download"></i> CSV</a>
-                <button type="button" class="btn btn-sm btn-secondary" id="open-send" title="Add the accepted indications to a report's results, with their pictures"><i class="bi bi-send"></i> To report</button>
+                <span class="ms-auto"></span>
+                <button type="button" class="ana-icon-btn" id="add-indication" title="Add: save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i></button>
+                <a class="ana-icon-btn" id="export-indications" href="#" title="CSV: the indications like OmniPC's indications.csv"><i class="bi bi-download"></i></a>
+                <button type="button" class="ana-icon-btn" id="open-send" title="To report: add the accepted indications to a report's results, with their pictures"><i class="bi bi-send"></i></button>
             </div>
+            <span class="analysis-note" id="review-progress"></span>
             {# The indication being reviewed: what it measured, and accept / reject / size again #}
-            <div class="analysis-review" id="review-card" hidden>
+            <div class="analysis-review" id="review-card" hidden title="Drag the red / green cursors to correct the sizing">
                 <div class="analysis-review-head">
                     <strong id="review-title"></strong>
                     <span class="analysis-review-status" id="review-status"></span>
-                    <span class="analysis-note ms-auto">Drag the red / green cursors to correct the sizing</span>
                 </div>
                 <dl class="analysis-review-values mono" id="review-values"></dl>
                 <div class="analysis-review-actions">
                     <button type="button" class="btn btn-sm btn-secondary" id="review-prev" title="Previous indication ([)"><i class="bi bi-chevron-left"></i></button>
-                    <button type="button" class="btn btn-sm btn-success" id="review-accept" title="It's real and the sizing is right (Enter); goes on to the next"><i class="bi bi-check-lg"></i> Accept <kbd>Enter</kbd></button>
-                    <button type="button" class="btn btn-sm btn-danger" id="review-reject" title="Not a real indication (X); goes on to the next"><i class="bi bi-x-lg"></i> Reject <kbd>X</kbd></button>
+                    <button type="button" class="btn btn-sm btn-success" id="review-accept" title="Accept (Enter): it's real and the sizing is right; goes on to the next"><i class="bi bi-check-lg"></i></button>
+                    <button type="button" class="btn btn-sm btn-danger" id="review-reject" title="Reject (X): not a real indication; goes on to the next"><i class="bi bi-x-lg"></i></button>
                     <span class="btn-group btn-group-sm" role="group" aria-label="Size again">
                         <button type="button" class="btn btn-secondary" data-resize="6" title="Size again at −6 dB (6)">−6</button>
                         <button type="button" class="btn btn-secondary" data-resize="12" title="Size again at −12 dB (1)">−12</button>
                         <button type="button" class="btn btn-secondary" data-resize="20" title="Size again at −20 dB (2)">−20</button>
                     </span>
-                    <button type="button" class="btn btn-sm btn-secondary" id="review-save" hidden title="Keep the sizing as the cursors are now (S)"><i class="bi bi-floppy"></i> Keep cursors <kbd>S</kbd></button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="review-save" hidden title="Keep the sizing as the cursors are now (S)"><i class="bi bi-floppy"></i></button>
                     <button type="button" class="btn btn-sm btn-secondary" id="review-next" title="Next indication (])"><i class="bi bi-chevron-right"></i></button>
                 </div>
             </div>

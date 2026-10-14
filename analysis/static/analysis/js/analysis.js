@@ -1722,7 +1722,7 @@
         const box = $('indication-rows');
         if (!list.length) {
             box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note',
-                textContent: all.length ? 'None to show here.' : 'No indications yet. Find them above, or size one at the cursor (L) and Add it (N).' }));
+                textContent: all.length ? 'None to show here.' : 'None yet.' }));
             return;
         }
         const table = document.createElement('table');
@@ -1749,15 +1749,17 @@
             const cells = [item.number, format(z.scan_start ?? item.scan_position, 'value'), value(length), value(across), value(depth),
                            has(where) ? format(where, 'value') : '-', r['A%'] === undefined ? '-' : r['A%'].toFixed(1)];
             for (const text of cells) tr.insertCell().textContent = text;
+            // The status as one mark (its words in the tooltip): • to review, ✓ accepted, ✕ rejected, + added by hand
+            const added = item.source !== 'auto' && item.status === 'accepted';
             const mark = Object.assign(document.createElement('span'), {
                 className: `analysis-status-mark is-${item.status}`,
-                textContent: item.source === 'auto' || item.status !== 'accepted' ? STATUS_SHORT[item.status] : 'Added' });
+                textContent: added ? '+' : { unreviewed: '•', accepted: '✓', rejected: '✕' }[item.status] || '•' });
             const notes = [item.source === 'auto' ? STATUS_TEXT[item.status] : 'Added by hand'];
             if (z.edited) { mark.textContent += ' ✎'; notes.push('Sizing corrected by hand'); }
             if (z.saturated) { mark.textContent += ' !'; notes.push('Saturated peak: the sizing may be short'); }
             mark.title = notes.join('. ');
             tr.insertCell().append(mark);
-            const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-secondary',
+            const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'ana-icon-btn',
                                                                            title: 'Delete this indication', innerHTML: '<i class="bi bi-trash3"></i>' });
             remove.addEventListener('click', async e => {
                 e.stopPropagation();
@@ -1775,6 +1777,7 @@
                 .then(saved => { item.comment = saved.comment; }).catch(e => show(e.message)));
             const note = body.insertRow();
             note.className = `analysis-indication-note${current ? ' is-current' : ''}`;
+            note.hidden = !current && !item.comment;   // the comment line only where there's one, or on the current row
             const cell = note.insertCell();
             cell.colSpan = 9;
             cell.append(comment);

@@ -162,14 +162,15 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-weld-add { padding: 0; font-size: 0.75rem; text-decoration: none; }
 
 /* Indications */
-.analysis-indication-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
-.analysis-indication-table th { font-weight: 600; font-size: 0.75rem; color: var(--text-2); text-align: left; padding: 0.15rem 0.25rem; border-bottom: 1px solid var(--border); }
-.analysis-indication-table td { padding: 0.25rem 0.25rem 0; vertical-align: top; }
-.analysis-indication-table tr.analysis-indication-note td { padding: 0.1rem 0.25rem 0.3rem; border-bottom: 1px solid var(--border); }
+.analysis-indication-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.analysis-indication-table th { font-weight: 600; font-size: 0.6875rem; color: var(--text-3); text-align: left; padding: 0.1rem 0.2rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.analysis-indication-table td { padding: 0.15rem 0.2rem 0; vertical-align: top; white-space: nowrap; }
+.analysis-indication-table tr.analysis-indication-note td { padding: 0.05rem 0.2rem 0.2rem; border-bottom: 1px solid var(--border); }
 .analysis-indication-table tr.is-current td { background: var(--accent-soft); }
 .analysis-indication-table tr { cursor: pointer; }
 .analysis-indication-table tr.analysis-indication-note { cursor: default; }
-.analysis-indication-table .form-control { padding: 0.1rem 0.3rem; font-size: 0.8125rem; min-width: 0; }
+.analysis-indication-table .form-control { height: 1.25rem; min-height: 0; padding: 0 0.3rem; font-size: 0.7rem; min-width: 0; border-color: transparent; background: transparent; }
+.analysis-indication-table .form-control:focus, .analysis-indication-table .form-control:hover { border-color: var(--border); }
 .analysis-indication-table .btn { padding: 0 0.3rem; font-size: 0.7rem; }
 
 /* Send to report */
@@ -319,25 +320,21 @@ body.analysis-resizing { user-select: none; }
 }
 
 /* ── Find indications and the review (Indications panel) ── */
-.analysis-find { border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.55rem; margin-bottom: 0.5rem; }
-.analysis-find summary { cursor: pointer; font-size: 0.8125rem; }
-.analysis-find-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: 0.4rem 0.5rem; align-items: end; margin: 0.45rem 0 0.25rem; }
-.analysis-find-grid label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.75rem; color: var(--text-2); }
-.analysis-find-grid .btn { align-self: end; }
 .analysis-clear-finds { border-top: 1px solid var(--border); margin-top: 0.35rem; padding-top: 0.4rem; display: flex; flex-direction: column; gap: 0.4rem; }
 .analysis-clear-choices { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .analysis-clear-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.8125rem; }
-.analysis-review-filter .btn { font-size: 0.75rem; }
-.analysis-review { border: 1px solid var(--accent); border-radius: 6px; padding: 0.45rem 0.55rem; margin-bottom: 0.5rem; background: var(--accent-soft); }
-.analysis-review-head { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; }
-.analysis-review-values { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: 0.1rem 0.75rem; margin: 0.35rem 0; font-size: 0.8125rem; }
+.analysis-review-filter .btn { font-size: 0.6875rem !important; padding: 0.05rem 0.4rem !important; }
+.analysis-review { border-left: 2px solid var(--accent); padding: 0.3rem 0.4rem; background: var(--accent-soft); }
+.analysis-review-head { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
+.analysis-review-values { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.6rem; margin: 0.25rem 0; font-size: 0.7rem; }
 .analysis-review-values div { display: flex; justify-content: space-between; gap: 0.35rem; }
 .analysis-review-values dt { font-weight: 400; color: var(--text-2); }
 .analysis-review-values dd { margin: 0; }
 .analysis-review-values .is-warning dd, .analysis-review-values .is-warning dt { color: var(--danger, #ef4444); font-weight: 600; }
-.analysis-review-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.analysis-review-actions { display: flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; }
 .analysis-review-actions kbd { font-size: 0.65rem; }
 .analysis-review-status, .analysis-status-mark { font-size: 0.7rem; font-weight: 600; padding: 0 0.35rem; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.analysis-indication-table .analysis-status-mark { border: 0; padding: 0; font-size: 0.8rem; cursor: help; }
 .is-unreviewed { color: #f59e0b; }
 .is-accepted { color: #22c55e; }
 .is-rejected { color: #ef4444; }
