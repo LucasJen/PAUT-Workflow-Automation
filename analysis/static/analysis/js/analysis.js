@@ -1039,20 +1039,26 @@
             });
             return input;
         };
-        const field = (label, help, control) => el('label', { className: 'analysis-gate-field', title: help }, el('span', { textContent: label }), control);
+        // A property row: the label (its help as a tooltip) and the control, with its unit after it
+        const field = (label, help, control, unit = '') => [
+            el('label', { textContent: label, title: help }),
+            el('div', { className: 'ana-value' }, control, ...(unit ? [el('span', { className: 'ana-unit', textContent: unit })] : [])),
+        ];
         const cards = state.gates.map(gate => {
             const letter = letterOf(gate.name);
             const geometry = gate.geometry || 'SoundPath';
             const depthGate = geometry !== 'SoundPath';
-            const card = el('div', { className: `analysis-gate-card gate-card-${letter}` });
+            const card = el('details', { className: `ana-section analysis-gate gate-card-${letter}`, open: true });
+            card.dataset.section = `gate:${letter}`;
 
-            // Header: the letter, the type, remove
-            const types = el('div', { className: 'btn-group btn-group-sm analysis-gate-types', role: 'group' });
-            for (const [value, text, help] of [['SoundPath', 'Sound path', 'The same stretch of time on every beam (an arc on a sectorial scan)'],
-                                               ['TrueDepth', 'True depth', 'Between two depths on every beam'],
-                                               ['Box', 'Box', 'Inside a box of depth and index']]) {
+            // Header row: the letter, the type, remove (buttons in it don't fold the section)
+            const types = el('span', { className: 'btn-group btn-group-sm analysis-gate-types', role: 'group' });
+            for (const [value, text, help] of [['SoundPath', 'SP', 'Sound path: the same stretch of time on every beam (an arc on a sectorial scan)'],
+                                               ['TrueDepth', 'TD', 'True depth: between two depths on every beam; starts from the pulse'],
+                                               ['Box', 'Box', 'Box: inside a box of depth and index; beams that miss it have no gate (or zero amplitude, as chosen); starts from the pulse']]) {
                 const b = el('button', { type: 'button', className: `btn ${value === geometry ? 'btn-primary' : 'btn-secondary'}`, textContent: text, title: help });
-                b.addEventListener('click', () => {
+                b.addEventListener('click', e => {
+                    e.preventDefault();
                     if (value === geometry) return;
                     convertGate(gate, value);
                     gatesChanged();
@@ -1060,35 +1066,35 @@
                 });
                 types.append(b);
             }
-            const head = el('header', {}, el('span', { className: `gate-letter gate-${letter}`, textContent: letter }),
-                            el('strong', { textContent: gate.name }), types);
+            const tools = el('span', { className: 'ana-tools' }, types);
             if (addedGate(gate)) {
-                const remove = el('button', { type: 'button', className: 'btn btn-sm btn-ghost analysis-gate-remove', title: `Remove ${gate.name}`,
+                const remove = el('button', { type: 'button', className: 'ana-icon-btn analysis-gate-remove', title: `Remove ${gate.name}`,
                                               innerHTML: '<i class="bi bi-trash3"></i>' });
-                remove.addEventListener('click', () => removeGate(gate));
-                head.append(remove);
+                remove.addEventListener('click', e => { e.preventDefault(); removeGate(gate); });
+                tools.append(remove);
             }
-            card.append(head);
+            card.append(el('summary', {}, el('span', { className: `gate-letter gate-${letter}`, textContent: letter }),
+                           el('span', { textContent: gate.name }), tools));
 
-            // Fields
-            const grid = el('div', { className: 'analysis-gate-fields' });
+            // Its settings, one row each
+            const grid = el('div', { className: 'ana-props' });
             if (depthGate) {
-                grid.append(field(`Top depth (${units})`, 'Where the gate starts, in true depth', number(format(gate.depth_start, 'value'), v => {
+                grid.append(...field('Top', 'Where the gate starts, in true depth', number(format(gate.depth_start, 'value'), v => {
                     const h = gate.depth_end - gate.depth_start;
                     gate.depth_start = v * unitLength(); gate.depth_end = gate.depth_start + h;
-                })));
-                grid.append(field(`Height (${units})`, 'How deep the gate reaches below its top', number(format(gate.depth_end - gate.depth_start, 'value'), v => {
+                }), units));
+                grid.append(...field('Height', 'How deep the gate reaches below its top', number(format(gate.depth_end - gate.depth_start, 'value'), v => {
                     if (v > 0) gate.depth_end = gate.depth_start + v * unitLength();
-                })));
+                }), units));
             } else {
                 const from = gate.sync_gate === null || gate.sync_gate === undefined ? 'from the pulse' : 'after the sync gate\'s crossing';
-                grid.append(field(`Start (${units})`, `Sound path ${from}`, number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); })));
-                grid.append(field(`Width (${units})`, 'Sound path the gate spans', number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); })));
+                grid.append(...field('Start', `Sound path ${from}`, number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); }), units));
+                grid.append(...field('Width', 'Sound path the gate spans', number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); }), units));
             }
-            grid.append(field('Threshold (%)', isFloating(gate)
-                                  ? `The height set against the ${state.refLevel} % reference level; on each A-scan it keeps that ratio to the peak`
-                                  : 'The level a signal must reach to break the gate, % of full screen',
-                              number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); })));
+            grid.append(...field('Threshold', isFloating(gate)
+                                     ? `The height set against the ${state.refLevel} % reference level; on each A-scan it keeps that ratio to the peak`
+                                     : 'The level a signal must reach to break the gate, % of full screen',
+                                 number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); }), '%'));
             const sync = el('select', { className: 'form-select form-select-sm' });
             sync.add(new Option('Pulse', ''));
             for (const other of state.gates) {
@@ -1097,18 +1103,16 @@
             if (gate.sync_gate === null || gate.sync_gate === undefined) sync.value = '';
             sync.disabled = depthGate;
             sync.addEventListener('change', () => { gate.sync_gate = sync.value === '' ? null : +sync.value; gatesChanged(); renderGates(); });
-            grid.append(field('Starts from', depthGate ? 'Depth and box gates start from the pulse' : 'The pulse, or another gate\'s crossing', sync));
+            grid.append(...field('Sync', depthGate ? 'Depth and box gates start from the pulse' : 'Starts from the pulse, or another gate\'s crossing', sync));
             if (geometry === 'Box') {
-                grid.append(field(`Index from (${units})`, 'The box\'s side nearer the probe', number(format(gate.index_start, 'value'), v => { gate.index_start = v * unitLength(); })));
-                grid.append(field(`Index to (${units})`, 'The box\'s far side', number(format(gate.index_end, 'value'), v => { gate.index_end = v * unitLength(); })));
+                grid.append(...field('Index from', 'The box\'s side nearer the probe', number(format(gate.index_start, 'value'), v => { gate.index_start = v * unitLength(); }), units));
+                grid.append(...field('Index to', 'The box\'s far side', number(format(gate.index_end, 'value'), v => { gate.index_end = v * unitLength(); }), units));
                 const outside = el('select', { className: 'form-select form-select-sm' });
-                outside.add(new Option('No gate (no data, grey)', 'none'));
-                outside.add(new Option('Zero amplitude (0 %, white)', 'zero'));
+                outside.add(new Option('No gate', 'none'));
+                outside.add(new Option('0 %', 'zero'));
                 outside.value = gate.outside === 'zero' ? 'zero' : 'none';
                 outside.addEventListener('change', () => { gate.outside = outside.value; gatesChanged(); });
-                const wide = field('Beams that miss the box', 'A beam that never passes through the box: no gate at all (the C-scan shows no data), or a gate with no amplitude (0 %, the palette\'s lowest colour)', outside);
-                wide.classList.add('is-wide');
-                grid.append(wide);
+                grid.append(...field('Missed beams', 'A beam that never passes through the box: no gate at all (the C-scan shows no data, grey), or a gate with no amplitude (0 %, the palette\'s lowest colour)', outside));
             }
             // Floating: the height follows each A-scan's peak at the calibrated ratio, within +/- dB
             const floating = el('input', { type: 'checkbox', className: 'form-check-input', checked: isFloating(gate) });
@@ -1117,20 +1121,20 @@
                 gatesChanged();
                 renderGates();
             });
-            const floatLabel = el('label', { className: 'analysis-gate-float is-wide',
-                                             title: `Floating gate: the height keeps its ratio to the reference level (${Math.round(gate.threshold * 10) / 10} % on ${state.refLevel} %) on every A-scan's own peak, within ± the dB set; peaks under the floor don't break it` },
-                                  floating, el('span', { textContent: `Floating (ratio ${Math.round(gate.threshold / state.refLevel * 100)} % of the peak)` }));
-            grid.append(floatLabel);
+            grid.append(el('label', { textContent: 'Floating',
+                                      title: `Floating gate: the height keeps its ratio to the reference level (${Math.round(gate.threshold * 10) / 10} % on ${state.refLevel} % = ${Math.round(gate.threshold / state.refLevel * 100)} % of the peak) on every A-scan's own peak, within ± the dB set; peaks under the floor don't break it` }),
+                        floating);
             if (isFloating(gate)) {
-                grid.append(field('Float ± (dB)', 'How far the height may move from the threshold, up or down',
-                                  number(String(gate.float_db), v => { gate.float_db = Math.max(0, Math.min(40, v)); })));
-                grid.append(field('Peak floor (%)', 'A peak under this never breaks the gate (no crossing, no position readings)',
-                                  number(String(gate.float_floor ?? 0), v => { gate.float_floor = Math.max(0, Math.min(100, v)); })));
+                grid.append(...field('Float ±', 'How far the height may move from the threshold, up or down',
+                                     number(String(gate.float_db), v => { gate.float_db = Math.max(0, Math.min(40, v)); }), 'dB'));
+                grid.append(...field('Peak floor', 'A peak under this never breaks the gate (no crossing, no position readings)',
+                                     number(String(gate.float_floor ?? 0), v => { gate.float_floor = Math.max(0, Math.min(100, v)); }), '%'));
             }
-            card.append(grid);
+            card.append(el('div', { className: 'ana-body' }, grid));
             return card;
         });
         box.replaceChildren(...cards);
+        shell.rememberSections(box);
         $('gates-edited').hidden = !state.gatesEdited;
         renderAddGates();
     }
@@ -1296,7 +1300,7 @@
         const have = new Set(state.gates.map(x => letterOf(x.name)));
         const buttons = ['I', 'A', 'B'].filter(L => !have.has(L)).map(L => {
             const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-secondary',
-                                                                       innerHTML: `<i class="bi bi-plus-lg"></i> Gate ${L}`,
+                                                                       innerHTML: `<i class="bi bi-plus-lg"></i> ${L}`,
                                                                        title: `Add gate ${L}` });
             b.addEventListener('click', () => addGate(L));
             return b;

@@ -87,7 +87,7 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-drawer-body .form-control-sm, .analysis-drawer-body .form-select-sm { min-height: 0; height: 1.35rem; padding: 0 0.3rem; font-size: 0.75rem; border-radius: 3px; }
 .analysis-drawer-body .form-select-sm { padding-right: 1.3rem; background-position: right 0.25rem center; background-size: 12px 9px; }
 /* A property grid: one row per setting, the label left and its value right */
-.ana-props { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.15rem 0.5rem; align-items: center; font-size: 0.75rem; }
+.ana-props { display: grid; grid-template-columns: var(--ana-label, 5.25rem) minmax(0, 1fr); gap: 0.15rem 0.5rem; align-items: center; font-size: 0.75rem; }
 .ana-props > label, .ana-props > .ana-label { margin: 0; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ana-props > label[title], .ana-props > .ana-label[title] { cursor: help; }
 .ana-props > .ana-value { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
@@ -141,38 +141,15 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-project-progress span { display: block; height: 100%; background: var(--accent); transition: width 0.2s; }
 
 /* Gates */
-.analysis-gates { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
-.analysis-gates th { font-weight: 600; color: var(--text-2); padding: 0 2px 3px; cursor: help; font-size: 0.75rem; }
-.analysis-gates td { padding: 2px; }
-.analysis-gates .form-control, .analysis-gates .form-select { min-width: 0; padding: 0.15rem 0.35rem; font-size: 0.8125rem; }
-.analysis-gates .form-select { padding-right: 1.4rem; background-position: right 0.3rem center; }
-.analysis-gates td:last-child { width: 4.6rem; } .analysis-gates td:first-child { width: 1.7rem; }
-.analysis-gates .analysis-gate-type { width: 5.6rem; }
-.analysis-gates tr.analysis-gate-index td { padding-top: 0; }
-.analysis-gates tr.analysis-gate-index .analysis-tool-note { font-size: 0.6875rem; }
 .gate-letter { display: inline-block; width: 1.3rem; text-align: center; font-weight: 700; border-radius: 3px; color: #111; }
 .gate-I { background: #facc15; } .gate-A { background: #ef4444; color: #fff; } .gate-B { background: #22c55e; }
-.analysis-add-gates { display: flex; gap: 0.3rem; }
-.analysis-add-gates[hidden] { display: none; }
 
-/* Gate cards */
-.analysis-gate-rows { display: flex; flex-direction: column; gap: 0.6rem; }
-.analysis-gate-card { border: 1px solid var(--border); border-left: 3px solid var(--gate-colour, var(--border-strong)); border-radius: var(--radius); }
-.gate-card-I { --gate-colour: #facc15; } .gate-card-A { --gate-colour: #ef4444; } .gate-card-B { --gate-colour: #22c55e; }
-.analysis-gate-card > header { display: flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0.5rem; background: var(--surface-2);
-    border-bottom: 1px solid var(--border); border-radius: 0 var(--radius) 0 0; font-size: 0.8125rem; }
-.analysis-gate-card > header strong { font-weight: 600; white-space: nowrap; }
-.analysis-gate-types { margin-left: auto; }
-.analysis-gate-types .btn { padding: 0.1rem 0.45rem; font-size: 0.75rem; white-space: nowrap; }
-.analysis-gate-remove { padding: 0.15rem 0.35rem; color: var(--text-3); }
+.analysis-gate-rows { display: flex; flex-direction: column; }
+.analysis-gate .gate-letter { width: 1rem; font-size: 0.6875rem; line-height: 1rem; }
+.analysis-gate-types .btn { padding: 0 0.3rem !important; font-size: 0.6875rem !important; line-height: 1.25 !important; }
 .analysis-gate-remove:hover { color: var(--danger); }
-.analysis-gate-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem 0.6rem; padding: 0.55rem 0.6rem 0.6rem; }
-.analysis-gate-field { display: flex; flex-direction: column; gap: 0.15rem; margin: 0; min-width: 0; cursor: help; }
-.analysis-gate-field > span { font-size: 0.6875rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
-.analysis-gate-field .form-control, .analysis-gate-field .form-select { font-size: 0.8125rem; cursor: auto; }
-.analysis-gate-field.is-wide { grid-column: 1 / -1; }
-.analysis-gate-float { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.45rem; margin: 0; font-size: 0.8125rem; color: var(--text-2); cursor: help; }
-.analysis-gate-float .form-check-input { margin: 0; cursor: pointer; }
+.analysis-add-gates { display: flex; gap: 0.25rem; }
+.analysis-add-gates:empty { display: none; }
 
 /* Geometry: the weld overlay editor */
 .analysis-weld-editor { display: flex; flex-direction: column; gap: 0.5rem; }
