@@ -495,8 +495,12 @@
         refInput.value = state.refLevel;
     }
     // The file's gates as set up: sound path, or true depth (between two depths on every beam)
+    // Where a gate measures from (its position readings): edge - the threshold crossing (/), peak - the first
+    // peak after it, max peak - its highest sample (^, as OmniPC)
+    const DETECTION_NAMES = { edge: 'edge (threshold crossing)', peak: 'first peak', maxpeak: 'max peak' };
+    const detectionMark = letter => ((gateByLetter(letter)?.detection || 'edge') === 'edge' ? '/' : '^');
     const fileGates = g => g.gates.map(x => ({
-        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold,
+        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold, detection: x.detection || 'edge',
         geometry: x.geometry === 'TrueDepth' && x.depth_start !== null && x.depth_end !== null ? 'TrueDepth' : 'SoundPath',
         ...(x.geometry === 'TrueDepth' ? { depth_start: x.depth_start, depth_end: x.depth_end } : {}),
         sync_gate: x.sync_mode === 'GateRelative' ? x.sync_gate : null, trigger: x.trigger || 'Crossing',
@@ -1359,6 +1363,11 @@
                                      ? `The height set against the ${state.refLevel} % reference level; on each A-scan it keeps that ratio to the peak`
                                      : 'The level a signal must reach to break the gate, % of full screen',
                                  number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); }), '%'));
+            const detection = el('select', { className: 'form-select form-select-sm' });
+            for (const [value, text] of [['edge', 'Edge'], ['peak', 'Peak'], ['maxpeak', 'Max peak']]) detection.add(new Option(text, value));
+            detection.value = gate.detection || 'edge';
+            detection.addEventListener('change', () => { gate.detection = detection.value; gatesChanged(); renderReadings(); });
+            grid.append(...field('Detection', 'Where the gate reads its position (sound path, depth, index, thicknesses, depth / thickness C-scans): Edge - where the signal crosses the threshold; Peak - the first peak after that; Max peak - the highest point in the gate. Its amplitude is always the highest point.', detection));
             const sync = el('select', { className: 'form-select form-select-sm' });
             sync.add(new Option('Pulse', ''));
             for (const other of state.gates) {
@@ -1598,7 +1607,7 @@
         const start = g.beams[0]?.ultrasound_offset || 0;
         const id = Math.max(-1, ...state.gates.map(x => x.id)) + 1;
         const byLetter = L => state.gates.find(x => letterOf(x.name) === L);
-        const gate = { id, name: `Gate ${letter}`, threshold: letter === 'I' ? 35 : 20, trigger: 'Crossing', sync_gate: null, added: true,
+        const gate = { id, name: `Gate ${letter}`, threshold: letter === 'I' ? 35 : 20, trigger: 'Crossing', sync_gate: null, added: true, detection: 'edge',
                        start: start + span * 0.25, length: span * 0.5 };
         if (letter === 'B' && byLetter('A')) Object.assign(gate, { sync_gate: byLetter('A').id, start: span * 0.02, length: span * 0.4 });
         if (letter === 'A' && byLetter('I')) Object.assign(gate, { sync_gate: byLetter('I').id, start: span * 0.02, length: span * 0.4 });
@@ -1667,7 +1676,10 @@
         const add = (name, text, section = false) => {
             if (section) rows.push(Object.assign(document.createElement('div'), { className: 'analysis-reading-section', textContent: name }));
             else {
-                rows.push(Object.assign(document.createElement('dt'), { textContent: name, title: READING_NAMES[name] || '' }));
+                const shown = name.replace(/([A-Z])([/^])/g, (all, letter) => (gateByLetter(letter) ? `${letter}${detectionMark(letter)}` : all));
+                const how = DETECTION_NAMES[gateByLetter(name.match(/([A-Z])[/^]/)?.[1])?.detection || ''];
+                rows.push(Object.assign(document.createElement('dt'), {
+                    textContent: shown, title: [READING_NAMES[name] || '', how ? `(gate at its ${how})` : ''].filter(Boolean).join(' ') }));
                 rows.push(Object.assign(document.createElement('dd'), { className: 'mono', textContent: text }));
             }
         };
