@@ -4,7 +4,10 @@
 // beam really went. Soft gain and the palette are applied in the shader, so changing them doesn't
 // fetch anything. A 2D overlay canvas draws the axes, back-wall / skip lines and the beam cursor.
 //
-// World coordinates: x = position along the index axis (m), y = depth (m, down). Click or drag
+// World coordinates: x = position along the index axis (m), y = depth (m, down). Rotated (for 0 deg
+// longitudinal data such as HydroFORM), the screen shows depth across and the index axis down, so it
+// lines up with the A-scan's depth axis and a raster C-scan's index axis; the view ([cx, cy, ...],
+// zoom bars) is then in those display axes, and toScreen / toWorld swap. Click or drag
 // to move the beam cursor, scroll to zoom at the pointer, right-drag to pan, double-click to fit.
 // True geometry keeps one scale both ways (a sectorial fan); stretched fills the panel (a 0 deg
 // raster's index x depth end view, e.g. 12 in wide and 0.5 in deep).
@@ -18,11 +21,13 @@ window.SScanView = (function () {
     const VERTEX = `#version 300 es
 in vec2 aPos;
 in vec2 aTex;
-uniform vec4 uView;   // centre x, centre y, 2 / width, 2 / height (world units)
+uniform vec4 uView;   // centre x, centre y, 2 / width, 2 / height (display units)
+uniform float uSwap;  // 1: rotated - depth across, index down
 out vec2 vTex;
 void main() {
     vTex = aTex;
-    gl_Position = vec4((aPos.x - uView.x) * uView.z, -(aPos.y - uView.y) * uView.w, 0.0, 1.0);
+    vec2 p = uSwap > 0.5 ? aPos.yx : aPos;
+    gl_Position = vec4((p.x - uView.x) * uView.z, -(p.y - uView.y) * uView.w, 0.0, 1.0);
 }`;
     const FRAGMENT = `#version 300 es
 precision highp float;
@@ -66,6 +71,7 @@ void main() {
             this.loc = {
                 pos: gl.getAttribLocation(program, 'aPos'), tex: gl.getAttribLocation(program, 'aTex'),
                 view: gl.getUniformLocation(program, 'uView'), gain: gl.getUniformLocation(program, 'uGain'),
+                swap: gl.getUniformLocation(program, 'uSwap'),
                 data: gl.getUniformLocation(program, 'uData'), palette: gl.getUniformLocation(program, 'uPalette'),
             };
             this.buffer = gl.createBuffer();
@@ -78,6 +84,7 @@ void main() {
             this.view = null;       // [cx, cy, width, height, stretch] in world units; null = fit (stretch: true geometry's
                                     // vertical zoom over its horizontal one, from the zoom bars)
             this.trueGeometry = true;
+            this.rotated = false;   // depth across, index down
             this.cursors = { u_ref: null, u_meas: null, i_ref: null, i_meas: null };
             this.lateral = 0;
             this.hasFrame = false;
@@ -182,6 +189,16 @@ void main() {
             this.bounds = [x0, y0, x1, y1];
             this.draw();
         }
+
+        /** Rotated 90 deg: depth across (as the A-scan), the index axis down (as a raster C-scan). */
+        setRotated(on) {
+            this.rotated = !!on;
+            this.view = null;
+            this.draw();
+        }
+
+        /** A world point (index, depth) in display axes, or back: the same swap both ways. */
+        swap([x, y]) { return this.rotated ? [y, x] : [x, y]; }
 
         setTrueGeometry(on) {
             this.trueGeometry = on;
@@ -342,13 +359,13 @@ void main() {
             for (const gate of editable) {
                 if (gate.box) {
                     const b = gate.box;
-                    const [ax, ay] = this.toScreen(b.i0, b.d0), [bx, by] = this.toScreen(b.i1, b.d1);
-                    const inX = px >= Math.min(ax, bx) - reach && px <= Math.max(ax, bx) + reach;
-                    const inY = py >= Math.min(ay, by) - reach && py <= Math.max(ay, by) + reach;
-                    if (inX && Math.abs(py - ay) <= reach) return { letter: gate.letter, part: 'd0' };
-                    if (inX && Math.abs(py - by) <= reach) return { letter: gate.letter, part: 'd1' };
-                    if (inY && Math.abs(px - ax) <= reach) return { letter: gate.letter, part: 'i0' };
-                    if (inY && Math.abs(px - bx) <= reach) return { letter: gate.letter, part: 'i1' };
+                    const A = this.toScreen(b.i0, b.d0), B = this.toScreen(b.i1, b.d1), P = [px, py];
+                    const d = this.rotated ? 0 : 1, i = 1 - d;   // the screen axis depth / the index runs along
+                    const within = k => P[k] >= Math.min(A[k], B[k]) - reach && P[k] <= Math.max(A[k], B[k]) + reach;
+                    if (within(i) && Math.abs(P[d] - A[d]) <= reach) return { letter: gate.letter, part: 'd0' };
+                    if (within(i) && Math.abs(P[d] - B[d]) <= reach) return { letter: gate.letter, part: 'd1' };
+                    if (within(d) && Math.abs(P[i] - A[i]) <= reach) return { letter: gate.letter, part: 'i0' };
+                    if (within(d) && Math.abs(P[i] - B[i]) <= reach) return { letter: gate.letter, part: 'i1' };
                     continue;
                 }
                 const line = this.pick([x, y]);
@@ -378,7 +395,8 @@ void main() {
 
         // ── view ──
         fitView() {
-            const [x0, y0, x1, y1] = this.bounds;
+            const [b0, b1, b2, b3] = this.bounds;
+            const [x0, y0, x1, y1] = this.rotated ? [b1, b0, b3, b2] : [b0, b1, b2, b3];
             const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
             const pad = 0.04;
             let width = (x1 - x0) * (1 + 2 * pad), height = (y1 - y0) * (1 + 2 * pad);
@@ -398,7 +416,8 @@ void main() {
         stretch() { return this.view?.[4] || 1; }
         maxZoom() { return MAX_ZOOM; }
 
-        /** The fitted (full) and shown stretch of an axis ('x' across, 'y' down), world units, for the zoom bars. */
+        /** The fitted (full) and shown stretch of an axis ('x' across, 'y' down - on screen, so rotated 'x' is
+         *  depth), world units, for the zoom bars. */
         axisRange(axis) {
             if (!this.bounds) return null;
             const fit = this.fitView(), v = this.currentView(), i = axis === 'x' ? 0 : 1;
@@ -415,17 +434,37 @@ void main() {
             this.options.onViewChange?.(this);
         }
 
-        toWorld(event) {
+        /** A pointer event's point in display axes (across, down). */
+        toDisplay(event) {
             const box = this.canvas.getBoundingClientRect();
             const [cx, cy, width, height] = this.currentView();
             return [cx + ((event.clientX - box.left) / box.width - 0.5) * width,
                     cy + ((event.clientY - box.top) / box.height - 0.5) * height];
         }
 
-        toScreen(x, y) {
+        /** A pointer event's point in the world: [index, depth]. */
+        toWorld(event) { return this.swap(this.toDisplay(event)); }
+
+        /** A display point (across, down) on the overlay, in its pixels. */
+        displayToScreen(x, y) {
             const [cx, cy, width, height] = this.currentView();
             const w = this.overlay.width, h = this.overlay.height;
             return [((x - cx) / width + 0.5) * w, ((y - cy) / height + 0.5) * h];
+        }
+
+        /** A world point (index, depth) on the overlay, in its pixels. */
+        toScreen(x, y) { return this.displayToScreen(...this.swap([x, y])); }
+
+        /** The overlay line across the view at a depth (rotated: up and down): [x0, y0, x1, y1]. */
+        depthLine(depth) {
+            const [x, y] = this.toScreen(0, depth);
+            return this.rotated ? [x, 0, x, this.overlay.height] : [0, y, this.overlay.width, y];
+        }
+
+        /** The overlay line at an index position (rotated: across). */
+        indexLine(index) {
+            const [x, y] = this.toScreen(index, 0);
+            return this.rotated ? [0, y, this.overlay.width, y] : [x, 0, x, this.overlay.height];
         }
 
         resize() {
@@ -448,6 +487,7 @@ void main() {
                 gl.useProgram(this.program);
                 const [cx, cy, width, height] = this.currentView();
                 gl.uniform4f(this.loc.view, cx, cy, 2 / width, 2 / height);
+                gl.uniform1f(this.loc.swap, this.rotated ? 1 : 0);
                 gl.uniform1f(this.loc.gain, this.gain);
                 gl.activeTexture(gl.TEXTURE1);
                 gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture);
@@ -479,15 +519,17 @@ void main() {
             ctx.save();
             ctx.font = `${11 * ratio}px Inter, Arial, sans-serif`;
             // Back wall and skips (the legs): dashed lines at each thickness, black over light data, white over dark
+            const deepest = this.rotated ? cx + width / 2 : cy + height / 2;   // the greatest depth in view
             if (this.thickness) {
-                for (let k = 1; this.showLegs !== false && k * this.thickness < cy + height / 2; k++) {
-                    const [, y] = this.toScreen(0, k * this.thickness);
-                    AnalysisPalette.contrastDash(ctx, this.pixels, 0, y, w, y, ratio);
-                    const text = k === 1 ? 'T' : `${k}T`;   // left: clear of the colour legend; outlined over light data
+                for (let k = 1; this.showLegs !== false && k * this.thickness < deepest; k++) {
+                    const line = this.depthLine(k * this.thickness);
+                    AnalysisPalette.contrastDash(ctx, this.pixels, ...line, ratio);
+                    const text = k === 1 ? 'T' : `${k}T`;   // left (rotated: top): clear of the colour legend; outlined over light data
+                    const [tx, ty] = this.rotated ? [line[0] + 3 * ratio, 14 * ratio] : [44 * ratio, line[1] - 3 * ratio];
                     ctx.save(); ctx.strokeStyle = 'rgba(8,10,14,0.9)'; ctx.lineWidth = 3 * ratio; ctx.lineJoin = 'round';
-                    ctx.strokeText(text, 44 * ratio, y - 3 * ratio); ctx.restore();
+                    ctx.strokeText(text, tx, ty); ctx.restore();
                     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-                    ctx.fillText(text, 44 * ratio, y - 3 * ratio);
+                    ctx.fillText(text, tx, ty);
                 }
                 ctx.setLineDash([]);
                 // The weld outline in each leg: mirrored at the back wall on even legs
@@ -507,13 +549,15 @@ void main() {
                     ctx.clip('nonzero');
                     ctx.strokeStyle = 'rgba(232, 121, 249, 0.9)';
                     ctx.lineWidth = 1.3 * ratio;
-                    for (let k = 0; k * T < cy + height / 2; k++) {
+                    for (let k = 0; k * T < deepest; k++) {
                         const fold = y => (k % 2 === 0 ? y + k * T : (k + 1) * T - y);
                         // Each leg's copy only from its own start down: a cap past the surface shows where the beam would
                         // reach it going straight on, and the mirrored copy of the cap the leg before can't close it into an oval
                         ctx.save();
-                        const [, top] = this.toScreen(0, k * T);
-                        ctx.beginPath(); ctx.rect(0, Math.max(0, top), w, h); ctx.clip();
+                        const [left, top] = this.toScreen(0, k * T);
+                        ctx.beginPath();
+                        if (this.rotated) ctx.rect(Math.max(0, left), 0, w, h); else ctx.rect(0, Math.max(0, top), w, h);
+                        ctx.clip();
                         for (const line of this.weld) {
                             ctx.beginPath();
                             line.forEach(([x, y], i) => {
@@ -544,7 +588,7 @@ void main() {
                 AnalysisPalette.legend(ctx, 'amplitude', this.paletteName || 'omnipc', w - 16 * ratio, 8 * ratio, 8 * ratio, bh,
                                        '100%', '0', ratio);
             }
-            // Reference / measure cursors: depth (U) across, index (I) up and down
+            // Reference / measure cursors: depth (U) across, index (I) up and down (rotated: the other way)
             const colours = { ref: '#f87171', meas: '#4ade80' };
             for (const which of ['ref', 'meas']) {
                 ctx.strokeStyle = colours[which];
@@ -552,16 +596,16 @@ void main() {
                 const picked = key => this.selected?.kind === 'cursor' && this.selected.key === key;
                 if (u !== null && u !== undefined) {
                     ctx.lineWidth = (picked(`u_${which}`) ? 2.5 : 1) * ratio;
-                    const [, y] = this.toScreen(0, u);
-                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+                    const [x0, y0, x1, y1] = this.depthLine(u);
+                    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
                 }
                 if (i !== null && i !== undefined) {
                     ctx.lineWidth = (picked(`i_${which}`) ? 2.5 : 1) * ratio;
-                    const [x] = this.toScreen(i, 0);
-                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+                    const [x0, y0, x1, y1] = this.indexLine(i);
+                    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
                 }
             }
-            // Axes: depth down the left, index position along the bottom
+            // Axes: depth down the left, index position along the bottom (rotated: the other way round)
             ctx.fillStyle = '#e2e8f0';
             ctx.lineJoin = 'round';
             const label = (text, x, y) => {
@@ -578,13 +622,13 @@ void main() {
             const unit = this.options.unitLength();
             const xs = step(width / unit, w) * unit, ys = step(height / unit, h) * unit;
             for (let x = Math.ceil((cx - width / 2) / xs) * xs; x <= cx + width / 2; x += xs) {
-                const [sx] = this.toScreen(x, 0);
+                const [sx] = this.displayToScreen(x, 0);
                 if (sx < 46 * ratio) continue;
                 ctx.beginPath(); ctx.moveTo(sx, h - 18 * ratio); ctx.lineTo(sx, h - 13 * ratio); ctx.stroke();
                 label(this.options.format(x, true), sx + 2 * ratio, h - 5 * ratio);
             }
             for (let y = Math.ceil((cy - height / 2) / ys) * ys; y <= cy + height / 2; y += ys) {
-                const [, sy] = this.toScreen(0, y);
+                const [, sy] = this.displayToScreen(0, y);
                 if (sy > h - 18 * ratio) continue;
                 ctx.beginPath(); ctx.moveTo(40 * ratio, sy); ctx.lineTo(46 * ratio, sy); ctx.stroke();
                 label(this.options.format(y, true), 3 * ratio, sy + 4 * ratio);
@@ -621,8 +665,9 @@ void main() {
             for (const key of ['u_meas', 'i_meas', 'u_ref', 'i_ref']) {
                 const value = this.cursors[key];
                 if (value === null || value === undefined) continue;
-                const [sx, sy] = key.startsWith('u') ? this.toScreen(0, value) : this.toScreen(value, 0);
-                if (key.startsWith('u') ? Math.abs(py - sy) <= reach : Math.abs(px - sx) <= reach) return key;
+                const [x0, y0] = key.startsWith('u') ? this.depthLine(value) : this.indexLine(value);
+                const across = key.startsWith('u') !== this.rotated;   // a line across the view: how far up or down the press is
+                if (across ? Math.abs(py - y0) <= reach : Math.abs(px - x0) <= reach) return key;
             }
             return null;
         }
@@ -668,9 +713,10 @@ void main() {
                 if (!drag) {
                     const line = this.grabLine(e);
                     const gate = line ? null : this.grabGate(e);
-                    const gateCursor = { move: 'move', i0: 'ew-resize', i1: 'ew-resize', d0: 'ns-resize', d1: 'ns-resize' };
-                    el.style.cursor = e.altKey && this.weld && this.showWeld ? 'ew-resize'
-                        : line ? (line.startsWith('u') ? 'ns-resize' : 'ew-resize')
+                    const [ns, ew] = this.rotated ? ['ew-resize', 'ns-resize'] : ['ns-resize', 'ew-resize'];   // depth, index
+                    const gateCursor = { move: 'move', i0: ew, i1: ew, d0: ns, d1: ns };
+                    el.style.cursor = e.altKey && this.weld && this.showWeld ? ew
+                        : line ? (line.startsWith('u') ? ns : ew)
                             : gate ? (gateCursor[gate.part] || 'grab') : '';
                     return;
                 }
@@ -719,7 +765,7 @@ void main() {
                 if (!this.rays) return;
                 e.preventDefault();
                 if (!e.ctrlKey && this.options.onWheel?.(e)) return;   // moved the selection instead
-                const [px, py] = this.toWorld(e);
+                const [px, py] = this.toDisplay(e);
                 const [cx, cy, width, height] = this.currentView();
                 const f = Math.exp(e.deltaY * 0.0015);
                 const fit = this.fitView()[2];

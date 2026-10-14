@@ -232,7 +232,8 @@
 
     // Linked zooms (Display panel): a view zoomed or panned along a linked axis takes the others with it,
     // in world units - scan (C- and B-scan across), depth (B- and S-scan down, the A-scan across when it
-    // shows true depth), index (S-scan across, a raster's C-scan down)
+    // shows true depth), index (S-scan across, a raster's C-scan down). The S-scan's axes are as unrotated
+    // here; screenAxis turns them when it's rotated (depth across, index down)
     const ZOOM_LINKS = {
         scan: [[cview, 'x'], [bview, 'x']],
         depth: [[bview, 'y'], [sscan, 'y'], [ascan, 'x']],
@@ -243,6 +244,7 @@
     /** Whether `view` can share `link`: the A-scan's depth only in true depth, the C-scan's index only on a raster. */
     const linkable = (link, view) => !(link === 'depth' && view === ascan && ascan.axis !== 'depth')
         && !(link === 'index' && view === cview && !isRaster());
+    const screenAxis = (view, axis) => (view === sscan && sscan.rotated ? (axis === 'x' ? 'y' : 'x') : axis);
     let linking = false;
     function zoomFollow(view, only = null) {
         if (linking) return;   // a view moved by a link doesn't pass it on again
@@ -252,22 +254,36 @@
                 if (!zoomLinks[link] || (only && link !== only)) continue;
                 const mine = members.find(([v]) => v === view);
                 if (!mine || !linkable(link, view)) continue;
-                const range = view.axisRange(mine[1]);
+                const range = view.axisRange(screenAxis(view, mine[1]));
                 if (!range) continue;
                 for (const [other, axis] of members) {
-                    if (other !== view && linkable(link, other) && other.axisRange(axis)) other.setAxisRange(axis, range.shown);
+                    const on = screenAxis(other, axis);
+                    if (other !== view && linkable(link, other) && other.axisRange(on)) other.setAxisRange(on, range.shown);
                 }
             }
         } finally { linking = false; }
     }
     for (const view of [sscan, ascan, cview, bview]) view.options.onViewChange = zoomFollow;
+
+    // The S-scan rotated 90 deg (Display panel, kept per browser): depth across, the index axis down
+    try { sscan.rotated = localStorage.getItem('analysisSscanRotated') === '1'; } catch { /* not rotated */ }
+    $('sscan-rotate').checked = sscan.rotated;
+    $('sscan-rotate').addEventListener('change', e => {
+        try { localStorage.setItem('analysisSscanRotated', e.target.checked ? '1' : '0'); } catch { /* not kept */ }
+        linking = true;   // to its own fit first
+        try { sscan.setRotated(e.target.checked); } finally { linking = false; }
+        for (const link of ['depth', 'index']) {   // then lined up with the views it's linked to
+            const other = ZOOM_LINKS[link].find(([v, axis]) => v !== sscan && linkable(link, v) && v.axisRange(axis));
+            if (zoomLinks[link] && other) zoomFollow(other[0], link);
+        }
+    });
     for (const link of Object.keys(ZOOM_LINKS)) {
         const box = $(`link-${link}`);
         box.checked = zoomLinks[link];
         box.addEventListener('change', () => {
             zoomLinks[link] = box.checked;
             try { localStorage.setItem('analysisZoomLinks', JSON.stringify(zoomLinks)); } catch { /* not kept */ }
-            const first = ZOOM_LINKS[link].find(([v, axis]) => linkable(link, v) && v.axisRange(axis));
+            const first = ZOOM_LINKS[link].find(([v, axis]) => linkable(link, v) && v.axisRange(screenAxis(v, axis)));
             if (box.checked && first) zoomFollow(first[0], link);   // line them up now
         });
     }
@@ -310,14 +326,14 @@
             const value = state.cursors[sel.key], axis = sel.key[0], step = cursorStep(axis);
             // The view's axis it runs along: the A-scan's is across; depth is down; scan across; index across (C-scan: down)
             const along = view === ascan ? 'x' : axis === 'u' ? 'y' : axis === 's' ? 'x' : view === cview ? 'y' : 'x';
-            if (has(value)) setCursors({ [sel.key]: value + steps * perNotch(view, along, step) * step });
+            if (has(value)) setCursors({ [sel.key]: value + steps * perNotch(view, screenAxis(view, along), step) * step });
             return;
         }
         if (sel.kind !== 'gate' || !gateByLetter(sel.letter)) return;
         gateSnapshot = structuredClone(gateByLetter(sel.letter));   // the drags work from a snapshot
         const ray = g.rays[sel.line ?? state.lateral];
         if (sel.view === 'sscan') {
-            const r = ray, sp = steps * perNotch(sscan, 'y', r.sp_step * (Math.abs(r.dz) || 1)) * r.sp_step;
+            const r = ray, sp = steps * perNotch(sscan, screenAxis(sscan, 'y'), r.sp_step * (Math.abs(r.dz) || 1)) * r.sp_step;
             dragGateOnSscan(sel.letter, sel.part, { dx: sp, dy: sp * (Math.abs(r.dz) || 1), dsp: sp, line: sel.line });
             loadFrameGates();
         } else {

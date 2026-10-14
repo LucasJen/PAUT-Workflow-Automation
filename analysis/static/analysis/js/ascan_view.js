@@ -77,7 +77,8 @@ window.AScanView = (function () {
 
         frame() {
             const ratio = window.devicePixelRatio || 1;
-            const left = 40 * ratio, bottom = 20 * ratio, top = 8 * ratio, right = 10 * ratio;
+            // The plot spans the whole width (amplitudes labelled over it), so a rotated S-scan above lines up with it
+            const left = 0, bottom = 20 * ratio, top = 8 * ratio, right = 0;
             const w = this.canvas.width, h = this.canvas.height;
             const full0 = this.along(-0.5), full1 = this.along(this.values.length - 0.5);
             const [x0, x1] = this.zoom || [full0, full1];
@@ -107,7 +108,7 @@ window.AScanView = (function () {
             for (let p = Math.ceil(f.lo / pStep - 1e-9) * pStep; p <= f.hi + 1e-9; p += pStep) {
                 const y = f.sy(p);
                 ctx.beginPath(); ctx.moveTo(f.left, y); ctx.lineTo(w - f.right, y); ctx.stroke();
-                ctx.fillText(`${+p.toFixed(1)}`, 6 * ratio, y + 4 * ratio);
+                ctx.fillText(`${+p.toFixed(1)}`, 4 * ratio, p === f.lo ? y - 3 * ratio : y + 11 * ratio);   // over the plot, under its line (the bottom one above)
             }
             const unit = this.options.unitLength();
             const span = (f.x1 - f.x0) / unit;
