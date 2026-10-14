@@ -73,10 +73,10 @@
             <i class="bi bi-pin-map"></i><span class="analysis-rail-badge" id="indication-count" hidden></span></button>
         <button type="button" class="analysis-rail-button" data-panel="report" title="Send indications to a report"><i class="bi bi-send"></i></button>
         <button type="button" class="analysis-rail-button" data-panel="geometry" title="Geometry and weld overlay">
-            {# A single-V butt weld: two plates, the weld between them and its cap #}
-            <svg class="analysis-rail-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.2">
-                <path d="M0.8 6.5H5l1.8 7.5H0.8zM15.2 6.5H11l-1.8 7.5h6z"/>
-                <path d="M5 6.5h6l-1.8 7.5H6.8zM4.3 6.5Q8 3.6 11.7 6.5z" fill="currentColor" fill-opacity="0.55" stroke="none"/>
+            {# The weld as the overlay draws it: the bevel's trace, a cap on top and the root below #}
+            <svg class="analysis-rail-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">
+                <path d="M2.5 5.5 7 11.8v0.7h2v-0.7L13.5 5.5"/>
+                <path d="M2.5 5.5Q8 1.8 13.5 5.5M7 12.5Q8 14.6 9 12.5"/>
             </svg></button>
         <button type="button" class="analysis-rail-button" data-panel="display" title="Display: units, palettes, reference level, link zoom"><i class="bi bi-gear"></i></button>
     </nav>
