@@ -116,20 +116,20 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-field-grid label { color: var(--text-2); margin: 0; }
 
 /* Files */
-.analysis-file-list { display: flex; flex-direction: column; flex: none; font-size: 0.8125rem; margin: 0 -0.35rem; }
+.analysis-file-list { display: flex; flex-direction: column; flex: none; font-size: 0.75rem; margin: 0 -0.25rem; }
 .analysis-file-list > * { flex-shrink: 0; }
-.analysis-file-folder { position: sticky; top: -0.7rem; z-index: 1; padding: 0.45rem 0.35rem 0.2rem; background: var(--surface);
+.analysis-file-folder { position: sticky; top: -0.4rem; z-index: 1; padding: 0.3rem 0.25rem 0.1rem; background: var(--surface);
     font-size: 0.6875rem; font-weight: 600; color: var(--text-3); letter-spacing: 0.02em;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.analysis-file-item { display: flex; align-items: baseline; gap: 0.5rem; width: 100%; padding: 0.22rem 0.35rem; border: 0;
+.analysis-file-item { display: flex; align-items: baseline; gap: 0.4rem; width: 100%; padding: 0.08rem 0.25rem; border: 0;
     border-radius: 4px; background: none; color: var(--text); text-align: left; }
 .analysis-file-item:hover { background: var(--surface-hover); }
 .analysis-file-item.is-current { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
 .analysis-file-item .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.analysis-file-item .meta { flex: 0 0 auto; font-size: 0.6875rem; color: var(--text-3); }
+.analysis-file-item .meta { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.6875rem; color: var(--text-3); }
 
 /* Files: the list, Browse this PC, New project */
-.analysis-files-view { display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; }
+.analysis-files-view { display: flex; flex-direction: column; gap: 0.35rem; min-height: 0; }
 .analysis-files-view[hidden] { display: none; }
 .analysis-pc-path { flex: 1 1 auto; min-width: 0; font-size: 0.75rem; color: var(--text-2); overflow: hidden; white-space: nowrap; }
 .analysis-pc-list .analysis-file-item i { color: var(--text-3); }

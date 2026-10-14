@@ -83,7 +83,7 @@
             <div class="analysis-files-view" id="files-view">
                 <div class="analysis-drawer-row">
                     <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
-                    <button type="button" class="btn btn-sm btn-secondary text-nowrap" id="browse-pc" title="Open .nde files from anywhere on this PC (they're read where they are)"><i class="bi bi-hdd"></i> Browse PC</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="browse-pc" title="Browse this PC: open .nde files from anywhere (they're read where they are), or tick some for a new project"><i class="bi bi-hdd"></i></button>
                 </div>
                 <div class="analysis-file-list" id="file-list"><p class="analysis-note">Loading files…</p></div>
             </div>
@@ -96,32 +96,28 @@
                 </div>
                 <div class="analysis-file-list analysis-pc-list" id="pc-list"></div>
                 <div class="analysis-send-bar">
-                    <span class="analysis-note" id="pc-picked">Click a file to open it, or tick files for a project.</span>
-                    <button type="button" class="btn btn-sm btn-primary ms-auto" id="pc-project" disabled title="Make a job folder with the ticked files and start a report from them"><i class="bi bi-folder-plus"></i> New project</button>
+                    <span class="analysis-note" id="pc-picked" title="Click a file to open it, or tick files for a project"></span>
+                    <button type="button" class="btn btn-sm btn-primary ms-auto" id="pc-project" disabled title="New project: make a job folder with the ticked files and start a report from them"><i class="bi bi-folder-plus"></i> Project</button>
                 </div>
             </div>
             <div class="analysis-files-view" id="project-view" hidden>
                 <div class="analysis-drawer-row">
                     <button type="button" class="btn btn-sm btn-ghost" id="project-back" title="Back"><i class="bi bi-arrow-left"></i></button>
-                    <strong>New project</strong>
+                    <strong title="Makes a job folder in the report type's working folder, copies the files into it, then starts Guided Creation from them">New project</strong>
                 </div>
-                <p class="analysis-note">Makes a job folder in the report type's working folder, copies the files into it, then starts Guided Creation from them.</p>
-                <div class="analysis-step">
-                    <div class="analysis-step-head"><span class="analysis-step-number">1</span> Files</div>
-                    <div class="analysis-pick-list" id="project-files"></div>
+                <details class="ana-section" data-section="project:files" open>
+                    <summary>Files</summary>
+                    <div class="ana-body"><div class="analysis-pick-list" id="project-files"></div></div>
+                </details>
+                <div class="ana-props">
+                    <label for="project-type" title="The report type: its working folder gets the job folder">Report type</label>
+                    <div class="ana-value"><select class="form-select form-select-sm" id="project-type" aria-label="Report type"></select></div>
+                    <label for="project-name" title="The job folder's name; it gives the report its name and client, as on Guided Creation">Job folder</label>
+                    <div class="ana-value"><input type="text" class="form-control form-control-sm mono" id="project-name" aria-label="Job folder name" placeholder="PPI-32-27119-FW6-4in"></div>
                 </div>
-                <div class="analysis-step">
-                    <div class="analysis-step-head"><span class="analysis-step-number">2</span> Report type</div>
-                    <select class="form-select form-select-sm" id="project-type" aria-label="Report type"></select>
-                    <span class="analysis-note" id="project-root"></span>
-                </div>
-                <div class="analysis-step">
-                    <div class="analysis-step-head"><span class="analysis-step-number">3</span> Job folder name</div>
-                    <input type="text" class="form-control form-control-sm mono" id="project-name" aria-label="Job folder name" placeholder="e.g. PPI-32-27119-FW6-4in">
-                    <span class="analysis-note">The name gives the report its name and client, as on Guided Creation.</span>
-                </div>
+                <span class="analysis-note" id="project-root"></span>
                 <div class="analysis-send-bar">
-                    <button type="button" class="btn btn-sm btn-primary" id="project-create"><i class="bi bi-folder-plus"></i> Create project</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="project-create"><i class="bi bi-folder-plus"></i> Create</button>
                     <span class="analysis-note" id="project-status" role="status"></span>
                 </div>
             </div>
