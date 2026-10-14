@@ -642,9 +642,47 @@
         slider.value = state.scan;
         const position = format(scanPosition(state.scan), 'value');
         if (document.activeElement !== scanNumber) scanNumber.value = position;
-        slider.title = `${position} ${units} (scan line ${state.scan + 1})`;
-        $('scan-count').textContent = units;
-        $('scan-position').textContent = `line ${state.scan + 1} / ${g.shape[0]}`;
+        slider.title = `${position} ${units} (scan line ${state.scan + 1} of ${g.shape[0]})`;
+        $('scan-unit').textContent = units;
+    }
+
+    /**
+     * The data cursor's beam in the top bar: its refracted angle on a sectorial scan, its VPA (the line,
+     * from 1) on a linear one (every beam at one angle), its index position on a raster.
+     */
+    function beamMode() {
+        const g = currentGroup();
+        if (!g) return 'angle';
+        if (isRaster()) return 'index';
+        const angles = new Set(g.beams.map(b => b.refracted_angle));
+        return angles.size > 1 ? 'angle' : 'vpa';
+    }
+    function showBeam() {
+        const g = currentGroup(), box = $('beam-number');
+        if (!g) return;
+        const mode = beamMode();
+        $('beam-prefix').hidden = mode !== 'vpa';
+        $('beam-unit').hidden = mode === 'vpa';
+        $('beam-unit').textContent = mode === 'angle' ? '°' : units;
+        if (document.activeElement === box) return;
+        box.value = mode === 'angle' ? String(g.beams[state.lateral]?.refracted_angle ?? '')
+            : mode === 'vpa' ? String(state.lateral + 1) : format(lineY(state.lateral), 'value');
+    }
+    /** A typed beam: the nearest angle, the VPA, or the nearest index position. */
+    function goToBeam(text) {
+        const g = currentGroup(), v = parseFloat(text);
+        if (!g || !Number.isFinite(v)) { showBeam(); return; }
+        const mode = beamMode();
+        if (mode === 'vpa') { setLateral(Math.round(v) - 1); showBeam(); return; }
+        const target = mode === 'angle' ? v : v * unitLength();
+        let best = 0;
+        for (let i = 0; i < g.shape[1]; i++) {
+            const at = mode === 'angle' ? g.beams[i].refracted_angle : lineY(i);
+            const bestAt = mode === 'angle' ? g.beams[best].refracted_angle : lineY(best);
+            if (Math.abs(at - target) < Math.abs(bestAt - target)) best = i;
+        }
+        setLateral(best);
+        showBeam();
     }
 
     // ── the weld overlay: the file's weld, or as edited here (kept per file in this browser) ──
@@ -791,6 +829,7 @@
         ascan.set({ values: state.values.subarray(lateral * n, (lateral + 1) * n), ray: g.rays[lateral],
                     period: g.axes[2].resolution, gates: null, cursors: ascanCursors() });
         renderGates();   // its lengths use this beam's velocity
+        showBeam();
         remember();
         scheduleReadings();
         linkCursors();
@@ -2510,6 +2549,21 @@
         setScan(Math.round((v * unitLength() - scanAxis().offset) / scanAxis().resolution));
     });
     scanNumber.addEventListener('keydown', e => { if (e.key === 'Enter') scanNumber.dispatchEvent(new Event('change')); });
+    /** Scrolling over a top-bar value box steps it: up for more. */
+    const onScroll = (box, step) => box.addEventListener('wheel', e => {
+        e.preventDefault();
+        const delta = e.deltaY || e.deltaX;   // Shift+wheel comes as deltaX
+        if (delta && state.info) step(delta < 0 ? 1 : -1, e.shiftKey);
+    }, { passive: false });
+    onScroll(scanNumber.closest('.analysis-value-box'), (d, big) => setScan(state.scan + d * (big ? 10 : 1)));
+    onScroll($('beam-box'), (d, big) => { setLateral(state.lateral + d * (big ? 10 : 1)); });
+    onScroll(gainInput.closest('.analysis-value-box'), (d, fine) => setGain(state.gain + d * (fine ? 0.1 : 1)));
+    $('beam-number').addEventListener('change', e => goToBeam(e.target.value));
+    $('beam-number').addEventListener('keydown', e => { if (e.key === 'Enter') goToBeam(e.target.value); });
+    $('beam-number').addEventListener('blur', showBeam);
+    scanNumber.addEventListener('blur', () => { if (state.info) showScanPosition(); });
+    gainInput.addEventListener('blur', () => { gainInput.value = state.gain.toFixed(1); });
+    gainInput.addEventListener('keydown', e => { if (e.key === 'Enter') gainInput.dispatchEvent(new Event('change')); });
     $('scan-prev').addEventListener('click', () => setScan(state.scan - 1));
     $('scan-next').addEventListener('click', () => setScan(state.scan + 1));
 
@@ -2563,8 +2617,6 @@
         setGain(20 * Math.log10(80 / peak));
     }
     $('auto-80').addEventListener('click', auto80);
-    $('gain-down').addEventListener('click', () => setGain(state.gain - 1));
-    $('gain-up').addEventListener('click', () => setGain(state.gain + 1));
     refInput.addEventListener('change', () => {
         const v = parseFloat(refInput.value);
         state.refLevel = Number.isFinite(v) && v > 0 ? v : 80;

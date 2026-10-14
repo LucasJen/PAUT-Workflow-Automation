@@ -30,20 +30,26 @@
         </button>
         <select class="form-select form-select-sm analysis-group" id="group-select" aria-label="Group" hidden></select>
         <span class="analysis-sep"></span>
-        <div class="analysis-tool" title="Scan position (Left / Right a line, Shift for 10, PageUp / PageDown)">
-            <button type="button" class="btn btn-sm btn-ghost" id="scan-prev" aria-label="Previous scan line"><i class="bi bi-chevron-left"></i></button>
-            <input type="range" class="form-range analysis-slider" id="scan-slider" min="0" max="0" value="0" aria-label="Scan line">
-            <button type="button" class="btn btn-sm btn-ghost" id="scan-next" aria-label="Next scan line"><i class="bi bi-chevron-right"></i></button>
-            <input type="text" inputmode="decimal" class="form-control form-control-sm mono analysis-number analysis-scan-distance" id="scan-number" value="0" aria-label="Scan position" title="Scan position (type a distance to go to the nearest scan line)">
-            <span class="analysis-tool-note"><span id="scan-count"></span> <span class="mono" id="scan-position" title="Scan line number (of the file's lines)"></span></span>
+        <div class="analysis-tool">
+            <button type="button" class="btn btn-sm btn-ghost" id="scan-prev" aria-label="Previous scan line" title="Previous scan line (Left)"><i class="bi bi-chevron-left"></i></button>
+            <input type="range" class="form-range analysis-slider" id="scan-slider" min="0" max="0" value="0" aria-label="Scan line" title="Scan position (Left / Right a line, Shift for 10, PageUp / PageDown)">
+            <button type="button" class="btn btn-sm btn-ghost" id="scan-next" aria-label="Next scan line" title="Next scan line (Right)"><i class="bi bi-chevron-right"></i></button>
+            <label class="analysis-value-box" title="Scan position: type a distance, or scroll over it a line at a time (Shift: 10)">
+                <input type="text" inputmode="decimal" class="mono" id="scan-number" value="0" aria-label="Scan position" autocomplete="off">
+                <span class="unit" id="scan-unit">in</span>
+            </label>
         </div>
+        <label class="analysis-value-box" id="beam-box" title="The data cursor's beam: type an angle (VPA on a linear scan, index position on a raster), or scroll over it a beam at a time (Up / Down keys)">
+            <span class="unit" id="beam-prefix" hidden>VPA</span>
+            <input type="text" inputmode="decimal" class="mono" id="beam-number" value="" aria-label="Beam" autocomplete="off">
+            <span class="unit" id="beam-unit">°</span>
+        </label>
         <span class="analysis-sep"></span>
-        <div class="analysis-tool" title="Soft gain added to the data, like OmniPC's Gain (+ / - keys)">
-            <span class="analysis-tool-label">Gain</span>
-            <button type="button" class="btn btn-sm btn-ghost" id="gain-down" aria-label="1 dB less"><i class="bi bi-dash-lg"></i></button>
-            <input type="number" class="form-control form-control-sm mono analysis-number" id="gain" value="0.0" step="0.5" aria-label="Soft gain in dB">
-            <button type="button" class="btn btn-sm btn-ghost" id="gain-up" aria-label="1 dB more"><i class="bi bi-plus-lg"></i></button>
-            <span class="analysis-tool-note">dB</span>
+        <div class="analysis-tool">
+            <label class="analysis-value-box is-gain" title="Soft gain added to the data, like OmniPC's Gain: type it, or scroll over it 1 dB at a time (Shift: 0.1 dB; + / - keys)">
+                <input type="text" inputmode="decimal" class="mono" id="gain" value="0.0" aria-label="Soft gain in dB" autocomplete="off">
+                <span class="unit">dB</span>
+            </label>
             <button type="button" class="btn btn-sm btn-secondary analysis-auto80" id="auto-80" title="Auto 80%: set the soft gain so the gate A signal on the cursor's A-scan peaks at 80% of full screen (A)">80%</button>
         </div>
         <span class="analysis-sep"></span>
@@ -351,6 +357,7 @@
                     <dt>Alt+drag</dt><dd>On the S-scan: move the weld overlay's centre line (Geometry panel to edit its shape)</dd>
                     <dt>Select</dt><dd>Click a cursor line, a gate (its bar, edge or letter) or a view (S-scan: the beam cursor; C- / B-scan: the scan cursor); the selection is drawn thicker. Esc deselects</dd>
                     <dt>Scroll</dt><dd>Move the selection: a scan line or beam a notch; a cursor or gate about 1/200 of the view (zoom in for finer steps). Shift: 10 times. With nothing selected, zoom at the pointer</dd>
+                    <dt>Scan / beam / dB</dt><dd>The top bar's boxes: type a value, or scroll over one to step it (scan and beam a line, Shift 10; gain 1 dB, Shift 0.1 dB). The beam box is the angle, the VPA on a linear scan or the index position on a raster</dd>
                     <dt>Top bar</dt><dd>The selection and where it is: a cursor's value, the beam or scan line, a gate's start (its end: the width; a box's side), following drags and the wheel</dd>
                     <dt>Ctrl+scroll</dt><dd>Zoom at the pointer</dd>
                     <dt>Right-drag</dt><dd>Pan</dd>

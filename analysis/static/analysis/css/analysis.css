@@ -21,20 +21,31 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 /* ── Top bar ── */
 .analysis-topbar {
     grid-area: top; display: flex; align-items: center; gap: 0.5rem; min-width: 0;
-    padding: 0.15rem 0.5rem 0.15rem 0.35rem; background: var(--surface); border-bottom: 1px solid var(--border);
+    height: 2.6rem; padding: 0 0.6rem 0 0.4rem; background: var(--surface); border-bottom: 1px solid var(--border);
 }
 /* Dense: small controls, the brand as its mark only (still the way home) */
-.analysis-topbar .form-control-sm, .analysis-topbar .form-select-sm { height: 1.5rem; min-height: 0; padding-top: 0; padding-bottom: 0; font-size: 0.75rem; }
+.analysis-topbar .form-control-sm, .analysis-topbar .form-select-sm { height: 1.85rem; min-height: 0; padding-top: 0; padding-bottom: 0; font-size: 0.8125rem; }
 .analysis-topbar .form-select-sm { padding-right: 1.4rem; background-position: right 0.3rem center; }
-.analysis-topbar .btn-sm { padding: 0.1rem 0.35rem; font-size: 0.75rem; }
-.analysis-topbar .brand-mark { width: 1.5rem; height: 1.5rem; font-size: 0.85rem; border-radius: 5px; }
+.analysis-topbar .btn-sm { padding: 0.25rem 0.45rem; font-size: 0.8125rem; }
+.analysis-topbar .brand-mark { width: 1.85rem; height: 1.85rem; font-size: 1rem; border-radius: 6px; }
+/* A value you can read at a glance: type into it, or scroll over it to step it */
+.analysis-value-box { display: inline-flex; align-items: baseline; gap: 0.25rem; height: 1.85rem; margin: 0; padding: 0 0.55rem;
+    border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); cursor: ns-resize; }
+.analysis-value-box:focus-within { border-color: var(--accent); }
+.analysis-value-box input { width: 4.4rem; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text);
+    font-size: 1.0625rem; font-weight: 600; text-align: right; cursor: text; }
+.analysis-value-box .unit { align-self: center; font-size: 0.75rem; color: var(--text-3); }
+.analysis-value-box .unit[hidden] { display: none; }
+#beam-box input { width: 3.4rem; }
+.analysis-value-box.is-gain input { width: 3.2rem; }
+.analysis-value-box input.is-review { color: #f59e0b; }
 .analysis-brand { display: flex; align-items: center; gap: 0.5rem; color: var(--text); text-decoration: none; font-weight: 600; padding-right: 0.25rem; }
 .analysis-brand:hover { color: var(--accent-text); }
 .analysis-brand-text { display: none; }
 .analysis-file-button {
     display: inline-flex; align-items: center; gap: 0.45rem; min-width: 0; max-width: 26rem;
-    height: 1.5rem; padding: 0 0.5rem; border: 1px solid var(--border); border-radius: var(--radius);
-    background: var(--surface-2); color: var(--text); font-size: 0.75rem; font-weight: 500;
+    height: 1.85rem; padding: 0 0.6rem; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--surface-2); color: var(--text); font-size: 0.875rem; font-weight: 600;
 }
 .analysis-file-button:hover { border-color: var(--border-strong); background: var(--surface-hover); }
 .analysis-file-button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -44,13 +55,12 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-tool-label { font-size: 0.75rem; font-weight: 600; color: var(--text-2); margin-right: 0.1rem; }
 .analysis-tool-note { font-size: 0.6875rem; color: var(--text-3); white-space: nowrap; margin-left: 0.2rem; }
 .analysis-slider { width: 11rem; }
-.analysis-number { width: 4.2rem !important; font-size: 0.75rem; }
-.analysis-scan-distance { width: 5.6rem !important; text-align: right; }
 .analysis-layout-select { width: auto; font-size: 0.75rem; }
 .analysis-status { font-size: 0.8125rem; color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 /* The selection and its value (renderSelection) */
-.analysis-selection { display: inline-flex; align-items: center; gap: 0.4rem; height: 1.5rem; padding: 0 0.5rem; white-space: nowrap;
-    border: 1px solid var(--border); border-left: 3px solid var(--sel-colour, var(--accent)); border-radius: 3px; background: var(--surface-2); font-size: 0.75rem; }
+.analysis-selection { display: inline-flex; align-items: center; gap: 0.45rem; height: 1.85rem; padding: 0 0.6rem; white-space: nowrap;
+    border: 1px solid var(--border); border-left: 3px solid var(--sel-colour, var(--accent)); border-radius: 3px; background: var(--surface-2); font-size: 0.875rem; }
+.analysis-selection .mono { font-weight: 600; }
 .analysis-selection[hidden] { display: none; }
 .analysis-selection .name { color: var(--text-2); }
 .analysis-topbar-end { display: flex; align-items: center; gap: 0.1rem; margin-left: auto; }
