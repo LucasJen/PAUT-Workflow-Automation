@@ -44,6 +44,8 @@ window.AScanView = (function () {
         }
 
         setGain(db) { this.gain = Math.pow(10, db / 20); this.draw(); }
+        /** The selected item, drawn thicker: {kind: 'cursor', key: 'u_ref' | 'u_meas'} | {kind: 'gate', letter} | null. */
+        setSelected(selected) { this.selected = selected; this.draw(); }
         setAxis(axis) { this.axis = axis; this.draw(); }
         /** The part's thickness (m) for the leg lines (T, 2T, ... in depth), or null for none. */
         setLegs(thickness) { this.legs = thickness || null; this.draw(); }
@@ -140,7 +142,7 @@ window.AScanView = (function () {
                 const x = f.sx(this.depthToAlong(depth));
                 if (x < f.left || x > w - f.right) continue;
                 ctx.strokeStyle = ctx.fillStyle = CURSOR_COLOURS[which];
-                ctx.lineWidth = ratio;
+                ctx.lineWidth = (this.selected?.kind === 'cursor' && this.selected.key === `u_${which}` ? 2.5 : 1) * ratio;
                 ctx.beginPath(); ctx.moveTo(x, f.top); ctx.lineTo(x, h - f.bottom); ctx.stroke();
                 ctx.fillText(this.options.format(this.depthToAlong(depth), 'value'), x + 3 * ratio, f.top + 10 * ratio);
             }
@@ -150,7 +152,7 @@ window.AScanView = (function () {
                 const colour = GATE_COLOURS[letter] || '#e2e8f0';
                 ctx.strokeStyle = colour;
                 ctx.fillStyle = colour;
-                ctx.lineWidth = 2 * ratio;
+                ctx.lineWidth = (this.selected?.kind === 'gate' && this.selected.letter === letter ? 3.5 : 2) * ratio;
                 // A floating gate: drawn at its height on this A-scan, over a faint band of the heights it
                 // may float to; dashed at the bottom of the band when the peak is under its floor
                 const under = gate.band && (gate.threshold === null || gate.threshold === undefined);
@@ -261,6 +263,7 @@ window.AScanView = (function () {
             c.addEventListener('wheel', e => {
                 if (!this.values || !this.ray) return;
                 e.preventDefault();
+                if (!e.ctrlKey && this.options.onWheel?.(e)) return;   // moved the selection instead (Ctrl+wheel zooms)
                 const f = this.frame();
                 const [px] = this.point(e);
                 const at = f.fromX(px);
@@ -284,12 +287,15 @@ window.AScanView = (function () {
                 c.setPointerCapture(e.pointerId);
                 if (hit?.kind === 'gate') {
                     drag = { ...hit, x: f.fromX(px) };
+                    this.options.onSelect?.({ kind: 'gate', view: 'ascan', letter: hit.letter, part: hit.part });
                     this.options.onGateDragStart?.(hit.letter);
                 } else if (hit?.kind === 'cursor') {
                     drag = hit;
+                    this.options.onSelect?.({ kind: 'cursor', key: `u_${hit.which}` });
                 } else {
                     const which = e.shiftKey ? 'meas' : 'ref';
                     this.options.onCursor?.(which, this.alongToDepth(f.fromX(px)));
+                    this.options.onSelect?.({ kind: 'cursor', key: `u_${which}` });
                     drag = { kind: 'cursor', which };
                 }
             });

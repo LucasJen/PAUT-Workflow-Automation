@@ -409,6 +409,7 @@ void main() {
             el.addEventListener('wheel', e => {
                 if (!this.hasImage) return;
                 e.preventDefault();
+                if (!e.ctrlKey && this.options.onWheel?.(e)) return;   // moved the selection instead (Ctrl+wheel zooms)
                 const [px, py] = this.toWorld(e);
                 const [cx, cy, w, h] = this.currentView();
                 const fit = this.fitView();

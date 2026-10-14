@@ -10,7 +10,8 @@
 // raster's index x depth end view, e.g. 12 in wide and 0.5 in deep).
 // Cursors: reference (red) and measure (green) - depth (U, horizontal lines) and index (I, vertical
 // lines). Ctrl+click puts the reference pair at a point, Shift+click the measure pair; drag a line
-// to move it.
+// to move it. What a press grabs is reported as selected (options.onSelect) and drawn thicker; the
+// wheel moves the selection (options.onWheel returns true), Ctrl+wheel always zooms.
 
 window.SScanView = (function () {
     const MAX_ZOOM = 40;   // times the fitted view
@@ -240,6 +241,12 @@ void main() {
             this.drawOverlay();
         }
 
+        /** The selected item, drawn thicker: {kind: 'cursor', key} | {kind: 'lateral'} | {kind: 'gate', letter} | null. */
+        setSelected(selected) {
+            this.selected = selected;
+            this.drawOverlay();
+        }
+
         /** The gates on or off. */
         setShowGates(show) {
             this.showGates = show;
@@ -273,7 +280,7 @@ void main() {
                 });
                 if (run.length) runs.push(run);
                 ctx.save();
-                ctx.lineWidth = 1.5 * ratio;
+                ctx.lineWidth = (this.selected?.kind === 'gate' && this.selected.letter === gate.letter ? 3 : 1.5) * ratio;
                 ctx.strokeStyle = gate.colour;
                 for (const lines of runs) {
                     const curve = (end, order) => order.forEach((i, k) => {
@@ -527,7 +534,7 @@ void main() {
                 const [x0, y0] = this.toScreen(r.v0 + r.dv * sp0, r.dz * sp0);
                 const [x1, y1] = this.toScreen(r.v0 + r.dv * sp1, r.dz * sp1);
                 ctx.strokeStyle = '#38bdf8';
-                ctx.lineWidth = 1.5 * ratio;
+                ctx.lineWidth = (this.selected?.kind === 'lateral' ? 3 : 1.5) * ratio;
                 ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
             }
             // The colour scale, top right
@@ -540,13 +547,15 @@ void main() {
             const colours = { ref: '#f87171', meas: '#4ade80' };
             for (const which of ['ref', 'meas']) {
                 ctx.strokeStyle = colours[which];
-                ctx.lineWidth = ratio;
                 const u = this.cursors[`u_${which}`], i = this.cursors[`i_${which}`];
+                const picked = key => this.selected?.kind === 'cursor' && this.selected.key === key;
                 if (u !== null && u !== undefined) {
+                    ctx.lineWidth = (picked(`u_${which}`) ? 2.5 : 1) * ratio;
                     const [, y] = this.toScreen(0, u);
                     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
                 }
                 if (i !== null && i !== undefined) {
+                    ctx.lineWidth = (picked(`i_${which}`) ? 2.5 : 1) * ratio;
                     const [x] = this.toScreen(i, 0);
                     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
                 }
@@ -634,15 +643,19 @@ void main() {
                         drag = { weld: true, x, shift: this.weldShift || 0 };
                     } else if (gate) {                              // a gate's edge or its letter tab
                         drag = { gate, x, y };
+                        this.options.onSelect?.({ kind: 'gate', view: 'sscan', letter: gate.letter, part: gate.part, line: gate.line });
                         this.options.onGateDragStart?.(gate.letter);
                     } else if (line) {
                         drag = { line };
+                        this.options.onSelect?.({ kind: 'cursor', key: line });
                     } else if (e.shiftKey || e.ctrlKey) {
                         const which = e.shiftKey ? 'meas' : 'ref';
                         this.options.onCursors?.({ [`u_${which}`]: y, [`i_${which}`]: x });
+                        this.options.onSelect?.({ kind: 'cursor', key: `u_${which}` });
                         drag = { pair: which };
                     } else {
                         drag = { pan: false };
+                        this.options.onSelect?.({ kind: 'lateral' });
                         this.options.onCursor(this.pick([x, y]));
                     }
                 }
@@ -703,6 +716,7 @@ void main() {
             el.addEventListener('wheel', e => {
                 if (!this.rays) return;
                 e.preventDefault();
+                if (!e.ctrlKey && this.options.onWheel?.(e)) return;   // moved the selection instead
                 const [px, py] = this.toWorld(e);
                 const [cx, cy, width, height] = this.currentView();
                 const f = Math.exp(e.deltaY * 0.0015);

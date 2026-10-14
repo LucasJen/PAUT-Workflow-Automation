@@ -88,6 +88,7 @@
         onGateDragStart: letter => { gateSnapshot = structuredClone(gateByLetter(letter)); },
         onGateDrag: (letter, part, delta) => dragGateOnSscan(letter, part, delta),
         onGateDragEnd: () => { gateSnapshot = null; loadFrameGates(); },
+        onSelect: select, onWheel: e => wheelSelected(e, sscan),
         onHover: (x, y) => {
             if (x === null) { $('sscan-readout').textContent = ''; return; }
             let value = '';
@@ -117,38 +118,42 @@
             const shown = state.gateResults?.[letter];   // a floating gate's bar is at its height here, not its threshold
             gateSnapshot.drawn = shown?.band ? (shown.threshold ?? shown.band[0]) : gateSnapshot.threshold;
         },
-        onGateDrag: (letter, { part, dt, threshold: dragged }) => {
-            const gate = gateByLetter(letter);
-            if (!gate || !gateSnapshot) return;
-            const threshold = dragged === undefined || !isFloating(gate) || !gateSnapshot.drawn ? dragged
-                : gateSnapshot.threshold * dragged / gateSnapshot.drawn;   // keep the ratio: move the calibrated height
-            const minimum = currentGroup().axes[2].resolution;
-            if ((gate.geometry || 'SoundPath') !== 'SoundPath') {
-                const dd = dt * halfVelocity() * (currentGroup().rays[state.lateral]?.dz || 1);
-                const lo = gateSnapshot.depth_start, hi = gateSnapshot.depth_end, least = minimum * halfVelocity();
-                if (part === 'move') {
-                    gate.depth_start = lo + dd; gate.depth_end = hi + dd;
-                    if (threshold !== undefined) gate.threshold = Math.round(threshold);
-                } else if (part === 'start') gate.depth_start = Math.min(lo + dd, hi - least);
-                else gate.depth_end = Math.max(hi + dd, lo + least);
-                gatesChanged(20);
-                return;
-            }
-            if (part === 'move') {
-                gate.start = gateSnapshot.start + dt;
-                if (threshold !== undefined) gate.threshold = Math.round(threshold);
-            } else if (part === 'start') {
-                const dtMax = gateSnapshot.length - minimum;
-                const d = Math.min(dt, dtMax);
-                gate.start = gateSnapshot.start + d;
-                gate.length = gateSnapshot.length - d;
-            } else {
-                gate.length = Math.max(minimum, gateSnapshot.length + dt);
-            }
-            gatesChanged(20);
-        },
+        onGateDrag: (letter, drag) => dragGateOnAscan(letter, drag),
+        onSelect: select, onWheel: e => wheelSelected(e, ascan),
         onGateDragEnd: () => { gateSnapshot = null; },
     });
+
+    /** A gate dragged (or wheeled) on the A-scan: part move / start / end by dt (s) since the press; threshold: the bar's new height. */
+    function dragGateOnAscan(letter, { part, dt, threshold: dragged }) {
+        const gate = gateByLetter(letter);
+        if (!gate || !gateSnapshot) return;
+        const threshold = dragged === undefined || !isFloating(gate) || !gateSnapshot.drawn ? dragged
+            : gateSnapshot.threshold * dragged / gateSnapshot.drawn;   // keep the ratio: move the calibrated height
+        const minimum = currentGroup().axes[2].resolution;
+        if ((gate.geometry || 'SoundPath') !== 'SoundPath') {
+            const dd = dt * halfVelocity() * (currentGroup().rays[state.lateral]?.dz || 1);
+            const lo = gateSnapshot.depth_start, hi = gateSnapshot.depth_end, least = minimum * halfVelocity();
+            if (part === 'move') {
+                gate.depth_start = lo + dd; gate.depth_end = hi + dd;
+                if (threshold !== undefined) gate.threshold = Math.round(threshold);
+            } else if (part === 'start') gate.depth_start = Math.min(lo + dd, hi - least);
+            else gate.depth_end = Math.max(hi + dd, lo + least);
+            gatesChanged(20);
+            return;
+        }
+        if (part === 'move') {
+            gate.start = gateSnapshot.start + dt;
+            if (threshold !== undefined) gate.threshold = Math.round(threshold);
+        } else if (part === 'start') {
+            const dtMax = gateSnapshot.length - minimum;
+            const d = Math.min(dt, dtMax);
+            gate.start = gateSnapshot.start + d;
+            gate.length = gateSnapshot.length - d;
+        } else {
+            gate.length = Math.max(minimum, gateSnapshot.length + dt);
+        }
+        gatesChanged(20);
+    }
 
     const CURSOR = '#38bdf8';
     const scanAxis = () => currentGroup().axes[0];
@@ -175,6 +180,7 @@
             if (done) sizeInBox();
         },
         onDraw: () => drawEcho(),
+        onWheel: e => wheelSelected(e, cview),
         formatX: x => format(x, true), formatY: y => (isRaster() ? format(y, true) : lineText(y)),
         formatRange: v => format(v, true),
         xUnit: unitLength, yUnit: () => (isRaster() ? unitLength() : 1),
@@ -183,9 +189,11 @@
             if (event.ctrlKey || event.shiftKey) {   // reference / measure: scan (and index on a raster)
                 const which = event.shiftKey ? 'meas' : 'ref';
                 setCursors({ [`s_${which}`]: x, ...(isRaster() ? { [`i_${which}`]: y } : {}) });
+                select({ kind: 'cursor', key: `s_${which}` });
                 return;
             }
             if (!inside) return;
+            select({ kind: 'scan' });
             if (column !== state.scan) setScan(column);
             if (row !== state.lateral) setLateral(row);
         },
@@ -202,14 +210,17 @@
     });
     const bview = new ImageView($('bscan-stage'), {
         formatX: x => format(x, true), formatY: y => format(y, true), xUnit: unitLength, yUnit: unitLength,
+        onWheel: e => wheelSelected(e, bview),
         onPick: ({ x, y, event }) => {
             const [column] = cscanCell(x, 0);
             const inside = column >= 0 && column < currentGroup().shape[0];
             if (event.ctrlKey || event.shiftKey) {   // reference / measure: scan and depth
                 const which = event.shiftKey ? 'meas' : 'ref';
                 setCursors({ [`s_${which}`]: x, [`u_${which}`]: y });
+                select({ kind: 'cursor', key: `s_${which}` });
                 return;
             }
+            select({ kind: 'scan' });
             if (inside && column !== state.scan) setScan(column);
         },
         onHover: (x, y) => { $('bscan-readout').textContent = x === null ? '' : `Scan ${format(x)} · depth ${format(y)}`; },
@@ -217,6 +228,61 @@
     // Zoom bars under and beside each view: each axis zoomed and moved on its own (the wheel zooms both)
     for (const [view, name] of [[sscan, 'sscan'], [ascan, 'ascan'], [cview, 'cscan'], [bview, 'bscan']]) {
         ZoomBars.attach(view, $(`${name}-zoom-x`), $(`${name}-zoom-y`));
+    }
+
+    // ── the selected cursor / gate: the wheel moves it a step a notch (Shift: 10), Ctrl+wheel zooms ──
+    /** {kind: 'cursor', key: 'u_ref' ...} | {kind: 'scan'} | {kind: 'lateral'} | {kind: 'gate', view, letter, part, line} | null */
+    function select(selected) {
+        state.selected = selected;
+        sscan.setSelected(selected);
+        ascan.setSelected(selected);
+        linkCursors();
+    }
+    const selectedIs = (kind, key) => state.selected?.kind === kind && (key === undefined || state.selected.key === key);
+    /** A view's wheel: moves the selection and returns true, or false (nothing selected: the view zooms). */
+    function wheelSelected(e, view) {
+        if (!state.selected || !state.info) return false;
+        const delta = e.deltaY || e.deltaX;   // Shift+wheel comes as deltaX
+        if (delta) nudge(Math.sign(delta) * (e.shiftKey ? 10 : 1), view);
+        return true;
+    }
+    /** Data steps a notch moves a cursor or gate: about 1/200 of what `view` shows along `axis`, at least one. */
+    function perNotch(view, axis, step) {
+        const r = view?.axisRange?.(axis);
+        return r && step ? Math.max(1, Math.round(Math.abs(r.shown[1] - r.shown[0]) / 200 / step)) : 1;
+    }
+    /** One step of a cursor along its axis: a sample's depth (u), a scan line (s), an index step (i). */
+    function cursorStep(axis) {
+        const g = currentGroup(), r = g.rays[state.lateral];
+        if (axis === 's') return Math.abs(g.axes[0].resolution);
+        if (axis === 'i') return isRaster() ? Math.abs(g.axes[1].resolution) : r.sp_step * (Math.abs(r.dv) || 1);
+        return r.sp_step * (Math.abs(r.dz) || 1);
+    }
+    /** Move the selection `steps` notches; `view` is the one wheeled (its zoom sets a cursor's or gate's step). */
+    function nudge(steps, view) {
+        const sel = state.selected, g = currentGroup();
+        if (!g) return;
+        if (sel.kind === 'scan') { setScan(state.scan + steps); return; }
+        if (sel.kind === 'lateral') { setLateral(state.lateral + steps); return; }
+        if (sel.kind === 'cursor') {
+            const value = state.cursors[sel.key], axis = sel.key[0], step = cursorStep(axis);
+            // The view's axis it runs along: the A-scan's is across; depth is down; scan across; index across (C-scan: down)
+            const along = view === ascan ? 'x' : axis === 'u' ? 'y' : axis === 's' ? 'x' : view === cview ? 'y' : 'x';
+            if (has(value)) setCursors({ [sel.key]: value + steps * perNotch(view, along, step) * step });
+            return;
+        }
+        if (sel.kind !== 'gate' || !gateByLetter(sel.letter)) return;
+        gateSnapshot = structuredClone(gateByLetter(sel.letter));   // the drags work from a snapshot
+        const ray = g.rays[sel.line ?? state.lateral];
+        if (sel.view === 'sscan') {
+            const r = ray, sp = steps * perNotch(sscan, 'y', r.sp_step * (Math.abs(r.dz) || 1)) * r.sp_step;
+            dragGateOnSscan(sel.letter, sel.part, { dx: sp, dy: sp * (Math.abs(r.dz) || 1), dsp: sp, line: sel.line });
+            loadFrameGates();
+        } else {
+            const sample = ray.sp_step * (ascan.axis === 'depth' ? Math.abs(ray.dz) || 1 : 1);   // a sample along the A-scan
+            dragGateOnAscan(sel.letter, { part: sel.part, dt: steps * perNotch(ascan, 'x', sample) * g.axes[2].resolution });
+        }
+        gateSnapshot = null;
     }
 
     // ── per file / group memory ──
@@ -670,17 +736,21 @@
     function linkCursors() {
         if (!state.info) return;
         const c = state.cursors;
-        const index = isRaster() ? [{ value: c.i_ref, colour: '#f87171' }, { value: c.i_meas, colour: '#4ade80' }] : [];
-        const scanLines = [{ value: c.s_ref, colour: '#f87171' }, { value: c.s_meas, colour: '#4ade80' },
-                           { value: scanPosition(state.scan), colour: CURSOR }];
+        const wide = on => (on ? 2.5 : 1);
+        const index = isRaster() ? [{ value: c.i_ref, colour: '#f87171', width: wide(selectedIs('cursor', 'i_ref')) },
+                                    { value: c.i_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 'i_meas')) }] : [];
+        const scanLines = [{ value: c.s_ref, colour: '#f87171', width: wide(selectedIs('cursor', 's_ref')) },
+                           { value: c.s_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 's_meas')) },
+                           { value: scanPosition(state.scan), colour: CURSOR, width: wide(selectedIs('scan')) }];
         const z = zoneBox();
         const saved = (state.indications || []).filter(i => i.group === state.group && i.status !== 'rejected')
             .map(i => ({ x: scanPosition(i.scan), y: lineY(i.lateral), label: `#${i.number}`,
                          colour: i.status === 'unreviewed' ? '#f59e0b' : '#f472b6' }));
-        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR }, ...index], contour: state.contour,
+        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR, width: wide(selectedIs('lateral')) }, ...index], contour: state.contour,
                            box: reviewBox() || (z ? z.box : null), marks: [...(z?.mark ? [z.mark] : []), ...saved] });
         drawEcho();
-        bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171' }, { value: c.u_meas, colour: '#4ade80' }] });
+        bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171', width: wide(selectedIs('cursor', 'u_ref')) },
+                                             { value: c.u_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 'u_meas')) }] });
     }
 
     // ── whole-file views ──
@@ -1513,6 +1583,7 @@
         if (e.button !== 0 || !state.cscan) return;
         echo.setPointerCapture(e.pointerId);
         echoDrag = echoEnd(e);
+        select(echoDrag ? { kind: 'cursor', key: echoDrag } : { kind: 'scan' });
         if (echoDrag) return;
         const [column] = cscanCell(echoScan(e), 0);
         if (column >= 0 && column < state.cscan.scans && column !== state.scan) setScan(column);
@@ -2348,7 +2419,11 @@
         const always = {   // with or without a file open
             o: () => { shell.open('files'); fileFilter.focus(); }, O: () => { shell.open('files'); fileFilter.focus(); },
             r: shell.toggleReadings, R: shell.toggleReadings, '?': () => toggleHelp(),
-            Escape: () => { if (!$('help-panel').hidden) toggleHelp(false); else shell.close(); },
+            Escape: () => {
+                if (!$('help-panel').hidden) toggleHelp(false);
+                else if (state.selected) select(null);
+                else shell.close();
+            },
         };
         if (always[e.key]) { e.preventDefault(); always[e.key](); return; }
         if (!state.info) return;
