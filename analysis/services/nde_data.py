@@ -76,6 +76,9 @@ class Gate:
     float_db: float = None           # dB the height may move; None = a fixed gate
     float_ref: float = 80.0          # % the threshold was set against (the page's reference level)
     float_floor: float = 0.0         # %
+    # Where the gate measures from (its position readings, thicknesses and depth / thickness C-scans):
+    # 'edge' - the threshold crossing; 'peak' - the first peak after it; 'maxpeak' - the highest sample
+    detection: str = 'edge'
 
 
 @dataclass

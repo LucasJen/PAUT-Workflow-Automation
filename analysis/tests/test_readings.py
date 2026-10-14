@@ -1,5 +1,6 @@
 import math
 import glob
+from dataclasses import replace
 import json
 import os
 import shutil
@@ -34,6 +35,25 @@ class GateTests(SimpleTestCase):
         for i, percent in echoes.items():
             a[i] = percent
         return np.round(a * self.raw_per_percent).astype(np.int16)
+
+    def test_detection_edge_first_peak_or_max_peak(self):
+        # Rises through 20 % at sample 100, first peak at 102 (60 %), the highest at 120 (90 %)
+        echoes = {100: 30.0, 101: 50.0, 102: 60.0, 103: 40.0, 120: 90.0}
+        at = lambda i: -1e-6 + i * 2e-8
+        from analysis.services.geometry import sample_times
+        from analysis.services.projections import gates_block
+        raw = self.ascan(echoes)
+        times = sample_times(self.group, self.beam, 400)
+        for detection, sample in (('edge', 100), ('peak', 102), ('maxpeak', 120)):
+            gates = [Gate(0, 'Gate A', start=0.0, length=6e-6, threshold=20.0, detection=detection)]
+            a = evaluate_gates(self.group, self.beam, raw, gates)['A']
+            self.assertAlmostEqual(a.position_time, at(sample), msg=detection)
+            self.assertAlmostEqual(a.amplitude, 90.0, places=1)     # the amplitude is always the gate's highest
+            block = gates_block(self.group, raw[None, :], gates, times[None, :])['A']   # the C-scan's the same
+            self.assertAlmostEqual(float(block['position_time'][0]), at(sample), msg=detection)
+        # No crossing: no position, whatever the detection
+        gates = [Gate(0, 'Gate A', start=0.0, length=6e-6, threshold=95.0, detection='peak')]
+        self.assertIsNone(evaluate_gates(self.group, self.beam, raw, gates)['A'].position_time)
 
     def test_crossing_is_the_first_whole_sample_at_or_above_threshold(self):
         gates = [Gate(0, 'Gate A', start=0.0, length=6e-6, threshold=20.0)]
@@ -144,9 +164,12 @@ class OmniPCReadingsTests(SimpleTestCase):
             for point in spec['points']:
                 lateral = point.get('index', point.get('beam'))
                 beam = group.beams[lateral]
-                results = evaluate_gates(group, beam, read_ascan(path, group, point['scan'], lateral))
+                raw = read_ascan(path, group, point['scan'], lateral)
+                # OmniPC's readings name their detection: ^ the gate's max peak, / its edge (crossing)
+                by_edge = evaluate_gates(group, beam, raw, [replace(g, detection='edge') for g in group.gates])
+                by_peak = evaluate_gates(group, beam, raw, [replace(g, detection='maxpeak') for g in group.gates])
                 for name, expected in point['expected'].items():
-                    value = omnipc_reading(name, results, beam, info)
+                    value = omnipc_reading(name, by_peak if '^' in name else by_edge, beam, info)
                     if '%' not in name:
                         value /= to_unit
                     with self.subTest(fixture=os.path.basename(fixture), reading=name):

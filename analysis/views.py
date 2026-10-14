@@ -132,6 +132,9 @@ def frame(request):
     return response
 
 
+DETECTIONS = ('edge', 'peak', 'maxpeak')
+
+
 def _gates(request, group):
     """The file's gates, or the editor's own (?gates= JSON list, SI: start / length in s from the
     pulse or from the sync gate's crossing, threshold in %; a TrueDepth gate's depth_start / depth_end
@@ -165,7 +168,8 @@ def _gates(request, group):
                 sync_mode='GateRelative' if sync is not None else 'Pulse',
                 sync_gate=int(sync) if sync is not None else None,
                 trigger='MaxPeak' if item.get('trigger') == 'MaxPeak' else 'Crossing',
-                geometry=geometry, **extra,
+                geometry=geometry, detection=item.get('detection') if item.get('detection') in DETECTIONS else 'edge',
+                **extra,
             )
             if gate.length <= 0 or not 0 <= gate.threshold <= 1000:
                 raise ValueError
@@ -264,9 +268,8 @@ def cscan(request):
     if kind == 'amplitude':
         values = data[f'{letter}_amplitude']
     elif kind == 'depth':
-        # The peak only counts where the signal broke the gate (like SA^ / DA^)
-        peak = np.where(np.isnan(data[f'{letter}_crossing_time']), np.nan, data[f'{letter}_peak_time'])
-        depth = velocity * peak / 2 * cos
+        # The gate's position (its edge / peak / max peak - NaN where the signal didn't break it)
+        depth = velocity * data[f'{letter}_position_time'] / 2 * cos
         thickness = info.specimen.get('thickness')
         if thickness:
             leg = np.floor(depth / thickness)
@@ -275,9 +278,9 @@ def cscan(request):
         values = depth
     elif kind == 'thickness':
         other = request.GET.get('from', 'A').upper()
-        if f'{other}_crossing_time' not in data:
+        if f'{other}_position_time' not in data:
             return _error(f'There is no gate {other}.')
-        values = velocity * (data[f'{letter}_crossing_time'] - data[f'{other}_crossing_time']) / 2 * cos
+        values = velocity * (data[f'{letter}_position_time'] - data[f'{other}_position_time']) / 2 * cos
     else:
         return _error('Unknown C-scan kind.')
     values = np.asarray(values, dtype='<f4')

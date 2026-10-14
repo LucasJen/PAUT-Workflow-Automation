@@ -49,6 +49,7 @@ class GateResult:
     amplitude: float = None     # highest sample in the gate (dataset unit, e.g. %)
     peak_time: float = None     # s, time of that sample (first one, if repeated)
     crossing_time: float = None  # s, first sample at or above the threshold; None = no crossing
+    position_time: float = None  # s, where the gate measures from (its detection: edge / peak / max peak)
     threshold: float = 0.0      # a floating gate: its height on this A-scan (None: peak under the floor)
     band: tuple = None          # a floating gate: (lowest, highest) height it may float to
 
@@ -147,7 +148,7 @@ def evaluate_gates(group, beam, raw, gates=None):
             # The interface gate of an A-scan re-timed to it: its crossing is the time origin
             by_id[gate.id] = results[letter] = GateResult(
                 letter, True, start=gate.start, end=gate.start + gate.length, crossing_time=0.0,
-                peak_time=0.0, threshold=gate.threshold)
+                peak_time=0.0, position_time=0.0, threshold=gate.threshold)
             continue
         else:
             window = gate_window(gate, beam, group)
@@ -175,8 +176,18 @@ def evaluate_gates(group, beam, raw, gates=None):
             over = np.nonzero(window >= level)[0] if level is not None else []
             if len(over):
                 result.crossing_time = float(times[inside[over[0]]])
+                at = {'edge': over[0], 'maxpeak': top}.get(gate.detection)
+                if at is None:   # 'peak': the first peak after the crossing (where the signal stops rising)
+                    at = first_peak(window, over[0])
+                result.position_time = float(times[inside[at]])
         by_id[gate.id] = results[letter] = result
     return results
+
+
+def first_peak(window, start):
+    """Index of the first peak in `window` from `start`: the last sample before it falls (or the gate ends)."""
+    falls = np.nonzero(np.diff(window[start:]) < 0)[0]
+    return int(start + falls[0]) if len(falls) else len(window) - 1
 
 
 def depth_between(beam, t1, t2):
@@ -202,17 +213,18 @@ def omnipc_reading(name, results, beam, info=None):
     """
     The value of an OmniPC reading by its name, from evaluated gates: X% (gate X's amplitude, %),
     X/-Y/ and T(X/-Y/) (true depth between gate Y's and gate X's crossings, m), SX^ / DX^ / ViX^ /
-    PX^ (gate X's peak: sound path, depth, index position, from the probe; m - DX^ and PX^ need
-    `info`, the FileInfo, for the thickness and probe position). None when the gates involved found
-    nothing; KeyError for a reading not worked out yet.
+    PX^ (gate X's position: sound path, depth, index position, from the probe; m - DX^ and PX^ need
+    `info`, the FileInfo, for the thickness and probe position). A gate's position is where its
+    detection puts it - edge, first peak or max peak (OmniPC's ^ readings are its max peak). None when
+    the gates involved found nothing; KeyError for a reading not worked out yet.
     """
     match = _PEAK.match(name)
     if match:
         gate = results.get(match.group(2))
-        if not (gate and gate.found and gate.peak_time is not None and gate.crossed):
-            return None   # the peak only counts when the signal breaks the gate
+        if not (gate and gate.found and gate.position_time is not None and gate.crossed):
+            return None   # the position only counts when the signal breaks the gate
         thickness = (info.specimen.get('thickness') if info else None)
-        sp, depth, _, index = peak_position(beam, gate.peak_time, thickness)
+        sp, depth, _, index = peak_position(beam, gate.position_time, thickness)
         kind = match.group(1)
         if kind == 'P':
             return index - (info.probe.get('v_offset', 0.0) if info else 0.0)
@@ -226,5 +238,5 @@ def omnipc_reading(name, results, beam, info=None):
         later, earlier = results.get(match.group(1)), results.get(match.group(2))
         if not (later and earlier and later.crossed and earlier.crossed):
             return None
-        return depth_between(beam, earlier.crossing_time, later.crossing_time)
+        return depth_between(beam, earlier.position_time, later.position_time)
     raise KeyError(name)

@@ -162,8 +162,8 @@ class SizeIndicationTests(SimpleTestCase):
         self.assertAlmostEqual(r['thickness'], 0.0125)
         # The axial position is the peak's PA^, as the readings give it
         raw, _ = __import__('analysis.services.nde_data', fromlist=['read_frame']).read_frame(path, group, 8)
-        results = evaluate_gates(group, beam, raw[1], group.gates)
-        self.assertAlmostEqual(r['axial'], omnipc_reading('PA^', results, beam, info), places=9)
+        results = evaluate_gates(group, beam, raw[1], [__import__('dataclasses').replace(g, detection='maxpeak') for g in group.gates])
+        self.assertAlmostEqual(r['axial'], omnipc_reading('PA^', results, beam, info), places=9)   # the max peak's
         self.assertAlmostEqual(r['peak_depth'], omnipc_reading('DA^', results, beam, info), places=9)
         self.assertLessEqual(r['axial_start'], r['axial'])
         self.assertGreaterEqual(r['axial_end'], r['axial'])
