@@ -197,7 +197,7 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
    view columns, --side the readings column, --r1 / --r2 the rows. */
 .analysis-grid {
     position: relative; display: grid; gap: 0.4rem; height: 100%; min-height: 20rem;
-    grid-template-columns: minmax(0, var(--c1, 1.2fr)) minmax(0, var(--c2, 1fr)) var(--side, 16rem);
+    grid-template-columns: minmax(0, var(--c1, 1.2fr)) minmax(0, var(--c2, 1fr)) var(--side, 9rem);
     grid-template-rows: minmax(0, 1fr);
     grid-template-areas: "s a r";
 }
@@ -208,10 +208,11 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
 }
 .analysis-panel-head {
-    display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; min-height: 1.95rem;
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.05rem 0.35rem; min-height: 1.6rem;
     font-size: 0.8125rem; font-weight: 600; border-bottom: 1px solid var(--border); background: var(--surface-2);
 }
 .analysis-panel-head > span:first-child { white-space: nowrap; }
+.analysis-panel-head .btn { padding: 0 0.3rem; line-height: 1.35; }
 .analysis-panel-note { font-weight: 400; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .analysis-help { color: var(--text-3); cursor: help; }
 .analysis-stage { position: relative; flex: 1 1 auto; min-height: 0; background: #0b0d11; }
@@ -248,13 +249,13 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 
 /* Readings column */
 .analysis-readings-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
-.analysis-reading-list { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.75rem; margin: 0; padding: 0.5rem 0.65rem; font-size: 0.875rem; }
-.analysis-reading-list dt { font-weight: 600; color: var(--text-2); cursor: help; }
-.analysis-reading-list dd { margin: 0; text-align: right; }
+.analysis-reading-list { display: flex; flex-direction: column; margin: 0; padding: 0.35rem 0.55rem; font-size: 0.875rem; }
+.analysis-reading-list dt { font-size: 0.6875rem; font-weight: 600; color: var(--text-3); cursor: help; line-height: 1.2; }
+.analysis-reading-list dd { margin: 0 0 0.3rem; line-height: 1.25; }
 .analysis-reading-section { grid-column: 1 / -1; margin-top: 0.4rem; font-size: 0.6875rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
 .analysis-sizing { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.5rem 0.55rem; border-top: 1px solid var(--border); }
-.analysis-sizing-row { display: flex; gap: 0.3rem; }
-.analysis-sizing-row > * { flex: 1 1 0; min-width: 0; }
+.analysis-sizing-row { display: flex; flex-direction: column; gap: 0.3rem; }
+.analysis-sizing-row > * { flex: 0 0 auto; min-width: 0; }
 .analysis-sizing .form-select { font-size: 0.75rem; padding: 0.15rem 1.4rem 0.15rem 0.4rem; }
 .analysis-sizing .analysis-note:empty { display: none; }
 .analysis-file-details { margin: 0; padding: 0.35rem 0.65rem 0.45rem; font-size: 0.6875rem; color: var(--text-3); border-top: 1px solid var(--border); }
@@ -278,10 +279,11 @@ body.analysis-resizing { user-select: none; }
 .analysis-splitter[hidden] { display: none; }
 
 /* Keys and mouse help */
-.analysis-help-panel { position: absolute; z-index: 20; right: 1rem; top: 0.75rem; width: min(46rem, calc(100% - 2rem)); padding: 0.75rem 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+.analysis-help-panel { position: absolute; z-index: 20; right: 1rem; top: 0.75rem; width: min(46rem, calc(100% - 2rem)); max-height: calc(100% - 1.5rem); overflow: auto; padding: 0.75rem 1rem; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
 .analysis-help-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
 .analysis-help-cols { display: grid; grid-template-columns: 1fr 1.3fr; gap: 1.25rem; }
 .analysis-help-cols dl { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; margin: 0; font-size: 0.8125rem; }
+.analysis-help-cols dl:nth-child(3) { grid-column: 1 / -1; }
 .analysis-help-cols dt { font-weight: 600; white-space: nowrap; }
 .analysis-help-cols dd { margin: 0; color: var(--text-2); }
 

@@ -4,7 +4,7 @@
 // in this browser. The views redraw themselves when their panels change size (ResizeObserver).
 
 window.AnalysisLayout = (function () {
-    const MIN_VIEW = 160, MIN_SIDE = 200, MAX_SIDE = 520, MIN_ROW = 120;
+    const MIN_VIEW = 160, MIN_SIDE = 120, MAX_SIDE = 520, MIN_ROW = 120;
 
     function tracks(value) {
         return value.split(' ').map(parseFloat).filter(Number.isFinite);

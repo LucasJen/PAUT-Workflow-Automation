@@ -615,11 +615,6 @@
         const n = state.frame.samples;
         ascan.set({ values: state.values.subarray(lateral * n, (lateral + 1) * n), ray: g.rays[lateral],
                     period: g.axes[2].resolution, gates: null, cursors: ascanCursors() });
-        const beam = g.beams[lateral];
-        $('ascan-label').textContent = g.layout === 'beams'
-            ? `Beam ${lateral + 1} of ${g.shape[1]} · ${beam.refracted_angle}°`
-            : `Index line ${lateral + 1} of ${g.shape[1]} · ${format(beam.v_offset)}`;
-        $('sscan-label').textContent = `Scan line ${state.scan + 1}`;
         renderGates();   // its lengths use this beam's velocity
         remember();
         scheduleReadings();
@@ -821,7 +816,6 @@
                     y0: (ray.sp_start + (factor - 1) / 2 * ray.sp_step) * ray.dz, dy: factor * ray.sp_step * ray.dz },
         });
         bview.setGain(state.gain);
-        $('bscan-label').textContent = g.layout === 'beams' ? `Beam ${line + 1} · ${g.beams[line].refracted_angle}°` : `Index line ${line + 1}`;
         linkCursors();
     }
 
