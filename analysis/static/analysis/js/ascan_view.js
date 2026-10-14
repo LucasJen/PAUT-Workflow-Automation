@@ -3,15 +3,18 @@
 // the beam. Gates come from the server's readings (where they really were placed, after synced gates
 // moved them) and are drawn as bars at their thresholds with marks at the crossing and the peak.
 //
+// A floating gate's bar sits at its height on this A-scan, with the band it may float in shaded.
 // Editing: drag a gate's bar to move it (and up / down for its threshold), its ends to change its
 // start or width. Reference (red) and measure (green) ultrasound cursors: click to put the reference
 // there, Shift+click the measure; drag either line. Cursors are kept as true depth (m).
-// Scroll to zoom along the axis at the pointer, right-drag to pan, double-click to see it all.
+// Scroll to zoom along the axis at the pointer, right-drag to pan, double-click to see it all; the
+// zoom bars (bottom: along the beam; side: the amplitude) zoom and move each axis on its own.
 
 window.AScanView = (function () {
     const GATE_COLOURS = { I: '#facc15', A: '#ef4444', B: '#22c55e' };
     const CURSOR_COLOURS = { ref: '#f87171', meas: '#4ade80' };
     const GRAB = 6;   // px
+    const MAX_ZOOM = 200;   // times the whole A-scan
 
     class AScanView {
         /** options: {format(m, short), unitLength(), onHover(text), onGateDragStart(letter),
@@ -24,6 +27,7 @@ window.AScanView = (function () {
             this.axis = 'depth';     // depth (true depth) or path (sound path)
             this.cursors = { ref: null, meas: null };
             this.zoom = null;   // [from, to] along the axis (m), or null for all of it
+            this.amp = [0, 100];   // the amplitudes shown, bottom to top (%)
             this.bind();
             new ResizeObserver(() => this.draw()).observe(stage);
         }
@@ -40,6 +44,8 @@ window.AScanView = (function () {
         }
 
         setGain(db) { this.gain = Math.pow(10, db / 20); this.draw(); }
+        /** The selected item, drawn thicker: {kind: 'cursor', key: 'u_ref' | 'u_meas'} | {kind: 'gate', letter} | null. */
+        setSelected(selected) { this.selected = selected; this.draw(); }
         setAxis(axis) { this.axis = axis; this.draw(); }
         /** The part's thickness (m) for the leg lines (T, 2T, ... in depth), or null for none. */
         setLegs(thickness) { this.legs = thickness || null; this.draw(); }
@@ -71,16 +77,18 @@ window.AScanView = (function () {
 
         frame() {
             const ratio = window.devicePixelRatio || 1;
-            const left = 40 * ratio, bottom = 20 * ratio, top = 8 * ratio, right = 10 * ratio;
+            // The plot spans the whole width (amplitudes labelled over it), so a rotated S-scan above lines up with it
+            const left = 0, bottom = 20 * ratio, top = 8 * ratio, right = 0;
             const w = this.canvas.width, h = this.canvas.height;
             const full0 = this.along(-0.5), full1 = this.along(this.values.length - 0.5);
             const [x0, x1] = this.zoom || [full0, full1];
+            const [lo, hi] = this.amp;
             return {
-                ratio, left, bottom, top, right, w, h, x0, x1, full0, full1,
+                ratio, left, bottom, top, right, w, h, x0, x1, full0, full1, lo, hi,
                 sx: x => left + (x - x0) / (x1 - x0) * (w - left - right),
-                sy: p => h - bottom - Math.min(p, 100) / 100 * (h - bottom - top),
+                sy: p => h - bottom - (Math.min(Math.max(p, lo), hi) - lo) / (hi - lo) * (h - bottom - top),
                 fromX: px => x0 + (px - left) / (w - left - right) * (x1 - x0),
-                fromY: py => (h - bottom - py) / (h - bottom - top) * 100,
+                fromY: py => lo + (h - bottom - py) / (h - bottom - top) * (hi - lo),
             };
         }
 
@@ -96,10 +104,11 @@ window.AScanView = (function () {
             ctx.strokeStyle = 'rgba(148,163,184,0.18)';
             ctx.fillStyle = '#94a3b8';
             ctx.lineWidth = ratio;
-            for (let p = 0; p <= 100; p += 20) {
+            const pStep = [0.5, 1, 2, 2.5, 5, 10, 20].find(s => s >= (f.hi - f.lo) / 5.01) || 20;
+            for (let p = Math.ceil(f.lo / pStep - 1e-9) * pStep; p <= f.hi + 1e-9; p += pStep) {
                 const y = f.sy(p);
                 ctx.beginPath(); ctx.moveTo(f.left, y); ctx.lineTo(w - f.right, y); ctx.stroke();
-                ctx.fillText(`${p}`, 6 * ratio, y + 4 * ratio);
+                ctx.fillText(`${+p.toFixed(1)}`, 4 * ratio, p === f.lo ? y - 3 * ratio : y + 11 * ratio);   // over the plot, under its line (the bottom one above)
             }
             const unit = this.options.unitLength();
             const span = (f.x1 - f.x0) / unit;
@@ -134,7 +143,7 @@ window.AScanView = (function () {
                 const x = f.sx(this.depthToAlong(depth));
                 if (x < f.left || x > w - f.right) continue;
                 ctx.strokeStyle = ctx.fillStyle = CURSOR_COLOURS[which];
-                ctx.lineWidth = ratio;
+                ctx.lineWidth = (this.selected?.kind === 'cursor' && this.selected.key === `u_${which}` ? 2.5 : 1) * ratio;
                 ctx.beginPath(); ctx.moveTo(x, f.top); ctx.lineTo(x, h - f.bottom); ctx.stroke();
                 ctx.fillText(this.options.format(this.depthToAlong(depth), 'value'), x + 3 * ratio, f.top + 10 * ratio);
             }
@@ -144,13 +153,26 @@ window.AScanView = (function () {
                 const colour = GATE_COLOURS[letter] || '#e2e8f0';
                 ctx.strokeStyle = colour;
                 ctx.fillStyle = colour;
-                ctx.lineWidth = 2 * ratio;
-                const y = f.sy(gate.threshold);
+                ctx.lineWidth = (this.selected?.kind === 'gate' && this.selected.letter === letter ? 3.5 : 2) * ratio;
+                // A floating gate: drawn at its height on this A-scan, over a faint band of the heights it
+                // may float to; dashed at the bottom of the band when the peak is under its floor
+                const under = gate.band && (gate.threshold === null || gate.threshold === undefined);
+                const y = f.sy(under ? gate.band[0] : gate.threshold);
                 const a = f.sx(this.timeToAlong(gate.start)), b = f.sx(this.timeToAlong(gate.end));
                 this.gateBars.push({ letter, a, b, y });
                 const ca = Math.max(f.left, a), cb = Math.min(w - f.right, b);
                 if (cb > ca) {
+                    if (gate.band) {
+                        const y0 = f.sy(gate.band[0]), y1 = f.sy(gate.band[1]);
+                        ctx.save();
+                        ctx.globalAlpha = 0.14;
+                        ctx.fillRect(ca, Math.min(y0, y1), cb - ca, Math.abs(y0 - y1));
+                        ctx.restore();
+                    }
+                    ctx.save();
+                    if (under) ctx.setLineDash([5 * ratio, 4 * ratio]);
                     ctx.beginPath(); ctx.moveTo(ca, y); ctx.lineTo(cb, y); ctx.stroke();
+                    ctx.restore();
                     ctx.fillText(letter, ca + 3 * ratio, y - 4 * ratio);
                     for (const end of [a, b]) {   // end ticks: grab them to change the start / width
                         if (end >= f.left && end <= w - f.right) {
@@ -188,7 +210,29 @@ window.AScanView = (function () {
             ctx.restore();
         }
 
-        resetZoom() { this.zoom = null; this.draw(); }
+        resetZoom() { this.zoom = null; this.amp = [0, 100]; this.draw(); this.options.onViewChange?.(this); }
+        maxZoom() { return MAX_ZOOM; }
+
+        /** The full and shown stretch of an axis, for the zoom bars: 'x' along the beam (m), 'y' the
+         *  amplitude (%, highest at the top: flip). */
+        axisRange(axis) {
+            if (axis === 'y') return { full: [0, 100], shown: [...this.amp], flip: true };
+            if (!this.values || !this.ray) return null;
+            const f = this.frame();
+            return { full: [f.full0, f.full1], shown: [f.x0, f.x1] };
+        }
+
+        setAxisRange(axis, [a, b]) {
+            if (axis === 'y') {
+                this.amp = [Math.max(0, a), Math.min(100, b)];
+            } else {
+                if (!this.values || !this.ray) return;
+                const f = this.frame();
+                this.zoom = b - a >= f.full1 - f.full0 - 1e-12 ? null : [Math.max(f.full0, a), Math.min(f.full1, b)];
+            }
+            this.draw();
+            this.options.onViewChange?.(this);
+        }
 
         // ── pointer ──
         point(e) {
@@ -221,15 +265,17 @@ window.AScanView = (function () {
             c.addEventListener('wheel', e => {
                 if (!this.values || !this.ray) return;
                 e.preventDefault();
+                if (!e.ctrlKey && this.options.onWheel?.(e)) return;   // moved the selection instead (Ctrl+wheel zooms)
                 const f = this.frame();
                 const [px] = this.point(e);
                 const at = f.fromX(px);
                 const k = Math.exp(e.deltaY * 0.0015);
-                const span = Math.min(f.full1 - f.full0, Math.max((f.x1 - f.x0) * k, (f.full1 - f.full0) / 200));
+                const span = Math.min(f.full1 - f.full0, Math.max((f.x1 - f.x0) * k, (f.full1 - f.full0) / MAX_ZOOM));
                 let a = at - (at - f.x0) / (f.x1 - f.x0) * span;
                 a = Math.max(f.full0, Math.min(f.full1 - span, a));
                 this.zoom = span >= f.full1 - f.full0 - 1e-12 ? null : [a, a + span];
                 this.draw();
+                this.options.onViewChange?.(this);
             }, { passive: false });
             c.addEventListener('pointerdown', e => {
                 if ((e.button === 2 || e.button === 1) && this.values && this.zoom) {
@@ -244,12 +290,15 @@ window.AScanView = (function () {
                 c.setPointerCapture(e.pointerId);
                 if (hit?.kind === 'gate') {
                     drag = { ...hit, x: f.fromX(px) };
+                    this.options.onSelect?.({ kind: 'gate', view: 'ascan', letter: hit.letter, part: hit.part });
                     this.options.onGateDragStart?.(hit.letter);
                 } else if (hit?.kind === 'cursor') {
                     drag = hit;
+                    this.options.onSelect?.({ kind: 'cursor', key: `u_${hit.which}` });
                 } else {
                     const which = e.shiftKey ? 'meas' : 'ref';
                     this.options.onCursor?.(which, this.alongToDepth(f.fromX(px)));
+                    this.options.onSelect?.({ kind: 'cursor', key: `u_${which}` });
                     drag = { kind: 'cursor', which };
                 }
             });
@@ -270,6 +319,7 @@ window.AScanView = (function () {
                     const lo = Math.max(f.full0, Math.min(f.full1 - span, drag.zoom[0] + shift));
                     this.zoom = [lo, lo + span];
                     this.draw();
+                    this.options.onViewChange?.(this);
                     return;
                 }
                 if (drag.kind === 'cursor') {

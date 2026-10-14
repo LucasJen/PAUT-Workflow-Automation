@@ -2,13 +2,15 @@
 // data is a texture of values; the shader maps them through the amplitude palette (with soft gain)
 // or a thickness / depth palette over a min-max range, NaN shown as no data. A 2D overlay canvas
 // draws the axes and the linked cursors. Stretched to fill the panel; scroll to zoom at the pointer,
-// right-drag to pan, double-click to fit. Click or drag reports the cell under the pointer.
+// right-drag to pan, double-click to fit. Click or drag reports the cell under the pointer; Alt+drag
+// draws a box (onBox) for contour sizing, kept on show as cursors.contour.
 //
 // Columns run along x and rows along y: x = x0 + column * dx, y = y0 + row * dy (y down). The data
 // array is row-major [outer][inner]; `transpose` says the outer index is the column (a C-scan's
 // [scan][line] with scan across). No data (NaN) goes up as a large negative number.
 
 window.ImageView = (function () {
+    const MAX_ZOOM = 200;   // times the fitted view
     const VERTEX = `#version 300 es
 in vec2 aPos;
 in vec2 aTex;
@@ -47,7 +49,8 @@ void main() {
     }
 
     class ImageView {
-        /** options: {formatX(v), formatY(v), onPick({column, row, x, y, event}), unitLength()} */
+        /** options: {formatX(v), formatY(v), onPick({column, row, x, y, event}), unitLength(),
+         *  onBox({x0, y0, x1, y1}, done) - an Alt+drag box, onDraw() - after each draw} */
         constructor(stage, options) {
             this.options = options;
             this.canvas = Object.assign(document.createElement('canvas'), { className: 'analysis-gl' });
@@ -182,6 +185,24 @@ void main() {
             return [(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 1.02, (y1 - y0) * 1.04];
         }
         currentView() { return this.view || this.fitView(); }
+        maxZoom() { return MAX_ZOOM; }
+
+        /** The fitted (full) and shown stretch of an axis ('x' across, 'y' down), world units, for the zoom bars. */
+        axisRange(axis) {
+            if (!this.bounds) return null;
+            const fit = this.fitView(), v = this.currentView(), i = axis === 'x' ? 0 : 1;
+            return { full: [fit[i] - fit[i + 2] / 2, fit[i] + fit[i + 2] / 2], shown: [v[i] - v[i + 2] / 2, v[i] + v[i + 2] / 2] };
+        }
+
+        /** Show [a, b] along one axis, the other kept. */
+        setAxisRange(axis, [a, b]) {
+            if (!this.bounds) return;
+            const v = [...this.currentView()], i = axis === 'x' ? 0 : 1;
+            v[i] = (a + b) / 2; v[i + 2] = b - a;
+            this.view = v;
+            this.draw();
+            this.options.onViewChange?.(this);
+        }
 
         toWorld(e) {
             const box = this.canvas.getBoundingClientRect();
@@ -233,6 +254,7 @@ void main() {
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
             }
             this.drawOverlay();
+            this.options.onDraw?.();
         }
 
         drawOverlay() {
@@ -257,6 +279,15 @@ void main() {
                 ctx.setLineDash([6 * ratio, 4 * ratio]);
                 ctx.lineWidth = 1.5 * ratio;
                 ctx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+                ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+                ctx.restore();
+            }
+            const contour = this.cursors.contour;   // the box drawn for contour sizing: solid
+            if (contour && [contour.x0, contour.x1, contour.y0, contour.y1].every(Number.isFinite)) {
+                const [ax, ay] = this.toScreen(contour.x0, contour.y0), [bx, by] = this.toScreen(contour.x1, contour.y1);
+                ctx.save();
+                ctx.strokeStyle = '#22d3ee';
+                ctx.lineWidth = 1.5 * ratio;
                 ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
                 ctx.restore();
             }
@@ -344,36 +375,50 @@ void main() {
                 if (!this.hasImage) return;
                 el.setPointerCapture(e.pointerId);
                 if (e.button === 1 || e.button === 2) drag = { pan: true, x: e.clientX, y: e.clientY, view: this.currentView() };
-                else if (e.button === 0) { drag = { pan: false }; pick(e); }
+                else if (e.button === 0 && e.altKey && this.options.onBox) {
+                    e.preventDefault();
+                    const [x, y] = this.toWorld(e);
+                    drag = { box: { x0: x, y0: y, x1: x, y1: y } };
+                    this.options.onBox(drag.box, false);
+                } else if (e.button === 0) { drag = { pan: false }; pick(e); }
             });
             el.addEventListener('pointermove', e => {
                 if (!this.hasImage) return;
                 const [x, y] = this.toWorld(e);
                 this.options.onHover?.(x, y, this.cell([x, y]));
                 if (!drag) return;
-                if (drag.pan) {
+                if (drag.box) {
+                    drag.box.x1 = x; drag.box.y1 = y;
+                    this.options.onBox(drag.box, false);
+                } else if (drag.pan) {
                     const box = el.getBoundingClientRect();
                     const [cx, cy, w, h] = drag.view;
                     this.view = [cx - (e.clientX - drag.x) / box.width * w, cy - (e.clientY - drag.y) / box.height * h, w, h];
                     this.draw();
+                    this.options.onViewChange?.(this);
                 } else {
                     pick(e);
                 }
             });
-            const end = () => { drag = null; };
+            const end = () => {
+                if (drag?.box) this.options.onBox(drag.box, true);
+                drag = null;
+            };
             el.addEventListener('pointerup', end);
             el.addEventListener('pointercancel', end);
             el.addEventListener('pointerleave', () => this.options.onHover?.(null));
-            el.addEventListener('dblclick', () => { this.view = null; this.draw(); });
+            el.addEventListener('dblclick', () => { this.view = null; this.draw(); this.options.onViewChange?.(this); });
             el.addEventListener('wheel', e => {
                 if (!this.hasImage) return;
                 e.preventDefault();
+                if (!e.ctrlKey && this.options.onWheel?.(e)) return;   // moved the selection instead (Ctrl+wheel zooms)
                 const [px, py] = this.toWorld(e);
                 const [cx, cy, w, h] = this.currentView();
                 const fit = this.fitView();
-                const k = Math.min(Math.max(Math.exp(e.deltaY * 0.0015), fit[2] / 200 / w), fit[2] * 2 / w);
+                const k = Math.min(Math.max(Math.exp(e.deltaY * 0.0015), fit[2] / MAX_ZOOM / w), fit[2] * 2 / w);
                 this.view = [px - (px - cx) * k, py - (py - cy) * k, w * k, h * k];
                 this.draw();
+                this.options.onViewChange?.(this);
             }, { passive: false });
         }
     }

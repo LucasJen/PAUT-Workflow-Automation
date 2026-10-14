@@ -51,6 +51,15 @@ class ProjectionTests(SimpleTestCase):
         self.assert_same_as_readings(path, group, 2, gates)
         self.assert_same_as_readings(path, group, 2, gates, gain=6.0)
 
+    def test_floating_gates_match_the_readings(self):
+        path = builders.weld_file(self.folder, samples=400)
+        group = open_file(path).group(0)
+        gates = [Gate(0, 'Gate A', start=0.0, length=4e-6, threshold=20.0, float_db=6.0, float_ref=80.0, float_floor=10.0),
+                 Gate(1, 'Gate B', start=1e-7, length=2e-6, threshold=5.0, sync_mode='GateRelative', sync_gate=0)]
+        self.assert_same_as_readings(path, group, 2, gates)
+        self.assert_same_as_readings(path, group, 2, gates, gain=-12.0)
+        self.assertNotEqual(projections.gates_key(gates, 0), projections.gates_key([Gate(**{**gates[0].__dict__, 'float_db': None}), gates[1]], 0))
+
     def test_true_depth_and_box_gates_per_beam_match_the_readings(self):
         path = builders.weld_file(self.folder, samples=400)
         group = open_file(path).group(0)

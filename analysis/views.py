@@ -135,7 +135,8 @@ def frame(request):
 def _gates(request, group):
     """The file's gates, or the editor's own (?gates= JSON list, SI: start / length in s from the
     pulse or from the sync gate's crossing, threshold in %; a TrueDepth gate's depth_start / depth_end
-    and a Box gate's index_start / index_end in m - those two are always from the pulse)."""
+    and a Box gate's index_start / index_end in m - those two are always from the pulse; a floating
+    gate's float_db, float_ref and float_floor - see readings.gate_level)."""
     text = request.GET.get('gates')
     if not text:
         return group.gates
@@ -153,6 +154,11 @@ def _gates(request, group):
                     raise ValueError
                 if geometry == 'Box':
                     extra['outside'] = 'zero' if item.get('outside') == 'zero' else 'none'
+            if item.get('float_db') is not None:   # a floating gate
+                extra.update(float_db=float(item['float_db']), float_ref=float(item.get('float_ref') or 80.0),
+                             float_floor=float(item.get('float_floor') or 0.0))
+                if not (0 <= extra['float_db'] <= 40 and 1 <= extra['float_ref'] <= 1000 and 0 <= extra['float_floor'] <= 1000):
+                    raise ValueError
             gate = Gate(
                 id=int(item['id']), name=str(item.get('name') or '')[:20], start=float(item['start']),
                 length=float(item['length']), threshold=float(item['threshold']),
@@ -300,6 +306,8 @@ def size_indication(request):
     Length (along the scan) or width (along a raster's index axis) of the indication at the cursor,
     by an amplitude drop (?method=6 / 12 / 20 dB) or down to the gate threshold (?method=threshold),
     on the cached gate map; ?lines=all sizes the most of every line at each scan position.
+    ?box=scan_lo,scan_hi,line_lo,line_hi (C-scan cells): contour sizing of the strongest signal inside
+    that box (sizing.size_in_box).
     """
     try:
         path, info, group, gates, gain = _whole_file(request)
@@ -311,6 +319,19 @@ def size_indication(request):
         return JsonResponse({'error': 'Not built yet.', **projections.ensure(path, group, gates, gain)}, status=409)
     letter = request.GET.get('gate', 'A').upper()
     gate = next((g for g in gates if gate_letter(g.name) == letter), None)
+    if request.GET.get('box'):   # contour sizing: the strongest signal inside a box of C-scan cells
+        try:
+            box = [int(v) for v in request.GET['box'].split(',')]
+            if len(box) != 4:
+                raise ValueError
+        except ValueError:
+            return _error('Bad box.')
+        method = request.GET.get('method', '6')
+        try:
+            return JsonResponse(sizing.size_in_box(path, info, group, gates, data, letter, box,
+                                                   method if method in sizing.METHODS else '6', gain))
+        except (sizing.SizingError, NdeDataError) as e:
+            return _error(str(e))
     try:
         result = sizing.size_length(
             data, group, letter, scan, line, axis=request.GET.get('axis', 'scan'),
@@ -511,6 +532,33 @@ def indications(request):
         index_position=_float_or_none(data.get('index_position')), angle=_float_or_none(data.get('angle')),
         gain=_float_or_none(data.get('gain')) or 0, comment=str(data.get('comment') or '')[:2000], **dicts)
     return JsonResponse(item.as_dict(), status=201)
+
+
+# What "Clear" in the Find box removes from a group: the filters on its indications
+CLEAR_WHICH = {
+    'unreviewed': {'source': Indication.AUTO, 'status': Indication.UNREVIEWED},   # found, not reviewed yet
+    'rejected': {'status': Indication.REJECTED},                                  # rejected, found or added
+    'found': {'source': Indication.AUTO},                                         # everything found
+    'all': {},                                                                    # everything, added ones too
+}
+
+
+@require_http_methods(['POST'])
+def clear_indications(request):
+    """POST (JSON path, group, which: unreviewed / rejected / found / all): deletes those indications of
+    the file's group; returns how many and the file's indications left."""
+    try:
+        data = _json_body(request)
+        path = checked_path(data.get('path', ''))
+        group = int(data.get('group') or 0)
+        which = CLEAR_WHICH[data.get('which')]
+    except (ValueError, TypeError, PathNotAllowed) as e:
+        return _error(str(e) or "The request couldn't be read.")
+    except KeyError:
+        return _error('Clear which indications?')
+    deleted, _ = Indication.objects.filter(file_path=path, group=group, **which).delete()
+    return JsonResponse({'deleted': deleted,
+                         'indications': [i.as_dict() for i in Indication.objects.filter(file_path=path)]})
 
 
 @require_http_methods(['POST', 'DELETE'])

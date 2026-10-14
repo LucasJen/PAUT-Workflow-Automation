@@ -29,11 +29,11 @@ import numpy as np
 from django.conf import settings
 
 from .nde_data import open_file, usable
-from .readings import _order, gate_letter, gate_window
+from .readings import _order, gate_letter, gate_level, gate_window
 
 MAX_BINS = 512
 VOLUME_FULL = 200.0       # % at uint8 255
-CACHE_VERSION = 2         # bump when the rules change, so old C-scans are rebuilt
+CACHE_VERSION = 3         # bump when the rules change, so old C-scans are rebuilt
 BLOCK_SAMPLES = 4_000_000 # samples worked on at a time (~16 MB as float32; a few arrays of that)
 KEEP_CACHES = 12          # files whose caches are kept (most recently used)
 KEEP_CSCANS = 6           # C-scans kept per group (one per gate / gain setting tried)
@@ -139,7 +139,11 @@ def gates_block(group, raw, gates, times, gain=0.0):
         rows = np.arange(lines)
         amplitude = np.where(any_inside, masked[rows, top], np.nan)
         peak_time = np.where(any_inside, times[rows, top], np.nan)
-        over = inside & (amplitudes >= gate.threshold)
+        level = gate_level(gate, amplitude)
+        if gate.float_db is not None:   # per line; NaN (under the floor) never crosses
+            over = inside & (amplitudes >= np.where(np.isnan(level), np.inf, level)[:, None])
+        else:
+            over = inside & (amplitudes >= level)
         crossed = over.any(axis=1)
         first = np.argmax(over, axis=1)
         crossing_time = np.where(crossed, times[rows, first], np.nan)

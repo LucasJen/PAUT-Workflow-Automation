@@ -78,6 +78,25 @@ class GateTests(SimpleTestCase):
         with self.assertRaises(KeyError):
             omnipc_reading('TminZ', results, self.beam)
 
+    def test_a_floating_gate_keeps_its_calibrated_ratio_within_its_db(self):
+        # 20 % against an 80 % reference: a quarter of each peak, between 10 % and 40 % (+/- 6 dB)
+        gate = Gate(0, 'Gate A', start=0.0, length=6e-6, threshold=20.0, float_db=6.0, float_ref=80.0, float_floor=10.0)
+        low, high = 20.0 / 10 ** 0.3, 20.0 * 10 ** 0.3
+        for peak, level in ((80.0, 20.0), (40.0, 10.0), (20.0, low), (160.0, high), (60.0, 15.0)):
+            # a step up to the peak: 2 % floor, then a quarter of the peak, then the peak itself
+            a = evaluate_gates(self.group, self.beam, self.ascan({100: peak * 0.24, 101: peak * 0.26, 120: peak}), [gate])['A']
+            self.assertAlmostEqual(a.threshold, level, places=0, msg=peak)
+            self.assertAlmostEqual(a.band[0], low)
+            self.assertAlmostEqual(a.band[1], high)
+            crossing = 120 if peak * 0.26 < level - 0.1 else 101   # clamped low / high: crosses where the level is
+            self.assertAlmostEqual(a.crossing_time, -1e-6 + crossing * 2e-8, msg=peak)
+        # Under the floor: no crossing, no peak positions, but the amplitude still reads
+        results = evaluate_gates(self.group, self.beam, self.ascan({120: 8.0}), [gate])
+        self.assertIsNone(results['A'].threshold)
+        self.assertFalse(results['A'].crossed)
+        self.assertIsNone(omnipc_reading('SA^', results, self.beam))
+        self.assertAlmostEqual(omnipc_reading('A%', results, self.beam), 8.0, places=1)
+
     def test_gate_letters(self):
         self.assertEqual([gate_letter(n) for n in ('Gate A', 'Gate I', 'B', '')], ['A', 'I', 'B', ''])
 

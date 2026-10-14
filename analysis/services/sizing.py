@@ -239,6 +239,41 @@ def size_indication(path, info, group, gates, cscan, letter, region, method='6',
     return result
 
 
+def size_in_box(path, info, group, gates, cscan, letter, box, method='6', gain=0.0):
+    """
+    Contour sizing (UltraVision's Dropsizing): the strongest signal inside a box drawn on the C-scan -
+    box = (scan_lo, scan_hi, line_lo, line_hi), C-scan cells - sized as a found indication is (length
+    by the dB drop over the box's lines, height / depth / axial extent on the S-scan at its peak), but
+    nothing outside the box counts: the ends stop at its sides.
+    """
+    key = f'{letter}_amplitude'
+    if key not in cscan:
+        raise SizingError(f'There is no gate {letter}.')
+    amplitude = cscan[key]
+    scans, lines = amplitude.shape
+    s0, s1 = sorted((max(0, min(scans - 1, int(box[0]))), max(0, min(scans - 1, int(box[1])))))
+    l0, l1 = sorted((max(0, min(lines - 1, int(box[2]))), max(0, min(lines - 1, int(box[3])))))
+    inside = np.full(amplitude.shape, np.nan)
+    inside[s0:s1 + 1, l0:l1 + 1] = amplitude[s0:s1 + 1, l0:l1 + 1]
+    cells = np.nan_to_num(inside, nan=-1.0)
+    peak_scan, peak_line = np.unravel_index(int(np.argmax(cells)), cells.shape)
+    if cells[peak_scan, peak_line] <= 0:
+        raise SizingError(f'No gate {letter} signal inside the box.')
+    region = {'peak_scan': int(peak_scan), 'peak_line': int(peak_line), 'line_lo': l0 + 1, 'line_hi': l1 - 1}
+    result = size_indication(path, info, group, gates, {key: inside}, letter, region, method, gain)
+    scan_axis, line_axis = group.axes[0], group.axes[1]
+    edge = lambda ax, i, side: ax.offset + (i + side * 0.5) * ax.resolution   # a cell's outer side
+    lo, hi = edge(scan_axis, s0, -1), edge(scan_axis, s1, 1)
+    result['scan_start'], result['scan_end'] = max(result['scan_start'], lo), min(result['scan_end'], hi)
+    result['length'] = result['scan_end'] - result['scan_start']
+    if group.layout == 'raster':
+        a, b = edge(line_axis, l0, -1), edge(line_axis, l1, 1)
+        result['axial_start'], result['axial_end'] = max(result['axial_start'], a), min(result['axial_end'], b)
+        result['width'] = result['axial_end'] - result['axial_start']
+    result.update({'auto': False, 'contour': True, 'axis': 'scan', 'box': [s0, s1, l0, l1]})
+    return result
+
+
 def folded_span(top, bottom, thickness):
     """(shallowest, deepest) true depth of an unfolded depth span (as drawn on the S-scan) in a part `thickness` thick."""
     a, b = sorted((top, bottom))
