@@ -240,6 +240,13 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-zoombar.is-h .analysis-zoombar-thumb { top: 2px; bottom: 2px; min-width: 6px; border-left: 3px solid #94a3b8; border-right: 3px solid #94a3b8; }
 .analysis-zoombar.is-v .analysis-zoombar-thumb { left: 2px; right: 2px; min-height: 6px; border-top: 3px solid #94a3b8; border-bottom: 3px solid #94a3b8; }
 .analysis-zoombar-thumb.is-full { background: rgba(148, 163, 184, 0.16); }
+/* The C-scan's palette bar: a third column on the right; the track shows the colours as they're spread */
+.analysis-view.has-palette-bar { grid-template-columns: 12px minmax(0, 1fr) 14px; }
+.analysis-zoombar.is-v#cscan-palette-bar { grid-column: 3; grid-row: 1; border-right: 0; border-left: 1px solid var(--border); }
+#cscan-palette-bar[hidden] { display: none; }
+#cscan-palette-bar .analysis-zoombar-thumb, #cscan-palette-bar .analysis-zoombar-thumb.is-full { left: 0; right: 0; border-radius: 0; background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.85); border-top-width: 3px; border-bottom-width: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
+#cscan-palette-bar:hover .analysis-zoombar-thumb, #cscan-palette-bar.is-held .analysis-zoombar-thumb { background: transparent; border-color: #38bdf8; }
 .analysis-zoombar:hover .analysis-zoombar-thumb, .analysis-zoombar.is-held .analysis-zoombar-thumb { background: rgba(56, 189, 248, 0.4); border-color: #38bdf8; }
 .analysis-progress { display: inline-block; width: 6rem; height: 0.35rem; border-radius: 2px; background: var(--border); overflow: hidden; vertical-align: middle; }
 .analysis-progress span { display: block; height: 100%; background: var(--accent); }

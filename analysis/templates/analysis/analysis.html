@@ -353,6 +353,7 @@
                     <dt>Ctrl+scroll</dt><dd>Zoom at the pointer</dd>
                     <dt>Right-drag</dt><dd>Pan</dd>
                     <dt>Double-click</dt><dd>Fit that view</dd>
+                    <dt>Palette bar</dt><dd>Right of a thickness / depth C-scan, over the range typed at its top: drag its top down to lower the ceiling, its bottom up to raise the floor, its middle to shift the colours; double-click for the whole range</dd>
                     <dt>Zoom bars</dt><dd>Under and left of each view: drag an end of the bar to zoom that axis, its middle to move along it (the A-scan's side bar is the amplitude); double-click a bar to fit that axis</dd>
                     <dt>Rotate S-scan</dt><dd>Display panel: depth across and the index axis down, to line up with the A-scan's depth and a raster C-scan's index axis (link the zooms to keep them together)</dd>
                     <dt>Link zoom</dt><dd>Display panel: zoom the scan axis (C ↔ B), depth (B ↔ S ↔ A) or index axis (S ↔ C on a raster) together</dd>
@@ -383,10 +384,11 @@
                     <span class="analysis-panel-note" id="cscan-note"></span>
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="cscan" title="Clear the scan and index cursors" aria-label="Clear the cscan cursors"><i class="bi bi-eraser"></i></button>
                 </header>
-                <div class="analysis-view">
+                <div class="analysis-view" id="cscan-view">
                     <div class="analysis-stage" id="cscan-stage"></div>
                     <div id="cscan-zoom-y"></div>
                     <div id="cscan-zoom-x"></div>
+                    <div id="cscan-palette-bar" hidden></div>
                 </div>
                 <canvas class="analysis-echo" id="echo-strip" hidden title="Echo-dynamic: the gate's highest amplitude along the scan (over the box's or indication's lines, else the cursor's), with the sizing drop level; drag the red / green lines to move the ends, click to go to a scan position"></canvas>
                 <div class="analysis-readout mono" id="cscan-readout"></div>

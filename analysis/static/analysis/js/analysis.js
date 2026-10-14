@@ -889,17 +889,19 @@
         const fileRange = kind === 'thickness' ? currentGroup().thickness_range : null;
         const auto = fileRange ? [fileRange[0], fileRange[1]] : [+result.header('X-Min'), +result.header('X-Max')];
         const range = state.cscanRanges[kindSelect.value] || auto;
+        state.cscanFull = range;   // the palette bar works within it
         const g = currentGroup();
         const keep = !!state.cscan && state.cscan.scans === scans && state.cscan.lines === lines;
         state.cscan = { data: result.data, scans, lines, mode };
         state.cscanGain = state.buildGain;
         cview.setGain(state.gain - state.cscanGain);
         cview.setImage(result.data, scans, lines, {
-            transpose: true, mode, range, keepView: keep, smooth: !isRaster(),
+            transpose: true, mode, range: paletteRange(), keepView: keep, smooth: !isRaster(),
             axes: { x0: g.axes[0].offset, dx: g.axes[0].resolution, y0: lineY(0), dy: isRaster() ? g.axes[1].resolution : 1 },
         });
         renderReadings();
         $('cscan-range').hidden = mode === 'amplitude';
+        renderPaletteBar();
         if (mode !== 'amplitude') {
             $('cscan-min').value = (range[0] / unitLength()).toFixed(3);
             $('cscan-max').value = (range[1] / unitLength()).toFixed(3);
@@ -911,8 +913,48 @@
             const lo = parseFloat($('cscan-min').value) * unitLength(), hi = parseFloat($('cscan-max').value) * unitLength();
             if (!(Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)) return;
             state.cscanRanges[kindSelect.value] = [lo, hi];
-            cview.setRange([lo, hi]);
+            state.cscanFull = [lo, hi];
+            cview.setRange(paletteRange());
+            renderPaletteBar();
         });
+    }
+
+    // The palette bar right of a thickness / depth C-scan: the part of the range typed at its top that
+    // the colours are spread over (fractions of it, per C-scan kind) - ends raise the floor / lower the
+    // ceiling, the middle shifts it. Values outside take the end colours.
+    state.paletteWindows = {};
+    const paletteWindow = () => state.paletteWindows[kindSelect.value] || [0, 1];
+    function paletteRange() {
+        const [lo, hi] = state.cscanFull || [0, 1], [f0, f1] = paletteWindow();
+        return [lo + f0 * (hi - lo), lo + f1 * (hi - lo)];
+    }
+    const paletteBarView = {
+        axisRange: () => (state.cscan && state.cscan.mode !== 'amplitude' && state.cscanFull
+            ? { full: [...state.cscanFull], shown: paletteRange(), flip: true } : null),
+        setAxisRange: (axis, [a, b]) => {
+            const [lo, hi] = state.cscanFull, span = hi - lo || 1;
+            state.paletteWindows[kindSelect.value] = [Math.max(0, (a - lo) / span), Math.min(1, (b - lo) / span)];
+            cview.setRange(paletteRange());
+            renderPaletteBar();
+        },
+        maxZoom: () => 50,
+    };
+    const drawPaletteBar = ZoomBars.bar(paletteBarView, 'y', $('cscan-palette-bar'),
+        'Palette: drag the top to lower the ceiling, the bottom to raise the floor, the middle to shift the colours (double-click: the whole range)');
+    function renderPaletteBar() {
+        const shown = !!paletteBarView.axisRange();
+        $('cscan-palette-bar').hidden = !shown;
+        $('cscan-view').classList.toggle('has-palette-bar', shown);
+        if (!shown) return;
+        // The track: the palette as it's spread now - the low colour under the floor, the high one over the ceiling
+        const colours = AnalysisPalette.get('range', rangePalette.value), [f0, f1] = paletteWindow();
+        const stops = [];
+        for (let k = 0; k <= 8; k++) {
+            const i = Math.round(k / 8 * 255) * 4;
+            stops.push(`rgb(${colours[i]}, ${colours[i + 1]}, ${colours[i + 2]}) ${((f0 + (f1 - f0) * k / 8) * 100).toFixed(1)}%`);
+        }
+        $('cscan-palette-bar').style.background = `linear-gradient(to top, ${stops.join(', ')})`;
+        drawPaletteBar();
     }
 
     function scheduleBscan() {
@@ -2513,6 +2555,7 @@
         sscan.setPalette(ampPalette.value);
         bview.setPalettes({ amplitude: ampPalette.value });
         cview.setPalettes({ amplitude: ampPalette.value, range: rangePalette.value });
+        renderPaletteBar();   // its track shows this palette
     }
     for (const [select, kind] of [[ampPalette, 'amplitude'], [rangePalette, 'range']]) {
         select.addEventListener('change', () => {
