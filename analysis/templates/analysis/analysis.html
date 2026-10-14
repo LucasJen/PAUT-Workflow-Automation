@@ -212,24 +212,32 @@
             <div class="analysis-indications" id="indication-rows"></div>
         </section>
 
-        <section class="analysis-drawer-body" data-panel-body="report" data-title="Send to report" data-wide hidden>
-            <p class="analysis-note">Adds indications as rows in a draft report's results table, in that report's own columns. Check and edit the rows before they're added.</p>
-            <div class="analysis-step">
-                <div class="analysis-step-head"><span class="analysis-step-number">1</span> Report</div>
-                <input type="search" class="form-control form-control-sm" id="report-filter" placeholder="Find a draft report…" aria-label="Find a report">
-                <div class="analysis-pick-list" id="report-list"><p class="analysis-note">Loading reports…</p></div>
-            </div>
-            <div class="analysis-step">
-                <div class="analysis-step-head"><span class="analysis-step-number">2</span> Indications
-                    <button type="button" class="btn btn-sm btn-ghost ms-auto" id="send-all" title="Pick every indication of this file">All</button></div>
-                <div class="analysis-pick-list" id="send-indications"></div>
-                <label class="analysis-check" title="Leave out the found indications still to review and those rejected"><input type="checkbox" id="send-accepted" checked> Accepted only</label>
-                <label class="analysis-check" title="Each indication's snip goes with its row: the S-scan and A-scan at its peak, the C-scan around it and the B-scan, at its 80 % gain with the sizing drawn"><input type="checkbox" id="send-pictures" checked> A snip of the views with each</label>
-            </div>
-            <div class="analysis-step">
-                <div class="analysis-step-head"><span class="analysis-step-number">3</span> Rows to add</div>
-                <div id="send-rows"><p class="analysis-note">Pick a report and indications to see the rows.</p></div>
-            </div>
+        <section class="analysis-drawer-body" data-panel-body="report" data-title="Send to report" data-wide hidden
+                 data-help="Adds indications as rows in a draft report's results table, in that report's own columns; check and edit the rows before they're added">
+            <details class="ana-section" data-section="send:report" open>
+                <summary>Report</summary>
+                <div class="ana-body">
+                    <input type="search" class="form-control form-control-sm" id="report-filter" placeholder="Find a draft report…" aria-label="Find a report">
+                    <div class="analysis-pick-list" id="report-list"><p class="analysis-note">Loading reports…</p></div>
+                </div>
+            </details>
+            <details class="ana-section" data-section="send:indications" open>
+                <summary>Indications
+                    <span class="ana-tools"><button type="button" class="ana-icon-btn" id="send-all" title="Pick every indication of this file">All</button></span></summary>
+                <div class="ana-body">
+                    <div class="analysis-pick-list" id="send-indications"></div>
+                    <div class="ana-props">
+                        <label for="send-accepted" title="Leave out the found indications still to review and those rejected">Accepted only</label>
+                        <input type="checkbox" class="form-check-input" id="send-accepted" checked>
+                        <label for="send-pictures" title="Each indication's snip goes with its row: the S-scan and A-scan at its peak, the C-scan around it and the B-scan, at its 80 % gain with the sizing drawn">Snip with each</label>
+                        <input type="checkbox" class="form-check-input" id="send-pictures" checked>
+                    </div>
+                </div>
+            </details>
+            <details class="ana-section" data-section="send:rows" open>
+                <summary title="The rows as they'll go into the report's results table; edit them here first">Rows to add</summary>
+                <div class="ana-body" id="send-rows"><p class="analysis-note">Pick a report and indications.</p></div>
+            </details>
             <div class="analysis-send-bar">
                 <button type="button" class="btn btn-sm btn-primary" id="send-now" disabled><i class="bi bi-send"></i> Add to report</button>
                 <span class="analysis-note" id="send-result" role="status"></span>
