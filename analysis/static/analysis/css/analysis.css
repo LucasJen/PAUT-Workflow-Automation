@@ -59,6 +59,7 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
     position: relative; width: 1.85rem; height: 1.85rem; border: 0; border-radius: var(--radius);
     background: transparent; color: var(--text-3); font-size: 0.95rem;
 }
+.analysis-rail-icon { width: 1.05em; height: 1.05em; display: block; margin: auto; }
 .analysis-rail-button:hover { background: var(--surface-hover); color: var(--text); }
 .analysis-rail-button.is-active { background: var(--accent-soft); color: var(--accent-text); }
 .analysis-rail-button.is-active::before {

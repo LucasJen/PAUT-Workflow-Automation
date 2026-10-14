@@ -64,12 +64,21 @@
     {# ── Left rail: each button opens its panel ── #}
     <nav class="analysis-rail" aria-label="Analysis panels">
         <button type="button" class="analysis-rail-button" data-panel="files" title="Files (O)"><i class="bi bi-folder2-open"></i></button>
-        <button type="button" class="analysis-rail-button" data-panel="gates" title="Gates"><i class="bi bi-distribute-horizontal"></i></button>
+        <button type="button" class="analysis-rail-button" data-panel="gates" title="Gates">
+            {# A gate as on the A-scan: a bar between two end ticks #}
+            <svg class="analysis-rail-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round">
+                <path d="M2.5 3.5v9M13.5 3.5v9" stroke-width="1.6"/><path d="M2.5 8h11" stroke-width="2.2"/>
+            </svg></button>
         <button type="button" class="analysis-rail-button" data-panel="indications" title="Indications">
             <i class="bi bi-pin-map"></i><span class="analysis-rail-badge" id="indication-count" hidden></span></button>
         <button type="button" class="analysis-rail-button" data-panel="report" title="Send indications to a report"><i class="bi bi-send"></i></button>
-        <button type="button" class="analysis-rail-button" data-panel="geometry" title="Geometry and weld overlay"><i class="bi bi-triangle"></i></button>
-        <button type="button" class="analysis-rail-button" data-panel="display" title="Display: units, palettes, reference level"><i class="bi bi-palette"></i></button>
+        <button type="button" class="analysis-rail-button" data-panel="geometry" title="Geometry and weld overlay">
+            {# A single-V butt weld: two plates, the weld between them and its cap #}
+            <svg class="analysis-rail-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.2">
+                <path d="M0.8 6.5H5l1.8 7.5H0.8zM15.2 6.5H11l-1.8 7.5h6z"/>
+                <path d="M5 6.5h6l-1.8 7.5H6.8zM4.3 6.5Q8 3.6 11.7 6.5z" fill="currentColor" fill-opacity="0.55" stroke="none"/>
+            </svg></button>
+        <button type="button" class="analysis-rail-button" data-panel="display" title="Display: units, palettes, reference level, link zoom"><i class="bi bi-gear"></i></button>
     </nav>
 
     {# ── The open panel (one at a time) ── #}
