@@ -1,4 +1,4 @@
-// Zoom bars like OmniPC's: one along the bottom of a view (across) and one down its side (down). The
+// Zoom bars like OmniPC's: one along the bottom of a view (across) and one down its left side (down). The
 // track is the whole axis and the thumb the part shown: drag either end of the thumb to zoom, its
 // middle to move along the axis, or click the track to centre the thumb there. Double-click a bar to
 // fit that axis. The thumbs follow the view after each draw (the wheel, panning, fit, double-click).
