@@ -1711,6 +1711,8 @@
         echo.style.cursor = echoEnd(e) ? 'ew-resize' : 'crosshair';
     });
     for (const type of ['pointerup', 'pointercancel']) echo.addEventListener(type, () => { echoDrag = null; });
+    // Double-click: fit the C-scan (the strip follows its zoom), like double-clicking the C-scan itself
+    echo.addEventListener('dblclick', () => { cview.view = null; cview.draw(); cview.options.onViewChange?.(cview); });
     new ResizeObserver(() => drawEcho()).observe(echo);
 
     // ── indications ──
