@@ -294,6 +294,7 @@
                     <dt>Scroll</dt><dd>Zoom at the pointer</dd>
                     <dt>Right-drag</dt><dd>Pan</dd>
                     <dt>Double-click</dt><dd>Fit that view</dd>
+                    <dt>↔ / ↕ sliders</dt><dd>Zoom a view across or down on its own (the A-scan's ↕ zooms the amplitude); double-click one to fit that axis</dd>
                     <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
                 </dl>
             </div>
@@ -310,7 +311,8 @@
                         <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="cscan-max" aria-label="Palette to" title="Palette to (blue)">
                     </span>
                     <span class="analysis-panel-note" id="cscan-note"></span>
-                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="cscan" title="Clear the scan and index cursors" aria-label="Clear the cscan cursors"><i class="bi bi-eraser"></i></button>
+                    <span class="analysis-zoom ms-auto" id="cscan-zoom"></span>
+                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view" data-clear="cscan" title="Clear the scan and index cursors" aria-label="Clear the cscan cursors"><i class="bi bi-eraser"></i></button>
                     <i class="bi bi-question-circle analysis-help" tabindex="0"
                        title="Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors; Alt+drag a box around an indication to size it inside the box (contour sizing, by the drop chosen in the readings column). Built once from the whole file (and again when the gates or gain change). Scroll to zoom, right-drag to pan, double-click to fit."></i>
                 </header>
@@ -320,7 +322,8 @@
             </section>
             <section class="analysis-panel analysis-panel-bscan">
                 <header class="analysis-panel-head"><span>B-scan</span><span class="analysis-panel-note" id="bscan-label"></span>
-                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="bscan" title="Clear the scan and depth cursors" aria-label="Clear the bscan cursors"><i class="bi bi-eraser"></i></button>
+                    <span class="analysis-zoom ms-auto" id="bscan-zoom"></span>
+                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view" data-clear="bscan" title="Clear the scan and depth cursors" aria-label="Clear the bscan cursors"><i class="bi bi-eraser"></i></button>
                     <i class="bi bi-question-circle analysis-help" tabindex="0"
                        title="Side view of the cursor's beam / index line: scan position across, depth down. Click to move the scan cursor; Ctrl+click / Shift+click put the reference / measure depth cursors."></i>
                 </header>
@@ -330,7 +333,8 @@
             <section class="analysis-panel analysis-panel-sscan">
                 <header class="analysis-panel-head">
                     <span>S-scan</span><span class="analysis-panel-note" id="sscan-label"></span>
-                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="sscan" title="Clear the depth and index cursors" aria-label="Clear the sscan cursors"><i class="bi bi-eraser"></i></button>
+                    <span class="analysis-zoom ms-auto" id="sscan-zoom"></span>
+                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view" data-clear="sscan" title="Clear the depth and index cursors" aria-label="Clear the sscan cursors"><i class="bi bi-eraser"></i></button>
                     <button type="button" class="btn btn-sm btn-ghost" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
                     <i class="bi bi-question-circle analysis-help" tabindex="0"
                        title="Click or drag to move the beam cursor (Up / Down keys too). Ctrl+click puts the reference cursors (red) at a point, Shift+click the measure cursors (green); drag a cursor line to move it. Scroll to zoom, right-drag to pan, double-click to fit. Dashed lines: the back wall and skips."></i>
@@ -340,7 +344,8 @@
             </section>
             <section class="analysis-panel analysis-panel-ascan">
                 <header class="analysis-panel-head"><span>A-scan</span><span class="analysis-panel-note" id="ascan-label"></span>
-                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="ascan" title="Clear the depth (sound path) cursors" aria-label="Clear the ascan cursors"><i class="bi bi-eraser"></i></button>
+                    <span class="analysis-zoom ms-auto" id="ascan-zoom"></span>
+                    <button type="button" class="btn btn-sm btn-ghost analysis-clear-view" data-clear="ascan" title="Clear the depth (sound path) cursors" aria-label="Clear the ascan cursors"><i class="bi bi-eraser"></i></button>
                     <i class="bi bi-question-circle analysis-help" tabindex="0"
                        title="Click to put the reference cursor (red) there, Shift+click the measure cursor (green); drag a cursor to move it. Drag a gate's bar to move it (up / down changes its threshold) and its end ticks to change its start or width."></i>
                 </header>
@@ -385,5 +390,6 @@
 <script src="{% static_v 'analysis/js/ascan_view.js' %}"></script>
 <script src="{% static_v 'analysis/js/weld_editor.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis_files.js' %}"></script>
+<script src="{% static_v 'analysis/js/zoom_sliders.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis.js' %}"></script>
 {% endblock %}

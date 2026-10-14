@@ -224,6 +224,11 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-range { display: inline-flex; align-items: center; gap: 0.2rem; font-weight: 400; }
 .analysis-range[hidden] { display: none; }
 .analysis-range .form-control { width: 4.2rem; padding: 0.05rem 0.3rem; font-size: 0.75rem; }
+.analysis-zoom { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 400; color: var(--text-3); }
+.analysis-zoom-axis { display: inline-flex; align-items: center; gap: 0.2rem; margin: 0; font-size: 0.75rem; cursor: pointer; }
+.analysis-zoom .form-range { width: 4.5rem; height: 1rem; padding: 0; }
+.analysis-zoom .form-range::-webkit-slider-thumb { width: 0.7rem; height: 0.7rem; margin-top: -0.25rem; }
+.analysis-zoom .form-range::-webkit-slider-runnable-track { height: 0.2rem; }
 .analysis-progress { display: inline-block; width: 6rem; height: 0.35rem; border-radius: 2px; background: var(--border); overflow: hidden; vertical-align: middle; }
 .analysis-progress span { display: block; height: 100%; background: var(--accent); }
 

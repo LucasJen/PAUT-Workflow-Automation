@@ -10,6 +10,7 @@
 // [scan][line] with scan across). No data (NaN) goes up as a large negative number.
 
 window.ImageView = (function () {
+    const MAX_ZOOM = 200;   // times the fitted view
     const VERTEX = `#version 300 es
 in vec2 aPos;
 in vec2 aTex;
@@ -184,6 +185,23 @@ void main() {
             return [(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 1.02, (y1 - y0) * 1.04];
         }
         currentView() { return this.view || this.fitView(); }
+        maxZoom() { return MAX_ZOOM; }
+
+        /** Zoom against the fitted view, [across, down] (1 = fitted). */
+        zoomFactors() {
+            if (!this.bounds) return [1, 1];
+            const fit = this.fitView(), [, , w, h] = this.currentView();
+            return [fit[2] / w, fit[3] / h];
+        }
+
+        /** One axis ('x' across, 'y' down) zoomed to `k` times the fitted view, the other kept. */
+        setZoom(axis, k) {
+            if (!this.bounds) return;
+            const fit = this.fitView(), [cx, cy, w, h] = this.currentView();
+            this.view = axis === 'x' ? [k <= 1 ? fit[0] : cx, cy, fit[2] / k, h]   // back to fit: re-centred
+                : [cx, k <= 1 ? fit[1] : cy, w, fit[3] / k];
+            this.draw();
+        }
 
         toWorld(e) {
             const box = this.canvas.getBoundingClientRect();
@@ -394,7 +412,7 @@ void main() {
                 const [px, py] = this.toWorld(e);
                 const [cx, cy, w, h] = this.currentView();
                 const fit = this.fitView();
-                const k = Math.min(Math.max(Math.exp(e.deltaY * 0.0015), fit[2] / 200 / w), fit[2] * 2 / w);
+                const k = Math.min(Math.max(Math.exp(e.deltaY * 0.0015), fit[2] / MAX_ZOOM / w), fit[2] * 2 / w);
                 this.view = [px - (px - cx) * k, py - (py - cy) * k, w * k, h * k];
                 this.draw();
             }, { passive: false });

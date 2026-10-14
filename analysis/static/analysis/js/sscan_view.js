@@ -13,6 +13,7 @@
 // to move it.
 
 window.SScanView = (function () {
+    const MAX_ZOOM = 40;   // times the fitted view
     const VERTEX = `#version 300 es
 in vec2 aPos;
 in vec2 aTex;
@@ -73,7 +74,8 @@ void main() {
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, AnalysisPalette.amplitude());
             this.filter(gl.LINEAR);
             this.gain = 1;
-            this.view = null;       // [cx, cy, width, height] in world units; null = fit
+            this.view = null;       // [cx, cy, width, height, stretch] in world units; null = fit (stretch: true geometry's
+                                    // vertical zoom over its horizontal one, from the zoom sliders)
             this.trueGeometry = true;
             this.cursors = { u_ref: null, u_meas: null, i_ref: null, i_meas: null };
             this.lateral = 0;
@@ -384,7 +386,27 @@ void main() {
             if (!this.trueGeometry) return this.view;
             const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
             const [cx, cy, width] = this.view;
-            return [cx, cy, width, width * h / w];
+            return [cx, cy, width, width * h / w / this.stretch()];
+        }
+        stretch() { return this.view?.[4] || 1; }
+        maxZoom() { return MAX_ZOOM; }
+
+        /** Zoom against the fitted view, [across, down] (1 = fitted). */
+        zoomFactors() {
+            if (!this.bounds) return [1, 1];
+            const fit = this.fitView(), [, , width, height] = this.currentView();
+            return [fit[2] / width, fit[3] / height];
+        }
+
+        /** One axis ('x' across, 'y' down) zoomed to `k` times the fitted view, the other kept. */
+        setZoom(axis, k) {
+            if (!this.bounds) return;
+            const fit = this.fitView(), [cx, cy] = this.currentView();
+            let [kx, ky] = this.zoomFactors();
+            if (axis === 'x') kx = k; else ky = k;
+            const x = axis === 'x' && k <= 1 ? fit[0] : cx, y = axis === 'y' && k <= 1 ? fit[1] : cy;   // back to fit: re-centred
+            this.view = [x, y, fit[2] / kx, fit[3] / ky, ky / kx];
+            this.draw();
         }
 
         toWorld(event) {
@@ -605,7 +627,7 @@ void main() {
                 if (!this.rays) return;
                 el.setPointerCapture(e.pointerId);
                 if (e.button === 2 || e.button === 1) {
-                    drag = { pan: true, x: e.clientX, y: e.clientY, view: this.currentView() };
+                    drag = { pan: true, x: e.clientX, y: e.clientY, view: this.currentView(), stretch: this.stretch() };
                 } else if (e.button === 0) {
                     const [x, y] = this.toWorld(e);
                     const line = this.grabLine(e);
@@ -665,7 +687,7 @@ void main() {
                 if (drag.pan) {
                     const box = el.getBoundingClientRect();
                     const [cx, cy, width, height] = drag.view;
-                    this.view = [cx - (e.clientX - drag.x) / box.width * width, cy - (e.clientY - drag.y) / box.height * height, width, height];
+                    this.view = [cx - (e.clientX - drag.x) / box.width * width, cy - (e.clientY - drag.y) / box.height * height, width, height, drag.stretch];
                     this.draw();
                 } else {
                     this.options.onCursor(this.pick([x, y]));
@@ -687,9 +709,9 @@ void main() {
                 const [cx, cy, width, height] = this.currentView();
                 const f = Math.exp(e.deltaY * 0.0015);
                 const fit = this.fitView()[2];
-                const next = Math.min(Math.max(width * f, fit / 40), fit * 2);
+                const next = Math.min(Math.max(width * f, fit / MAX_ZOOM), fit * 2);
                 const k = next / width;
-                this.view = [px - (px - cx) * k, py - (py - cy) * k, next, height * k];
+                this.view = [px - (px - cx) * k, py - (py - cy) * k, next, height * k, this.stretch()];
                 this.draw();
             }, { passive: false });
         }

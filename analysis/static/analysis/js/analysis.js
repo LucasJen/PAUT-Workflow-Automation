@@ -214,6 +214,11 @@
         },
         onHover: (x, y) => { $('bscan-readout').textContent = x === null ? '' : `Scan ${format(x)} · depth ${format(y)}`; },
     });
+    // Zoom sliders in each panel head: across and down separately (the wheel zooms both)
+    ZoomSliders.attach(sscan, $('sscan-zoom'));
+    ZoomSliders.attach(ascan, $('ascan-zoom'), ['Zoom along the beam', 'Amplitude zoom']);
+    ZoomSliders.attach(cview, $('cscan-zoom'));
+    ZoomSliders.attach(bview, $('bscan-zoom'));
 
     // ── per file / group memory ──
     const memoryKey = () => `analysis:${state.path}:${state.group}`;
