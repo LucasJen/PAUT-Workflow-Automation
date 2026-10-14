@@ -145,7 +145,7 @@
         </section>
 
         <section class="analysis-drawer-body" data-panel-body="gates" data-title="Gates" hidden
-                 data-help="Drag a gate on the S-scan (its edges, or its letter tab to move it) or on the A-scan (its bar - up / down is the threshold - and its end ticks)">
+                 data-help="Drag a gate on the S-scan (its edges, or its letter tab to move it) or on the A-scan (its bar - up / down is the threshold - and its end ticks). Its start moves the whole gate; its end sets the width">
             <div class="analysis-gate-rows" id="gate-rows"><p class="analysis-note">Open a file to see its gates.</p></div>
             <div class="analysis-drawer-row">
                 <span class="analysis-add-gates" id="add-gates"></span>
@@ -378,7 +378,7 @@
                     <dt>Echo curve</dt><dd>Under an amplitude C-scan: the gate's highest amplitude along the scan with the sizing drop level; drag its red / green lines to move the ends, click to go to a scan position</dd>
                     <dt>B-scan</dt><dd>Side view of the cursor's beam / index line: scan across, depth down. Click to move the scan cursor; Ctrl / Shift+click put the reference / measure scan and depth cursors</dd>
                     <dt>S-scan</dt><dd>Click or drag to move the beam cursor. Ctrl / Shift+click put the reference / measure cursors at a point; drag a cursor line or a gate's edge to move it. Dashed lines: the back wall and skips</dd>
-                    <dt>A-scan</dt><dd>Click: reference cursor, Shift+click: measure cursor. Drag a gate's bar to move it (up / down: its threshold), its end ticks to change its start or width</dd>
+                    <dt>A-scan</dt><dd>Click: reference cursor, Shift+click: measure cursor. Drag a gate's bar to move it (up / down: its threshold), its start tick to move it (the width stays), its end tick to change the width</dd>
                     <dt>Gates</dt><dd>SP sound path (an arc on a sectorial scan), TD true depth, Box a box of depth and index. On the S-scan drag a gate's edges, or its letter tab to move it; on the A-scan its bar (up / down: the threshold) and end ticks. Floating: the height follows each A-scan's peak</dd>
                     <dt>Panels</dt><dd>Hover a label or button for what it does; click a section's header to fold it (kept)</dd>
                     <dt>Eraser</dt><dd>Above each view: clears that view's cursors</dd>

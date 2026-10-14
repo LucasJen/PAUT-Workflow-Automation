@@ -137,19 +137,17 @@
             if (part === 'move') {
                 gate.depth_start = lo + dd; gate.depth_end = hi + dd;
                 if (threshold !== undefined) gate.threshold = Math.round(threshold);
-            } else if (part === 'start') gate.depth_start = Math.min(lo + dd, hi - least);
-            else gate.depth_end = Math.max(hi + dd, lo + least);
+            } else if (part === 'start') {   // the start carries the end with it: the height stays
+                gate.depth_start = lo + dd; gate.depth_end = hi + dd;
+            } else gate.depth_end = Math.max(hi + dd, lo + least);
             gatesChanged(20);
             return;
         }
         if (part === 'move') {
             gate.start = gateSnapshot.start + dt;
             if (threshold !== undefined) gate.threshold = Math.round(threshold);
-        } else if (part === 'start') {
-            const dtMax = gateSnapshot.length - minimum;
-            const d = Math.min(dt, dtMax);
-            gate.start = gateSnapshot.start + d;
-            gate.length = gateSnapshot.length - d;
+        } else if (part === 'start') {   // the start carries the end with it: the width stays (the end sets it)
+            gate.start = gateSnapshot.start + dt;
         } else {
             gate.length = Math.max(minimum, gateSnapshot.length + dt);
         }
@@ -1450,7 +1448,7 @@
             const dt = dsp / (halfV(line ?? state.lateral) || 1);
             const minimum = g.axes[2].resolution;
             if (part === 'move') gate.start = s.start + dt;
-            else if (part === 'start') { const d = Math.min(dt, s.length - minimum); gate.start = s.start + d; gate.length = s.length - d; }
+            else if (part === 'start') gate.start = s.start + dt;   // the end moves with it: the width stays
             else if (part === 'end') gate.length = Math.max(minimum, s.length + dt);
         } else {
             const dd = part === 'move' ? dy : dsp * (g.rays[line ?? state.lateral]?.dz || 1);
@@ -1458,6 +1456,9 @@
             if (part === 'move') {
                 gate.depth_start = s.depth_start + dy; gate.depth_end = s.depth_end + dy;
                 if (geometry === 'Box') { gate.index_start = s.index_start + dx; gate.index_end = s.index_end + dx; }
+            } else if (geometry === 'TrueDepth' && (part === 'start' || part === 'd0')) {   // the top carries the bottom: the height stays
+                const d = part === 'd0' ? dy : dd;
+                gate.depth_start = s.depth_start + d; gate.depth_end = s.depth_end + d;
             } else if (vertical) {
                 gate[vertical] = s[vertical] + (part.startsWith('d') ? dy : dd);
                 if (gate.depth_end - gate.depth_start < least && part !== 'd0' && part !== 'd1') {
