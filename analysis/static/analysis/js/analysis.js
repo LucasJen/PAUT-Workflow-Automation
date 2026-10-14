@@ -1403,7 +1403,8 @@
             const paths = synced(gate) ? syncedPaths(gate, letter) : localPaths(gate);
             if (!paths) continue;
             list.push({ letter, colour: GATE_COLOURS[letter] || '#a78bfa', editable: true, paths,
-                        box: gate.geometry === 'Box' ? { i0: gate.index_start, i1: gate.index_end, d0: gate.depth_start, d1: gate.depth_end } : null });
+                        box: gate.geometry === 'Box' ? { i0: gate.index_start, i1: gate.index_end, d0: gate.depth_start, d1: gate.depth_end } : null,
+                        depths: gate.geometry === 'TrueDepth' ? { d0: gate.depth_start, d1: gate.depth_end } : null });
         }
         sscan.setGates(list);
     }

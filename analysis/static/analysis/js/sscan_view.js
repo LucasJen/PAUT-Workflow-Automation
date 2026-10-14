@@ -273,7 +273,8 @@ void main() {
 
         /**
          * The gates on the S-scan: [{letter, colour, editable, paths: [[sp start, sp end] | null per line],
-         * box: {i0, i1, d0, d1} | null}]. Each is drawn along every beam it reaches; an editable one's
+         * box: {i0, i1, d0, d1} | null, depths: {d0, d1} | null}], dashed. Each is drawn along every beam it
+         * reaches - a true-depth gate (depths) as its two depths right across the view; an editable one's
          * edges and letter tab can be dragged (options.onGateDrag).
          */
         setGates(gates) {
@@ -322,7 +323,15 @@ void main() {
                 ctx.save();
                 ctx.lineWidth = (this.selected?.kind === 'gate' && this.selected.letter === gate.letter ? 3 : 1.5) * ratio;
                 ctx.strokeStyle = gate.colour;
-                for (const lines of runs) {
+                ctx.setLineDash([6 * ratio, 4 * ratio]);   // dashed, so the data shows between
+                if (gate.depths) {   // a true-depth gate: its two depths across the whole view
+                    ctx.globalAlpha = 0.95;
+                    for (const depth of [gate.depths.d0, gate.depths.d1]) {
+                        const [x0, y0, x1, y1] = this.depthLine(depth);
+                        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+                    }
+                }
+                for (const lines of gate.depths ? [] : runs) {
                     const curve = (end, order) => order.forEach((i, k) => {
                         const [x, y] = this.alongRay(i, paths[i][end]);
                         if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
@@ -332,13 +341,12 @@ void main() {
                     ctx.beginPath(); curve(0, lines); ctx.stroke();
                     ctx.beginPath(); curve(1, lines); ctx.stroke();
                 }
-                if (gate.box) {   // the box itself, dashed
+                if (gate.box) {   // the box itself
                     const [ax, ay] = this.toScreen(gate.box.i0, gate.box.d0), [bx, by] = this.toScreen(gate.box.i1, gate.box.d1);
-                    ctx.setLineDash([5 * ratio, 4 * ratio]);
                     ctx.globalAlpha = 0.9;
                     ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
-                    ctx.setLineDash([]);
                 }
+                ctx.setLineDash([]);
                 // The letter tab: on the start curve of the middle line (a box: its top left corner)
                 let tab = null, tabLine = null;
                 if (gate.box) {
@@ -374,6 +382,14 @@ void main() {
             for (const tab of this.gateTabs || []) {
                 if (editable.some(g => g.letter === tab.letter) && Math.hypot(px - tab.x, py - tab.y) <= reach + 2 * ratio) {
                     return { letter: tab.letter, part: 'move', line: tab.line };
+                }
+            }
+            // A true-depth gate's lines run across the view: grab them anywhere to move that depth
+            for (const gate of editable) {
+                if (!gate.depths) continue;
+                for (const [part, depth] of [['d0', gate.depths.d0], ['d1', gate.depths.d1]]) {
+                    const [x0, y0] = this.depthLine(depth);
+                    if (this.rotated ? Math.abs(px - x0) <= reach : Math.abs(py - y0) <= reach) return { letter: gate.letter, part };
                 }
             }
             const [x, y] = this.toWorld(e);
