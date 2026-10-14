@@ -561,6 +561,18 @@ def clear_indications(request):
                          'indications': [i.as_dict() for i in Indication.objects.filter(file_path=path)]})
 
 
+@require_http_methods(['POST'])
+def forget_indications(request):
+    """POST (JSON path): deletes every indication of the file, all its groups - the page opens each file
+    fresh, as if for the first time. Rows already sent to a report are copies there and stay."""
+    try:
+        path = checked_path(_json_body(request).get('path', ''))
+    except (ValueError, TypeError, PathNotAllowed) as e:
+        return _error(str(e) or "The request couldn't be read.")
+    deleted, _ = Indication.objects.filter(file_path=path).delete()
+    return JsonResponse({'deleted': deleted})
+
+
 @require_http_methods(['POST', 'DELETE'])
 def indication(request, pk):
     """POST (JSON {comment} and / or {status}: unreviewed / accepted / rejected): edits an indication; DELETE removes it."""
