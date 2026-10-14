@@ -8,10 +8,11 @@
 window.ZoomBars = (function () {
     const GRIP = 7;   // px at each end of the thumb that resize it
 
-    function bar(view, axis, el) {
+    /** One bar for `axis` of `view` in `el` (title: its tooltip); returns its render(), to call when the view changes. */
+    function bar(view, axis, el, title = null) {
         const vertical = axis === 'y';
         el.classList.add('analysis-zoombar', vertical ? 'is-v' : 'is-h');
-        el.title = `${vertical ? 'Vertical' : 'Horizontal'} zoom: drag an end to zoom, the middle to move (double-click: fit)`;
+        el.title = title || `${vertical ? 'Vertical' : 'Horizontal'} zoom: drag an end to zoom, the middle to move (double-click: fit)`;
         const thumb = Object.assign(document.createElement('div'), { className: 'analysis-zoombar-thumb' });
         el.append(thumb);
         let held = null;
@@ -104,5 +105,5 @@ window.ZoomBars = (function () {
         follow();
     }
 
-    return { attach };
+    return { attach, bar };
 })();

@@ -7,7 +7,9 @@
 // World coordinates: x = position along the index axis (m), y = depth (m, down). Rotated (for 0 deg
 // longitudinal data such as HydroFORM), the screen shows depth across and the index axis down, so it
 // lines up with the A-scan's depth axis and a raster C-scan's index axis; the view ([cx, cy, ...],
-// zoom bars) is then in those display axes, and toScreen / toWorld swap. Click or drag
+// zoom bars) is then in those display axes, and toScreen / toWorld swap. The skew view (setSkewView):
+// the picture mirrored across the index axis (the probe drawn facing the other way), and the index
+// numbers increasing to the left (skew 270: the probe upstream reads negative either way). Click or drag
 // to move the beam cursor, scroll to zoom at the pointer, right-drag to pan, double-click to fit.
 // True geometry keeps one scale both ways (a sectorial fan); stretched fills the panel (a 0 deg
 // raster's index x depth end view, e.g. 12 in wide and 0.5 in deep).
@@ -23,10 +25,12 @@ in vec2 aPos;
 in vec2 aTex;
 uniform vec4 uView;   // centre x, centre y, 2 / width, 2 / height (display units)
 uniform float uSwap;  // 1: rotated - depth across, index down
+uniform float uFlip;  // 1: the index axis the other way (positive to the left / up)
 out vec2 vTex;
 void main() {
     vTex = aTex;
-    vec2 p = uSwap > 0.5 ? aPos.yx : aPos;
+    vec2 q = vec2(uFlip > 0.5 ? -aPos.x : aPos.x, aPos.y);
+    vec2 p = uSwap > 0.5 ? q.yx : q;
     gl_Position = vec4((p.x - uView.x) * uView.z, -(p.y - uView.y) * uView.w, 0.0, 1.0);
 }`;
     const FRAGMENT = `#version 300 es
@@ -71,7 +75,7 @@ void main() {
             this.loc = {
                 pos: gl.getAttribLocation(program, 'aPos'), tex: gl.getAttribLocation(program, 'aTex'),
                 view: gl.getUniformLocation(program, 'uView'), gain: gl.getUniformLocation(program, 'uGain'),
-                swap: gl.getUniformLocation(program, 'uSwap'),
+                swap: gl.getUniformLocation(program, 'uSwap'), flip: gl.getUniformLocation(program, 'uFlip'),
                 data: gl.getUniformLocation(program, 'uData'), palette: gl.getUniformLocation(program, 'uPalette'),
             };
             this.buffer = gl.createBuffer();
@@ -85,6 +89,8 @@ void main() {
                                     // vertical zoom over its horizontal one, from the zoom bars)
             this.trueGeometry = true;
             this.rotated = false;   // depth across, index down
+            this.flipIndex = false; // the picture mirrored across the index axis
+            this.indexLabelsLeft = false;   // the index numbers increasing to the left (skew 270 view)
             this.cursors = { u_ref: null, u_meas: null, i_ref: null, i_meas: null };
             this.lateral = 0;
             this.hasFrame = false;
@@ -197,8 +203,25 @@ void main() {
             this.draw();
         }
 
-        /** A world point (index, depth) in display axes, or back: the same swap both ways. */
-        swap([x, y]) { return this.rotated ? [y, x] : [x, y]; }
+        /** The skew view: mirror - the picture flipped across the index axis; labelsLeft - the index
+         *  numbers increasing to the left (they're the screen position, so negated, not the file's). */
+        setSkewView({ mirror = false, labelsLeft = false }) {
+            const changed = this.flipIndex !== !!mirror;
+            this.flipIndex = !!mirror;
+            this.indexLabelsLeft = !!labelsLeft;
+            if (changed) this.view = null;
+            this.draw();
+        }
+
+        /** A world point (index, depth) in display axes (across, down), and back. */
+        toDisplayPoint([x, y]) {
+            const i = this.flipIndex ? -x : x;
+            return this.rotated ? [y, i] : [i, y];
+        }
+        fromDisplayPoint([a, b]) {
+            const [i, d] = this.rotated ? [b, a] : [a, b];
+            return [this.flipIndex ? -i : i, d];
+        }
 
         setTrueGeometry(on) {
             this.trueGeometry = on;
@@ -250,7 +273,8 @@ void main() {
 
         /**
          * The gates on the S-scan: [{letter, colour, editable, paths: [[sp start, sp end] | null per line],
-         * box: {i0, i1, d0, d1} | null}]. Each is drawn along every beam it reaches; an editable one's
+         * box: {i0, i1, d0, d1} | null, depths: {d0, d1} | null}], dashed. Each is drawn along every beam it
+         * reaches - a true-depth gate (depths) as its two depths right across the view; an editable one's
          * edges and letter tab can be dragged (options.onGateDrag).
          */
         setGates(gates) {
@@ -299,7 +323,15 @@ void main() {
                 ctx.save();
                 ctx.lineWidth = (this.selected?.kind === 'gate' && this.selected.letter === gate.letter ? 3 : 1.5) * ratio;
                 ctx.strokeStyle = gate.colour;
-                for (const lines of runs) {
+                ctx.setLineDash([6 * ratio, 4 * ratio]);   // dashed, so the data shows between
+                if (gate.depths) {   // a true-depth gate: its two depths across the whole view
+                    ctx.globalAlpha = 0.95;
+                    for (const depth of [gate.depths.d0, gate.depths.d1]) {
+                        const [x0, y0, x1, y1] = this.depthLine(depth);
+                        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+                    }
+                }
+                for (const lines of gate.depths ? [] : runs) {
                     const curve = (end, order) => order.forEach((i, k) => {
                         const [x, y] = this.alongRay(i, paths[i][end]);
                         if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
@@ -309,13 +341,12 @@ void main() {
                     ctx.beginPath(); curve(0, lines); ctx.stroke();
                     ctx.beginPath(); curve(1, lines); ctx.stroke();
                 }
-                if (gate.box) {   // the box itself, dashed
+                if (gate.box) {   // the box itself
                     const [ax, ay] = this.toScreen(gate.box.i0, gate.box.d0), [bx, by] = this.toScreen(gate.box.i1, gate.box.d1);
-                    ctx.setLineDash([5 * ratio, 4 * ratio]);
                     ctx.globalAlpha = 0.9;
                     ctx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
-                    ctx.setLineDash([]);
                 }
+                ctx.setLineDash([]);
                 // The letter tab: on the start curve of the middle line (a box: its top left corner)
                 let tab = null, tabLine = null;
                 if (gate.box) {
@@ -351,6 +382,14 @@ void main() {
             for (const tab of this.gateTabs || []) {
                 if (editable.some(g => g.letter === tab.letter) && Math.hypot(px - tab.x, py - tab.y) <= reach + 2 * ratio) {
                     return { letter: tab.letter, part: 'move', line: tab.line };
+                }
+            }
+            // A true-depth gate's lines run across the view: grab them anywhere to move that depth
+            for (const gate of editable) {
+                if (!gate.depths) continue;
+                for (const [part, depth] of [['d0', gate.depths.d0], ['d1', gate.depths.d1]]) {
+                    const [x0, y0] = this.depthLine(depth);
+                    if (this.rotated ? Math.abs(px - x0) <= reach : Math.abs(py - y0) <= reach) return { letter: gate.letter, part };
                 }
             }
             const [x, y] = this.toWorld(e);
@@ -396,7 +435,8 @@ void main() {
         // ── view ──
         fitView() {
             const [b0, b1, b2, b3] = this.bounds;
-            const [x0, y0, x1, y1] = this.rotated ? [b1, b0, b3, b2] : [b0, b1, b2, b3];
+            const [i0, i1] = this.flipIndex ? [-b2, -b0] : [b0, b2];   // the index range as shown
+            const [x0, y0, x1, y1] = this.rotated ? [b1, i0, b3, i1] : [i0, b1, i1, b3];
             const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
             const pad = 0.04;
             let width = (x1 - x0) * (1 + 2 * pad), height = (y1 - y0) * (1 + 2 * pad);
@@ -443,7 +483,7 @@ void main() {
         }
 
         /** A pointer event's point in the world: [index, depth]. */
-        toWorld(event) { return this.swap(this.toDisplay(event)); }
+        toWorld(event) { return this.fromDisplayPoint(this.toDisplay(event)); }
 
         /** A display point (across, down) on the overlay, in its pixels. */
         displayToScreen(x, y) {
@@ -453,7 +493,7 @@ void main() {
         }
 
         /** A world point (index, depth) on the overlay, in its pixels. */
-        toScreen(x, y) { return this.displayToScreen(...this.swap([x, y])); }
+        toScreen(x, y) { return this.displayToScreen(...this.toDisplayPoint([x, y])); }
 
         /** The overlay line across the view at a depth (rotated: up and down): [x0, y0, x1, y1]. */
         depthLine(depth) {
@@ -488,6 +528,7 @@ void main() {
                 const [cx, cy, width, height] = this.currentView();
                 gl.uniform4f(this.loc.view, cx, cy, 2 / width, 2 / height);
                 gl.uniform1f(this.loc.swap, this.rotated ? 1 : 0);
+                gl.uniform1f(this.loc.flip, this.flipIndex ? 1 : 0);
                 gl.uniform1f(this.loc.gain, this.gain);
                 gl.activeTexture(gl.TEXTURE1);
                 gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture);
@@ -625,13 +666,13 @@ void main() {
                 const [sx] = this.displayToScreen(x, 0);
                 if (sx < 46 * ratio) continue;
                 ctx.beginPath(); ctx.moveTo(sx, h - 18 * ratio); ctx.lineTo(sx, h - 13 * ratio); ctx.stroke();
-                label(this.options.format(x, true), sx + 2 * ratio, h - 5 * ratio);
+                label(this.options.format(!this.rotated && this.indexLabelsLeft ? -x : x, true), sx + 2 * ratio, h - 5 * ratio);
             }
             for (let y = Math.ceil((cy - height / 2) / ys) * ys; y <= cy + height / 2; y += ys) {
                 const [, sy] = this.displayToScreen(0, y);
                 if (sy > h - 18 * ratio) continue;
                 ctx.beginPath(); ctx.moveTo(40 * ratio, sy); ctx.lineTo(46 * ratio, sy); ctx.stroke();
-                label(this.options.format(y, true), 3 * ratio, sy + 4 * ratio);
+                label(this.options.format(this.rotated && this.indexLabelsLeft ? -y : y, true), 3 * ratio, sy + 4 * ratio);
             }
             ctx.restore();
         }

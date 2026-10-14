@@ -73,7 +73,7 @@ window.AnalysisFiles = function ({ page, send, openFile, refreshFiles }) {
 
     function showPicked() {
         const n = pc.picked.size;
-        $('pc-picked').textContent = n ? `${n} file${n > 1 ? 's' : ''} ticked` : 'Click a file to open it, or tick files for a project.';
+        $('pc-picked').textContent = n ? `${n} file${n > 1 ? 's' : ''} ticked` : '';
         $('pc-project').disabled = !n;
     }
 

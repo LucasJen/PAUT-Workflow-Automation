@@ -28,6 +28,7 @@ window.AnalysisShell = (function () {
             b.setAttribute('aria-pressed', on);
         });
         title.textContent = body.dataset.title;
+        title.title = body.dataset.help || '';
         drawer.hidden = false;
         app.classList.add('has-drawer');
         app.classList.toggle('has-wide-drawer', 'wide' in body.dataset);
@@ -89,12 +90,25 @@ window.AnalysisShell = (function () {
         fullButton.title = full ? 'Leave full screen (Esc)' : 'Full screen (Esc to leave)';
     });
 
+    /** Collapsible sections (details.ana-section[data-section]) open or closed as they were left. */
+    function rememberSections(root = document) {
+        for (const section of root.querySelectorAll('details.ana-section[data-section]')) {
+            const key = `analysisSection:${section.dataset.section}`;
+            const kept = get(key);
+            if (kept !== null) section.open = kept === '1';
+            if (section.dataset.remembered) continue;
+            section.dataset.remembered = '1';
+            section.addEventListener('toggle', () => set(key, section.open ? '1' : '0'));
+        }
+    }
+    rememberSections();
+
     showReadings(get('analysisReadings') !== '0');
     const saved = get('analysisPanel');
     if (saved) open(saved);
 
     return {
-        open, close, toggle,
+        open, close, toggle, rememberSections,
         get current() { return current; },
         toggleReadings: () => showReadings(grid.classList.contains('no-readings')),
         onChange: fn => listeners.push(fn),

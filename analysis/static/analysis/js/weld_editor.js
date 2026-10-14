@@ -38,36 +38,39 @@ window.WeldEditor = (function () {
                 return;
             }
             const u = this.options.units();
-            const grid = el('div', { className: 'analysis-weld-grid' });
+            const grid = el('div', { className: 'ana-props analysis-weld-grid' });
             const row = (label, help, ...controls) => {
                 const name = el('label', { textContent: label, title: help });
-                grid.append(name, el('div', { className: 'analysis-weld-controls' }, ...controls));
+                grid.append(name, el('div', { className: 'ana-value analysis-weld-controls' }, ...controls));
             };
 
-            // Centre line: where the weld is across the index
-            this.shiftInput = this.number(shift / this.options.unitLength(), v => this.options.onShift(v * this.options.unitLength()), true);
+            // The weld's centre line, shown as the index offset (as in MXU / OmniPC): where the probe is from the
+            // weld centre - the probe's position less the centre line's. The file's offset puts the weld at 0.
+            const L = this.options.unitLength();
+            this.shiftInput = this.number(this.offsetOf(shift) / L, v => this.options.onShift(this.shiftOf(v * L)), true);
             const step = u === 'mm' ? 0.5 : 0.02;
             const nudge = (sign, icon) => {
                 const b = el('button', { type: 'button', className: 'btn btn-sm btn-ghost', innerHTML: `<i class="bi bi-${icon}"></i>` });
-                b.title = `Move it ${sign < 0 ? 'left' : 'right'} by ${step} ${u}`;
-                b.addEventListener('click', () => {
-                    const v = (parseFloat(this.shiftInput.value) || 0) + sign * step;
-                    this.shiftInput.value = this.fmt(v);
-                    this.options.onShift(v * this.options.unitLength());
+                b.title = `Move the weld ${sign < 0 ? 'left' : 'right'} by ${step} ${u}`;
+                b.addEventListener('click', () => {   // left / right on screen: the other way when the index axis is flipped
+                    const now = this.shiftOf((parseFloat(this.shiftInput.value) || 0) * L);
+                    const next = now + (this.options.flipped?.() ? -sign : sign) * step * L;
+                    this.shiftInput.value = this.fmt(this.offsetOf(next) / L);
+                    this.options.onShift(next);
                 });
                 return b;
             };
-            row('Centre line', 'Where the weld centre is across the index, from the file\'s index origin. Alt+drag the weld on the S-scan to move it.',
-                nudge(-1, 'chevron-left'), this.shiftInput, nudge(1, 'chevron-right'), el('span', { className: 'analysis-tool-note', textContent: u }));
+            row('Index offset', 'Where the probe is from the weld centreline (MXU / OmniPC\'s index offset; negative: the probe upstream). From the file; change it, nudge it or Alt+drag the weld on the S-scan to move the weld.',
+                nudge(-1, 'chevron-left'), this.shiftInput, nudge(1, 'chevron-right'), el('span', { className: 'ana-unit', textContent: u }));
 
             const s = this.shape;
             row('Root gap', 'The gap between the plates at the root (both sides)',
                 this.number(2 * (s.offset || 0) / this.options.unitLength(), v => { s.offset = Math.max(0, v) * this.options.unitLength() / 2; }),
-                el('span', { className: 'analysis-tool-note', textContent: u }));
+                el('span', { className: 'ana-unit', textContent: u }));
             s.land = s.land || {};
             row('Land', 'Height of the root face (straight up from the root)',
                 this.number((s.land.height || 0) / this.options.unitLength(), v => { s.land.height = Math.max(0, v) * this.options.unitLength(); }),
-                el('span', { className: 'analysis-tool-note', textContent: u }));
+                el('span', { className: 'ana-unit', textContent: u }));
             s.root = s.root || {};
             s.hotPass = s.hotPass || {};
             s.fills = s.fills || [];
@@ -89,9 +92,10 @@ window.WeldEditor = (function () {
 
             this.note = el('p', { className: 'analysis-note' });
             const status = el('div', { className: 'analysis-drawer-row' },
-                el('span', { className: 'analysis-note', textContent: edited ? 'Edited here (kept for this file).' : "From the file's setup (MXU / OmniPC)." }));
+                el('span', { className: 'analysis-note', textContent: edited ? 'Edited' : 'From the file',
+                             title: edited ? 'Edited here (kept for this file)' : "From the file's setup (MXU / OmniPC)" }));
             if (edited) {
-                const reset = el('button', { type: 'button', className: 'btn btn-sm btn-secondary ms-auto', innerHTML: '<i class="bi bi-arrow-counterclockwise"></i> File\'s weld' });
+                const reset = el('button', { type: 'button', className: 'ana-icon-btn ms-auto', innerHTML: '<i class="bi bi-arrow-counterclockwise"></i>' });
                 reset.title = "Back to the weld from the file's setup, centred";
                 reset.addEventListener('click', () => this.options.onReset());
                 status.append(reset);
@@ -102,8 +106,12 @@ window.WeldEditor = (function () {
 
         /** The centre line from a drag on the S-scan. */
         setShift(shift) {
-            if (this.shiftInput) this.shiftInput.value = this.fmt(shift / this.options.unitLength());
+            if (this.shiftInput) this.shiftInput.value = this.fmt(this.offsetOf(shift) / this.options.unitLength());
         }
+
+        /** The index offset (m) for a centre-line shift (m), and back: the probe's position less the weld's. */
+        offsetOf(shift) { return (this.options.probeOffset?.() || 0) - shift; }
+        shiftOf(offset) { return (this.options.probeOffset?.() || 0) - offset; }
 
         fmt(v) {
             return this.options.units() === 'mm' ? v.toFixed(2) : v.toFixed(3);
@@ -134,14 +142,14 @@ window.WeldEditor = (function () {
 
         pass(p) {
             return [this.number((p.height || 0) / this.options.unitLength(), v => { p.height = Math.max(0, v) * this.options.unitLength(); }),
-                    el('span', { className: 'analysis-tool-note', textContent: '@' }), this.angle(p), el('span', { className: 'analysis-tool-note', textContent: '°' })];
+                    el('span', { className: 'ana-unit', textContent: '@' }), this.angle(p), el('span', { className: 'ana-unit', textContent: '°' })];
         }
 
         cap(c) {
             const width = this.number((c.width || 0) / this.options.unitLength(), v => { c.width = Math.max(0, v) * this.options.unitLength(); });
             const height = this.number((c.height || 0) / this.options.unitLength(), v => { c.height = Math.max(0, v) * this.options.unitLength(); });
             width.title = 'Width'; height.title = 'Height';
-            return [width, el('span', { className: 'analysis-tool-note', textContent: '×' }), height];
+            return [width, el('span', { className: 'ana-unit', textContent: '×' }), height];
         }
 
         /** Tells the page; `rebuild` when rows were added / removed. */

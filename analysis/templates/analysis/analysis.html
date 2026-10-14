@@ -10,7 +10,7 @@
      data-frame-gates-url="{% url 'analysis-frame-gates' %}"
      data-projections-url="{% url 'analysis-projections' %}" data-cscan-url="{% url 'analysis-cscan' %}"
      data-bscan-url="{% url 'analysis-bscan' %}" data-size-url="{% url 'analysis-size' %}"
-     data-detect-url="{% url 'analysis-detect' %}" data-clear-indications-url="{% url 'analysis-clear-indications' %}" data-resize-url="{% url 'analysis-resize' 0 %}"
+     data-detect-url="{% url 'analysis-detect' %}" data-clear-indications-url="{% url 'analysis-clear-indications' %}" data-forget-indications-url="{% url 'analysis-forget-indications' %}" data-resize-url="{% url 'analysis-resize' 0 %}"
      data-indications-url="{% url 'analysis-indications' %}" data-indications-csv-url="{% url 'analysis-indications-csv' %}"
      data-indication-url="{% url 'analysis-indication' 0 %}" data-report-targets-url="{% url 'analysis-report-targets' %}"
      data-weld-outline-url="{% url 'analysis-weld-outline' %}"
@@ -30,26 +30,41 @@
         </button>
         <select class="form-select form-select-sm analysis-group" id="group-select" aria-label="Group" hidden></select>
         <span class="analysis-sep"></span>
-        <div class="analysis-tool" title="Scan position (Left / Right a line, Shift for 10, PageUp / PageDown)">
-            <button type="button" class="btn btn-sm btn-ghost" id="scan-prev" aria-label="Previous scan line"><i class="bi bi-chevron-left"></i></button>
-            <input type="range" class="form-range analysis-slider" id="scan-slider" min="0" max="0" value="0" aria-label="Scan line">
-            <button type="button" class="btn btn-sm btn-ghost" id="scan-next" aria-label="Next scan line"><i class="bi bi-chevron-right"></i></button>
-            <input type="text" inputmode="decimal" class="form-control form-control-sm mono analysis-number analysis-scan-distance" id="scan-number" value="0" aria-label="Scan position" title="Scan position (type a distance to go to the nearest scan line)">
-            <span class="analysis-tool-note"><span id="scan-count"></span> <span class="mono" id="scan-position" title="Scan line number (of the file's lines)"></span></span>
+        <div class="analysis-tool">
+            <button type="button" class="btn btn-sm btn-ghost" id="scan-prev" aria-label="Previous scan line" title="Previous scan line (Left)"><i class="bi bi-chevron-left"></i></button>
+            <input type="range" class="form-range analysis-slider" id="scan-slider" min="0" max="0" value="0" aria-label="Scan line" title="Scan position (Left / Right a line, Shift for 10, PageUp / PageDown)">
+            <button type="button" class="btn btn-sm btn-ghost" id="scan-next" aria-label="Next scan line" title="Next scan line (Right)"><i class="bi bi-chevron-right"></i></button>
+            <label class="analysis-value-box" title="Scan position: type a distance, or scroll over it a line at a time (Shift: 10)">
+                <input type="text" inputmode="decimal" class="mono" id="scan-number" value="0" aria-label="Scan position" autocomplete="off">
+                <span class="unit" id="scan-unit">in</span>
+            </label>
         </div>
+        <label class="analysis-value-box" id="beam-box" title="The data cursor's beam: type an angle (VPA on a linear scan, index position on a raster), or scroll over it a beam at a time (Up / Down keys)">
+            <span class="unit" id="beam-prefix" hidden>VPA</span>
+            <input type="text" inputmode="decimal" class="mono" id="beam-number" value="" aria-label="Beam" autocomplete="off">
+            <span class="unit" id="beam-unit">°</span>
+        </label>
         <span class="analysis-sep"></span>
-        <div class="analysis-tool" title="Soft gain added to the data, like OmniPC's Gain (+ / - keys)">
-            <span class="analysis-tool-label">Gain</span>
-            <button type="button" class="btn btn-sm btn-ghost" id="gain-down" aria-label="1 dB less"><i class="bi bi-dash-lg"></i></button>
-            <input type="number" class="form-control form-control-sm mono analysis-number" id="gain" value="0.0" step="0.5" aria-label="Soft gain in dB">
-            <button type="button" class="btn btn-sm btn-ghost" id="gain-up" aria-label="1 dB more"><i class="bi bi-plus-lg"></i></button>
-            <span class="analysis-tool-note">dB</span>
+        <div class="analysis-tool">
+            <div class="analysis-gain-stack">
+                <label class="analysis-value-box is-gain" title="Soft gain added to the data, like OmniPC's Gain: type it, or scroll over it 1 dB at a time (Shift: 0.1 dB; + / - keys)">
+                    <input type="text" inputmode="decimal" class="mono" id="gain" value="0.0" aria-label="Soft gain in dB" autocomplete="off">
+                    <span class="unit">dB</span>
+                </label>
+                <span class="analysis-ref-gain mono" id="ref-gain" title="The file's reference gain (its setup's Ref. gain)" hidden></span>
+            </div>
             <button type="button" class="btn btn-sm btn-secondary analysis-auto80" id="auto-80" title="Auto 80%: set the soft gain so the gate A signal on the cursor's A-scan peaks at 80% of full screen (A)">80%</button>
         </div>
         <span class="analysis-sep"></span>
         <select class="form-select form-select-sm analysis-layout-select" id="layout" aria-label="Layout" title="Views shown, like OmniPC's layouts">
             <option value="A-S">A-S</option><option value="A-S-C">A-S-C</option><option value="A-B-C-S">A-B-C-S</option>
         </select>
+        <label class="analysis-selection" id="selection-readout" hidden title="The selection: type a value (Enter) or scroll over it to move it; the wheel over its view moves it too (Esc deselects)">
+            <span class="name" id="selection-name"></span>
+            <input type="text" inputmode="decimal" class="mono" id="selection-value" aria-label="Selection position" autocomplete="off">
+            <span class="unit" id="selection-unit"></span>
+            <span class="note mono" id="selection-note" hidden></span>
+        </label>
         <span class="analysis-status" id="analysis-status" role="status" hidden></span>
         <div class="analysis-topbar-end">
             <button type="button" class="btn btn-sm btn-ghost" id="clear-cursors" title="Clear every cursor in every view, and the sizing (Shift+Del)" aria-label="Clear all cursors"><i class="bi bi-eraser"></i></button>
@@ -64,12 +79,22 @@
     {# ── Left rail: each button opens its panel ── #}
     <nav class="analysis-rail" aria-label="Analysis panels">
         <button type="button" class="analysis-rail-button" data-panel="files" title="Files (O)"><i class="bi bi-folder2-open"></i></button>
-        <button type="button" class="analysis-rail-button" data-panel="gates" title="Gates"><i class="bi bi-distribute-horizontal"></i></button>
+        <button type="button" class="analysis-rail-button" data-panel="gates" title="Gates">
+            {# A gate as on the A-scan: a bar between two end ticks #}
+            <svg class="analysis-rail-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round">
+                <path d="M2.5 3.5v9M13.5 3.5v9" stroke-width="1.6"/><path d="M2.5 8h11" stroke-width="2.2"/>
+            </svg></button>
         <button type="button" class="analysis-rail-button" data-panel="indications" title="Indications">
             <i class="bi bi-pin-map"></i><span class="analysis-rail-badge" id="indication-count" hidden></span></button>
         <button type="button" class="analysis-rail-button" data-panel="report" title="Send indications to a report"><i class="bi bi-send"></i></button>
-        <button type="button" class="analysis-rail-button" data-panel="geometry" title="Geometry and weld overlay"><i class="bi bi-triangle"></i></button>
-        <button type="button" class="analysis-rail-button" data-panel="display" title="Display: units, palettes, reference level"><i class="bi bi-palette"></i></button>
+        <button type="button" class="analysis-rail-button" data-panel="geometry" title="Geometry and weld overlay">
+            {# The weld as the overlay draws it: the bevel's trace, a cap on top and the root below #}
+            <svg class="analysis-rail-icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">
+                <path d="M2.5 5.5 7 11.8v0.7h2v-0.7L13.5 5.5"/>
+                <path d="M2.5 5.5Q8 3 13.5 5.5M7 12.5Q8 14.2 9 12.5"/>
+                <path d="M0.5 5.5h2M13.5 5.5h2M0.5 12.5H7M9 12.5h6.5" opacity="0.6"/>
+            </svg></button>
+        <button type="button" class="analysis-rail-button" data-panel="display" title="Display: units, palettes, reference level, link zoom"><i class="bi bi-gear"></i></button>
     </nav>
 
     {# ── The open panel (one at a time) ── #}
@@ -83,7 +108,7 @@
             <div class="analysis-files-view" id="files-view">
                 <div class="analysis-drawer-row">
                     <input type="search" class="form-control form-control-sm" id="file-filter" placeholder="Filter files…" aria-label="Filter files">
-                    <button type="button" class="btn btn-sm btn-secondary text-nowrap" id="browse-pc" title="Open .nde files from anywhere on this PC (they're read where they are)"><i class="bi bi-hdd"></i> Browse PC</button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="browse-pc" title="Browse this PC: open .nde files from anywhere (they're read where they are), or tick some for a new project"><i class="bi bi-hdd"></i></button>
                 </div>
                 <div class="analysis-file-list" id="file-list"><p class="analysis-note">Loading files…</p></div>
             </div>
@@ -96,133 +121,154 @@
                 </div>
                 <div class="analysis-file-list analysis-pc-list" id="pc-list"></div>
                 <div class="analysis-send-bar">
-                    <span class="analysis-note" id="pc-picked">Click a file to open it, or tick files for a project.</span>
-                    <button type="button" class="btn btn-sm btn-primary ms-auto" id="pc-project" disabled title="Make a job folder with the ticked files and start a report from them"><i class="bi bi-folder-plus"></i> New project</button>
+                    <span class="analysis-note" id="pc-picked" title="Click a file to open it, or tick files for a project"></span>
+                    <button type="button" class="btn btn-sm btn-primary ms-auto" id="pc-project" disabled title="New project: make a job folder with the ticked files and start a report from them"><i class="bi bi-folder-plus"></i> Project</button>
                 </div>
             </div>
             <div class="analysis-files-view" id="project-view" hidden>
                 <div class="analysis-drawer-row">
                     <button type="button" class="btn btn-sm btn-ghost" id="project-back" title="Back"><i class="bi bi-arrow-left"></i></button>
-                    <strong>New project</strong>
+                    <strong title="Makes a job folder in the report type's working folder, copies the files into it, then starts Guided Creation from them">New project</strong>
                 </div>
-                <p class="analysis-note">Makes a job folder in the report type's working folder, copies the files into it, then starts Guided Creation from them.</p>
-                <div class="analysis-step">
-                    <div class="analysis-step-head"><span class="analysis-step-number">1</span> Files</div>
-                    <div class="analysis-pick-list" id="project-files"></div>
+                <details class="ana-section" data-section="project:files" open>
+                    <summary>Files</summary>
+                    <div class="ana-body"><div class="analysis-pick-list" id="project-files"></div></div>
+                </details>
+                <div class="ana-props">
+                    <label for="project-type" title="The report type: its working folder gets the job folder">Report type</label>
+                    <div class="ana-value"><select class="form-select form-select-sm" id="project-type" aria-label="Report type"></select></div>
+                    <label for="project-name" title="The job folder's name; it gives the report its name and client, as on Guided Creation">Job folder</label>
+                    <div class="ana-value"><input type="text" class="form-control form-control-sm mono" id="project-name" aria-label="Job folder name" placeholder="PPI-32-27119-FW6-4in"></div>
                 </div>
-                <div class="analysis-step">
-                    <div class="analysis-step-head"><span class="analysis-step-number">2</span> Report type</div>
-                    <select class="form-select form-select-sm" id="project-type" aria-label="Report type"></select>
-                    <span class="analysis-note" id="project-root"></span>
-                </div>
-                <div class="analysis-step">
-                    <div class="analysis-step-head"><span class="analysis-step-number">3</span> Job folder name</div>
-                    <input type="text" class="form-control form-control-sm mono" id="project-name" aria-label="Job folder name" placeholder="e.g. PPI-32-27119-FW6-4in">
-                    <span class="analysis-note">The name gives the report its name and client, as on Guided Creation.</span>
-                </div>
+                <span class="analysis-note" id="project-root"></span>
                 <div class="analysis-send-bar">
-                    <button type="button" class="btn btn-sm btn-primary" id="project-create"><i class="bi bi-folder-plus"></i> Create project</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="project-create"><i class="bi bi-folder-plus"></i> Create</button>
                     <span class="analysis-note" id="project-status" role="status"></span>
                 </div>
             </div>
             {% if not roots %}<p class="analysis-note">Add a working folder under <a href="{% url 'working-folder-list' %}">Preferences › Working folders</a> to open .nde files from it.</p>{% endif %}
         </section>
 
-        <section class="analysis-drawer-body" data-panel-body="gates" data-title="Gates" data-wide hidden>
-            <div class="analysis-drawer-row">
-                <span class="analysis-panel-note" id="gates-edited" hidden>Edited</span>
-                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="reset-gates" title="Back to the file's gates"><i class="bi bi-arrow-counterclockwise"></i> File's gates</button>
-            </div>
+        <section class="analysis-drawer-body" data-panel-body="gates" data-title="Gates" hidden
+                 data-help="Drag a gate on the S-scan (its edges, or its letter tab to move it) or on the A-scan (its bar - up / down is the threshold - and its end ticks). Its start moves the whole gate; its end sets the width">
             <div class="analysis-gate-rows" id="gate-rows"><p class="analysis-note">Open a file to see its gates.</p></div>
-            <div class="analysis-add-gates" id="add-gates"></div>
-            <label class="analysis-check" title="Each gate drawn along every beam of the S-scan, where it can be dragged"><input type="checkbox" id="show-sscan-gates" checked> Show the gates on the S-scan</label>
-            <p class="analysis-note"><strong>Type:</strong> <em>Sound path</em> - the same stretch of time on every beam (an arc on a sectorial scan); <em>True depth</em> - between two depths on every beam; <em>Box</em> - inside a box of depth and index; beams that miss it have no gate (grey on the C-scan) or, if you choose, zero amplitude (white). Depth and box gates start from the pulse. Gates you add can be removed (bin icon).</p>
-            <p class="analysis-note">On the S-scan drag a gate's edges to change its start or end (a box: any side) and its letter tab to move it. On the A-scan drag a gate's bar (up / down changes its threshold) and its end ticks.</p>
+            <div class="analysis-drawer-row">
+                <span class="analysis-add-gates" id="add-gates"></span>
+                <span class="ms-auto"></span>
+                <span class="ana-dot" id="gates-edited" hidden title="Edited here"></span>
+                <button type="button" class="ana-icon-btn" id="reset-gates" title="Back to the file's gates"><i class="bi bi-arrow-counterclockwise"></i></button>
+            </div>
+            <div class="ana-props">
+                <label for="show-sscan-gates" title="Each gate drawn along every beam of the S-scan, where it can be dragged">S-scan gates</label>
+                <input type="checkbox" class="form-check-input" id="show-sscan-gates" checked>
+            </div>
         </section>
 
-        <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" data-wide hidden>
+        <section class="analysis-drawer-body" data-panel-body="indications" data-title="Indications" data-wide hidden
+                 data-help="Find them (every signal breaking a gate, sized at 80 % FSH) or size one at the cursor (L) and Add it (N); click a row to go to it">
+            {# Grading: each indication against the acceptance criteria of 100-UT-020 #}
+            <div class="ana-props">
+                <label for="grade-criteria" title="Grade each indication against the acceptance criteria of procedure 100-UT-020 (Rev 9): red fails, green passes, yellow needs characterising first (B31.1: cracks, lack of fusion and incomplete penetration fail at any length). Amplitude is the peak at the file's reference gain against its reference amplitude; length against the allowable for the part thickness T">Criteria</label>
+                <div class="ana-value"><select class="form-select form-select-sm" id="grade-criteria">
+                    <option value="">None</option>
+                    <option value="b31.1">ASME B31.1 (100-UT-020 §8)</option>
+                    <option value="b31.3">ASME B31.3 (100-UT-020 §9)</option>
+                </select></div>
+            </div>
             {# Find indications: every signal in the gate over its threshold, each taken to 80 % and sized #}
-            <details class="analysis-find" id="find-box" open>
-                <summary><strong>Find indications</strong> <span class="analysis-note">every signal breaking the gate, sized at 80 % FSH</span></summary>
-                <div class="analysis-find-grid">
-                    <label title="The gate whose signals are found and sized">Gate
-                        <select class="form-select form-select-sm" id="find-gate"></select></label>
-                    <label title="A signal at or above this breaks the gate (blank: the gate's own threshold)">Threshold %
-                        <input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="find-threshold" placeholder="gate's"></label>
-                    <label title="Length, height and axial extent: where the signal drops this far below its peak">Sizing
-                        <select class="form-select form-select-sm" id="find-method"><option value="6">−6 dB</option><option value="12">−12 dB</option><option value="20">−20 dB</option></select></label>
-                    <label title="Signals this many scan lines apart or closer, on the same beams, are one indication">Join gaps of
-                        <span class="input-group input-group-sm"><input type="number" class="form-control mono" id="find-gap" value="2" min="0" step="1"><span class="input-group-text">lines</span></span></label>
-                    <label title="Shorter indications are left out (along the scan)">Shortest
-                        <span class="input-group input-group-sm"><input type="text" inputmode="decimal" class="form-control mono" id="find-min" value="0"><span class="input-group-text" id="find-min-unit">in</span></span></label>
-                    <button type="button" class="btn btn-sm btn-primary" id="find-now" title="Find and size every indication in the gate; indications you've reviewed or added are kept"><i class="bi bi-search"></i> Find</button>
-                    <button type="button" class="btn btn-sm btn-secondary" id="clear-finds" aria-expanded="false" title="Delete indications on this group: the found ones still to review, the rejected ones, every found one, or all"><i class="bi bi-trash3"></i> Clear <i class="bi bi-caret-down-fill"></i></button>
-                </div>
-                {# Clear: pick which, then confirm #}
-                <div class="analysis-clear-finds" id="clear-finds-menu" hidden>
-                    <div class="analysis-clear-choices" id="clear-finds-choices"></div>
-                    <div class="analysis-clear-confirm" id="clear-finds-confirm" hidden>
-                        <span id="clear-finds-question"></span>
-                        <button type="button" class="btn btn-sm btn-danger" id="clear-finds-yes">Delete</button>
-                        <button type="button" class="btn btn-sm btn-secondary" id="clear-finds-no">Cancel</button>
+            <details class="ana-section" id="find-box" data-section="find" open>
+                <summary title="Every signal breaking the gate, each taken to 80 % FSH and sized">Find</summary>
+                <div class="ana-body">
+                    <div class="ana-props">
+                        <label for="find-gate" title="The gate whose signals are found and sized">Gate</label>
+                        <div class="ana-value"><select class="form-select form-select-sm" id="find-gate"></select></div>
+                        <label for="find-threshold" title="A signal at or above this breaks the gate (blank: the gate's own threshold)">Threshold</label>
+                        <div class="ana-value"><input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="find-threshold" placeholder="gate's"><span class="ana-unit">%</span></div>
+                        <label for="find-method" title="Length, height and axial extent: where the signal drops this far below its peak">Sizing</label>
+                        <div class="ana-value"><select class="form-select form-select-sm" id="find-method"><option value="6">−6 dB</option><option value="12">−12 dB</option><option value="20">−20 dB</option></select></div>
+                        <label for="find-gap" title="Signals this many scan lines apart or closer, on the same beams, are one indication">Join gaps</label>
+                        <div class="ana-value"><input type="number" class="form-control form-control-sm mono" id="find-gap" value="2" min="0" step="1"><span class="ana-unit">lines</span></div>
+                        <label for="find-min" title="Shorter indications are left out (along the scan)">Shortest</label>
+                        <div class="ana-value"><input type="text" inputmode="decimal" class="form-control form-control-sm mono" id="find-min" value="0"><span class="ana-unit" id="find-min-unit">in</span></div>
+                    </div>
+                    <div class="analysis-drawer-row">
+                        <button type="button" class="btn btn-sm btn-primary" id="find-now" title="Find and size every indication in the gate; indications you've reviewed or added are kept"><i class="bi bi-search"></i> Find</button>
+                        <button type="button" class="btn btn-sm btn-secondary" id="clear-finds" aria-expanded="false" title="Delete indications on this group: the found ones still to review, the rejected ones, every found one, or all"><i class="bi bi-trash3"></i> Clear <i class="bi bi-caret-down-fill"></i></button>
+                        <span class="analysis-note" id="find-note" role="status"></span>
+                    </div>
+                    {# Clear: pick which, then confirm #}
+                    <div class="analysis-clear-finds" id="clear-finds-menu" hidden>
+                        <div class="analysis-clear-choices" id="clear-finds-choices"></div>
+                        <div class="analysis-clear-confirm" id="clear-finds-confirm" hidden>
+                            <span id="clear-finds-question"></span>
+                            <button type="button" class="btn btn-sm btn-danger" id="clear-finds-yes">Delete</button>
+                            <button type="button" class="btn btn-sm btn-secondary" id="clear-finds-no">Cancel</button>
+                        </div>
                     </div>
                 </div>
-                <span class="analysis-note" id="find-note" role="status"></span>
             </details>
             <div class="analysis-drawer-row">
                 <div class="btn-group btn-group-sm analysis-review-filter" id="review-filter" role="group" aria-label="Show">
                     <button type="button" class="btn btn-primary" data-filter="all">All</button>
-                    <button type="button" class="btn btn-secondary" data-filter="unreviewed">To review</button>
-                    <button type="button" class="btn btn-secondary" data-filter="accepted">Accepted</button>
-                    <button type="button" class="btn btn-secondary" data-filter="rejected">Rejected</button>
+                    <button type="button" class="btn btn-secondary" data-filter="unreviewed" title="Found, still to review">To review</button>
+                    <button type="button" class="btn btn-secondary" data-filter="accepted" title="Accepted">✓</button>
+                    <button type="button" class="btn btn-secondary" data-filter="rejected" title="Rejected">✕</button>
                 </div>
-                <span class="analysis-note" id="review-progress"></span>
-                <button type="button" class="btn btn-sm btn-secondary ms-auto" id="add-indication" title="Save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i> Add <kbd>N</kbd></button>
-                <a class="btn btn-sm btn-secondary" id="export-indications" href="#" title="The indications as a CSV like OmniPC's indications.csv"><i class="bi bi-download"></i> CSV</a>
-                <button type="button" class="btn btn-sm btn-secondary" id="open-send" title="Add the accepted indications to a report's results, with their pictures"><i class="bi bi-send"></i> To report</button>
+                <span class="ms-auto"></span>
+                <button type="button" class="ana-icon-btn" id="add-indication" title="Add: save the readings, cursors and sizing here as an indication (N)"><i class="bi bi-plus-lg"></i></button>
+                <a class="ana-icon-btn" id="export-indications" href="#" title="CSV: the indications like OmniPC's indications.csv"><i class="bi bi-download"></i></a>
+                <button type="button" class="ana-icon-btn" id="open-send" title="To report: add the accepted indications to a report's results, with their pictures"><i class="bi bi-send"></i></button>
             </div>
+            <span class="analysis-note" id="review-progress"></span>
             {# The indication being reviewed: what it measured, and accept / reject / size again #}
-            <div class="analysis-review" id="review-card" hidden>
+            <div class="analysis-review" id="review-card" hidden title="Drag the red / green cursors to correct the sizing">
                 <div class="analysis-review-head">
                     <strong id="review-title"></strong>
                     <span class="analysis-review-status" id="review-status"></span>
-                    <span class="analysis-note ms-auto">Drag the red / green cursors to correct the sizing</span>
                 </div>
                 <dl class="analysis-review-values mono" id="review-values"></dl>
                 <div class="analysis-review-actions">
                     <button type="button" class="btn btn-sm btn-secondary" id="review-prev" title="Previous indication ([)"><i class="bi bi-chevron-left"></i></button>
-                    <button type="button" class="btn btn-sm btn-success" id="review-accept" title="It's real and the sizing is right (Enter); goes on to the next"><i class="bi bi-check-lg"></i> Accept <kbd>Enter</kbd></button>
-                    <button type="button" class="btn btn-sm btn-danger" id="review-reject" title="Not a real indication (X); goes on to the next"><i class="bi bi-x-lg"></i> Reject <kbd>X</kbd></button>
+                    <button type="button" class="btn btn-sm btn-success" id="review-accept" title="Accept (Enter): it's real and the sizing is right; goes on to the next"><i class="bi bi-check-lg"></i></button>
+                    <button type="button" class="btn btn-sm btn-danger" id="review-reject" title="Reject (X): not a real indication; goes on to the next"><i class="bi bi-x-lg"></i></button>
                     <span class="btn-group btn-group-sm" role="group" aria-label="Size again">
                         <button type="button" class="btn btn-secondary" data-resize="6" title="Size again at −6 dB (6)">−6</button>
                         <button type="button" class="btn btn-secondary" data-resize="12" title="Size again at −12 dB (1)">−12</button>
                         <button type="button" class="btn btn-secondary" data-resize="20" title="Size again at −20 dB (2)">−20</button>
                     </span>
-                    <button type="button" class="btn btn-sm btn-secondary" id="review-save" hidden title="Keep the sizing as the cursors are now (S)"><i class="bi bi-floppy"></i> Keep cursors <kbd>S</kbd></button>
+                    <button type="button" class="btn btn-sm btn-secondary" id="review-save" hidden title="Keep the sizing as the cursors are now (S)"><i class="bi bi-floppy"></i></button>
                     <button type="button" class="btn btn-sm btn-secondary" id="review-next" title="Next indication (])"><i class="bi bi-chevron-right"></i></button>
                 </div>
             </div>
             <div class="analysis-indications" id="indication-rows"></div>
         </section>
 
-        <section class="analysis-drawer-body" data-panel-body="report" data-title="Send to report" data-wide hidden>
-            <p class="analysis-note">Adds indications as rows in a draft report's results table, in that report's own columns. Check and edit the rows before they're added.</p>
-            <div class="analysis-step">
-                <div class="analysis-step-head"><span class="analysis-step-number">1</span> Report</div>
-                <input type="search" class="form-control form-control-sm" id="report-filter" placeholder="Find a draft report…" aria-label="Find a report">
-                <div class="analysis-pick-list" id="report-list"><p class="analysis-note">Loading reports…</p></div>
-            </div>
-            <div class="analysis-step">
-                <div class="analysis-step-head"><span class="analysis-step-number">2</span> Indications
-                    <button type="button" class="btn btn-sm btn-ghost ms-auto" id="send-all" title="Pick every indication of this file">All</button></div>
-                <div class="analysis-pick-list" id="send-indications"></div>
-                <label class="analysis-check" title="Leave out the found indications still to review and those rejected"><input type="checkbox" id="send-accepted" checked> Accepted only</label>
-                <label class="analysis-check" title="Each indication's snip goes with its row: the S-scan and A-scan at its peak, the C-scan around it and the B-scan, at its 80 % gain with the sizing drawn"><input type="checkbox" id="send-pictures" checked> A snip of the views with each</label>
-            </div>
-            <div class="analysis-step">
-                <div class="analysis-step-head"><span class="analysis-step-number">3</span> Rows to add</div>
-                <div id="send-rows"><p class="analysis-note">Pick a report and indications to see the rows.</p></div>
-            </div>
+        <section class="analysis-drawer-body" data-panel-body="report" data-title="Send to report" data-wide hidden
+                 data-help="Adds indications as rows in a draft report's results table, in that report's own columns; check and edit the rows before they're added">
+            <details class="ana-section" data-section="send:report" open>
+                <summary>Report</summary>
+                <div class="ana-body">
+                    <input type="search" class="form-control form-control-sm" id="report-filter" placeholder="Find a draft report…" aria-label="Find a report">
+                    <div class="analysis-pick-list" id="report-list"><p class="analysis-note">Loading reports…</p></div>
+                </div>
+            </details>
+            <details class="ana-section" data-section="send:indications" open>
+                <summary>Indications
+                    <span class="ana-tools"><button type="button" class="ana-icon-btn" id="send-all" title="Pick every indication of this file">All</button></span></summary>
+                <div class="ana-body">
+                    <div class="analysis-pick-list" id="send-indications"></div>
+                    <div class="ana-props">
+                        <label for="send-accepted" title="Leave out the found indications still to review and those rejected">Accepted only</label>
+                        <input type="checkbox" class="form-check-input" id="send-accepted" checked>
+                        <label for="send-pictures" title="Each indication's snip goes with its row: the S-scan and A-scan at its peak, the C-scan around it and the B-scan, at its 80 % gain with the sizing drawn">Snip with each</label>
+                        <input type="checkbox" class="form-check-input" id="send-pictures" checked>
+                    </div>
+                </div>
+            </details>
+            <details class="ana-section" data-section="send:rows" open>
+                <summary title="The rows as they'll go into the report's results table; edit them here first">Rows to add</summary>
+                <div class="ana-body" id="send-rows"><p class="analysis-note">Pick a report and indications.</p></div>
+            </details>
             <div class="analysis-send-bar">
                 <button type="button" class="btn btn-sm btn-primary" id="send-now" disabled><i class="bi bi-send"></i> Add to report</button>
                 <span class="analysis-note" id="send-result" role="status"></span>
@@ -230,34 +276,64 @@
         </section>
 
         <section class="analysis-drawer-body" data-panel-body="geometry" data-title="Geometry" hidden>
-            <label class="analysis-check" title="One scale both ways (true geometry), or stretched to fill the panel"><input type="checkbox" id="true-geometry"> True geometry S-scan</label>
-            <label class="analysis-check" title="Dashed lines at the part thickness and its multiples (T, 2T, ...) - the back wall and each leg - on the A-, B- and S-scans (T)"><input type="checkbox" id="show-legs" checked> Leg lines (T, 2T…) on the A-, B- and S-scans</label>
-            <label class="analysis-check" id="groups-toggle" hidden title="Every group of the file drawn together at this scan position (this group on top); G switches group"><input type="checkbox" id="all-groups"> All groups on the S-scan</label>
-            <h3 class="analysis-drawer-subhead">Weld overlay</h3>
-            <label class="analysis-check" id="weld-toggle" hidden title="The weld outline on the S-scan, in every leg"><input type="checkbox" id="show-weld" checked> Show the weld</label>
-            <label class="analysis-check" id="caps-toggle" hidden title="The weld cap above the surface and the root reinforcement below the back wall"><input type="checkbox" id="show-caps"> Show the caps</label>
-            <div class="analysis-weld-editor" id="weld-editor"></div>
+            <div class="ana-props">
+                <label for="true-geometry" title="One scale both ways (true geometry), or stretched to fill the panel">True geometry</label>
+                <input type="checkbox" class="form-check-input" id="true-geometry">
+                <label for="show-legs" title="Dashed lines at the part thickness and its multiples (T, 2T, ...) - the back wall and each leg - on the A-, B- and S-scans (T)">Leg lines</label>
+                <input type="checkbox" class="form-check-input" id="show-legs" checked>
+                <div class="ana-row" id="groups-toggle" hidden>
+                    <label for="all-groups" title="Every group of the file drawn together at this scan position (this group on top); G switches group">All groups</label>
+                    <input type="checkbox" class="form-check-input" id="all-groups">
+                </div>
+            </div>
+            <details class="ana-section" data-section="weld" open>
+                <summary title="The weld outline on the S-scan, in every leg; Alt+drag it on the S-scan to move its centre line">Weld overlay</summary>
+                <div class="ana-body">
+                    <div class="ana-props">
+                        <div class="ana-row" id="weld-toggle" hidden>
+                            <label for="show-weld" title="The weld outline on the S-scan, in every leg">Show</label>
+                            <input type="checkbox" class="form-check-input" id="show-weld" checked>
+                        </div>
+                        <div class="ana-row" id="caps-toggle" hidden>
+                            <label for="show-caps" title="The weld cap above the surface and the root reinforcement below the back wall">Caps</label>
+                            <input type="checkbox" class="form-check-input" id="show-caps">
+                        </div>
+                    </div>
+                    <div class="analysis-weld-editor" id="weld-editor"></div>
+                </div>
+            </details>
         </section>
 
         <section class="analysis-drawer-body" data-panel-body="display" data-title="Display" hidden>
-            <div class="analysis-field-grid">
+            <div class="ana-props">
                 <label for="units">Units</label>
-                <select class="form-select form-select-sm" id="units"><option value="in">Inches</option><option value="mm">Millimetres</option></select>
-                <label for="axis">A-scan axis</label>
-                <select class="form-select form-select-sm" id="axis"><option value="depth">True depth</option><option value="path">Sound path</option></select>
-                <label for="amplitude-palette">Amplitude colours</label>
-                <select class="form-select form-select-sm" id="amplitude-palette" title="S-scan, B-scan and amplitude C-scans"></select>
-                <label for="range-palette">Thickness colours</label>
-                <select class="form-select form-select-sm" id="range-palette" title="Thickness and depth C-scans"></select>
-                <label for="ref-level" title="The amplitude A dB(r) is measured against, % of full screen (OmniPC's reference level)">Reference level</label>
-                <div class="input-group input-group-sm"><input type="number" class="form-control mono" id="ref-level" value="80" min="1" step="1"><span class="input-group-text">%</span></div>
+                <div class="ana-value"><select class="form-select form-select-sm" id="units"><option value="in">Inches</option><option value="mm">Millimetres</option></select></div>
+                <label for="axis" title="What the A-scan's horizontal axis shows">A-scan axis</label>
+                <div class="ana-value"><select class="form-select form-select-sm" id="axis"><option value="depth">True depth</option><option value="path">Sound path</option></select></div>
+                <label for="amplitude-palette" title="S-scan, B-scan and amplitude C-scans">Amplitude</label>
+                <div class="ana-value"><select class="form-select form-select-sm" id="amplitude-palette"></select></div>
+                <label for="range-palette" title="Thickness and depth C-scans">Thickness</label>
+                <div class="ana-value"><select class="form-select form-select-sm" id="range-palette"></select></div>
+                <label for="ref-level" title="The amplitude A dB(r) is measured against, % of full screen (OmniPC's reference level)">Ref. level</label>
+                <div class="ana-value"><input type="number" class="form-control form-control-sm mono" id="ref-level" value="80" min="1" step="1"><span class="ana-unit">%</span></div>
+                <label for="show-echo" title="The gate's highest amplitude along the scan, drawn under an amplitude C-scan">Echo curve</label>
+                <input type="checkbox" class="form-check-input" id="show-echo" checked>
+                <label for="sscan-rotate" title="For 0 deg longitudinal data (HydroFORM and other raster scans): depth across, lined up with the A-scan's depth axis, and the index axis down, lined up with the C-scan's index axis and its cursors">Rotate S-scan</label>
+                <input type="checkbox" class="form-check-input" id="sscan-rotate">
             </div>
-            <label class="analysis-check" title="The gate's highest amplitude along the scan, drawn under an amplitude C-scan"><input type="checkbox" id="show-echo" checked> Echo-dynamic curve under the C-scan</label>
-            <label class="analysis-check" title="For 0 deg longitudinal data (HydroFORM and other raster scans): depth across, lined up with the A-scan's depth axis, and the index axis down, lined up with the C-scan's index axis and its cursors"><input type="checkbox" id="sscan-rotate"> Rotate the S-scan 90° (depth across, index down)</label>
-            <div class="analysis-reading-section">Link zoom</div>
-            <label class="analysis-check" title="Zooming or panning the scan axis of the C-scan or B-scan does the same to the other"><input type="checkbox" id="link-scan"> Scan axis: C-scan and B-scan</label>
-            <label class="analysis-check" title="Zooming or panning depth on the B-scan, S-scan or A-scan (when it shows true depth) does the same to the others"><input type="checkbox" id="link-depth"> Depth: B-scan, S-scan and A-scan</label>
-            <label class="analysis-check" title="Zooming or panning the index axis of the S-scan does the same to the C-scan's (raster scans, where the C-scan is down the index axis)"><input type="checkbox" id="link-index"> Index axis: S-scan and C-scan (raster)</label>
+            <details class="ana-section" data-section="link-zoom" open>
+                <summary title="Zooming or panning one view along a linked axis does the same to the others">Link zoom</summary>
+                <div class="ana-body">
+                    <div class="ana-props">
+                        <label for="link-scan" title="Zooming or panning the scan axis of the C-scan or B-scan does the same to the other">Scan C↔B</label>
+                        <input type="checkbox" class="form-check-input" id="link-scan">
+                        <label for="link-depth" title="Zooming or panning depth on the B-scan, S-scan or A-scan (when it shows true depth) does the same to the others">Depth B↔S↔A</label>
+                        <input type="checkbox" class="form-check-input" id="link-depth">
+                        <label for="link-index" title="Zooming or panning the index axis of the S-scan does the same to the C-scan's (raster scans, where the C-scan is down the index axis)">Index S↔C</label>
+                        <input type="checkbox" class="form-check-input" id="link-index">
+                    </div>
+                </div>
+            </details>
         </section>
     </aside>
 
@@ -298,10 +374,15 @@
                     <dt>Alt+drag</dt><dd>On the S-scan: move the weld overlay's centre line (Geometry panel to edit its shape)</dd>
                     <dt>Select</dt><dd>Click a cursor line, a gate (its bar, edge or letter) or a view (S-scan: the beam cursor; C- / B-scan: the scan cursor); the selection is drawn thicker. Esc deselects</dd>
                     <dt>Scroll</dt><dd>Move the selection: a scan line or beam a notch; a cursor or gate about 1/200 of the view (zoom in for finer steps). Shift: 10 times. With nothing selected, zoom at the pointer</dd>
+                    <dt>Scan / beam / dB</dt><dd>The top bar's boxes: type a value, or scroll over one to step it (scan and beam a line, Shift 10; gain 1 dB, Shift 0.1 dB). The beam box is the angle, the VPA on a linear scan or the index position on a raster</dd>
+                    <dt>Opening a file</dt><dd>Each open starts as if for the first time: the file's own gates, no cursors, weld or skew changes, and no indications saved from an earlier session (they're deleted). Refreshing the page keeps the current session</dd>
+                    <dt>Top bar</dt><dd>The selection and where it is: a cursor's value, the beam or scan line, a gate's start (its end: the width; a box's side), following drags and the wheel. Type a new value (Enter) or scroll over it to move it</dd>
                     <dt>Ctrl+scroll</dt><dd>Zoom at the pointer</dd>
                     <dt>Right-drag</dt><dd>Pan</dd>
-                    <dt>Double-click</dt><dd>Fit that view</dd>
+                    <dt>Double-click</dt><dd>Reset that view's zoom (the echo curve: the C-scan's)</dd>
+                    <dt>Palette bar</dt><dd>Right of a thickness / depth C-scan, over the range typed at its top: drag its top down to lower the ceiling, its bottom up to raise the floor, its middle to shift the colours; double-click for the whole range</dd>
                     <dt>Zoom bars</dt><dd>Under and left of each view: drag an end of the bar to zoom that axis, its middle to move along it (the A-scan's side bar is the amplitude); double-click a bar to fit that axis</dd>
+                    <dt>90° / 270°</dt><dd>The S-scan's skew view for angle-beam data (button in its head): 90° - beams top left to bottom right, the index increasing to the right; 270° - top right to bottom left, increasing to the left (the probe, upstream of the weld, reads negative). It starts at the file's skew; the other one mirrors the picture</dd>
                     <dt>Rotate S-scan</dt><dd>Display panel: depth across and the index axis down, to line up with the A-scan's depth and a raster C-scan's index axis (link the zooms to keep them together)</dd>
                     <dt>Link zoom</dt><dd>Display panel: zoom the scan axis (C ↔ B), depth (B ↔ S ↔ A) or index axis (S ↔ C on a raster) together</dd>
                     <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
@@ -311,7 +392,11 @@
                     <dt>Echo curve</dt><dd>Under an amplitude C-scan: the gate's highest amplitude along the scan with the sizing drop level; drag its red / green lines to move the ends, click to go to a scan position</dd>
                     <dt>B-scan</dt><dd>Side view of the cursor's beam / index line: scan across, depth down. Click to move the scan cursor; Ctrl / Shift+click put the reference / measure scan and depth cursors</dd>
                     <dt>S-scan</dt><dd>Click or drag to move the beam cursor. Ctrl / Shift+click put the reference / measure cursors at a point; drag a cursor line or a gate's edge to move it. Dashed lines: the back wall and skips</dd>
-                    <dt>A-scan</dt><dd>Click: reference cursor, Shift+click: measure cursor. Drag a gate's bar to move it (up / down: its threshold), its end ticks to change its start or width</dd>
+                    <dt>A-scan</dt><dd>Click: reference cursor, Shift+click: measure cursor. Drag a gate's bar to move it (up / down: its threshold), its start tick to move it (the width stays), its end tick to change the width</dd>
+                    <dt>Detection</dt><dd>Each gate's setting: where it reads its position - Edge (where the signal crosses the threshold, the default), Peak (the first peak after that) or Max peak (the highest point). Readings show / for edge and ^ for peak, as OmniPC; the amplitude is always the highest point</dd>
+                    <dt>Criteria</dt><dd>Indications panel: grade every indication against 100-UT-020 - ASME B31.1 (§8) or B31.3 (§9). Red: over the reference level (peak at the file's reference gain) and longer than allowed (0.25 in up to T 0.75 in, T/3 up to 2.25 in, 0.75 in over). Yellow (B31.1): over 20 % of reference and not failing - characterise it (cracks, LOF, IP fail at any length). Green: passes. Hover a row for the reason</dd>
+                    <dt>Gates</dt><dd>SP sound path (an arc on a sectorial scan), TD true depth, Box a box of depth and index. On the S-scan drag a gate's edges, or its letter tab to move it; on the A-scan its bar (up / down: the threshold) and end ticks. Floating: the height follows each A-scan's peak</dd>
+                    <dt>Panels</dt><dd>Hover a label or button for what it does; click a section's header to fold it (kept)</dd>
                     <dt>Eraser</dt><dd>Above each view: clears that view's cursors</dd>
                 </dl>
             </div>
@@ -329,10 +414,11 @@
                     <span class="analysis-panel-note" id="cscan-note"></span>
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="cscan" title="Clear the scan and index cursors" aria-label="Clear the cscan cursors"><i class="bi bi-eraser"></i></button>
                 </header>
-                <div class="analysis-view">
+                <div class="analysis-view" id="cscan-view">
                     <div class="analysis-stage" id="cscan-stage"></div>
                     <div id="cscan-zoom-y"></div>
                     <div id="cscan-zoom-x"></div>
+                    <div id="cscan-palette-bar" hidden></div>
                 </div>
                 <canvas class="analysis-echo" id="echo-strip" hidden title="Echo-dynamic: the gate's highest amplitude along the scan (over the box's or indication's lines, else the cursor's), with the sizing drop level; drag the red / green lines to move the ends, click to go to a scan position"></canvas>
                 <div class="analysis-readout mono" id="cscan-readout"></div>
@@ -350,6 +436,7 @@
             </section>
             <section class="analysis-panel analysis-panel-sscan">
                 <header class="analysis-panel-head">
+                    <button type="button" class="btn btn-sm btn-secondary analysis-skew" id="skew-toggle" hidden>90°</button>
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="sscan" title="Clear the depth and index cursors" aria-label="Clear the sscan cursors"><i class="bi bi-eraser"></i></button>
                     <button type="button" class="btn btn-sm btn-ghost" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
                 </header>

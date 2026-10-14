@@ -24,7 +24,8 @@
                    indications: page.dataset.indicationsUrl, indicationsCsv: page.dataset.indicationsCsvUrl,
                    indication: page.dataset.indicationUrl, reportTargets: page.dataset.reportTargetsUrl,
                    reportPreview: page.dataset.reportPreviewUrl, weldOutline: page.dataset.weldOutlineUrl, reportSend: page.dataset.reportSendUrl,
-                   detect: page.dataset.detectUrl, clearIndications: page.dataset.clearIndicationsUrl, resize: page.dataset.resizeUrl };
+                   detect: page.dataset.detectUrl, clearIndications: page.dataset.clearIndicationsUrl, resize: page.dataset.resizeUrl,
+                   forgetIndications: page.dataset.forgetIndicationsUrl };
     const $ = id => document.getElementById(id);
     const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const shell = window.AnalysisShell;
@@ -85,9 +86,9 @@
         onCursor: lateral => setLateral(lateral),
         onCursors: partial => setCursors(partial),
         onWeldShift: (shift, done) => weldShifted(shift, done),
-        onGateDragStart: letter => { gateSnapshot = structuredClone(gateByLetter(letter)); },
+        onGateDragStart: letter => { gateSnapshot = structuredClone(gateByLetter(letter)); gateDragStarted(); },
         onGateDrag: (letter, part, delta) => dragGateOnSscan(letter, part, delta),
-        onGateDragEnd: () => { gateSnapshot = null; loadFrameGates(); },
+        onGateDragEnd: () => gateDragEnded(),
         onSelect: select, onWheel: e => wheelSelected(e, sscan),
         onHover: (x, y) => {
             if (x === null) { $('sscan-readout').textContent = ''; return; }
@@ -117,10 +118,11 @@
             gateSnapshot = { ...gateByLetter(letter) };
             const shown = state.gateResults?.[letter];   // a floating gate's bar is at its height here, not its threshold
             gateSnapshot.drawn = shown?.band ? (shown.threshold ?? shown.band[0]) : gateSnapshot.threshold;
+            gateDragStarted();
         },
         onGateDrag: (letter, drag) => dragGateOnAscan(letter, drag),
         onSelect: select, onWheel: e => wheelSelected(e, ascan),
-        onGateDragEnd: () => { gateSnapshot = null; },
+        onGateDragEnd: () => gateDragEnded(),
     });
 
     /** A gate dragged (or wheeled) on the A-scan: part move / start / end by dt (s) since the press; threshold: the bar's new height. */
@@ -136,23 +138,63 @@
             if (part === 'move') {
                 gate.depth_start = lo + dd; gate.depth_end = hi + dd;
                 if (threshold !== undefined) gate.threshold = Math.round(threshold);
-            } else if (part === 'start') gate.depth_start = Math.min(lo + dd, hi - least);
-            else gate.depth_end = Math.max(hi + dd, lo + least);
+            } else if (part === 'start') {   // the start carries the end with it: the height stays
+                gate.depth_start = lo + dd; gate.depth_end = hi + dd;
+            } else gate.depth_end = Math.max(hi + dd, lo + least);
             gatesChanged(20);
+            previewDraggedGate(letter);
             return;
         }
         if (part === 'move') {
             gate.start = gateSnapshot.start + dt;
             if (threshold !== undefined) gate.threshold = Math.round(threshold);
-        } else if (part === 'start') {
-            const dtMax = gateSnapshot.length - minimum;
-            const d = Math.min(dt, dtMax);
-            gate.start = gateSnapshot.start + d;
-            gate.length = gateSnapshot.length - d;
+        } else if (part === 'start') {   // the start carries the end with it: the width stays (the end sets it)
+            gate.start = gateSnapshot.start + dt;
         } else {
             gate.length = Math.max(minimum, gateSnapshot.length + dt);
         }
         gatesChanged(20);
+        previewDraggedGate(letter);
+    }
+
+    /**
+     * While a gate is dragged the A-scan draws it from its settings at once (the server's last readings
+     * moved by what the drag changed); the readings, the synced gates' windows and the C- / B-scans follow
+     * when it's let go - so the drag doesn't wait on the server.
+     */
+    let dragBase = null;
+    function gateDragStarted() {
+        state.draggingGate = true;
+        dragBase = state.gateResults ? structuredClone(state.gateResults) : null;
+    }
+    function gateDragEnded() {
+        state.draggingGate = false;
+        gateSnapshot = null;
+        dragBase = null;
+        scheduleReadings(0);
+        loadFrameGates();
+        scheduleProjections(300);
+    }
+    /** The A-scan's gates with the dragged one where its settings now put it. */
+    function previewDraggedGate(letter) {
+        const base = dragBase?.[letter], gate = gateByLetter(letter), s = gateSnapshot;
+        if (!base || !gate || !s || base.start === null || base.start === undefined) return;
+        const g = currentGroup(), r = g.rays[state.lateral], hv = halfVelocity() || 1;
+        let d0, d1;
+        if ((gate.geometry || 'SoundPath') === 'SoundPath') {
+            d0 = gate.start - s.start;
+            d1 = gate.start + gate.length - s.start - s.length;
+        } else {   // depths to this beam's times
+            const per = 1 / (hv * (Math.abs(r?.dz) || 1));
+            d0 = (gate.depth_start - s.depth_start) * per;
+            d1 = (gate.depth_end - s.depth_end) * per;
+        }
+        const scale = s.threshold ? gate.threshold / s.threshold : 1;
+        const moved = { ...base, start: base.start + d0, end: base.end + d1,
+                        threshold: base.threshold === null || base.threshold === undefined ? base.threshold
+                            : (base.band ? base.threshold * scale : gate.threshold),
+                        band: base.band ? base.band.map(b => b * scale) : base.band };
+        ascan.set({ gates: { ...(state.gateResults || dragBase), [letter]: moved } });
     }
 
     const CURSOR = '#38bdf8';
@@ -295,8 +337,85 @@
         sscan.setSelected(selected);
         ascan.setSelected(selected);
         linkCursors();
+        renderSelection();
     }
     const selectedIs = (kind, key) => state.selected?.kind === kind && (key === undefined || state.selected.key === key);
+
+    /** The selection and where it is, in the top bar - an editable value: type a new one (Enter) or scroll
+     *  over it. A cursor's value, the beam (angle / VPA / index) or scan line, the gate part being moved (its
+     *  start; its width when the end is picked; a true-depth gate's top or height; a box's side). */
+    const CURSOR_NAMES = { u: 'U', s: 'S', i: 'I' };
+    let selectionApply = null;   // sets the selection to a typed value (page units)
+    function renderSelection() {
+        const sel = state.selected, out = $('selection-readout'), input = $('selection-value');
+        const g = currentGroup(), L = unitLength();
+        let colour = null, name = '', value = null, unit = units, note = '', apply = null;
+        if (sel && g && state.info) {
+            if (sel.kind === 'cursor') {
+                const v = state.cursors[sel.key];
+                colour = sel.key.endsWith('ref') ? '#f87171' : '#4ade80';
+                name = `${CURSOR_NAMES[sel.key[0]]}(${sel.key.endsWith('ref') ? 'r' : 'm'})`;
+                value = has(v) ? format(v, 'value') : '';
+                apply = x => setCursors({ [sel.key]: x * L });
+            } else if (sel.kind === 'scan') {
+                colour = CURSOR; name = 'Scan';
+                value = format(scanPosition(state.scan), 'value');
+                note = `line ${state.scan + 1}`;
+                apply = x => setScan(Math.round((x * L - scanAxis().offset) / scanAxis().resolution));
+            } else if (sel.kind === 'lateral') {
+                colour = CURSOR;
+                const mode = beamMode(), beam = g.beams[state.lateral];
+                name = mode === 'index' ? 'Index' : mode === 'vpa' ? 'VPA' : 'Beam';
+                value = mode === 'angle' ? String(beam?.refracted_angle ?? '') : mode === 'vpa' ? String(state.lateral + 1) : format(lineY(state.lateral), 'value');
+                unit = mode === 'angle' ? '°' : mode === 'vpa' ? '' : units;
+                apply = x => goToBeam(String(x));
+            } else if (sel.kind === 'gate') {
+                const gate = gateByLetter(sel.letter);
+                if (gate) {
+                    colour = GATE_COLOURS[sel.letter] || '#a78bfa';
+                    const geometry = gate.geometry || 'SoundPath', part = sel.part;
+                    const hv = () => halfVelocity() || 1, least = currentGroup().axes[2].resolution;
+                    let what;
+                    if (geometry === 'SoundPath') {
+                        what = part === 'end' ? 'width' : 'start';
+                        value = gateLength(part === 'end' ? gate.length : gate.start);
+                        apply = part === 'end' ? x => { gate.length = Math.max(least, x * L / hv()); }
+                            : x => { gate.start = x * L / hv(); };   // the end moves with it
+                    } else if (part === 'end') {
+                        what = 'height'; value = format(gate.depth_end - gate.depth_start, 'value');
+                        apply = x => { if (x > 0) gate.depth_end = gate.depth_start + x * L; };
+                    } else if (part === 'd1') {
+                        what = 'bottom'; value = format(gate.depth_end, 'value');
+                        apply = x => { gate.depth_end = x * L; };
+                    } else if (part === 'i0' || part === 'i1') {
+                        const key = part === 'i0' ? 'index_start' : 'index_end';
+                        what = part === 'i0' ? 'index from' : 'index to'; value = format(gate[key], 'value');
+                        apply = x => { gate[key] = x * L; };
+                    } else {
+                        what = 'top'; value = format(gate.depth_start, 'value');
+                        apply = x => {   // a true-depth gate's top carries its bottom; a box's top is its own side
+                            const h = gate.depth_end - gate.depth_start;
+                            gate.depth_start = x * L;
+                            if (geometry !== 'Box' || part !== 'd0') gate.depth_end = gate.depth_start + h;
+                        };
+                    }
+                    name = `Gate ${sel.letter} ${what}`;
+                    if (part === 'move' && sel.view === 'ascan') note = `${Math.round(gate.threshold * 10) / 10} %`;   // up / down there is the threshold
+                    const set = apply;
+                    apply = x => { set(x); gatesChanged(); renderGates(); };
+                }
+            }
+        }
+        out.hidden = !colour;
+        selectionApply = colour ? apply : null;
+        if (!colour) return;
+        out.style.setProperty('--sel-colour', colour);
+        $('selection-name').textContent = name;
+        $('selection-unit').textContent = unit;
+        $('selection-note').textContent = note;
+        $('selection-note').hidden = !note;
+        if (document.activeElement !== input) input.value = value ?? '';
+    }
     /** A view's wheel: moves the selection and returns true, or false (nothing selected: the view zooms). */
     function wheelSelected(e, view) {
         if (!state.selected || !state.info) return false;
@@ -343,18 +462,31 @@
         gateSnapshot = null;
     }
 
-    // ── per file / group memory ──
+    // ── per file / group memory: this tab's session only. Every open of a file starts fresh, as if for
+    // the first time (its own gates, no cursors or saved indications - see openFile); a refresh of the
+    // same file in the same tab carries on. Older versions kept this in localStorage: dropped once here.
+    const PER_FILE = ['analysis:', 'analysisWeld:', 'analysisSkew:'];
+    try {
+        Object.keys(localStorage).filter(k => PER_FILE.some(prefix => k.startsWith(prefix))).forEach(k => localStorage.removeItem(k));
+    } catch { /* nothing kept */ }
+    /** Forgets what this tab kept for a file (gates, cursors, reference level, weld edits, skew view). */
+    function forgetFileState(path) {
+        try {
+            Object.keys(sessionStorage).filter(k => PER_FILE.some(prefix => k === `${prefix}${path}` || k.startsWith(`${prefix}${path}:`)))
+                .forEach(k => sessionStorage.removeItem(k));
+        } catch { /* nothing kept */ }
+    }
     const memoryKey = () => `analysis:${state.path}:${state.group}`;
     function save() {
         try {
-            localStorage.setItem(memoryKey(), JSON.stringify({
+            sessionStorage.setItem(memoryKey(), JSON.stringify({
                 gates: state.gatesEdited ? state.gates : null, cursors: state.cursors, refLevel: state.refLevel,
             }));
         } catch { /* storage full or blocked: nothing to keep */ }
     }
     function restore() {
         let saved = null;
-        try { saved = JSON.parse(localStorage.getItem(memoryKey()) || 'null'); } catch { saved = null; }
+        try { saved = JSON.parse(sessionStorage.getItem(memoryKey()) || 'null'); } catch { saved = null; }
         const g = currentGroup();
         state.gates = saved?.gates || fileGates(g);
         state.gatesEdited = !!saved?.gates;
@@ -362,8 +494,15 @@
         state.refLevel = saved?.refLevel || 80;
         refInput.value = state.refLevel;
     }
+    // The file's gates as set up: sound path, or true depth (between two depths on every beam)
+    // Where a gate measures from (its position readings): edge - the threshold crossing (/), peak - the first
+    // peak after it, max peak - its highest sample (^, as OmniPC)
+    const DETECTION_NAMES = { edge: 'edge (threshold crossing)', peak: 'first peak', maxpeak: 'max peak' };
+    const detectionMark = letter => ((gateByLetter(letter)?.detection || 'edge') === 'edge' ? '/' : '^');
     const fileGates = g => g.gates.map(x => ({
-        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold, geometry: 'SoundPath',
+        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold, detection: x.detection || 'edge',
+        geometry: x.geometry === 'TrueDepth' && x.depth_start !== null && x.depth_end !== null ? 'TrueDepth' : 'SoundPath',
+        ...(x.geometry === 'TrueDepth' ? { depth_start: x.depth_start, depth_end: x.depth_end } : {}),
         sync_gate: x.sync_mode === 'GateRelative' ? x.sync_gate : null, trigger: x.trigger || 'Crossing',
     }));
     const letterOf = name => (name || '').trim().split(/\s+/).pop().toUpperCase();
@@ -388,7 +527,9 @@
         const known = new Set([...allFiles, ...openedFiles].map(f => f.path));
         const wanted = params.get('path') || recentFiles().find(p => known.has(p));
         if (wanted && known.has(wanted)) {
-            await openFile(wanted, +params.get('group') || 0, +params.get('scan') || 0, +params.get('lateral') || 0);
+            let carryOn = false;
+            try { carryOn = sessionStorage.getItem('analysisOpen') === wanted; } catch { /* fresh */ }
+            await openFile(wanted, +params.get('group') || 0, +params.get('scan') || 0, +params.get('lateral') || 0, { fresh: !carryOn });
         } else {
             shell.open('files');
             fileFilter.focus();
@@ -488,7 +629,9 @@
         try { localStorage.setItem('analysisRecent', JSON.stringify(list)); } catch { /* not kept */ }
     }
 
-    async function openFile(path, group = 0, scan = 0, lateral = 0) {
+    /** Opens a file. fresh (every open but a refresh of this tab's file): as if for the first time - what
+     *  this tab kept for it is forgotten and its saved indications are deleted. */
+    async function openFile(path, group = 0, scan = 0, lateral = 0, { fresh = true } = {}) {
         show('Opening…');
         grid.classList.remove('is-empty');
         try {
@@ -497,6 +640,13 @@
             show(e.message);
             return;
         }
+        let cleared = 0;
+        if (fresh) {
+            forgetFileState(path);
+            try { cleared = (await send(urls.forgetIndications, 'POST', { path })).deleted || 0; } catch (e) { show(e.message); }
+        }
+        try { sessionStorage.setItem('analysisOpen', path); } catch { /* every load fresh */ }
+        $('find-note').textContent = cleared ? `Opened fresh - cleared ${cleared} saved indication${cleared === 1 ? '' : 's'}.` : '';
         state.path = path;
         rememberRecent(path);
         const name = path.split(/[\\/]/).pop();
@@ -558,6 +708,7 @@
         scheduleProjections();
         renderGates();
         sscan.setGeometry(g.rays, g.shape[2], state.info.specimen?.thickness);
+        applySkew();
         sscan.setCursors(state.cursors);
         $('true-geometry').checked = sscan.trueGeometry;
         $('groups-toggle').hidden = otherGroups().length === 0;
@@ -591,9 +742,53 @@
         slider.value = state.scan;
         const position = format(scanPosition(state.scan), 'value');
         if (document.activeElement !== scanNumber) scanNumber.value = position;
-        slider.title = `${position} ${units} (scan line ${state.scan + 1})`;
-        $('scan-count').textContent = units;
-        $('scan-position').textContent = `line ${state.scan + 1} / ${g.shape[0]}`;
+        slider.title = `${position} ${units} (scan line ${state.scan + 1} of ${g.shape[0]})`;
+        $('scan-unit').textContent = units;
+    }
+
+    /**
+     * The data cursor's beam in the top bar: its refracted angle on a sectorial scan, its VPA (the line,
+     * from 1) on a linear one (every beam at one angle), its index position on a raster.
+     */
+    function beamMode() {
+        const g = currentGroup();
+        if (!g) return 'angle';
+        if (isRaster()) return 'index';
+        const angles = new Set(g.beams.map(b => b.refracted_angle));
+        return angles.size > 1 ? 'angle' : 'vpa';
+    }
+    function showBeam() {
+        const g = currentGroup(), box = $('beam-number');
+        if (!g) return;
+        const mode = beamMode();
+        $('beam-prefix').hidden = mode !== 'vpa';
+        $('beam-unit').hidden = mode === 'vpa';
+        $('beam-unit').textContent = mode === 'angle' ? '°' : units;
+        if (document.activeElement === box) return;
+        box.value = mode === 'angle' ? String(g.beams[state.lateral]?.refracted_angle ?? '')
+            : mode === 'vpa' ? String(state.lateral + 1) : format(lineY(state.lateral), 'value');
+    }
+    /** The file's reference gain (this group's setup) under the soft gain box. */
+    function showRefGain() {
+        const ref = currentGroup()?.reference_gain;
+        $('ref-gain').hidden = ref === null || ref === undefined;
+        if (!$('ref-gain').hidden) $('ref-gain').textContent = `Ref ${(+ref).toFixed(1)} dB`;
+    }
+    /** A typed beam: the nearest angle, the VPA, or the nearest index position. */
+    function goToBeam(text) {
+        const g = currentGroup(), v = parseFloat(text);
+        if (!g || !Number.isFinite(v)) { showBeam(); return; }
+        const mode = beamMode();
+        if (mode === 'vpa') { setLateral(Math.round(v) - 1); showBeam(); return; }
+        const target = mode === 'angle' ? v : v * unitLength();
+        let best = 0;
+        for (let i = 0; i < g.shape[1]; i++) {
+            const at = mode === 'angle' ? g.beams[i].refracted_angle : lineY(i);
+            const bestAt = mode === 'angle' ? g.beams[best].refracted_angle : lineY(best);
+            if (Math.abs(at - target) < Math.abs(bestAt - target)) best = i;
+        }
+        setLateral(best);
+        showBeam();
     }
 
     // ── the weld overlay: the file's weld, or as edited here (kept per file in this browser) ──
@@ -602,8 +797,36 @@
     const fileWeld = () => (state.info?.weld && Object.keys(state.info.weld).length && state.info.weld_outline?.length ? state.info.weld : null);
     const weldKey = () => `analysisWeld:${state.path}`;
     const weldEdited = () => !!weld.shape || Math.abs(weld.shift) > 1e-9;
+    // The S-scan's skew view for angle-beam data (90 / 270 button in its head). 90: beams top left to bottom
+    // right, the index increasing to the right; 270: top right to bottom left, increasing to the left - so the
+    // probe, upstream of the weld, reads negative either way. A view other than the file's skew mirrors the
+    // picture. Only the S-scan's axis numbers change; readings keep the file's. Starts at the file's skew; kept per file.
+    const angleBeam = () => {
+        const g = currentGroup();
+        return !!g && g.layout === 'beams' && g.beams.some(b => Math.abs(b.refracted_angle) > 1e-6)
+            && [90, 270].includes(Math.round(g.beams[0]?.skew_angle));
+    };
+    const skewKey = () => `analysisSkew:${state.path}`;
+    function applySkew() {
+        const on = angleBeam();
+        $('skew-toggle').hidden = !on;
+        if (!on) { sscan.setSkewView({}); return; }
+        const fileSkew = Math.round(currentGroup().beams[0].skew_angle);
+        let skew = fileSkew;
+        try { skew = +sessionStorage.getItem(skewKey()) || skew; } catch { /* the file's */ }
+        state.skewView = skew === 270 ? 270 : 90;
+        $('skew-toggle').textContent = `${state.skewView}°`;
+        $('skew-toggle').title = `Skew ${state.skewView}° view: beams top ${state.skewView === 90 ? 'left to bottom right' : 'right to bottom left'}, the index increasing to the ${state.skewView === 90 ? 'right' : 'left'} - click for ${state.skewView === 90 ? 270 : 90}°`;
+        sscan.setSkewView({ mirror: state.skewView !== fileSkew, labelsLeft: state.skewView === 270 });
+    }
+    $('skew-toggle').addEventListener('click', () => {
+        try { sessionStorage.setItem(skewKey(), String(state.skewView === 90 ? 270 : 90)); } catch { state.skewView = state.skewView === 90 ? 270 : 90; }
+        applySkew();
+    });
+
     const weldEditor = new WeldEditor($('weld-editor'), {
-        unitLength, format, units: () => units,
+        unitLength, format, units: () => units, flipped: () => sscan.flipIndex,
+        probeOffset: () => state.info?.probe?.v_offset ?? 0,   // the file's index offset (m)
         onShape: (shape, rebuild) => { weld.shape = shape; saveWeld(); drawWeld(); if (rebuild) showWeldEditor(); },
         onShift: shift => weldShifted(shift, true),
         onReset: () => { weld.shape = null; weld.shift = 0; saveWeld(); applyWeld(); },
@@ -612,14 +835,14 @@
 
     function loadWeld() {
         let saved = null;
-        try { saved = JSON.parse(localStorage.getItem(weldKey()) || 'null'); } catch { saved = null; }
+        try { saved = JSON.parse(sessionStorage.getItem(weldKey()) || 'null'); } catch { saved = null; }
         weld.shape = saved?.shape || null;
         weld.shift = Number.isFinite(saved?.shift) ? saved.shift : 0;
     }
     function saveWeld() {
         try {
-            if (weldEdited()) localStorage.setItem(weldKey(), JSON.stringify({ shape: weld.shape, shift: weld.shift }));
-            else localStorage.removeItem(weldKey());
+            if (weldEdited()) sessionStorage.setItem(weldKey(), JSON.stringify({ shape: weld.shape, shift: weld.shift }));
+            else sessionStorage.removeItem(weldKey());
         } catch { /* not kept */ }
     }
 
@@ -685,7 +908,7 @@
         weld.shift = shift;
         sscan.setWeldShift(shift);
         weldEditor.setShift(shift);
-        $('sscan-readout').textContent = `Weld centre line ${format(shift)}`;
+        $('sscan-readout').textContent = `Index offset ${format((state.info?.probe?.v_offset ?? 0) - shift)}`;   // the probe from the weld centre
         if (!done) return;
         saveWeld();
         if (wasEdited !== weldEdited()) showWeldEditor();   // the "edited" note and the reset button
@@ -740,6 +963,8 @@
         ascan.set({ values: state.values.subarray(lateral * n, (lateral + 1) * n), ray: g.rays[lateral],
                     period: g.axes[2].resolution, gates: null, cursors: ascanCursors() });
         renderGates();   // its lengths use this beam's velocity
+        showBeam();
+        showRefGain();
         remember();
         scheduleReadings();
         linkCursors();
@@ -807,6 +1032,7 @@
         cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR, width: wide(selectedIs('lateral')) }, ...index], contour: state.contour,
                            box: reviewBox() || (z ? z.box : null), marks: [...(z?.mark ? [z.mark] : []), ...saved] });
         drawEcho();
+        renderSelection();   // cursors, scan and beam moved: the top bar's value follows
         bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171', width: wide(selectedIs('cursor', 'u_ref')) },
                                              { value: c.u_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 'u_meas')) }] });
     }
@@ -889,17 +1115,19 @@
         const fileRange = kind === 'thickness' ? currentGroup().thickness_range : null;
         const auto = fileRange ? [fileRange[0], fileRange[1]] : [+result.header('X-Min'), +result.header('X-Max')];
         const range = state.cscanRanges[kindSelect.value] || auto;
+        state.cscanFull = range;   // the palette bar works within it
         const g = currentGroup();
         const keep = !!state.cscan && state.cscan.scans === scans && state.cscan.lines === lines;
         state.cscan = { data: result.data, scans, lines, mode };
         state.cscanGain = state.buildGain;
         cview.setGain(state.gain - state.cscanGain);
         cview.setImage(result.data, scans, lines, {
-            transpose: true, mode, range, keepView: keep, smooth: !isRaster(),
+            transpose: true, mode, range: paletteRange(), keepView: keep, smooth: !isRaster(),
             axes: { x0: g.axes[0].offset, dx: g.axes[0].resolution, y0: lineY(0), dy: isRaster() ? g.axes[1].resolution : 1 },
         });
         renderReadings();
         $('cscan-range').hidden = mode === 'amplitude';
+        renderPaletteBar();
         if (mode !== 'amplitude') {
             $('cscan-min').value = (range[0] / unitLength()).toFixed(3);
             $('cscan-max').value = (range[1] / unitLength()).toFixed(3);
@@ -911,8 +1139,48 @@
             const lo = parseFloat($('cscan-min').value) * unitLength(), hi = parseFloat($('cscan-max').value) * unitLength();
             if (!(Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)) return;
             state.cscanRanges[kindSelect.value] = [lo, hi];
-            cview.setRange([lo, hi]);
+            state.cscanFull = [lo, hi];
+            cview.setRange(paletteRange());
+            renderPaletteBar();
         });
+    }
+
+    // The palette bar right of a thickness / depth C-scan: the part of the range typed at its top that
+    // the colours are spread over (fractions of it, per C-scan kind) - ends raise the floor / lower the
+    // ceiling, the middle shifts it. Values outside take the end colours.
+    state.paletteWindows = {};
+    const paletteWindow = () => state.paletteWindows[kindSelect.value] || [0, 1];
+    function paletteRange() {
+        const [lo, hi] = state.cscanFull || [0, 1], [f0, f1] = paletteWindow();
+        return [lo + f0 * (hi - lo), lo + f1 * (hi - lo)];
+    }
+    const paletteBarView = {
+        axisRange: () => (state.cscan && state.cscan.mode !== 'amplitude' && state.cscanFull
+            ? { full: [...state.cscanFull], shown: paletteRange(), flip: true } : null),
+        setAxisRange: (axis, [a, b]) => {
+            const [lo, hi] = state.cscanFull, span = hi - lo || 1;
+            state.paletteWindows[kindSelect.value] = [Math.max(0, (a - lo) / span), Math.min(1, (b - lo) / span)];
+            cview.setRange(paletteRange());
+            renderPaletteBar();
+        },
+        maxZoom: () => 50,
+    };
+    const drawPaletteBar = ZoomBars.bar(paletteBarView, 'y', $('cscan-palette-bar'),
+        'Palette: drag the top to lower the ceiling, the bottom to raise the floor, the middle to shift the colours (double-click: the whole range)');
+    function renderPaletteBar() {
+        const shown = !!paletteBarView.axisRange();
+        $('cscan-palette-bar').hidden = !shown;
+        $('cscan-view').classList.toggle('has-palette-bar', shown);
+        if (!shown) return;
+        // The track: the palette as it's spread now - the low colour under the floor, the high one over the ceiling
+        const colours = AnalysisPalette.get('range', rangePalette.value), [f0, f1] = paletteWindow();
+        const stops = [];
+        for (let k = 0; k <= 8; k++) {
+            const i = Math.round(k / 8 * 255) * 4;
+            stops.push(`rgb(${colours[i]}, ${colours[i + 1]}, ${colours[i + 2]}) ${((f0 + (f1 - f0) * k / 8) * 100).toFixed(1)}%`);
+        }
+        $('cscan-palette-bar').style.background = `linear-gradient(to top, ${stops.join(', ')})`;
+        drawPaletteBar();
     }
 
     function scheduleBscan() {
@@ -1024,7 +1292,7 @@
         const box = $('gate-rows');
         if (!g) return;
         if (!state.gates.length) {
-            box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: 'This group has no gates - add one below.' }));
+            box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note', textContent: 'No gates.' }));
             $('gates-edited').hidden = !state.gatesEdited;
             renderAddGates();
             return;
@@ -1039,20 +1307,26 @@
             });
             return input;
         };
-        const field = (label, help, control) => el('label', { className: 'analysis-gate-field', title: help }, el('span', { textContent: label }), control);
+        // A property row: the label (its help as a tooltip) and the control, with its unit after it
+        const field = (label, help, control, unit = '') => [
+            el('label', { textContent: label, title: help }),
+            el('div', { className: 'ana-value' }, control, ...(unit ? [el('span', { className: 'ana-unit', textContent: unit })] : [])),
+        ];
         const cards = state.gates.map(gate => {
             const letter = letterOf(gate.name);
             const geometry = gate.geometry || 'SoundPath';
             const depthGate = geometry !== 'SoundPath';
-            const card = el('div', { className: `analysis-gate-card gate-card-${letter}` });
+            const card = el('details', { className: `ana-section analysis-gate gate-card-${letter}`, open: true });
+            card.dataset.section = `gate:${letter}`;
 
-            // Header: the letter, the type, remove
-            const types = el('div', { className: 'btn-group btn-group-sm analysis-gate-types', role: 'group' });
-            for (const [value, text, help] of [['SoundPath', 'Sound path', 'The same stretch of time on every beam (an arc on a sectorial scan)'],
-                                               ['TrueDepth', 'True depth', 'Between two depths on every beam'],
-                                               ['Box', 'Box', 'Inside a box of depth and index']]) {
+            // Header row: the letter, the type, remove (buttons in it don't fold the section)
+            const types = el('span', { className: 'btn-group btn-group-sm analysis-gate-types', role: 'group' });
+            for (const [value, text, help] of [['SoundPath', 'SP', 'Sound path: the same stretch of time on every beam (an arc on a sectorial scan)'],
+                                               ['TrueDepth', 'TD', 'True depth: between two depths on every beam; starts from the pulse'],
+                                               ['Box', 'Box', 'Box: inside a box of depth and index; beams that miss it have no gate (or zero amplitude, as chosen); starts from the pulse']]) {
                 const b = el('button', { type: 'button', className: `btn ${value === geometry ? 'btn-primary' : 'btn-secondary'}`, textContent: text, title: help });
-                b.addEventListener('click', () => {
+                b.addEventListener('click', e => {
+                    e.preventDefault();
                     if (value === geometry) return;
                     convertGate(gate, value);
                     gatesChanged();
@@ -1060,35 +1334,40 @@
                 });
                 types.append(b);
             }
-            const head = el('header', {}, el('span', { className: `gate-letter gate-${letter}`, textContent: letter }),
-                            el('strong', { textContent: gate.name }), types);
+            const tools = el('span', { className: 'ana-tools' }, types);
             if (addedGate(gate)) {
-                const remove = el('button', { type: 'button', className: 'btn btn-sm btn-ghost analysis-gate-remove', title: `Remove ${gate.name}`,
+                const remove = el('button', { type: 'button', className: 'ana-icon-btn analysis-gate-remove', title: `Remove ${gate.name}`,
                                               innerHTML: '<i class="bi bi-trash3"></i>' });
-                remove.addEventListener('click', () => removeGate(gate));
-                head.append(remove);
+                remove.addEventListener('click', e => { e.preventDefault(); removeGate(gate); });
+                tools.append(remove);
             }
-            card.append(head);
+            card.append(el('summary', {}, el('span', { className: `gate-letter gate-${letter}`, textContent: letter }),
+                           el('span', { textContent: gate.name }), tools));
 
-            // Fields
-            const grid = el('div', { className: 'analysis-gate-fields' });
+            // Its settings, one row each
+            const grid = el('div', { className: 'ana-props' });
             if (depthGate) {
-                grid.append(field(`Top depth (${units})`, 'Where the gate starts, in true depth', number(format(gate.depth_start, 'value'), v => {
+                grid.append(...field('Top', 'Where the gate starts, in true depth', number(format(gate.depth_start, 'value'), v => {
                     const h = gate.depth_end - gate.depth_start;
                     gate.depth_start = v * unitLength(); gate.depth_end = gate.depth_start + h;
-                })));
-                grid.append(field(`Height (${units})`, 'How deep the gate reaches below its top', number(format(gate.depth_end - gate.depth_start, 'value'), v => {
+                }), units));
+                grid.append(...field('Height', 'How deep the gate reaches below its top', number(format(gate.depth_end - gate.depth_start, 'value'), v => {
                     if (v > 0) gate.depth_end = gate.depth_start + v * unitLength();
-                })));
+                }), units));
             } else {
                 const from = gate.sync_gate === null || gate.sync_gate === undefined ? 'from the pulse' : 'after the sync gate\'s crossing';
-                grid.append(field(`Start (${units})`, `Sound path ${from}`, number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); })));
-                grid.append(field(`Width (${units})`, 'Sound path the gate spans', number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); })));
+                grid.append(...field('Start', `Sound path ${from}`, number(gateLength(gate.start), v => { gate.start = v * unitLength() / halfVelocity(); }), units));
+                grid.append(...field('Width', 'Sound path the gate spans', number(gateLength(gate.length), v => { if (v > 0) gate.length = v * unitLength() / halfVelocity(); }), units));
             }
-            grid.append(field('Threshold (%)', isFloating(gate)
-                                  ? `The height set against the ${state.refLevel} % reference level; on each A-scan it keeps that ratio to the peak`
-                                  : 'The level a signal must reach to break the gate, % of full screen',
-                              number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); })));
+            grid.append(...field('Threshold', isFloating(gate)
+                                     ? `The height set against the ${state.refLevel} % reference level; on each A-scan it keeps that ratio to the peak`
+                                     : 'The level a signal must reach to break the gate, % of full screen',
+                                 number(String(Math.round(gate.threshold * 10) / 10), v => { gate.threshold = Math.max(0, Math.min(100, v)); }), '%'));
+            const detection = el('select', { className: 'form-select form-select-sm' });
+            for (const [value, text] of [['edge', 'Edge'], ['peak', 'Peak'], ['maxpeak', 'Max peak']]) detection.add(new Option(text, value));
+            detection.value = gate.detection || 'edge';
+            detection.addEventListener('change', () => { gate.detection = detection.value; gatesChanged(); renderReadings(); });
+            grid.append(...field('Detection', 'Where the gate reads its position (sound path, depth, index, thicknesses, depth / thickness C-scans): Edge - where the signal crosses the threshold; Peak - the first peak after that; Max peak - the highest point in the gate. Its amplitude is always the highest point.', detection));
             const sync = el('select', { className: 'form-select form-select-sm' });
             sync.add(new Option('Pulse', ''));
             for (const other of state.gates) {
@@ -1097,18 +1376,16 @@
             if (gate.sync_gate === null || gate.sync_gate === undefined) sync.value = '';
             sync.disabled = depthGate;
             sync.addEventListener('change', () => { gate.sync_gate = sync.value === '' ? null : +sync.value; gatesChanged(); renderGates(); });
-            grid.append(field('Starts from', depthGate ? 'Depth and box gates start from the pulse' : 'The pulse, or another gate\'s crossing', sync));
+            grid.append(...field('Sync', depthGate ? 'Depth and box gates start from the pulse' : 'Starts from the pulse, or another gate\'s crossing', sync));
             if (geometry === 'Box') {
-                grid.append(field(`Index from (${units})`, 'The box\'s side nearer the probe', number(format(gate.index_start, 'value'), v => { gate.index_start = v * unitLength(); })));
-                grid.append(field(`Index to (${units})`, 'The box\'s far side', number(format(gate.index_end, 'value'), v => { gate.index_end = v * unitLength(); })));
+                grid.append(...field('Index from', 'The box\'s side nearer the probe', number(format(gate.index_start, 'value'), v => { gate.index_start = v * unitLength(); }), units));
+                grid.append(...field('Index to', 'The box\'s far side', number(format(gate.index_end, 'value'), v => { gate.index_end = v * unitLength(); }), units));
                 const outside = el('select', { className: 'form-select form-select-sm' });
-                outside.add(new Option('No gate (no data, grey)', 'none'));
-                outside.add(new Option('Zero amplitude (0 %, white)', 'zero'));
+                outside.add(new Option('No gate', 'none'));
+                outside.add(new Option('0 %', 'zero'));
                 outside.value = gate.outside === 'zero' ? 'zero' : 'none';
                 outside.addEventListener('change', () => { gate.outside = outside.value; gatesChanged(); });
-                const wide = field('Beams that miss the box', 'A beam that never passes through the box: no gate at all (the C-scan shows no data), or a gate with no amplitude (0 %, the palette\'s lowest colour)', outside);
-                wide.classList.add('is-wide');
-                grid.append(wide);
+                grid.append(...field('Missed beams', 'A beam that never passes through the box: no gate at all (the C-scan shows no data, grey), or a gate with no amplitude (0 %, the palette\'s lowest colour)', outside));
             }
             // Floating: the height follows each A-scan's peak at the calibrated ratio, within +/- dB
             const floating = el('input', { type: 'checkbox', className: 'form-check-input', checked: isFloating(gate) });
@@ -1117,20 +1394,20 @@
                 gatesChanged();
                 renderGates();
             });
-            const floatLabel = el('label', { className: 'analysis-gate-float is-wide',
-                                             title: `Floating gate: the height keeps its ratio to the reference level (${Math.round(gate.threshold * 10) / 10} % on ${state.refLevel} %) on every A-scan's own peak, within ± the dB set; peaks under the floor don't break it` },
-                                  floating, el('span', { textContent: `Floating (ratio ${Math.round(gate.threshold / state.refLevel * 100)} % of the peak)` }));
-            grid.append(floatLabel);
+            grid.append(el('label', { textContent: 'Floating',
+                                      title: `Floating gate: the height keeps its ratio to the reference level (${Math.round(gate.threshold * 10) / 10} % on ${state.refLevel} % = ${Math.round(gate.threshold / state.refLevel * 100)} % of the peak) on every A-scan's own peak, within ± the dB set; peaks under the floor don't break it` }),
+                        floating);
             if (isFloating(gate)) {
-                grid.append(field('Float ± (dB)', 'How far the height may move from the threshold, up or down',
-                                  number(String(gate.float_db), v => { gate.float_db = Math.max(0, Math.min(40, v)); })));
-                grid.append(field('Peak floor (%)', 'A peak under this never breaks the gate (no crossing, no position readings)',
-                                  number(String(gate.float_floor ?? 0), v => { gate.float_floor = Math.max(0, Math.min(100, v)); })));
+                grid.append(...field('Float ±', 'How far the height may move from the threshold, up or down',
+                                     number(String(gate.float_db), v => { gate.float_db = Math.max(0, Math.min(40, v)); }), 'dB'));
+                grid.append(...field('Peak floor', 'A peak under this never breaks the gate (no crossing, no position readings)',
+                                     number(String(gate.float_floor ?? 0), v => { gate.float_floor = Math.max(0, Math.min(100, v)); }), '%'));
             }
-            card.append(grid);
+            card.append(el('div', { className: 'ana-body' }, grid));
             return card;
         });
         box.replaceChildren(...cards);
+        shell.rememberSections(box);
         $('gates-edited').hidden = !state.gatesEdited;
         renderAddGates();
     }
@@ -1179,6 +1456,18 @@
         });
     }
 
+    /**
+     * A synced gate on each line: the server's windows (each beam's own sync crossing), moved by what its
+     * start and width have changed since they were fetched - so dragging or wheeling it shows at once.
+     */
+    function syncedPaths(gate, letter) {
+        const base = state.frameGatePaths?.[letter], at = state.frameGateAt?.[letter];
+        if (!base) return null;
+        if (!at) return base;
+        const ds = gate.start - at.start, de = gate.start + gate.length - at.start - at.length;
+        return base.map((p, i) => (p ? [p[0] + halfV(i) * ds, p[1] + halfV(i) * de] : null));
+    }
+
     /** The S-scan's gates: drawn from their own settings, or (synced gates) from the server's per-beam windows. */
     function renderSscanGates() {
         const g = currentGroup();
@@ -1187,11 +1476,11 @@
         for (const gate of state.gates) {
             const letter = letterOf(gate.name);
             if (letter === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files
-            const editable = !synced(gate);
-            const paths = editable ? localPaths(gate) : state.frameGatePaths?.[letter];
+            const paths = synced(gate) ? syncedPaths(gate, letter) : localPaths(gate);
             if (!paths) continue;
-            list.push({ letter, colour: GATE_COLOURS[letter] || '#a78bfa', editable, paths,
-                        box: gate.geometry === 'Box' ? { i0: gate.index_start, i1: gate.index_end, d0: gate.depth_start, d1: gate.depth_end } : null });
+            list.push({ letter, colour: GATE_COLOURS[letter] || '#a78bfa', editable: true, paths,
+                        box: gate.geometry === 'Box' ? { i0: gate.index_start, i1: gate.index_end, d0: gate.depth_start, d1: gate.depth_end } : null,
+                        depths: gate.geometry === 'TrueDepth' ? { d0: gate.depth_start, d1: gate.depth_end } : null });
         }
         sscan.setGates(list);
     }
@@ -1203,12 +1492,15 @@
         frameGatesTimer = setTimeout(async () => {
             if (!state.info || !$('show-sscan-gates').checked || !state.gates.some(synced)) { state.frameGatePaths = null; renderSscanGates(); return; }
             const mine = ++frameGatesRequest;
+            // The synced gates' settings these windows are for (syncedPaths moves them by later changes)
+            const at = Object.fromEntries(state.gates.filter(synced).map(x => [letterOf(x.name), { start: x.start, length: x.length }]));
             const query = { path: state.path, group: state.group, scan: state.scan, gain: state.gain };
             if (state.gatesEdited) query.gates = gatesParam();
             try {
                 const data = await NdeClient.readings({ readings: urls.frameGates }, query);
                 if (mine !== frameGatesRequest) return;
                 state.frameGatePaths = data.paths;
+                state.frameGateAt = at;
             } catch {
                 state.frameGatePaths = null;
             }
@@ -1234,7 +1526,7 @@
             const dt = dsp / (halfV(line ?? state.lateral) || 1);
             const minimum = g.axes[2].resolution;
             if (part === 'move') gate.start = s.start + dt;
-            else if (part === 'start') { const d = Math.min(dt, s.length - minimum); gate.start = s.start + d; gate.length = s.length - d; }
+            else if (part === 'start') gate.start = s.start + dt;   // the end moves with it: the width stays
             else if (part === 'end') gate.length = Math.max(minimum, s.length + dt);
         } else {
             const dd = part === 'move' ? dy : dsp * (g.rays[line ?? state.lateral]?.dz || 1);
@@ -1242,6 +1534,9 @@
             if (part === 'move') {
                 gate.depth_start = s.depth_start + dy; gate.depth_end = s.depth_end + dy;
                 if (geometry === 'Box') { gate.index_start = s.index_start + dx; gate.index_end = s.index_end + dx; }
+            } else if (geometry === 'TrueDepth' && (part === 'start' || part === 'd0')) {   // the top carries the bottom: the height stays
+                const d = part === 'd0' ? dy : dd;
+                gate.depth_start = s.depth_start + d; gate.depth_end = s.depth_end + d;
             } else if (vertical) {
                 gate[vertical] = s[vertical] + (part.startsWith('d') ? dy : dd);
                 if (gate.depth_end - gate.depth_start < least && part !== 'd0' && part !== 'd1') {
@@ -1254,6 +1549,7 @@
         }
         renderSscanGates();
         gatesChanged(20);
+        previewDraggedGate(letter);
     }
 
     /**
@@ -1296,7 +1592,7 @@
         const have = new Set(state.gates.map(x => letterOf(x.name)));
         const buttons = ['I', 'A', 'B'].filter(L => !have.has(L)).map(L => {
             const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-secondary',
-                                                                       innerHTML: `<i class="bi bi-plus-lg"></i> Gate ${L}`,
+                                                                       innerHTML: `<i class="bi bi-plus-lg"></i> ${L}`,
                                                                        title: `Add gate ${L}` });
             b.addEventListener('click', () => addGate(L));
             return b;
@@ -1311,7 +1607,7 @@
         const start = g.beams[0]?.ultrasound_offset || 0;
         const id = Math.max(-1, ...state.gates.map(x => x.id)) + 1;
         const byLetter = L => state.gates.find(x => letterOf(x.name) === L);
-        const gate = { id, name: `Gate ${letter}`, threshold: letter === 'I' ? 35 : 20, trigger: 'Crossing', sync_gate: null, added: true,
+        const gate = { id, name: `Gate ${letter}`, threshold: letter === 'I' ? 35 : 20, trigger: 'Crossing', sync_gate: null, added: true, detection: 'edge',
                        start: start + span * 0.25, length: span * 0.5 };
         if (letter === 'B' && byLetter('A')) Object.assign(gate, { sync_gate: byLetter('A').id, start: span * 0.02, length: span * 0.4 });
         if (letter === 'A' && byLetter('I')) Object.assign(gate, { sync_gate: byLetter('I').id, start: span * 0.02, length: span * 0.4 });
@@ -1323,10 +1619,14 @@
     function gatesChanged(delay = 60) {
         state.gatesEdited = true;
         save();
+        renderSelection();
         renderSscanGates();
-        loadFrameGates(150);
         if (!document.activeElement?.closest('#gate-rows')) renderGates();
         $('gates-edited').hidden = false;
+        if (state.draggingGate) {   // drawn here at once; the server catches up when it's let go (gateDragEnded)
+            return;
+        }
+        loadFrameGates(150);
         scheduleReadings(delay);
         scheduleProjections(700);   // the C-scan follows the gates once they settle
     }
@@ -1376,7 +1676,10 @@
         const add = (name, text, section = false) => {
             if (section) rows.push(Object.assign(document.createElement('div'), { className: 'analysis-reading-section', textContent: name }));
             else {
-                rows.push(Object.assign(document.createElement('dt'), { textContent: name, title: READING_NAMES[name] || '' }));
+                const shown = name.replace(/([A-Z])([/^])/g, (all, letter) => (gateByLetter(letter) ? `${letter}${detectionMark(letter)}` : all));
+                const how = DETECTION_NAMES[gateByLetter(name.match(/([A-Z])[/^]/)?.[1])?.detection || ''];
+                rows.push(Object.assign(document.createElement('dt'), {
+                    textContent: shown, title: [READING_NAMES[name] || '', how ? `(gate at its ${how})` : ''].filter(Boolean).join(' ') }));
                 rows.push(Object.assign(document.createElement('dd'), { className: 'mono', textContent: text }));
             }
         };
@@ -1651,6 +1954,8 @@
         echo.style.cursor = echoEnd(e) ? 'ew-resize' : 'crosshair';
     });
     for (const type of ['pointerup', 'pointercancel']) echo.addEventListener(type, () => { echoDrag = null; });
+    // Double-click: fit the C-scan (the strip follows its zoom), like double-clicking the C-scan itself
+    echo.addEventListener('dblclick', () => { cview.view = null; cview.draw(); cview.options.onViewChange?.(cview); });
     new ResizeObserver(() => drawEcho()).observe(echo);
 
     // ── indications ──
@@ -1701,6 +2006,58 @@
     const shownIndications = () => (state.indications || []).filter(i => state.filter === 'all' || i.status === state.filter)
         .sort((a, b) => a.group - b.group || (a.sizing?.scan_start ?? a.scan_position ?? 0) - (b.sizing?.scan_start ?? b.scan_position ?? 0) || a.lateral - b.lateral);
 
+    // ── grading against the acceptance criteria of 100-UT-020 (Rev 9) ──
+    // B31.1 (§8): cracks, lack of fusion and incomplete penetration fail at any length; other discontinuities
+    // fail over the reference level and longer than allowed. B31.3 (§9): over the reference level and longer
+    // than allowed. Allowed: 0.25 in for T up to 0.75 in, T/3 up to 2.25 in, 0.75 in over (T: the thinner member).
+    // The page can't tell what a discontinuity is, so under B31.1 one over 20 % of reference (§7.2's
+    // investigation level) that doesn't fail on amplitude and length is yellow: characterise it.
+    const IN = 0.0254;
+    const allowedLength = T => (T <= 0.75 * IN + 1e-9 ? 0.25 * IN : T <= 2.25 * IN + 1e-9 ? T / 3 : 0.75 * IN);
+    let gradeCriteria = '';
+    try { gradeCriteria = localStorage.getItem('analysisCriteria') || ''; } catch { /* none */ }
+    $('grade-criteria').value = gradeCriteria;
+    $('grade-criteria').addEventListener('change', e => {
+        gradeCriteria = e.target.value;
+        try { localStorage.setItem('analysisCriteria', gradeCriteria); } catch { /* not kept */ }
+        renderIndications();
+    });
+    /** An indication's peak at the file's reference gain (% FSH), or null; Infinity when saturated. */
+    function amplitudeAtReference(item) {
+        const z = item.sizing || {}, r = item.readings || {}, g = currentGroup();
+        let recorded = null;   // % at the file's own gain (no soft gain)
+        if (z.saturated) recorded = Infinity;
+        else if (has(z.peak_amplitude)) recorded = z.peak_amplitude * 10 ** (-(z.base_gain ?? item.gain ?? 0) / 20);
+        else if (has(r['A%'])) recorded = r['A%'] * 10 ** (-(item.gain || 0) / 20);
+        if (recorded === null) return null;
+        const ref = g?.reference_gain, scanned = g?.instrument_gain;
+        return has(ref) && ref > 0 && has(scanned) ? recorded * 10 ** ((ref - scanned) / 20) : recorded;
+    }
+    /** {grade: 'fail' | 'assess' | 'pass', reason} for the chosen criteria, or null when none chosen. */
+    function gradeOf(item) {
+        if (!gradeCriteria) return null;
+        const z = item.sizing || {}, r = item.readings || {};
+        const T = state.info?.specimen?.thickness;
+        const refAmp = currentGroup()?.reference_amplitude || state.refLevel || 80;
+        const amp = amplitudeAtReference(item);
+        const length = z.length ?? r.Length ?? (has(r['S(m-r)']) ? Math.abs(r['S(m-r)']) : null);
+        if (!has(amp) && amp !== Infinity) return { grade: 'assess', reason: 'No amplitude to grade - assess it' };
+        const db = amp === Infinity ? null : 20 * Math.log10(amp / refAmp);
+        const ampText = amp === Infinity ? 'saturated (over reference)' : `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB to reference (${amp.toFixed(0)} % at reference gain)`;
+        const overRef = amp > refAmp;
+        if (!T || !has(length)) {
+            if (!overRef && !(gradeCriteria === 'b31.1' && amp > 0.2 * refAmp)) return { grade: 'pass', reason: `${ampText}: not over the reference level` };
+            return { grade: 'assess', reason: `${ampText}; ${!T ? 'no part thickness T' : 'no length'} to compare - assess it` };
+        }
+        const allowed = allowedLength(T);
+        const lengthText = `${format(length)} ${length > allowed ? '>' : '≤'} ${format(allowed)} allowed (T ${format(T)})`;
+        if (overRef && length > allowed) return { grade: 'fail', reason: `Fails: ${ampText}, ${lengthText}` };
+        if (gradeCriteria === 'b31.1' && amp > 0.2 * refAmp) {
+            return { grade: 'assess', reason: `Characterise it: ${ampText}, ${lengthText}. Under B31.1 a crack, lack of fusion or incomplete penetration fails at any length` };
+        }
+        return { grade: 'pass', reason: `Passes: ${ampText}, ${lengthText}` };
+    }
+
     /** The Indications panel: the review card, then a row each (# · scan · length · height · depth · PA^ · A% · status). */
     function renderIndications() {
         if (!$('clear-finds-menu').hidden) showClearMenu(true);   // its counts follow the list
@@ -1709,8 +2066,17 @@
         $('indication-count').textContent = all.length;
         $('indication-count').hidden = !all.length;
         const left = all.filter(i => i.status === 'unreviewed').length;
-        $('review-progress').textContent = all.some(i => i.source === 'auto')
-            ? (left ? `${all.length - left} of ${all.length} reviewed` : `All ${all.length} reviewed`) : '';
+        const reviewed = all.some(i => i.source === 'auto') ? (left ? `${all.length - left} of ${all.length} reviewed` : `All ${all.length} reviewed`) : '';
+        // With criteria chosen: how many fail / need characterising / pass (rejected indications left out)
+        const grades = { fail: 0, assess: 0, pass: 0 };
+        for (const i of all) { const g = i.status !== 'rejected' && gradeOf(i); if (g) grades[g.grade] += 1; }
+        $('review-progress').replaceChildren(reviewed);
+        if (gradeCriteria && all.length) {
+            const summary = Object.assign(document.createElement('span'), { className: 'analysis-grade-summary' });
+            summary.append(reviewed ? ' · ' : '', ...[['fail', 'fail'], ['assess', 'to characterise'], ['pass', 'pass']].flatMap(([k, text], n) => [
+                n ? ' · ' : '', Object.assign(document.createElement('span'), { className: k, textContent: `${grades[k]} ${text}` })]));
+            $('review-progress').append(summary);
+        }
         for (const b of $('review-filter').querySelectorAll('[data-filter]')) {
             b.className = `btn ${b.dataset.filter === state.filter ? 'btn-primary' : 'btn-secondary'}`;
         }
@@ -1718,7 +2084,7 @@
         const box = $('indication-rows');
         if (!list.length) {
             box.replaceChildren(Object.assign(document.createElement('p'), { className: 'analysis-note',
-                textContent: all.length ? 'None to show here.' : 'No indications yet. Find them above, or size one at the cursor (L) and Add it (N).' }));
+                textContent: all.length ? 'None to show here.' : 'None yet.' }));
             return;
         }
         const table = document.createElement('table');
@@ -1735,6 +2101,8 @@
             const tr = body.insertRow();
             const current = item.id === state.reviewing || (!state.reviewing && item.scan === state.scan && item.lateral === state.lateral);
             tr.className = [current ? 'is-current' : '', item.status === 'rejected' ? 'is-rejected-row' : ''].join(' ').trim();
+            const grade = item.status !== 'rejected' ? gradeOf(item) : null;
+            if (grade) tr.dataset.grade = grade.grade;
             const r = item.readings || {}, z = item.sizing || {};
             const depth = z.depth ?? r['DA^'] ?? r['A/-I/'] ?? r['TminZ'];
             const length = z.length ?? r.Length ?? r.Width ?? r['S(m-r)'];
@@ -1745,15 +2113,18 @@
             const cells = [item.number, format(z.scan_start ?? item.scan_position, 'value'), value(length), value(across), value(depth),
                            has(where) ? format(where, 'value') : '-', r['A%'] === undefined ? '-' : r['A%'].toFixed(1)];
             for (const text of cells) tr.insertCell().textContent = text;
+            if (grade) tr.cells[0].title = grade.reason;
+            // The status as one mark (its words in the tooltip): • to review, ✓ accepted, ✕ rejected, + added by hand
+            const added = item.source !== 'auto' && item.status === 'accepted';
             const mark = Object.assign(document.createElement('span'), {
                 className: `analysis-status-mark is-${item.status}`,
-                textContent: item.source === 'auto' || item.status !== 'accepted' ? STATUS_SHORT[item.status] : 'Added' });
+                textContent: added ? '+' : { unreviewed: '•', accepted: '✓', rejected: '✕' }[item.status] || '•' });
             const notes = [item.source === 'auto' ? STATUS_TEXT[item.status] : 'Added by hand'];
             if (z.edited) { mark.textContent += ' ✎'; notes.push('Sizing corrected by hand'); }
             if (z.saturated) { mark.textContent += ' !'; notes.push('Saturated peak: the sizing may be short'); }
             mark.title = notes.join('. ');
             tr.insertCell().append(mark);
-            const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-sm btn-secondary',
+            const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'ana-icon-btn',
                                                                            title: 'Delete this indication', innerHTML: '<i class="bi bi-trash3"></i>' });
             remove.addEventListener('click', async e => {
                 e.stopPropagation();
@@ -1771,6 +2142,7 @@
                 .then(saved => { item.comment = saved.comment; }).catch(e => show(e.message)));
             const note = body.insertRow();
             note.className = `analysis-indication-note${current ? ' is-current' : ''}`;
+            note.hidden = !current && !item.comment;   // the comment line only where there's one, or on the current row
             const cell = note.insertCell();
             cell.colSpan = 9;
             cell.append(comment);
@@ -2104,7 +2476,7 @@
         const known = new Set(list.map(i => i.id));
         toReport.picked = new Set([...toReport.picked].filter(id => known.has(id)));
         if (!list.length) {
-            $('send-indications').replaceChildren(note('No indications saved for this file yet (N adds one).'));
+            $('send-indications').replaceChildren(note('None for this file yet.'));
             schedulePreview();
             return;
         }
@@ -2150,7 +2522,7 @@
         toReport.preview = null;
         updateSendButton();
         if (!toReport.report || !items.length) {
-            box.replaceChildren(note(!toReport.report ? 'Pick a report to see the rows.' : 'Pick the indications to send.'));
+            box.replaceChildren(note(!toReport.report ? 'Pick a report.' : 'Pick indications.'));
             return;
         }
         let data;
@@ -2392,6 +2764,41 @@
         setScan(Math.round((v * unitLength() - scanAxis().offset) / scanAxis().resolution));
     });
     scanNumber.addEventListener('keydown', e => { if (e.key === 'Enter') scanNumber.dispatchEvent(new Event('change')); });
+    /** Scrolling over a top-bar value box steps it: up for more. */
+    const onScroll = (box, step) => box.addEventListener('wheel', e => {
+        e.preventDefault();
+        const delta = e.deltaY || e.deltaX;   // Shift+wheel comes as deltaX
+        if (delta && state.info) step(delta < 0 ? 1 : -1, e.shiftKey);
+    }, { passive: false });
+    onScroll(scanNumber.closest('.analysis-value-box'), (d, big) => setScan(state.scan + d * (big ? 10 : 1)));
+    onScroll($('beam-box'), (d, big) => { setLateral(state.lateral + d * (big ? 10 : 1)); });
+    onScroll(gainInput.closest('.analysis-value-box'), (d, fine) => setGain(state.gain + d * (fine ? 0.1 : 1)));
+    // The selection box: a typed value (Enter), or scrolled over a step at a time (Shift: 10)
+    const selectionInput = $('selection-value');
+    const applySelection = () => {
+        const v = parseFloat(selectionInput.value);
+        if (selectionApply && Number.isFinite(v)) selectionApply(v);
+        renderSelection();
+    };
+    selectionInput.addEventListener('change', applySelection);
+    selectionInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); applySelection(); }
+        if (e.key === 'Escape') { selectionInput.blur(); renderSelection(); }
+    });
+    selectionInput.addEventListener('blur', () => renderSelection());
+    onScroll($('selection-readout'), (d, big) => {
+        const sel = state.selected;
+        if (!sel) return;
+        // Steps scaled to the item's own view, as the wheel over that view would
+        const view = sel.kind === 'cursor' ? { u: ascan, s: cview, i: sscan }[sel.key[0]] : sel.kind === 'gate' ? (sel.view === 'sscan' ? sscan : ascan) : null;
+        nudge(d * (big ? 10 : 1), view);
+    });
+    $('beam-number').addEventListener('change', e => goToBeam(e.target.value));
+    $('beam-number').addEventListener('keydown', e => { if (e.key === 'Enter') goToBeam(e.target.value); });
+    $('beam-number').addEventListener('blur', showBeam);
+    scanNumber.addEventListener('blur', () => { if (state.info) showScanPosition(); });
+    gainInput.addEventListener('blur', () => { gainInput.value = state.gain.toFixed(1); });
+    gainInput.addEventListener('keydown', e => { if (e.key === 'Enter') gainInput.dispatchEvent(new Event('change')); });
     $('scan-prev').addEventListener('click', () => setScan(state.scan - 1));
     $('scan-next').addEventListener('click', () => setScan(state.scan + 1));
 
@@ -2445,8 +2852,6 @@
         setGain(20 * Math.log10(80 / peak));
     }
     $('auto-80').addEventListener('click', auto80);
-    $('gain-down').addEventListener('click', () => setGain(state.gain - 1));
-    $('gain-up').addEventListener('click', () => setGain(state.gain + 1));
     refInput.addEventListener('change', () => {
         const v = parseFloat(refInput.value);
         state.refLevel = Number.isFinite(v) && v > 0 ? v : 80;
@@ -2506,6 +2911,7 @@
         sscan.setPalette(ampPalette.value);
         bview.setPalettes({ amplitude: ampPalette.value });
         cview.setPalettes({ amplitude: ampPalette.value, range: rangePalette.value });
+        renderPaletteBar();   // its track shows this palette
     }
     for (const [select, kind] of [[ampPalette, 'amplitude'], [rangePalette, 'range']]) {
         select.addEventListener('change', () => {

@@ -289,7 +289,7 @@ window.AScanView = (function () {
                 const hit = this.grab(px, py, f);
                 c.setPointerCapture(e.pointerId);
                 if (hit?.kind === 'gate') {
-                    drag = { ...hit, x: f.fromX(px) };
+                    drag = { ...hit, x: f.fromX(px), px, py, lock: null };
                     this.options.onSelect?.({ kind: 'gate', view: 'ascan', letter: hit.letter, part: hit.part });
                     this.options.onGateDragStart?.(hit.letter);
                 } else if (hit?.kind === 'cursor') {
@@ -325,9 +325,16 @@ window.AScanView = (function () {
                 if (drag.kind === 'cursor') {
                     this.options.onCursor?.(drag.which, this.alongToDepth(f.fromX(px)));
                 } else {
-                    const dt = this.alongToTime(f.fromX(px)) - this.alongToTime(drag.x);
-                    const threshold = drag.part === 'move' ? Math.max(0, Math.min(100, f.fromY(py))) : undefined;
-                    this.options.onGateDrag?.(drag.letter, { part: drag.part, dt, threshold });
+                    // The bar and its start tick move the whole gate: left / right its position, up / down its
+                    // threshold - locked to whichever way the drag goes first, so neither drifts with the other
+                    const bar = drag.part === 'move' || drag.part === 'start';
+                    if (bar && !drag.lock && Math.hypot(px - drag.px, py - drag.py) > 6 * f.ratio) {
+                        drag.lock = Math.abs(px - drag.px) > Math.abs(py - drag.py) ? 'x' : 'y';   // a tie: up / down
+                    }
+                    const across = !bar || drag.lock === 'x', upDown = bar && drag.lock === 'y';
+                    const dt = across ? this.alongToTime(f.fromX(px)) - this.alongToTime(drag.x) : 0;
+                    const threshold = upDown ? Math.max(0, Math.min(100, f.fromY(py))) : undefined;
+                    this.options.onGateDrag?.(drag.letter, { part: bar ? 'move' : drag.part, dt, threshold });
                 }
             });
             const end = () => {

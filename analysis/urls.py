@@ -18,6 +18,7 @@ urlpatterns = [
     path('indications.json', views.indications, name='analysis-indications'),
     path('indication/<int:pk>.json', views.indication, name='analysis-indication'),
     path('indications/clear.json', views.clear_indications, name='analysis-clear-indications'),
+    path('indications/forget.json', views.forget_indications, name='analysis-forget-indications'),
     path('indications.csv', views.indications_csv, name='analysis-indications-csv'),
     path('browse.json', views.browse_pc, name='analysis-browse'),
     path('open-file.json', views.open_external, name='analysis-open-file'),

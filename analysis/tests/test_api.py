@@ -165,6 +165,23 @@ class ApiTests(TestCase):
         bad = self.client.post(url, json.dumps({'path': self.weld, 'group': 0, 'which': 'some'}), content_type='application/json')
         self.assertEqual(bad.status_code, 400)
 
+    def test_forget_indications_deletes_every_group_of_that_file_only(self):
+        from analysis.models import Indication
+        from analysis.paths import checked_path
+        weld, raster = checked_path(self.weld), checked_path(self.raster)
+        for n, (path, group) in enumerate(((weld, 0), (weld, 1), (weld, 1), (raster, 0)), 1):
+            Indication.objects.create(file_path=path, file_name='x.nde', group=group, number=n, scan=0, lateral=0)
+        url = reverse('analysis-forget-indications')
+        data = self.client.post(url, json.dumps({'path': self.weld}), content_type='application/json').json()
+        self.assertEqual(data['deleted'], 3)
+        self.assertFalse(Indication.objects.filter(file_path=weld).exists())
+        self.assertEqual(Indication.objects.filter(file_path=raster).count(), 1)   # another file's kept
+        outside = builders.weld_file(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, os.path.dirname(outside), True)
+        refused = self.client.post(url, json.dumps({'path': outside}), content_type='application/json')
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(Indication.objects.filter(file_path=raster).count(), 1)
+
     def test_size_endpoint(self):
         with override_settings(ANALYSIS_CACHE_DIR=os.path.join(self.folder, '.cache')):
             from analysis.services import projections
