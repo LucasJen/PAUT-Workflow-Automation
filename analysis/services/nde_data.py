@@ -12,6 +12,7 @@ chunked one scan line at a time, so a frame is one cheap hyperslab read; never l
 dataset (files reach 1.3 GB).
 """
 import json
+import math
 import os
 from dataclasses import asdict, dataclass, field
 
@@ -172,15 +173,38 @@ def _formation(process):
     return ''
 
 
-def _gates(process):
+def _gates(process, beams=()):
+    """
+    The process's gates. A SoundPath gate has one start / length (s). A TrueDepth gate is stored per beam
+    (`starts` / `lengths`, s, the times each beam spends between two fixed depths): it becomes the
+    depths (velocity * t / 2 * cos(angle), the median over the beams), with the first beam's times kept
+    as its start / length.
+    """
     gates = []
     for gate in process.get('gates') or []:
         sync = gate.get('synchronization') or {}
+        geometry = gate.get('geometry', 'SoundPath')
+        start, length = gate.get('start', 0.0), gate.get('length', 0.0)
+        depth_start = depth_end = None
+        starts, lengths = gate.get('starts') or [], gate.get('lengths') or []
+        if starts and lengths and beams:
+            tops, bottoms = [], []
+            for beam, t0, dt in zip(beams, starts, lengths):
+                cos = math.cos(math.radians(beam.refracted_angle))
+                tops.append(beam.velocity * t0 / 2 * cos)
+                bottoms.append(beam.velocity * (t0 + dt) / 2 * cos)
+            if tops:
+                depth_start, depth_end = float(np.median(tops)), float(np.median(bottoms))
+                start, length = starts[0], lengths[0]
+                geometry = 'TrueDepth'
+        elif geometry != 'SoundPath':
+            geometry = 'SoundPath'   # a type we can't place: treat it by its start / length
         gates.append(Gate(
             id=gate.get('id', len(gates)), name=gate.get('name', f'Gate {len(gates) + 1}'),
-            start=gate.get('start', 0.0), length=gate.get('length', 0.0), threshold=gate.get('threshold', 0.0),
-            geometry=gate.get('geometry', 'SoundPath'), sync_mode=sync.get('mode', 'Pulse'),
+            start=start, length=length, threshold=gate.get('threshold', 0.0),
+            geometry=geometry, sync_mode=sync.get('mode', 'Pulse'),
             sync_gate=sync.get('gateId'), trigger=sync.get('triggeringEvent', ''),
+            depth_start=depth_start, depth_end=depth_end,
         ))
     return gates
 
@@ -272,7 +296,7 @@ def _group(setup, raw_group, h5):
         id=gid, name=name, layout=layout, path=amplitude['path'],
         status_path=status['path'] if status and status.get('path') in h5 else '',
         shape=shape, axes=axes, raw_max=value.get('max', 32767) or 32767, unit_max=value.get('unitMax', 100.0),
-        unit=value.get('unit', 'Percent'), beams=beams, gates=_gates(process), technique=technique,
+        unit=value.get('unit', 'Percent'), beams=beams, gates=_gates(process, beams), technique=technique,
         formation=_formation(process), wave_mode=process.get('waveMode', ''), velocity=velocity,
         wedge_delay=process.get('wedgeDelay', 0.0), digitizing_frequency=process.get('digitizingFrequency', 0.0),
         rectification=process.get('rectification', ''), synchro_mode=process.get('ascanSynchroMode', 'Pulse'),

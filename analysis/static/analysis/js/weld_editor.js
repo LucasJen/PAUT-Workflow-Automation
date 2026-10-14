@@ -44,20 +44,23 @@ window.WeldEditor = (function () {
                 grid.append(name, el('div', { className: 'ana-value analysis-weld-controls' }, ...controls));
             };
 
-            // Centre line: where the weld is across the index
-            this.shiftInput = this.number(shift / this.options.unitLength(), v => this.options.onShift(v * this.options.unitLength()), true);
+            // The weld's centre line, shown as the index offset (as in MXU / OmniPC): where the probe is from the
+            // weld centre - the probe's position less the centre line's. The file's offset puts the weld at 0.
+            const L = this.options.unitLength();
+            this.shiftInput = this.number(this.offsetOf(shift) / L, v => this.options.onShift(this.shiftOf(v * L)), true);
             const step = u === 'mm' ? 0.5 : 0.02;
             const nudge = (sign, icon) => {
                 const b = el('button', { type: 'button', className: 'btn btn-sm btn-ghost', innerHTML: `<i class="bi bi-${icon}"></i>` });
-                b.title = `Move it ${sign < 0 ? 'left' : 'right'} by ${step} ${u}`;
+                b.title = `Move the weld ${sign < 0 ? 'left' : 'right'} by ${step} ${u}`;
                 b.addEventListener('click', () => {   // left / right on screen: the other way when the index axis is flipped
-                    const v = (parseFloat(this.shiftInput.value) || 0) + (this.options.flipped?.() ? -sign : sign) * step;
-                    this.shiftInput.value = this.fmt(v);
-                    this.options.onShift(v * this.options.unitLength());
+                    const now = this.shiftOf((parseFloat(this.shiftInput.value) || 0) * L);
+                    const next = now + (this.options.flipped?.() ? -sign : sign) * step * L;
+                    this.shiftInput.value = this.fmt(this.offsetOf(next) / L);
+                    this.options.onShift(next);
                 });
                 return b;
             };
-            row('Centre', 'The centre line: where the weld centre is across the index, from the file\'s index origin. Alt+drag the weld on the S-scan to move it.',
+            row('Index offset', 'Where the probe is from the weld centreline (MXU / OmniPC\'s index offset; negative: the probe upstream). From the file; change it, nudge it or Alt+drag the weld on the S-scan to move the weld.',
                 nudge(-1, 'chevron-left'), this.shiftInput, nudge(1, 'chevron-right'), el('span', { className: 'ana-unit', textContent: u }));
 
             const s = this.shape;
@@ -103,8 +106,12 @@ window.WeldEditor = (function () {
 
         /** The centre line from a drag on the S-scan. */
         setShift(shift) {
-            if (this.shiftInput) this.shiftInput.value = this.fmt(shift / this.options.unitLength());
+            if (this.shiftInput) this.shiftInput.value = this.fmt(this.offsetOf(shift) / this.options.unitLength());
         }
+
+        /** The index offset (m) for a centre-line shift (m), and back: the probe's position less the weld's. */
+        offsetOf(shift) { return (this.options.probeOffset?.() || 0) - shift; }
+        shiftOf(offset) { return (this.options.probeOffset?.() || 0) - offset; }
 
         fmt(v) {
             return this.options.units() === 'mm' ? v.toFixed(2) : v.toFixed(3);

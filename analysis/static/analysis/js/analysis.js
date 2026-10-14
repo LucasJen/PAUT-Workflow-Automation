@@ -427,8 +427,11 @@
         state.refLevel = saved?.refLevel || 80;
         refInput.value = state.refLevel;
     }
+    // The file's gates as set up: sound path, or true depth (between two depths on every beam)
     const fileGates = g => g.gates.map(x => ({
-        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold, geometry: 'SoundPath',
+        id: x.id, name: x.name, start: x.start, length: x.length, threshold: x.threshold,
+        geometry: x.geometry === 'TrueDepth' && x.depth_start !== null && x.depth_end !== null ? 'TrueDepth' : 'SoundPath',
+        ...(x.geometry === 'TrueDepth' ? { depth_start: x.depth_start, depth_end: x.depth_end } : {}),
         sync_gate: x.sync_mode === 'GateRelative' ? x.sync_gate : null, trigger: x.trigger || 'Crossing',
     }));
     const letterOf = name => (name || '').trim().split(/\s+/).pop().toUpperCase();
@@ -752,6 +755,7 @@
 
     const weldEditor = new WeldEditor($('weld-editor'), {
         unitLength, format, units: () => units, flipped: () => sscan.flipIndex,
+        probeOffset: () => state.info?.probe?.v_offset ?? 0,   // the file's index offset (m)
         onShape: (shape, rebuild) => { weld.shape = shape; saveWeld(); drawWeld(); if (rebuild) showWeldEditor(); },
         onShift: shift => weldShifted(shift, true),
         onReset: () => { weld.shape = null; weld.shift = 0; saveWeld(); applyWeld(); },
@@ -833,7 +837,7 @@
         weld.shift = shift;
         sscan.setWeldShift(shift);
         weldEditor.setShift(shift);
-        $('sscan-readout').textContent = `Weld centre line ${format(shift)}`;
+        $('sscan-readout').textContent = `Index offset ${format((state.info?.probe?.v_offset ?? 0) - shift)}`;   // the probe from the weld centre
         if (!done) return;
         saveWeld();
         if (wasEdited !== weldEdited()) showWeldEditor();   // the "edited" note and the reset button
