@@ -8,7 +8,7 @@
 // start or width. Reference (red) and measure (green) ultrasound cursors: click to put the reference
 // there, Shift+click the measure; drag either line. Cursors are kept as true depth (m).
 // Scroll to zoom along the axis at the pointer, right-drag to pan, double-click to see it all; the
-// panel's sliders zoom along the axis and up the amplitude (the top becomes 100 % / zoom).
+// zoom bars (bottom: along the beam; side: the amplitude) zoom and move each axis on its own.
 
 window.AScanView = (function () {
     const GATE_COLOURS = { I: '#facc15', A: '#ef4444', B: '#22c55e' };
@@ -27,7 +27,7 @@ window.AScanView = (function () {
             this.axis = 'depth';     // depth (true depth) or path (sound path)
             this.cursors = { ref: null, meas: null };
             this.zoom = null;   // [from, to] along the axis (m), or null for all of it
-            this.ampZoom = 1;   // amplitude zoom: the top of the view is 100 % / this
+            this.amp = [0, 100];   // the amplitudes shown, bottom to top (%)
             this.bind();
             new ResizeObserver(() => this.draw()).observe(stage);
         }
@@ -79,13 +79,13 @@ window.AScanView = (function () {
             const w = this.canvas.width, h = this.canvas.height;
             const full0 = this.along(-0.5), full1 = this.along(this.values.length - 0.5);
             const [x0, x1] = this.zoom || [full0, full1];
-            const ceiling = 100 / this.ampZoom;
+            const [lo, hi] = this.amp;
             return {
-                ratio, left, bottom, top, right, w, h, x0, x1, full0, full1, ceiling,
+                ratio, left, bottom, top, right, w, h, x0, x1, full0, full1, lo, hi,
                 sx: x => left + (x - x0) / (x1 - x0) * (w - left - right),
-                sy: p => h - bottom - Math.min(p, ceiling) / ceiling * (h - bottom - top),
+                sy: p => h - bottom - (Math.min(Math.max(p, lo), hi) - lo) / (hi - lo) * (h - bottom - top),
                 fromX: px => x0 + (px - left) / (w - left - right) * (x1 - x0),
-                fromY: py => (h - bottom - py) / (h - bottom - top) * ceiling,
+                fromY: py => lo + (h - bottom - py) / (h - bottom - top) * (hi - lo),
             };
         }
 
@@ -101,8 +101,8 @@ window.AScanView = (function () {
             ctx.strokeStyle = 'rgba(148,163,184,0.18)';
             ctx.fillStyle = '#94a3b8';
             ctx.lineWidth = ratio;
-            const pStep = [0.5, 1, 2, 2.5, 5, 10, 20].find(s => s >= f.ceiling / 5.01) || 20;
-            for (let p = 0; p <= f.ceiling + 1e-9; p += pStep) {
+            const pStep = [0.5, 1, 2, 2.5, 5, 10, 20].find(s => s >= (f.hi - f.lo) / 5.01) || 20;
+            for (let p = Math.ceil(f.lo / pStep - 1e-9) * pStep; p <= f.hi + 1e-9; p += pStep) {
                 const y = f.sy(p);
                 ctx.beginPath(); ctx.moveTo(f.left, y); ctx.lineTo(w - f.right, y); ctx.stroke();
                 ctx.fillText(`${+p.toFixed(1)}`, 6 * ratio, y + 4 * ratio);
@@ -207,24 +207,26 @@ window.AScanView = (function () {
             ctx.restore();
         }
 
-        resetZoom() { this.zoom = null; this.ampZoom = 1; this.draw(); }
+        resetZoom() { this.zoom = null; this.amp = [0, 100]; this.draw(); }
         maxZoom() { return MAX_ZOOM; }
 
-        /** Zoom against the whole A-scan, [along the axis, amplitude] (1 = all of it). */
-        zoomFactors() {
-            if (!this.values || !this.ray) return [1, this.ampZoom];
+        /** The full and shown stretch of an axis, for the zoom bars: 'x' along the beam (m), 'y' the
+         *  amplitude (%, highest at the top: flip). */
+        axisRange(axis) {
+            if (axis === 'y') return { full: [0, 100], shown: [...this.amp], flip: true };
+            if (!this.values || !this.ray) return null;
             const f = this.frame();
-            return [(f.full1 - f.full0) / (f.x1 - f.x0), this.ampZoom];
+            return { full: [f.full0, f.full1], shown: [f.x0, f.x1] };
         }
 
-        /** One axis zoomed to `k` times: 'x' along the axis (about the view's middle), 'y' the amplitude. */
-        setZoom(axis, k) {
-            if (axis === 'y') { this.ampZoom = Math.max(1, k); this.draw(); return; }
-            if (!this.values || !this.ray) return;
-            const f = this.frame();
-            const full = f.full1 - f.full0, span = full / Math.max(1, k);
-            const a = Math.max(f.full0, Math.min(f.full1 - span, (f.x0 + f.x1) / 2 - span / 2));
-            this.zoom = span >= full - 1e-12 ? null : [a, a + span];
+        setAxisRange(axis, [a, b]) {
+            if (axis === 'y') {
+                this.amp = [Math.max(0, a), Math.min(100, b)];
+            } else {
+                if (!this.values || !this.ray) return;
+                const f = this.frame();
+                this.zoom = b - a >= f.full1 - f.full0 - 1e-12 ? null : [Math.max(f.full0, a), Math.min(f.full1, b)];
+            }
             this.draw();
         }
 

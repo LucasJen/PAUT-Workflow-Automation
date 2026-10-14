@@ -75,7 +75,7 @@ void main() {
             this.filter(gl.LINEAR);
             this.gain = 1;
             this.view = null;       // [cx, cy, width, height, stretch] in world units; null = fit (stretch: true geometry's
-                                    // vertical zoom over its horizontal one, from the zoom sliders)
+                                    // vertical zoom over its horizontal one, from the zoom bars)
             this.trueGeometry = true;
             this.cursors = { u_ref: null, u_meas: null, i_ref: null, i_meas: null };
             this.lateral = 0;
@@ -391,21 +391,19 @@ void main() {
         stretch() { return this.view?.[4] || 1; }
         maxZoom() { return MAX_ZOOM; }
 
-        /** Zoom against the fitted view, [across, down] (1 = fitted). */
-        zoomFactors() {
-            if (!this.bounds) return [1, 1];
-            const fit = this.fitView(), [, , width, height] = this.currentView();
-            return [fit[2] / width, fit[3] / height];
+        /** The fitted (full) and shown stretch of an axis ('x' across, 'y' down), world units, for the zoom bars. */
+        axisRange(axis) {
+            if (!this.bounds) return null;
+            const fit = this.fitView(), v = this.currentView(), i = axis === 'x' ? 0 : 1;
+            return { full: [fit[i] - fit[i + 2] / 2, fit[i] + fit[i + 2] / 2], shown: [v[i] - v[i + 2] / 2, v[i] + v[i + 2] / 2] };
         }
 
-        /** One axis ('x' across, 'y' down) zoomed to `k` times the fitted view, the other kept. */
-        setZoom(axis, k) {
+        /** Show [a, b] along one axis, the other kept (true geometry keeps the two zooms as a stretch). */
+        setAxisRange(axis, [a, b]) {
             if (!this.bounds) return;
-            const fit = this.fitView(), [cx, cy] = this.currentView();
-            let [kx, ky] = this.zoomFactors();
-            if (axis === 'x') kx = k; else ky = k;
-            const x = axis === 'x' && k <= 1 ? fit[0] : cx, y = axis === 'y' && k <= 1 ? fit[1] : cy;   // back to fit: re-centred
-            this.view = [x, y, fit[2] / kx, fit[3] / ky, ky / kx];
+            const fit = this.fitView(), v = [...this.currentView()], i = axis === 'x' ? 0 : 1;
+            v[i] = (a + b) / 2; v[i + 2] = b - a;
+            this.view = [...v, (fit[3] / v[3]) / (fit[2] / v[2])];
             this.draw();
         }
 

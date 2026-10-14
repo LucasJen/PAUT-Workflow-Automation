@@ -187,19 +187,19 @@ void main() {
         currentView() { return this.view || this.fitView(); }
         maxZoom() { return MAX_ZOOM; }
 
-        /** Zoom against the fitted view, [across, down] (1 = fitted). */
-        zoomFactors() {
-            if (!this.bounds) return [1, 1];
-            const fit = this.fitView(), [, , w, h] = this.currentView();
-            return [fit[2] / w, fit[3] / h];
+        /** The fitted (full) and shown stretch of an axis ('x' across, 'y' down), world units, for the zoom bars. */
+        axisRange(axis) {
+            if (!this.bounds) return null;
+            const fit = this.fitView(), v = this.currentView(), i = axis === 'x' ? 0 : 1;
+            return { full: [fit[i] - fit[i + 2] / 2, fit[i] + fit[i + 2] / 2], shown: [v[i] - v[i + 2] / 2, v[i] + v[i + 2] / 2] };
         }
 
-        /** One axis ('x' across, 'y' down) zoomed to `k` times the fitted view, the other kept. */
-        setZoom(axis, k) {
+        /** Show [a, b] along one axis, the other kept. */
+        setAxisRange(axis, [a, b]) {
             if (!this.bounds) return;
-            const fit = this.fitView(), [cx, cy, w, h] = this.currentView();
-            this.view = axis === 'x' ? [k <= 1 ? fit[0] : cx, cy, fit[2] / k, h]   // back to fit: re-centred
-                : [cx, k <= 1 ? fit[1] : cy, w, fit[3] / k];
+            const v = [...this.currentView()], i = axis === 'x' ? 0 : 1;
+            v[i] = (a + b) / 2; v[i + 2] = b - a;
+            this.view = v;
             this.draw();
         }
 
