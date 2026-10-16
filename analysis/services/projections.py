@@ -15,6 +15,7 @@ start from their sync gate's crossing, and an A-scan re-timed to the interface s
 Builds run in a background thread; the page polls their progress. Only a block of about BLOCK_SAMPLES
 samples is in memory at a time.
 """
+import functools
 import hashlib
 import json
 import math
@@ -22,6 +23,8 @@ import os
 import shutil
 import threading
 import time
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 
 import h5py
@@ -37,6 +40,8 @@ CACHE_VERSION = 4         # bump when the rules change, so old C-scans are rebui
 BLOCK_SAMPLES = 4_000_000 # samples worked on at a time (~16 MB as float32; a few arrays of that)
 KEEP_CACHES = 12          # files whose caches are kept (most recently used)
 KEEP_CSCANS = 6           # C-scans kept per group (one per gate / gain setting tried)
+WORKERS = max(1, min(6, (os.cpu_count() or 2) - 1))   # blocks worked on side by side (numpy lets go of the GIL)
+SYNC_SAMPLES = 250_000_000  # files up to this many samples have their C-scan built in the request itself
 
 _jobs = {}                # build key -> {'state', 'progress', 'error', 'started', 'cancel'}
 _lock = threading.Lock()
@@ -93,16 +98,60 @@ def line_times(group, count):
     return offsets[:, None] + np.arange(count)[None, :] * period
 
 
+@functools.lru_cache(maxsize=8)
+def _gain_table(gain, unit):
+    """
+    The amplitude (float32 %) of every int16 sample with soft gain, by its bits as uint16: the sample
+    times the gain, rounded and held to int16 as on the A-scan, then to %.
+    """
+    raw = np.arange(65536, dtype=np.uint16).view(np.int16)
+    gained = np.clip(np.round(raw.astype(np.float64) * 10 ** (gain / 20)), -32768, 32767).astype(np.int16)
+    return gained.astype(np.float32) * np.float32(unit)
+
+
 def gates_block(group, raw, gates, times, gain=0.0):
     """
     Gate results for every line of one scan position: raw int16 [lines, samples] ->
     {letter: {'found', 'amplitude', 'peak_time', 'crossing_time', 'position_time'}} as arrays over the lines
     (amplitude / times NaN where the gate found nothing). Same rules as readings.evaluate_gates.
+    Each gate works only on the samples its window can reach on some line (the rest can't be in it).
     """
-    if gain:
-        raw = np.clip(np.round(raw.astype(np.float64) * 10 ** (gain / 20)), -32768, 32767).astype(np.int16)
-    amplitudes = raw.astype(np.float32) * np.float32(group.unit_max / group.raw_max)
-    lines = amplitudes.shape[0]
+    lines, samples = raw.shape
+    unit = np.float32(group.unit_max / group.raw_max)
+    first_time = times[:, 0]
+    period = (times[0, -1] - times[0, 0]) / (samples - 1) if samples > 1 else 1.0
+
+    def columns(start, end, found):
+        """The samples (c0, c1 + 1) that can be inside the gate on some line, with a sample to spare each side."""
+        if not found.any():
+            return 0, 1
+        lo, hi = np.min(start[found]), np.max(end[found])
+        c0 = int(np.floor((lo - np.max(first_time)) / period)) - 1
+        c1 = int(np.ceil((hi - np.min(first_time)) / period)) + 1
+        c0, c1 = max(0, min(c0, samples - 1)), max(0, min(c1, samples - 1))
+        return c0, max(c0, c1) + 1
+
+    def amplitudes_of(c0, c1):
+        part = raw[:, c0:c1]
+        if gain:   # every raw value's gained amplitude, looked up
+            return _gain_table(float(gain), float(unit))[part.view(np.uint16)]
+        return part.astype(np.float32) * unit
+
+    def count(gate_times, edge, test):
+        """
+        How many of each line's sample times pass `test` against its edge (times rise along a line, so they
+        are the first ones): worked out from the sample period, then put right against the times themselves.
+        """
+        n, rows = gate_times.shape[1], np.arange(gate_times.shape[0])
+        with np.errstate(invalid='ignore'):
+            k = np.clip(np.nan_to_num(np.ceil((edge - gate_times[:, 0]) / period), nan=0.0), 0, n).astype(np.intp)
+        while True:
+            back = (k > 0) & ~test(gate_times[rows, np.maximum(k - 1, 0)], edge)
+            on = ~back & (k < n) & test(gate_times[rows, np.minimum(k, n - 1)], edge)
+            if not (back.any() or on.any()):
+                return k
+            k = k - back + on
+
     results, by_id = {}, {}
     for gate in _order(gates):
         letter = gate_letter(gate.name)
@@ -132,13 +181,19 @@ def gates_block(group, raw, gates, times, gain=0.0):
             start, end = np.nan_to_num(per_line[:, 0]), np.nan_to_num(per_line[:, 1])
             if gate.geometry == 'Box' and gate.outside == 'zero':   # missed lines: amplitude 0, not no data
                 zero = ~found
-        inside = (times >= start[:, None]) & (times <= end[:, None]) & found[:, None]
-        any_inside = inside.any(axis=1)
+        c0, c1 = columns(start, end, found)
+        amplitudes, gate_times = amplitudes_of(c0, c1), times[:, c0:c1]
+        # Inside the gate: its time from start to end - on each line one run of samples, [a, b)
+        a = np.where(found, count(gate_times, start, np.less), 0)
+        b = np.where(found, count(gate_times, end, np.less_equal), 0)
+        cols = np.arange(gate_times.shape[1])
+        inside = (cols[None, :] >= a[:, None]) & (cols[None, :] < b[:, None])
+        any_inside = b > a
         masked = np.where(inside, amplitudes, -np.inf)
         top = np.argmax(masked, axis=1)
         rows = np.arange(lines)
         amplitude = np.where(any_inside, masked[rows, top], np.nan)
-        peak_time = np.where(any_inside, times[rows, top], np.nan)
+        peak_time = np.where(any_inside, gate_times[rows, top], np.nan)
         level = gate_level(gate, amplitude)
         if gate.float_db is not None:   # per line; NaN (under the floor) never crosses
             over = inside & (amplitudes >= np.where(np.isnan(level), np.inf, level)[:, None])
@@ -146,7 +201,7 @@ def gates_block(group, raw, gates, times, gain=0.0):
             over = inside & (amplitudes >= level)
         crossed = over.any(axis=1)
         first = np.argmax(over, axis=1)
-        crossing_time = np.where(crossed, times[rows, first], np.nan)
+        crossing_time = np.where(crossed, gate_times[rows, first], np.nan)
         # Where the gate measures from: its edge, the first peak after it (where it stops rising), or its max peak
         if gate.detection == 'maxpeak':
             position_time = np.where(crossed, peak_time, np.nan)
@@ -154,10 +209,9 @@ def gates_block(group, raw, gates, times, gain=0.0):
             nxt_falls = np.zeros_like(inside)
             nxt_falls[:, :-1] = (amplitudes[:, 1:] < amplitudes[:, :-1]) | ~inside[:, 1:]
             nxt_falls[:, -1] = True
-            cols = np.arange(amplitudes.shape[1])
             peaks = inside & nxt_falls & (cols[None, :] >= first[:, None])
             at = np.argmax(peaks, axis=1)
-            position_time = np.where(crossed & peaks.any(axis=1), times[rows, at], np.nan)
+            position_time = np.where(crossed & peaks.any(axis=1), gate_times[rows, at], np.nan)
         else:
             position_time = crossing_time
         if zero is not None:
@@ -209,40 +263,66 @@ def build(path, group, gates, gain=0.0, progress=None, cancelled=None, folder=No
     if need_volume:
         volume = np.lib.format.open_memmap(data_path + '.tmp.npy', mode='w+', dtype=np.uint8, shape=(lines, scans, bins))
     cscan = {}
-    block_scans = max(1, min(64, BLOCK_SAMPLES // (lines * samples)))
-    with h5py.File(path, 'r') as h5:
-        ds = h5[group.path]
-        status = h5[group.status_path] if group.status_path else None
-        for first in range(0, scans, block_scans):
-            block = np.asarray(ds[first:first + block_scans], dtype=np.int16)
-            flags = np.asarray(status[first:first + block_scans]) if status is not None else None
-            if group.single:   # one conventional / TOFD line: [scans, samples] -> [scans, 1, samples]
-                block = block[:, None, :]
-                flags = None if flags is None else flags.reshape(-1, 1)
-            k = block.shape[0]
-            if need_volume:
-                padded = block if samples == bins * factor else np.pad(block, ((0, 0), (0, 0), (0, bins * factor - samples)))
-                pooled = np.abs(padded).reshape(k, lines, bins, factor).max(axis=3).astype(np.float32) * scale
-                volume[:, first:first + k, :] = np.clip(np.round(pooled), 0, 255).astype(np.uint8).transpose(1, 0, 2)
-            if need_cscan:
-                # All the block's A-scans at once: (k * lines) rows, each with its own beam's times
-                results = gates_block(group, block.reshape(k * lines, samples), gates, np.tile(times, (k, 1)), gain)
-                has_data = usable(group, flags).reshape(k * lines) if flags is not None else np.ones(k * lines, dtype=bool)
-                for letter, r in results.items():
-                    out = cscan.setdefault(letter, {name: np.full((scans, lines), np.nan, dtype=np.float32)
-                                                    for name in ('amplitude', 'peak_time', 'crossing_time', 'position_time')})
-                    for name in out:
-                        out[name][first:first + k] = np.where(has_data, r[name], np.nan).reshape(k, lines)
-            if progress:
-                progress(min(1.0, (first + block_scans) / scans))
-            if cancelled and cancelled():
+    if need_cscan:   # every gate gives a result
+        cscan = {gate_letter(g.name): {name: np.full((scans, lines), np.nan, dtype=np.float32)
+                                       for name in ('amplitude', 'peak_time', 'crossing_time', 'position_time')} for g in gates}
+    # Blocks small enough that the workers share even a short file
+    block_scans = max(1, min(64, BLOCK_SAMPLES // (lines * samples), math.ceil(scans / (2 * WORKERS))))
+    tiled = {}
+
+    def gate_block(first, block, flags):
+        """All the block's A-scans at once: (k * lines) rows, each with its own beam's times."""
+        k = block.shape[0]
+        if k not in tiled:
+            tiled[k] = np.tile(times, (k, 1))
+        results = gates_block(group, block.reshape(k * lines, samples), gates, tiled[k], gain)
+        has_data = usable(group, flags).reshape(k * lines) if flags is not None else np.ones(k * lines, dtype=bool)
+        for letter, r in results.items():
+            out = cscan[letter]
+            for name in out:
+                out[name][first:first + k] = np.where(has_data, r[name], np.nan).reshape(k, lines)
+
+    pool = ThreadPoolExecutor(WORKERS) if need_cscan and WORKERS > 1 else None
+    running = deque()   # blocks on the workers, oldest first
+    try:
+        with h5py.File(path, 'r') as h5:
+            ds = h5[group.path]
+            status = h5[group.status_path] if group.status_path else None
+            for first in range(0, scans, block_scans):
+                block = np.asarray(ds[first:first + block_scans], dtype=np.int16)
+                flags = np.asarray(status[first:first + block_scans]) if status is not None else None
+                if group.single:   # one conventional / TOFD line: [scans, samples] -> [scans, 1, samples]
+                    block = block[:, None, :]
+                    flags = None if flags is None else flags.reshape(-1, 1)
+                k = block.shape[0]
                 if need_volume:
-                    del volume
-                    try:
-                        os.remove(data_path + '.tmp.npy')
-                    except OSError:
-                        pass
-                raise Cancelled()
+                    padded = block if samples == bins * factor else np.pad(block, ((0, 0), (0, 0), (0, bins * factor - samples)))
+                    pooled = np.abs(padded).reshape(k, lines, bins, factor).max(axis=3).astype(np.float32) * scale
+                    volume[:, first:first + k, :] = np.clip(np.round(pooled), 0, 255).astype(np.uint8).transpose(1, 0, 2)
+                if need_cscan:
+                    if pool is None:
+                        gate_block(first, block, flags)
+                    else:
+                        running.append(pool.submit(gate_block, first, block, flags))
+                        while len(running) > 2 * WORKERS:   # only so many blocks in memory at once
+                            running.popleft().result()
+                if progress:
+                    progress(min(1.0, (first + block_scans) / scans))
+                if cancelled and cancelled():
+                    raise Cancelled()
+        while running:
+            running.popleft().result()
+    except Cancelled:
+        if need_volume:
+            del volume
+            try:
+                os.remove(data_path + '.tmp.npy')
+            except OSError:
+                pass
+        raise
+    finally:
+        if pool:
+            pool.shutdown(wait=True, cancel_futures=True)
     if need_volume:
         volume.flush()
         del volume
@@ -254,6 +334,7 @@ def build(path, group, gates, gain=0.0, progress=None, cancelled=None, folder=No
         tmp = cscan_path + '.tmp.npz'
         np.savez(tmp, **arrays)
         os.replace(tmp, cscan_path)
+        _remember(cscan_path, arrays)   # the page reads it straight back: no need to load it again
         _prune_cscans(folder, group.id)
     prune()
 
@@ -293,10 +374,16 @@ def read_cscan(path, group, gates, gain=0.0, folder=None):
         return hit[1]
     with np.load(cscan_path) as data:
         arrays = {name: data[name] for name in data.files}
-    _loaded[cscan_path] = (mtime, arrays)
+    _remember(cscan_path, arrays, mtime)
+    return arrays
+
+
+def _remember(cscan_path, arrays, mtime=None):
+    """Keeps a C-scan's arrays in memory (the last few read or built)."""
+    _loaded.pop(cscan_path, None)
+    _loaded[cscan_path] = (os.path.getmtime(cscan_path) if mtime is None else mtime, arrays)
     while len(_loaded) > LOADED_MAX:
         _loaded.pop(next(iter(_loaded)))
-    return arrays
 
 
 # ── background jobs ──────────────────────────────────────────────────────
@@ -347,6 +434,11 @@ def ensure(path, group, gates, gain=0.0, background=True):
         except Exception as e:   # shown on the page; the next request may try again
             job['state'], job['error'] = 'error', f'{type(e).__name__}: {e}'
 
+    # A new gate setting on a file whose volume is built: a short file's C-scan is quicker to make here
+    # than to poll for
+    scans, lines, samples = group.shape
+    if background and scans * lines * samples <= SYNC_SAMPLES and volume_info(path, group) is not None:
+        background = False
     if background:
         threading.Thread(target=run, daemon=True, name=f'analysis-build-{key}').start()
     else:

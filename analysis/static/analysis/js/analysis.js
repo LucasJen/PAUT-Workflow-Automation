@@ -173,7 +173,7 @@
         dragBase = null;
         scheduleReadings(0);
         loadFrameGates();
-        scheduleProjections(300);
+        if (!(state.cscan?.dependsOn && state.cscan.dependsOn === cscanDependsOn())) scheduleProjections(0);
     }
     /** The A-scan's gates with the dragged one where its settings now put it. */
     function previewDraggedGate(letter) {
@@ -1037,16 +1037,53 @@
         if (state.gatesEdited) q.gates = gatesParam();
         return q;
     }
-    function scheduleProjections(delay = 0) {
+    /** Asks for the C-scan after `delay` ms; `throttle`: not later than one already waiting (a drag keeps it coming). */
+    function scheduleProjections(delay = 0, { throttle = false } = {}) {
+        if (throttle && projectionTimer !== null) return;
         clearTimeout(projectionTimer);
-        projectionTimer = setTimeout(loadProjections, delay);
+        projectionTimer = setTimeout(() => { projectionTimer = null; loadProjections(); }, delay);
+    }
+    // Files up to this many samples have their C-scan made at once (projections.SYNC_SAMPLES): it can follow a drag
+    const QUICK_SAMPLES = 250e6;
+    const quickFile = () => { const g = currentGroup(); return !!g && g.shape.reduce((a, b) => a * b, 1) <= QUICK_SAMPLES; };
+
+    /**
+     * What the C-scan shown depends on among the gates, or null when it isn't an amplitude C-scan: its gate's
+     * window and the gates it starts from (their thresholds too - they set where it starts), but not its own
+     * threshold, detection or floating, which don't change the highest amplitude in it.
+     */
+    function cscanDependsOn() {
+        const [letter, kind] = (kindSelect.value || '').split(':');
+        if (kind !== 'amplitude') return null;
+        const chain = [], seen = new Set();
+        let gate = gateByLetter(letter);
+        while (gate && !seen.has(gate.id)) {
+            seen.add(gate.id);
+            const { threshold, detection, float_db, float_floor, ...window } = gate;
+            chain.push(chain.length ? { ...gate, detection: null } : window);
+            gate = gate.sync_gate === null || gate.sync_gate === undefined ? null : state.gates.find(x => x.id === gate.sync_gate);
+        }
+        return JSON.stringify([state.path, state.group, state.buildGain, state.refLevel, chain]);
     }
     function progress(fraction) {
         $('cscan-note').innerHTML = fraction === null ? ''
             : `Reading the file… <span class="analysis-progress"><span style="width:${Math.round(fraction * 100)}%"></span></span>`;
     }
 
+    // One request at a time: a change while one is out is asked for (as it is then) when it's back
+    let projectionBusy = false, projectionAgain = false;
     async function loadProjections() {
+        if (projectionBusy) { projectionAgain = true; return; }
+        projectionBusy = true;
+        try {
+            await loadProjectionsNow();
+        } finally {
+            projectionBusy = false;
+            if (projectionAgain) { projectionAgain = false; loadProjections(); }
+        }
+    }
+
+    async function loadProjectionsNow() {
         if (!state.info || !wholeShown()) return;
         const mine = ++projectionRequest;
         let job;
@@ -1058,7 +1095,7 @@
         }
         if (mine !== projectionRequest) return;
         if (job.state === 'error') { progress(null); cview.clear(`Couldn't read the whole file: ${job.error}`); return; }
-        if (job.state !== 'done') { progress(job.progress || 0); projectionTimer = setTimeout(loadProjections, 400); return; }
+        if (job.state !== 'done') { progress(job.progress || 0); scheduleProjections(300); return; }
         progress(null);
         await loadCscan(mine);
         loadBscan();
@@ -1091,6 +1128,7 @@
         if (!kindSelect.value) { cview.clear('This group has no gates to make a C-scan from.'); return; }
         const [gate, kind, from] = kindSelect.value.split(':');
         const params = { ...projectionParams(), gate, kind };
+        const dependsOn = cscanDependsOn();
         if (from) params.from = from;
         let result;
         try {
@@ -1110,7 +1148,7 @@
         state.cscanFull = range;   // the palette bar works within it
         const g = currentGroup();
         const keep = !!state.cscan && state.cscan.scans === scans && state.cscan.lines === lines;
-        state.cscan = { data: result.data, scans, lines, mode };
+        state.cscan = { data: result.data, scans, lines, mode, dependsOn };
         state.cscanGain = state.buildGain;
         cview.setGain(state.gain - state.cscanGain);
         cview.setImage(result.data, scans, lines, {
@@ -1633,12 +1671,15 @@
         renderSscanGates();
         if (!document.activeElement?.closest('#gate-rows')) renderGates();
         $('gates-edited').hidden = false;
-        if (state.draggingGate) {   // drawn here at once; the server catches up when it's let go (gateDragEnded)
+        // An amplitude C-scan that doesn't depend on what changed (its gate's own threshold, say) stays as it is
+        const cscanStands = !!state.cscan?.dependsOn && state.cscan.dependsOn === cscanDependsOn();
+        if (state.draggingGate) {   // drawn here at once; the readings catch up when it's let go (gateDragEnded)
+            if (quickFile() && !cscanStands) scheduleProjections(80, { throttle: true });   // a short file's C-scan follows the drag
             return;
         }
         loadFrameGates(150);
         scheduleReadings(delay);
-        scheduleProjections(700);   // the C-scan follows the gates once they settle
+        if (!cscanStands) scheduleProjections(quickFile() ? 100 : 500);   // the C-scan follows the gates
     }
 
     $('reset-gates').addEventListener('click', () => {
