@@ -141,7 +141,7 @@ class MappingTests(TestCase):
         out = report_export.preview(report, [weld_indication()], 'in')
         self.assertEqual(out['rows'][0], ['', '7.8', 'Root indication'])
         report_export.append(report, out['columns'], out['rows'])
-        self.assertEqual(report.results_table.rows.count(), 1)
+        self.assertEqual(Report.objects.get(pk=report.pk).results_table.rows.count(), 1)
 
     def test_an_issued_report_or_changed_columns_are_refused(self):
         report = Report.objects.create(report_type='paut_long', status=Report.ISSUED)
@@ -187,6 +187,39 @@ class SendApiTests(TestCase):
         cells = report.results_table.rows.get().cells
         self.assertEqual(cells[preview['columns'].index('Type')], 'LOF')
         self.assertEqual(ReportImage.objects.filter(report=report).count(), 1)
+
+    def test_the_desktop_app_previews_and_sends_its_own_indications(self):
+        report = Report.objects.create(report_type='paut_weld', document_filename='PPI weld', job_folder=r'C:\jobs\45-19662')
+        item = {'file_path': r'C:\jobs\45-19662\fw6 n off1.nde', 'number': 3, 'group': 0, 'scan': 329, 'lateral': 21,
+                'scan_position': 12.953 * IN, 'index_position': -0.5 * IN, 'angle': 64.0,
+                'readings': {'A%': 44.0, 'DA^': 0.291 * IN, 'Length': 0.307 * IN},
+                'cursors': {'s_ref': 12.80 * IN, 's_meas': 13.107 * IN}, 'comment': 'Root'}
+        url = reverse('analysis-report-send-items')
+        desktop = {'HTTP_X_PAUT_ANALYSIS': '1'}
+        # Without the desktop's header: refused (it stands in for the CSRF token)
+        self.assertEqual(self.client.post(url, json.dumps({'report': report.pk, 'indications': [item]}),
+                                          content_type='application/json').status_code, 403)
+        reports = self.client.get(url, {'path': item['file_path']}, **desktop).json()['reports']
+        self.assertEqual(reports[0]['name'], 'PPI weld')
+        preview = self.client.post(url, json.dumps({'report': report.pk, 'indications': [item], 'units': 'in'}),
+                                   content_type='application/json', **desktop).json()
+        columns, rows = preview['columns'], preview['rows']
+        # The same row the page's own (saved) indication would make
+        saved = weld_indication(number=3, file_path=item['file_path'], file_name='fw6 n off1.nde', readings=item['readings'],
+                                cursors=item['cursors'], comment='Root', index_position=-0.5 * IN)
+        self.assertEqual(rows, report_export.preview(report, [saved], 'in')['rows'])
+        with override_settings(MEDIA_ROOT=self.folder):
+            response = self.client.post(url, json.dumps({'report': report.pk, 'indications': [item], 'send': True,
+                                                         'columns': columns, 'rows': rows, 'pictures': [PNG]}),
+                                        content_type='application/json', **desktop)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['added'], 1)
+        self.assertEqual(Report.objects.get(pk=report.pk).results_table.rows.count(), 1)
+        self.assertEqual(ReportImage.objects.filter(report=report).count(), 1)
+        self.assertFalse(Indication.objects.exclude(pk=saved.pk).exists())   # nothing saved here
+        bad = self.client.post(url, json.dumps({'report': report.pk, 'indications': [{'number': 1}]}),
+                               content_type='application/json', **desktop)
+        self.assertEqual(bad.status_code, 400)
 
     def test_errors_are_explained(self):
         report = Report.objects.create(report_type='paut_long', status=Report.ISSUED)

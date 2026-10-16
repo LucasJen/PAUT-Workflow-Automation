@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Max
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from reports.models import Report
@@ -711,6 +711,90 @@ def report_send(request):
     except report_export.ExportError as e:
         return _error(str(e), status=409)
     return JsonResponse({'added': added, 'edit_url': reverse('edit-report', args=[report.pk])})
+
+
+# ── Send to report from the desktop Analysis app (PAUT-Analysis-Desktop) ──
+
+DESKTOP_HEADER = 'HTTP_X_PAUT_ANALYSIS'
+_ITEM_FIELDS = {'file_path': str, 'file_name': str, 'number': int, 'group': int, 'scan': int, 'lateral': int,
+                'scan_position': float, 'index_position': float, 'angle': float, 'gain': float,
+                'readings': dict, 'cursors': dict, 'sizing': dict, 'comment': str}
+
+
+def _desktop_items(items):
+    """The desktop app's indications (sent inline, not saved here) as unsaved Indication objects."""
+    if not isinstance(items, list) or not items:
+        raise ValueError('Pick the indications to send.')
+    out = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("An indication couldn't be read.")
+        values = {}
+        for name, kind in _ITEM_FIELDS.items():
+            value = item.get(name)
+            if value is None:
+                continue
+            if kind is float:
+                value = float(value)
+                if not math.isfinite(value):
+                    continue
+            elif kind is int:
+                value = int(value)
+            elif not isinstance(value, kind):
+                raise ValueError(f"An indication's {name} couldn't be read.")
+            values[name] = value
+        if not values.get('file_path'):
+            raise ValueError('An indication has no file.')
+        values.setdefault('file_name', os.path.basename(values['file_path']))
+        values.setdefault('number', len(out) + 1)
+        values.setdefault('scan', 0)
+        values.setdefault('lateral', 0)
+        out.append(Indication(**values))
+    return out
+
+
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def report_send_items(request):
+    """
+    Send to report for the desktop Analysis app, whose indications come inline rather than saved here.
+    GET ?path=: the draft reports (as reports.json). POST JSON {report, units, indications: [{file_path,
+    file_name, number, group, scan, lateral, scan_position, index_position, angle, gain, readings, cursors,
+    sizing, comment}]}: the rows they'd make, in the report's columns (as report-preview.json); with
+    "send": true, "columns", "rows" (as previewed, maybe edited) and "pictures" (data URLs): adds them
+    (as report-send.json).
+    Only with the X-PAUT-Analysis: 1 header - a web page elsewhere can't send it to this PC without CORS
+    approval, so it stands in for the CSRF token the page's own requests carry.
+    """
+    if request.META.get(DESKTOP_HEADER) != '1':
+        return _error('This is for the desktop Analysis app.', status=403)
+    if request.method == 'GET':
+        return JsonResponse({'reports': report_export.draft_reports(request.GET.get('path', ''))})
+    try:
+        data = json.loads(request.body or b'{}')
+        report = Report.objects.filter(pk=int(data.get('report'))).first()
+        indications = _desktop_items(data.get('indications'))
+    except (ValueError, TypeError) as e:
+        return _error(str(e) if isinstance(e, ValueError) and str(e) and not str(e).startswith('invalid') else "The request couldn't be read.")
+    if report is None:
+        return _error("That report doesn't exist any more.")
+    if not data.get('send'):
+        units = 'mm' if data.get('units') == 'mm' else 'in'
+        out = report_export.preview(report, indications, units)
+        out['report'] = {'id': report.pk, 'name': report.document_filename or f'Report {report.pk}',
+                         'type': report.report_type, 'issued': report.is_issued,
+                         'has_rows': bool(getattr(report, 'results_table', None) and report.results_table.rows.exists())}
+        out['field_names'] = report_export.FIELDS
+        return JsonResponse(out)
+    rows = data.get('rows')
+    if not isinstance(rows, list) or len(rows) != len(indications) or not all(isinstance(r, list) for r in rows):
+        return _error('Each indication needs its row.')
+    captions = [f'{i.file_name} - indication {i.number}' for i in indications]
+    try:
+        added = report_export.append(report, data.get('columns') or [], rows, data.get('pictures'), captions)
+    except report_export.ExportError as e:
+        return _error(str(e), status=409)
+    return JsonResponse({'added': added, 'edit_url': request.build_absolute_uri(reverse('edit-report', args=[report.pk]))})
 
 
 @require_http_methods(['POST'])
