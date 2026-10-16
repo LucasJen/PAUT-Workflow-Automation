@@ -178,6 +178,8 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-gate .gate-letter { width: 1rem; font-size: 0.6875rem; line-height: 1rem; }
 .analysis-gate-types .btn { padding: 0 0.3rem !important; font-size: 0.6875rem !important; line-height: 1.25 !important; }
 .analysis-gate-remove:hover { color: var(--danger); }
+.analysis-gate.gate-off .gate-letter { opacity: 0.35; }
+.analysis-gate.gate-off .analysis-gate-toggle { color: var(--bs-secondary-color); }
 .analysis-add-gates { display: flex; gap: 0.25rem; }
 .analysis-add-gates:empty { display: none; }
 

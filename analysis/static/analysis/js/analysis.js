@@ -62,7 +62,7 @@
     const NO_CURSORS = { u_ref: null, u_meas: null, i_ref: null, i_meas: null, s_ref: null, s_meas: null };
 
     const state = { path: '', group: 0, scan: 0, lateral: 0, gain: 0, info: null, frame: null, values: null,
-                    gates: [], gatesEdited: false, cursors: { ...NO_CURSORS }, refLevel: 80, readings: {},
+                    gates: [], gatesEdited: false, hiddenGates: [], cursors: { ...NO_CURSORS }, refLevel: 80, readings: {},
                     cscan: null, cscanGain: 0, cscanRanges: {},
                     // The soft gain the whole-file views are built at: reviewing an indication shows it at its own
                     // 80 % gain without building them again (the views' shaders take the difference)
@@ -194,7 +194,7 @@
                         threshold: base.threshold === null || base.threshold === undefined ? base.threshold
                             : (base.band ? base.threshold * scale : gate.threshold),
                         band: base.band ? base.band.map(b => b * scale) : base.band };
-        ascan.set({ gates: { ...(state.gateResults || dragBase), [letter]: moved } });
+        ascan.set({ gates: shownGates({ ...(state.gateResults || dragBase), [letter]: moved }) });
     }
 
     const CURSOR = '#38bdf8';
@@ -469,7 +469,7 @@
     function save() {
         try {
             sessionStorage.setItem(memoryKey(), JSON.stringify({
-                gates: state.gatesEdited ? state.gates : null, cursors: state.cursors, refLevel: state.refLevel,
+                gates: state.gatesEdited ? state.gates : null, hiddenGates: state.hiddenGates, cursors: state.cursors, refLevel: state.refLevel,
             }));
         } catch { /* storage full or blocked: nothing to keep */ }
     }
@@ -479,6 +479,7 @@
         const g = currentGroup();
         state.gates = saved?.gates || fileGates(g);
         state.gatesEdited = !!saved?.gates;
+        state.hiddenGates = saved?.hiddenGates || [];
         state.cursors = { ...NO_CURSORS, ...(saved?.cursors || {}) };
         state.refLevel = saved?.refLevel || 80;
         refInput.value = state.refLevel;
@@ -496,6 +497,9 @@
     }));
     const letterOf = name => (name || '').trim().split(/\s+/).pop().toUpperCase();
     const gateByLetter = letter => state.gates.find(x => letterOf(x.name) === letter);
+    /** Gates turned off in the Gates panel aren't drawn (A- and S-scan); they still read and build the C-scan. */
+    const gateShown = letter => !state.hiddenGates.includes(letter);
+    const shownGates = results => (results ? Object.fromEntries(Object.entries(results).filter(([letter]) => gateShown(letter))) : results);
 
     function remember() {
         const q = new URLSearchParams({ path: state.path, group: state.group, scan: state.scan, lateral: state.lateral });
@@ -1322,7 +1326,14 @@
                 });
                 types.append(b);
             }
-            const tools = el('span', { className: 'ana-tools' }, types);
+            const shown = gateShown(letter);
+            card.classList.toggle('gate-off', !shown);
+            const eye = el('button', { type: 'button', className: 'ana-icon-btn analysis-gate-toggle',
+                                       title: shown ? `Hide ${gate.name} on the A- and S-scans` : `Show ${gate.name} on the A- and S-scans`,
+                                       innerHTML: `<i class="bi ${shown ? 'bi-eye' : 'bi-eye-slash'}"></i>` });
+            eye.setAttribute('aria-pressed', String(shown));
+            eye.addEventListener('click', e => { e.preventDefault(); toggleGate(letter); });
+            const tools = el('span', { className: 'ana-tools' }, types, eye);
             if (addedGate(gate)) {
                 const remove = el('button', { type: 'button', className: 'ana-icon-btn analysis-gate-remove', title: `Remove ${gate.name}`,
                                               innerHTML: '<i class="bi bi-trash3"></i>' });
@@ -1400,6 +1411,16 @@
         renderAddGates();
     }
 
+    /** A gate's drawing on the A- and S-scans on or off (a hidden gate can't be picked or dragged there). */
+    function toggleGate(letter) {
+        state.hiddenGates = gateShown(letter) ? [...state.hiddenGates, letter] : state.hiddenGates.filter(x => x !== letter);
+        if (!gateShown(letter) && state.selected?.kind === 'gate' && state.selected.letter === letter) select(null);
+        save();
+        renderGates();
+        renderSscanGates();
+        ascan.set({ gates: shownGates(state.gateResults) });
+    }
+
     /**
      * Removes a gate added on this page. Gates that started from it start from the pulse instead, where
      * they are now on the cursor's beam.
@@ -1464,6 +1485,7 @@
         for (const gate of state.gates) {
             const letter = letterOf(gate.name);
             if (letter === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files
+            if (!gateShown(letter)) continue;
             const paths = synced(gate) ? syncedPaths(gate, letter) : localPaths(gate);
             if (!paths) continue;
             list.push({ letter, colour: GATE_COLOURS[letter] || '#a78bfa', editable: true, paths,
@@ -1651,7 +1673,7 @@
         }
         if (mine !== readingsRequest) return;
         show('');
-        ascan.set({ gates: data.gates });
+        ascan.set({ gates: shownGates(data.gates) });
         state.gateResults = data.gates;
         state.readings = data.readings;
         state.readingsNote = data.note || '';
