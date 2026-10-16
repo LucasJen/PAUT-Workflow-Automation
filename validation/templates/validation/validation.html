@@ -109,6 +109,29 @@
             <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add</button>
         </form>
     </details>
+    {% if kit_nde %}
+    <details class="val-add">
+        <summary>Import an OmniPC export (readings)</summary>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="import_export" value="1">
+            <div class="val-add-grid">
+                <label for="import-export">Export</label>
+                <input type="text" class="form-control form-control-sm mono" id="import-export" name="export" placeholder="C:\…\export.zip or indications.csv" required>
+                <label for="import-nde">Made from</label>
+                <select class="form-select form-select-sm" id="import-nde" name="nde">
+                    {% for e in kit_nde %}<option value="{{ e.path }}">{{ e.path }}</option>{% endfor %}
+                </select>
+                <label for="import-source">Source</label>
+                <input type="text" class="form-control form-control-sm" id="import-source" name="source" placeholder="e.g. OmniPC 5.12, soft gain 0 dB, cursors on the peaks, 2026-10-16">
+            </div>
+            <p class="form-text">In OmniPC: put the cursors on each indication's peak at 0 dB soft gain, log it, turn on the reading
+                columns, and Export (the zip holds indications.csv and setup.csv). Each indication becomes a check; readings that need
+                cursor positions or a zone are listed but not compared.</p>
+            <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-box-arrow-in-down"></i> Import</button>
+        </form>
+    </details>
+    {% endif %}
 </section>
 
 {% if runs %}

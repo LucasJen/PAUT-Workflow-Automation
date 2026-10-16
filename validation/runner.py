@@ -42,6 +42,9 @@ class Context:
         self.run, self.kit, self.files, self.options = run, kit, files, run.options
         self.layer, self._save = layer, save
 
+    def with_role(self, role):
+        return [e for e in self.files if role in (e.get('roles') or [])]
+
     def emit(self, check):
         self.layer['checks'].append(check)
         if check['kind'] == 'check':

@@ -113,10 +113,11 @@ class Kit:
                 out.append({'path': entry['path'], 'ok': True, 'reason': ''})
         return out
 
-    def add(self, source, roles, origin='', notes='', copy=True):
+    def add(self, source, roles, origin='', notes='', copy=True, name=None):
         """
         Adds a file to the kit (copied into its folder by type, or listed in place when it's already
-        inside the kit) with its fingerprint; a file of the same kit path is replaced. Returns the entry.
+        inside the kit) with its fingerprint, under `name` if given; a file of the same kit path is replaced.
+        Returns the entry.
         """
         source = os.path.abspath(source)
         if not os.path.isfile(source):
@@ -129,7 +130,7 @@ class Kit:
             target = source
         else:
             folder = FOLDERS.get(os.path.splitext(source)[1].lower(), 'other')
-            target = os.path.join(self.root, folder, os.path.basename(source))
+            target = os.path.join(self.root, folder, name or os.path.basename(source))
             if copy:
                 os.makedirs(os.path.dirname(target), exist_ok=True)
                 shutil.copy2(source, target)

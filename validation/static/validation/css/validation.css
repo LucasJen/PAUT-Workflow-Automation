@@ -52,6 +52,7 @@ div.val-check { display: flex; gap: 0.5rem; padding: 0.35rem 0.6rem; }
 .val-items { margin: 0; font-size: 0.75rem; }
 .val-items td:first-child { width: 1.5rem; }
 .val-items tr.is-bad td { color: var(--danger); font-weight: 600; }
+.val-items tr.is-na td { color: var(--text-3); }
 .val-items .bi-check-lg { color: var(--success); }
 .val-note { padding: 0 0.6rem 0.4rem; margin: 0; }
 .val-trace { font-size: 0.6875rem; max-height: 12rem; overflow: auto; background: var(--surface-2); padding: 0.5rem; }

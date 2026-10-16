@@ -17,8 +17,9 @@ class Layer:
 
 
 def item(what, expected, measured, ok, rule):
-    """One comparison: what, the independent value, the app's value, whether they agree, and by what rule."""
-    return {'what': what, 'expected': expected, 'measured': measured, 'ok': bool(ok), 'rule': rule}
+    """One comparison: what, the independent value, the app's value, whether they agree (None: shown,
+    not compared - e.g. a reading the export has but the app can't check from it), and by what rule."""
+    return {'what': what, 'expected': expected, 'measured': measured, 'ok': None if ok is None else bool(ok), 'rule': rule}
 
 
 def check(title, subject, against, items, note='', kind='check'):
@@ -27,16 +28,16 @@ def check(title, subject, against, items, note='', kind='check'):
     counted (e.g. a group the app says it can't show, listed so nothing is silently skipped).
     """
     return {'title': title, 'subject': subject, 'against': against, 'items': items, 'note': note, 'kind': kind,
-            'passed': kind != 'check' or all(i['ok'] for i in items)}
+            'passed': kind != 'check' or all(i['ok'] is not False for i in items)}
 
 
 def _layers():
-    from . import decoding
+    from . import decoding, readings
     return [
         Layer('L0', 'Decoding', 'Does the app read exactly what the scope recorded - every sample, axis, beam and gate?',
               'An independent HDF5 reader', decoding.run),
-        Layer('L1', 'Readings', "Do the app's readings (A%, SA^, DA^, PA^, ViA^, thickness, cursors) match OmniPC's?",
-              "OmniPC's indication exports"),
+        Layer('L1', 'Readings', "Do the readings the app shows (A%, SA^, DA^, PA^, ViA^, thickness) match OmniPC's, digit for digit?",
+              "OmniPC's indication exports", readings.run),
         Layer('L2', 'Sizing and detection', 'Does the app size indications like OmniPC, and find every indication a tech logged?',
               'Indications sized and logged in OmniPC'),
         Layer('L3', 'Physical accuracy', 'Are reflectors where they really are, as accurately as OmniPC places them?',

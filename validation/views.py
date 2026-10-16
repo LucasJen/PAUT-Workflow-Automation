@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from . import runner
+from . import importer, runner
 from .checks import LAYERS
 from .kit import ROLES, Kit, KitError
 from .models import ValidationRun, ValidationSettings
@@ -35,6 +35,17 @@ def validation(request):
                 messages.success(request, f"Added {entry['path']} to the kit.")
             except (KitError, OSError) as e:
                 messages.error(request, str(e))
+        elif 'import_export' in request.POST:
+            try:
+                kit = Kit(settings.kit_path)
+                nde = next((e for e in kit.nde_files() if e['path'] == request.POST.get('nde')), None)
+                if nde is None:
+                    raise KitError('Pick the .nde file the export was made from (add it to the kit first).')
+                entries = importer.import_export(kit, request.POST.get('export', '').strip().strip('"'), nde,
+                                                 request.POST.get('source', '').strip())
+                messages.success(request, f"Imported: {', '.join(e['notes'] for e in entries)} from the export.")
+            except (KitError, importer.ImportError_, OSError, ValueError) as e:
+                messages.error(request, str(e))
         return redirect('validation')
 
     runner.mark_abandoned()
@@ -56,7 +67,7 @@ def validation(request):
                           'role_names': [ROLES.get(r, r) for r in e.get('roles') or []]})
     return render(request, 'validation/validation.html', {
         'settings': settings, 'kit': kit, 'kit_error': kit_error, 'kit_files': files,
-        'kit_size': sum(e.get('size') or 0 for e in files), 'roles': ROLES.items(), 'layers': LAYERS,
+        'kit_size': sum(e.get('size') or 0 for e in files), 'kit_nde': kit.nde_files() if kit else [], 'roles': ROLES.items(), 'layers': LAYERS,
         'runs': runs, 'shown': _run_json(shown) if shown else None, 'sweep_default': runner.default_sweep(),
     })
 

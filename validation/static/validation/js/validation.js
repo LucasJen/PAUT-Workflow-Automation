@@ -86,18 +86,19 @@
         const key = `${layerId}:${i}`;
         const state = c.kind === 'info' ? 'info' : c.passed ? 'passed' : 'failed';
         const icon = { info: 'bi-info-circle', passed: 'bi-check-circle-fill', failed: 'bi-x-circle-fill' }[state];
-        const agreed = c.items.filter(x => x.ok).length;
+        const compared = c.items.filter(x => x.ok !== null);
+        const agreed = compared.filter(x => x.ok).length;
         const row = el('details', { className: `val-check is-${state}`, open: open.has(key) },
             el('summary', {},
                 el('i', { className: `bi ${icon}` }),
                 el('span', { className: 'val-check-subject', textContent: c.subject }),
                 el('span', { className: 'val-check-title', textContent: c.title }),
-                el('span', { className: 'val-check-sum', textContent: c.kind === 'info' ? 'not counted' : `${agreed} of ${c.items.length} agree` })));
+                el('span', { className: 'val-check-sum', textContent: c.kind === 'info' ? 'not counted' : `${agreed} of ${compared.length} agree` })));
         row.addEventListener('toggle', () => { if (row.open) open.add(key); else open.delete(key); });
         const table = el('table', { className: 'table data-table val-items' },
             el('thead', {}, el('tr', {}, ...['', 'Compared', `Expected (${c.against})`, 'Measured (the app)', 'Rule'].map(t => el('th', { textContent: t })))),
-            el('tbody', {}, ...c.items.map(x => el('tr', { className: x.ok ? '' : 'is-bad' },
-                el('td', {}, el('i', { className: `bi ${x.ok ? 'bi-check-lg' : 'bi-x-lg'}` })),
+            el('tbody', {}, ...c.items.map(x => el('tr', { className: x.ok === false ? 'is-bad' : x.ok === null ? 'is-na' : '' },
+                el('td', {}, el('i', { className: `bi ${x.ok === null ? 'bi-dash' : x.ok ? 'bi-check-lg' : 'bi-x-lg'}`, title: x.ok === null ? 'Shown, not compared' : '' })),
                 el('td', { textContent: x.what }), el('td', { className: 'mono', textContent: x.expected }),
                 el('td', { className: 'mono', textContent: x.measured }), el('td', { textContent: x.rule })))));
         row.append(el('div', { className: 'table-wrap' }, table));
