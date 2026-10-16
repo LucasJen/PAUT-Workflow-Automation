@@ -1994,14 +1994,7 @@
     const shownIndications = () => (state.indications || []).filter(i => state.filter === 'all' || i.status === state.filter)
         .sort((a, b) => a.group - b.group || (a.sizing?.scan_start ?? a.scan_position ?? 0) - (b.sizing?.scan_start ?? b.scan_position ?? 0) || a.lateral - b.lateral);
 
-    // ── grading against the acceptance criteria of 100-UT-020 (Rev 9) ──
-    // B31.1 (§8): cracks, lack of fusion and incomplete penetration fail at any length; other discontinuities
-    // fail over the reference level and longer than allowed. B31.3 (§9): over the reference level and longer
-    // than allowed. Allowed: 0.25 in for T up to 0.75 in, T/3 up to 2.25 in, 0.75 in over (T: the thinner member).
-    // The page can't tell what a discontinuity is, so under B31.1 one over 20 % of reference (§7.2's
-    // investigation level) that doesn't fail on amplitude and length is yellow: characterise it.
-    const IN = 0.0254;
-    const allowedLength = T => (T <= 0.75 * IN + 1e-9 ? 0.25 * IN : T <= 2.25 * IN + 1e-9 ? T / 3 : 0.75 * IN);
+    // ── grading against the acceptance criteria of 100-UT-020 (Rev 9): criteria.js ──
     let gradeCriteria = '';
     try { gradeCriteria = localStorage.getItem('analysisCriteria') || ''; } catch { /* none */ }
     $('grade-criteria').value = gradeCriteria;
@@ -2011,39 +2004,16 @@
         renderIndications();
     });
     /** An indication's peak at the file's reference gain (% FSH), or null; Infinity when saturated. */
-    function amplitudeAtReference(item) {
-        const z = item.sizing || {}, r = item.readings || {}, g = currentGroup();
-        let recorded = null;   // % at the file's own gain (no soft gain)
-        if (z.saturated) recorded = Infinity;
-        else if (has(z.peak_amplitude)) recorded = z.peak_amplitude * 10 ** (-(z.base_gain ?? item.gain ?? 0) / 20);
-        else if (has(r['A%'])) recorded = r['A%'] * 10 ** (-(item.gain || 0) / 20);
-        if (recorded === null) return null;
-        const ref = g?.reference_gain, scanned = g?.instrument_gain;
-        return has(ref) && ref > 0 && has(scanned) ? recorded * 10 ** ((ref - scanned) / 20) : recorded;
-    }
+    const amplitudeAtReference = item => AnalysisCriteria.atReference(item, currentGroup());
     /** {grade: 'fail' | 'assess' | 'pass', reason} for the chosen criteria, or null when none chosen. */
     function gradeOf(item) {
-        if (!gradeCriteria) return null;
         const z = item.sizing || {}, r = item.readings || {};
-        const T = state.info?.specimen?.thickness;
-        const refAmp = currentGroup()?.reference_amplitude || state.refLevel || 80;
-        const amp = amplitudeAtReference(item);
-        const length = z.length ?? r.Length ?? (has(r['S(m-r)']) ? Math.abs(r['S(m-r)']) : null);
-        if (!has(amp) && amp !== Infinity) return { grade: 'assess', reason: 'No amplitude to grade - assess it' };
-        const db = amp === Infinity ? null : 20 * Math.log10(amp / refAmp);
-        const ampText = amp === Infinity ? 'saturated (over reference)' : `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB to reference (${amp.toFixed(0)} % at reference gain)`;
-        const overRef = amp > refAmp;
-        if (!T || !has(length)) {
-            if (!overRef && !(gradeCriteria === 'b31.1' && amp > 0.2 * refAmp)) return { grade: 'pass', reason: `${ampText}: not over the reference level` };
-            return { grade: 'assess', reason: `${ampText}; ${!T ? 'no part thickness T' : 'no length'} to compare - assess it` };
-        }
-        const allowed = allowedLength(T);
-        const lengthText = `${format(length)} ${length > allowed ? '>' : '≤'} ${format(allowed)} allowed (T ${format(T)})`;
-        if (overRef && length > allowed) return { grade: 'fail', reason: `Fails: ${ampText}, ${lengthText}` };
-        if (gradeCriteria === 'b31.1' && amp > 0.2 * refAmp) {
-            return { grade: 'assess', reason: `Characterise it: ${ampText}, ${lengthText}. Under B31.1 a crack, lack of fusion or incomplete penetration fails at any length` };
-        }
-        return { grade: 'pass', reason: `Passes: ${ampText}, ${lengthText}` };
+        return AnalysisCriteria.grade(gradeCriteria, {
+            amplitude: amplitudeAtReference(item),
+            reference: currentGroup()?.reference_amplitude || state.refLevel || 80,
+            length: z.length ?? r.Length ?? (has(r['S(m-r)']) ? Math.abs(r['S(m-r)']) : null),
+            thickness: state.info?.specimen?.thickness,
+        }, format);
     }
 
     /** The Indications panel: the review card, then a row each (# · scan · length · height · depth · PA^ · A% · status). */
