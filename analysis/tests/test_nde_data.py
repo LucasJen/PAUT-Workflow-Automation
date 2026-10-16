@@ -10,7 +10,7 @@ from django.urls import reverse
 from analysis.paths import PathNotAllowed, allowed_roots, checked_path
 from analysis.services import geometry
 from analysis.services.nde_data import (
-    BEAMS, RASTER, UNSUPPORTED, NdeDataError, open_file, read_ascan, read_frame, to_unit,
+    BEAMS, RASTER, UNSUPPORTED, NdeDataError, interface_time, open_file, read_ascan, read_frame, to_unit,
 )
 from analysis.tests import builders
 
@@ -77,6 +77,39 @@ class RasterFileTests(TempFolderMixin, TestCase):
                          [('Gate I', 'Pulse', None), ('Gate A', 'GateRelative', 0)])
         frame, status = read_frame(path, group, 4)
         self.assertEqual((frame.shape, frame[3, 39], status), ((4, 40), 4339, None))
+
+
+class InterfaceTimeTests(TempFolderMixin, TestCase):
+    """Gate I on an A-scan re-timed to the interface: placed by the instrument's recorded crossing."""
+
+    def mxu_file(self, crossing=1.8e-5, start=1.5e-5):
+        import h5py
+        path = builders.raster_file(self.folder, synchro='SynchroGateRelative')
+        record = np.dtype([('status', '<i4'), ('amplitude', '<i4'), ('crossing', '<f4'), ('peak', '<f4'),
+                           ('start', '<f4'), ('end', '<f4')])
+        rows = np.zeros((5, 4, 2), dtype=record)
+        rows['crossing'][..., 0], rows['start'][..., 0], rows['end'][..., 0] = crossing, start, start + 1e-5
+        rows[0, 0, 0] = (16, 0, 0.0, 0.0, 0.0, 0.0)   # no data here
+        with h5py.File(path, 'a') as h5:
+            h5.create_dataset('Private/MXU/RawCScan', data=rows.view('V24'))
+        return path
+
+    def test_gate_i_sits_its_start_minus_the_crossing_from_the_a_scans_zero(self):
+        from analysis.services.readings import evaluate_gates
+        path = self.mxu_file()
+        group = open_file(path).group(0)
+        self.assertTrue(group.synced_to_interface)
+        t = interface_time(path, group, 2, 1)
+        self.assertAlmostEqual(t, 1.8e-5, places=11)
+        i = evaluate_gates(group, group.beams[1], read_ascan(path, group, 2, 1), group.gates, t)['I']
+        self.assertAlmostEqual(i.start, 1.5e-5 - t, places=11)   # before the interface (t = 0)
+        self.assertAlmostEqual(i.end - i.start, 1e-5)
+        self.assertEqual(i.crossing_time, 0.0)
+        # No data there, no record, or a record that isn't gate I's: nothing to place it by
+        self.assertIsNone(interface_time(path, group, 0, 0))
+        self.assertIsNone(evaluate_gates(group, group.beams[1], read_ascan(path, group, 2, 1), group.gates)['I'].start)
+        self.assertIsNone(interface_time(self.mxu_file(start=1.2e-5), group, 2, 1))
+        self.assertIsNone(interface_time(builders.raster_file(self.folder, synchro='SynchroGateRelative'), group, 2, 1))
 
 
 class UnsupportedTests(TempFolderMixin, TestCase):

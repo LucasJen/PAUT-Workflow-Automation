@@ -96,8 +96,8 @@ class ReadingsLayerTests(TestCase):
         from analysis import views
         real = views.evaluate_gates
 
-        def late(group, beam, raw, gates=None):
-            results = real(group, beam, raw, gates)
+        def late(group, beam, raw, gates=None, interface=None):
+            results = real(group, beam, raw, gates, interface)
             for r in results.values():
                 if r.position_time is not None:
                     r.position_time += 5e-8

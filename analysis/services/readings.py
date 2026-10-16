@@ -127,8 +127,12 @@ def gate_level(gate, peak):
     return None if np.isnan(level) else float(level)
 
 
-def evaluate_gates(group, beam, raw, gates=None):
-    """{letter: GateResult} for a raw A-scan (int16 samples) of `beam` in `group`."""
+def evaluate_gates(group, beam, raw, gates=None, interface=None):
+    """
+    {letter: GateResult} for a raw A-scan (int16 samples) of `beam` in `group`. `interface`: on a file
+    re-timed to the interface, when its gate I crossed (s from the pulse, nde_data.interface_time) - it
+    places gate I on the A-scan (without it, gate I has no window to draw).
+    """
     gates = group.gates if gates is None else gates
     amplitudes = to_unit(raw, group)
     times = sample_times(group, beam, len(amplitudes))
@@ -145,9 +149,14 @@ def evaluate_gates(group, beam, raw, gates=None):
                 continue
             start = event + gate.start
         elif group.synced_to_interface and any(g.sync_gate == gate.id for g in gates):
-            # The interface gate of an A-scan re-timed to it: its crossing is the time origin
+            # The interface gate of an A-scan re-timed to it: its crossing is the time origin, and its
+            # window (set from the pulse) is that far before it
+            start = end = None
+            if interface is not None:
+                start = gate.start - interface
+                end = start + gate.length
             by_id[gate.id] = results[letter] = GateResult(
-                letter, True, start=gate.start, end=gate.start + gate.length, crossing_time=0.0,
+                letter, True, start=start, end=end, crossing_time=0.0,
                 peak_time=0.0, position_time=0.0, threshold=gate.threshold)
             continue
         else:

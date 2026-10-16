@@ -19,7 +19,8 @@ from .models import Indication, OpenedFile
 from .paths import PathNotAllowed, allowed_roots, checked_path, in_working_folders, real_path
 from .services import browse, detection, geometry, projections, projects, report_export, sizing
 from .services.nde_data import (
-    RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame, read_status, usable,
+    RASTER, UNSUPPORTED, Gate, NdeDataError, interface_time, open_file, read_ascan, read_frame, read_status,
+    usable,
 )
 from .services.readings import evaluate_gates, gate_letter, omnipc_reading
 
@@ -201,7 +202,7 @@ def readings(request):
         note = 'No interface sync (gate I) on this A-scan.' if status & 1 else 'No data on this A-scan.'
         return JsonResponse({'gates': {}, 'readings': {}, 'note': note})
     beam = group.beams[lateral]
-    results = evaluate_gates(group, beam, raw, gates)
+    results = evaluate_gates(group, beam, raw, gates, interface_time(path, group, scan, lateral))
     values = {}
     # On a 0 deg raster the peak's index position is just the line's: OmniPC doesn't list PA^ / ViA^
     skipped = ('PA^', 'ViA^', 'PB^', 'ViB^') if group.layout == RASTER else ()
