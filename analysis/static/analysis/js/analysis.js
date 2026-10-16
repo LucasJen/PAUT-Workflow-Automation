@@ -2884,6 +2884,8 @@
     applyPalettes();
     grid.classList.add('is-empty');
     applyWeld();
-    page.views = { sscan, ascan, cview, bview };   // for checking the page in a test browser
+    // For checking the page in a test browser (the Validation page's L4): the views, what's loaded, and moving the cursor
+    page.views = { sscan, ascan, cview, bview };
+    page.check = { state, currentGroup: () => state.info && currentGroup(), setScan, setLateral };
     loadFiles().catch(e => show(e.message));
 })();
