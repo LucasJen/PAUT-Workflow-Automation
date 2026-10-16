@@ -36,7 +36,7 @@ def check(title, subject, against, items, note='', kind='check'):
 
 
 def _layers():
-    from . import decoding, readings
+    from . import decoding, grading, readings
     return [
         Layer('L0', 'Decoding', 'Does the app read exactly what the scope recorded - every sample, axis, beam and gate?',
               'An independent HDF5 reader', decoding.run),
@@ -49,7 +49,7 @@ def _layers():
         Layer('L4', 'Views', 'Is every pixel the right colour, in the right place, for the data under it?',
               'The data under each pixel'),
         Layer('L5', 'Grading and export', 'Are indications graded by the code exactly as written, and sent to reports unchanged?',
-              "100-UT-020's acceptance criteria"),
+              "100-UT-020's acceptance criteria", grading.run),
         Layer('L6', 'Baseline', 'Does this version still give the results that were approved?',
               'The locked, approved results'),
     ]
