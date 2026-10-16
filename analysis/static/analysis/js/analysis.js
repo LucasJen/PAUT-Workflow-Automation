@@ -223,6 +223,7 @@
         },
         onDraw: () => drawEcho(),
         onWheel: e => wheelSelected(e, cview),
+        onGrab: select, onCursorDrag: dragCursorLine,
         formatX: x => format(x, true), formatY: y => (isRaster() ? format(y, true) : lineText(y)),
         formatRange: v => format(v, true),
         xUnit: unitLength, yUnit: () => (isRaster() ? unitLength() : 1),
@@ -250,9 +251,16 @@
             $('cscan-readout').textContent = `Scan ${format(x)} · ${isRaster() ? 'index ' + format(y) : 'beam ' + lineText(y)} · ${shown}`;
         },
     });
+    /** A cursor line dragged on the C- or B-scan: to `value` along its axis (cell: the scan line / beam there). */
+    function dragCursorLine(grab, value, cell) {
+        if (grab.kind === 'cursor') setCursors({ [grab.key]: value });
+        else if (grab.kind === 'scan') { if (cell !== state.scan) setScan(cell); }
+        else if (grab.kind === 'lateral' && cell !== state.lateral) setLateral(cell);
+    }
     const bview = new ImageView($('bscan-stage'), {
         formatX: x => format(x, true), formatY: y => format(y, true), xUnit: unitLength, yUnit: unitLength,
         onWheel: e => wheelSelected(e, bview),
+        onGrab: select, onCursorDrag: dragCursorLine,
         onPick: ({ x, y, event }) => {
             const [column] = cscanCell(x, 0);
             const inside = column >= 0 && column < currentGroup().shape[0];
@@ -1012,21 +1020,20 @@
         if (!state.info) return;
         const c = state.cursors;
         const wide = on => (on ? 2.5 : 1);
-        const index = isRaster() ? [{ value: c.i_ref, colour: '#f87171', width: wide(selectedIs('cursor', 'i_ref')) },
-                                    { value: c.i_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 'i_meas')) }] : [];
-        const scanLines = [{ value: c.s_ref, colour: '#f87171', width: wide(selectedIs('cursor', 's_ref')) },
-                           { value: c.s_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 's_meas')) },
-                           { value: scanPosition(state.scan), colour: CURSOR, width: wide(selectedIs('scan')) }];
+        // Each line can be grabbed (picked for the wheel / top bar, and dragged): its selection
+        const line = (key, colour) => ({ value: c[key], colour, width: wide(selectedIs('cursor', key)), grab: { kind: 'cursor', key } });
+        const index = isRaster() ? [line('i_ref', '#f87171'), line('i_meas', '#4ade80')] : [];
+        const scanLines = [line('s_ref', '#f87171'), line('s_meas', '#4ade80'),
+                           { value: scanPosition(state.scan), colour: CURSOR, width: wide(selectedIs('scan')), grab: { kind: 'scan' } }];
         const z = zoneBox();
         const saved = (state.indications || []).filter(i => i.group === state.group && i.status !== 'rejected')
             .map(i => ({ x: scanPosition(i.scan), y: lineY(i.lateral), label: `#${i.number}`,
                          colour: i.status === 'unreviewed' ? '#f59e0b' : '#f472b6' }));
-        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR, width: wide(selectedIs('lateral')) }, ...index], contour: state.contour,
+        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR, width: wide(selectedIs('lateral')), grab: { kind: 'lateral' } }, ...index], contour: state.contour,
                            box: reviewBox() || (z ? z.box : null), marks: [...(z?.mark ? [z.mark] : []), ...saved] });
         drawEcho();
         renderSelection();   // cursors, scan and beam moved: the top bar's value follows
-        bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171', width: wide(selectedIs('cursor', 'u_ref')) },
-                                             { value: c.u_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 'u_meas')) }] });
+        bview.setCursors({ x: scanLines, y: [line('u_ref', '#f87171'), line('u_meas', '#4ade80')] });
     }
 
     // ── whole-file views ──
@@ -1335,9 +1342,10 @@
                 if (v > max) { max = v; maxAt = [i, j]; }
             }
         }
-        const dy = isRaster() ? g.axes[1].resolution : 1;
-        const box = { x0: scanPosition(c0) - ax.resolution / 2, x1: scanPosition(c1) + ax.resolution / 2,
-                      y0: lineY(r0) - dy / 2, y1: lineY(r1) + dy / 2 };
+        // Drawn on the cursors themselves (the stats take the cells nearest them); across the beams: whole lines
+        const index = isRaster() && has(c.i_ref) && has(c.i_meas), dy = isRaster() ? g.axes[1].resolution : 1;
+        const box = { x0: c.s_ref, x1: c.s_meas,
+                      y0: index ? c.i_ref : lineY(r0) - dy / 2, y1: index ? c.i_meas : lineY(r1) + dy / 2 };
         if (!count) return { box, stats: null, mark: null };
         const at = cs.mode === 'amplitude' ? maxAt : minAt;
         return { box, stats: { min, max, mean: sum / count, count, minAt, maxAt },
