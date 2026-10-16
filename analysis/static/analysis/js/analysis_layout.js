@@ -2,8 +2,8 @@
 // handles on the gaps resize the panels - between the two view columns, between the views and the
 // readings column, and between the two rows. Sizes are remembered per layout (A-S, A-S-C, A-B-C-S)
 // in this browser. The views redraw themselves when their panels change size (ResizeObserver).
-// Drag a view by its header onto another to swap their places (kept per layout), and turn any view a
-// quarter at a time with the button in its header (kept per view; view_turn.js does the rest). Presets
+// Drag a view by its header onto another to swap their places (kept per layout), and turn the S-scan
+// or A-scan a quarter at a time with the button in its header (kept per view; view_turn.js does the rest). Presets
 // keep a layout as it is - its views, their places, turns and sizes - under a name: they're listed in
 // the layout select, and saved / deleted from the bookmark menu beside it.
 
@@ -12,6 +12,7 @@ window.AnalysisLayout = (function () {
     // Each layout's views in their usual places p1, p2...
     const VIEWS = { 'A-S': ['sscan', 'ascan'], 'A-S-C': ['sscan', 'ascan', 'cscan'], 'A-B-C-S': ['cscan', 'sscan', 'bscan', 'ascan'] };
     const PRESETS = 'analysisLayoutPresets', TURNS = 'analysisTurns';
+    const TURNABLE = ['sscan', 'ascan'];   // the C-scan and B-scan stay as they are
 
     function read(key, fallback) {
         try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; }
@@ -158,7 +159,7 @@ window.AnalysisLayout = (function () {
                 const i = views.indexOf(panel.dataset.view);
                 panel.classList.toggle('is-off', i < 0);
                 panel.style.gridArea = i < 0 ? '' : `p${i + 1}`;
-                turned = showTurn(panel, turns[panel.dataset.view] || 0) || turned;
+                if (TURNABLE.includes(panel.dataset.view)) turned = showTurn(panel, turns[panel.dataset.view] || 0) || turned;
             }
             return turned;
         }
@@ -177,7 +178,7 @@ window.AnalysisLayout = (function () {
             if (select.value.startsWith('preset:')) select.value = grid.dataset.layout;
         }
 
-        for (const panel of viewPanels) {
+        for (const panel of viewPanels.filter(p => TURNABLE.includes(p.dataset.view))) {
             const button = Object.assign(document.createElement('button'), {
                 type: 'button', className: 'btn btn-sm btn-ghost analysis-turn',
                 title: 'Turn the view 90° clockwise (Shift+click: anticlockwise)',
@@ -193,7 +194,9 @@ window.AnalysisLayout = (function () {
                 api.onTurn?.();
                 changed();
             });
+        }
 
+        for (const panel of viewPanels) {
             // Drag by the header (not its controls) onto another view: the two swap places
             const head = panel.querySelector('.analysis-panel-head');
             head.title = 'Drag onto another view to swap their places';
