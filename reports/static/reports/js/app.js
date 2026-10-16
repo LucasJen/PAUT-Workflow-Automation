@@ -13,13 +13,15 @@ function storageSet(key, value) {
 const root = document.documentElement;
 const themeBtn = document.getElementById('theme-toggle');
 
+// The toggle lives in the Preferences tab bar, so most pages don't have it
 function renderThemeButton() {
+    if (!themeBtn) return;
     const dark = root.getAttribute('data-bs-theme') === 'dark';
     themeBtn.querySelector('i').className = dark ? 'bi bi-sun' : 'bi bi-moon';
-    themeBtn.querySelector('.nav-label').textContent = dark ? 'Light mode' : 'Dark mode';
+    themeBtn.querySelector('.theme-label').textContent = dark ? 'Light mode' : 'Dark mode';
 }
 
-themeBtn.addEventListener('click', () => {
+themeBtn?.addEventListener('click', () => {
     const next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
     root.setAttribute('data-bs-theme', next);
     storageSet('theme', next);

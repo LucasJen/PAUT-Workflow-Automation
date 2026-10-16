@@ -1,4 +1,4 @@
-{# Preferences: one sidebar entry (in the footer), tabs inside #}
+{# Preferences: one sidebar entry (in the footer), tabs inside; the light / dark toggle at the end #}
 <nav class="page-tabs" aria-label="Preferences">
     <a class="page-tab{% if tab == 'texts' %} active{% endif %}" href="{% url 'snippet-list' %}">Texts</a>
     <a class="page-tab{% if tab == 'defaults' %} active{% endif %}" href="{% url 'defaults-list' %}">Defaults</a>
@@ -6,4 +6,7 @@
     <a class="page-tab{% if tab == 'working-folders' %} active{% endif %}" href="{% url 'working-folder-list' %}">Working folders</a>
     <a class="page-tab{% if tab == 'assistant' %} active{% endif %}" href="{% url 'assistant-settings' %}">Assistant</a>
     <a class="page-tab{% if tab == 'backups' %} active{% endif %}" href="{% url 'backup-list' %}">Backups</a>
+    <button type="button" class="btn btn-sm btn-outline-secondary page-tabs-end" id="theme-toggle" title="Toggle theme">
+        <i class="bi bi-moon"></i> <span class="theme-label">Dark mode</span>
+    </button>
 </nav>
