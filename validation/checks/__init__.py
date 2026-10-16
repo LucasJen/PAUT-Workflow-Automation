@@ -26,13 +26,13 @@ def item(what, expected, measured, ok, rule):
     return {'what': what, 'expected': expected, 'measured': measured, 'ok': None if ok is None else bool(ok), 'rule': rule}
 
 
-def check(title, subject, against, items, note='', kind='check'):
+def check(title, subject, against, items, note='', kind='check', pictures=None):
     """
     One subject's comparisons. kind 'check' passes when every item agrees; 'info' is shown but not
     counted (e.g. a group the app says it can't show, listed so nothing is silently skipped).
     """
     return {'title': title, 'subject': subject, 'against': against, 'items': items, 'note': note, 'kind': kind,
-            'passed': kind != 'check' or all(i['ok'] is not False for i in items)}
+            'pictures': pictures or [], 'passed': kind != 'check' or all(i['ok'] is not False for i in items)}
 
 
 def _layers():

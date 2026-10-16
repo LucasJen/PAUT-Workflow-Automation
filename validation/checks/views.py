@@ -19,6 +19,7 @@ import json
 import math
 import os
 import random
+import zipfile
 from urllib.parse import urlencode
 
 import numpy as np
@@ -184,6 +185,22 @@ JS_CSCAN = """(() => {
 })()"""
 
 
+def open_in_page(browser, base, path, group_id, scan, lateral=None):
+    """Opens the file in the Analysis page at a scan position (and line), and waits for it."""
+    # The page opens a file by the path its own file list gives it (case-folded folders on Windows)
+    if not browser.eval('location.href').startswith(base):
+        browser.navigate(f'{base}/analysis/files.json', settle=0.2)
+    listed = browser.eval(f"fetch('{base}/analysis/files.json').then(r => r.json()).then(d => [...d.files, ...(d.opened || [])].map(f => f.path))")
+    page_path = next((p for p in listed if os.path.normcase(os.path.realpath(p)) == os.path.normcase(os.path.realpath(path))), path)
+    browser.navigate(f"{base}/analysis/?{urlencode({'path': page_path, 'group': group_id})}", settle=0.5)
+    browser.wait_for("(() => { const c = document.getElementById('analysis').check; return c && c.state.values && c.state.info; })()", timeout=60)
+    browser.eval(f"document.getElementById('analysis').check.setScan({scan}).then(() => true)")
+    browser.wait_for(f"(() => {{ const s = document.getElementById('analysis').check.state; return s.scan === {scan} && !!s.values; }})()", timeout=30)
+    if lateral is not None:
+        browser.eval(f"document.getElementById('analysis').check.setLateral({lateral}, true) || true")
+    browser.eval('new Promise(r => setTimeout(r, 400))')
+
+
 def check_file(context, browser, base, entry):
     path = context.kit.full_path(entry)
     name = os.path.basename(entry['path'])
@@ -196,17 +213,7 @@ def check_file(context, browser, base, entry):
     # The scan position to look at: the strongest of 20 spread along the scan (more of the palette to check)
     count = group.shape[0]
     scan = max(sorted({round(k * (count - 1) / 19) for k in range(20)}), key=lambda s: float(reference.frame(path, ref, s).max()))
-    # The page opens a file by the path its own file list gives it (case-folded folders on Windows)
-    listed = browser.eval(f"fetch('{base}/analysis/files.json').then(r => r.json()).then(d => [...d.files, ...(d.opened || [])].map(f => f.path))")         if browser.eval('location.href').startswith(base) else None
-    if listed is None:
-        browser.navigate(f'{base}/analysis/files.json', settle=0.2)
-        listed = browser.eval("(() => { const d = JSON.parse(document.body.innerText); return [...d.files, ...(d.opened || [])].map(f => f.path); })()")
-    page_path = next((p for p in listed if os.path.normcase(os.path.realpath(p)) == os.path.normcase(os.path.realpath(path))), path)
-    browser.navigate(f"{base}/analysis/?{urlencode({'path': page_path, 'group': group.id})}", settle=0.5)
-    browser.wait_for("(() => { const c = document.getElementById('analysis').check; return c && c.state.values && c.state.info; })()", timeout=60)
-    browser.eval(f"document.getElementById('analysis').check.setScan({scan}).then(() => true)")
-    browser.wait_for(f"(() => {{ const s = document.getElementById('analysis').check.state; return s.scan === {scan} && !!s.values; }})()", timeout=30)
-    browser.eval('new Promise(r => setTimeout(r, 400))')
+    open_in_page(browser, base, path, group.id, scan)
     subject = f'{name} · {group.name} · scan line {scan}'
 
     raw = reference.frame(path, ref, scan)
@@ -252,7 +259,8 @@ def check_file(context, browser, base, entry):
                                  within(best, span), f'The palette ({palette}) colour, ±{SLACK} levels'))
     pos_items.append(item(f'Positions of {len(points)} samples (index, depth)', 'v t / 2 along the beam from the file',
                           f'largest difference {worst * 1e6:.3f} µm', worst <= 1e-6, 'Within 1 µm'))
-    context.emit(check('S-scan', subject, AGAINST, pos_items + colour_items,
+    shot = context.picture(f'{name} scan {scan}.png', browser.screenshot())
+    context.emit(check('S-scan', subject, AGAINST, pos_items + colour_items, pictures=[{'name': shot, 'caption': f'The app on {name}, scan line {scan}'}],
                        note=f'Colours read from the S-scan as drawn, zoomed in on each point (a sample {SAMPLE_PX} pixels long); the expected colours span what half a pixel of blending with the neighbouring samples and lines can give.'))
 
     # ── A-scan: the trace through flat samples of a line with data (the cursor moved there) ──
@@ -328,6 +336,33 @@ def check_file(context, browser, base, entry):
                        note="Cell values are the app's C-scan data (its numbers are checked by L1 and L6); this checks they're drawn where and as they should be."))
 
 
+def side_by_side(context, browser, base):
+    """OmniPC's own picture of each exported indication beside the app at the same cursor - for review by eye."""
+    from .readings import _kit_nde
+    for entry in [e for e in context.with_role('readings') if e['path'].lower().endswith('.json')]:
+        with open(context.kit.full_path(entry), encoding='utf-8') as f:
+            spec = json.load(f)
+        export = next((e for e in context.files if e['path'] == spec.get('export')), None)
+        nde = _kit_nde(context, spec)
+        if not export or not nde or not export['path'].lower().endswith('.zip'):
+            continue
+        with zipfile.ZipFile(context.kit.full_path(export)) as z:
+            pictures = {os.path.basename(n).lower(): n for n in z.namelist()}
+            for point in spec['points']:
+                omnipc = pictures.get(f"indication_{point.get('number')}.jpg") or pictures.get(f"indication_{point.get('number')}.png")
+                lateral = point.get('index', point.get('beam'))
+                if not omnipc or point.get('scan') is None or lateral is None:
+                    continue
+                theirs = context.picture(f"{os.path.basename(export['path'])} {os.path.basename(omnipc)}", z.read(omnipc))
+                open_in_page(browser, base, context.kit.full_path(nde), spec.get('group', 0), point['scan'], lateral)
+                ours = context.picture(f"{os.path.splitext(os.path.basename(export['path']))[0]} indication {point.get('number')} app.png", browser.screenshot())
+                context.emit(check('Side by side', f"{os.path.basename(nde['path'])} #{point.get('number')}: scan {point['scan']}, line {lateral}",
+                                   'OmniPC, by eye', [item('The same indication, the same cursor', 'OmniPC', 'the app', None, 'For review by eye')],
+                                   note=f"From {export['path']}",
+                                   pictures=[{'name': theirs, 'caption': 'OmniPC'}, {'name': ours, 'caption': 'The app, at the same scan line and beam'}],
+                                   kind='info'))
+
+
 def run(context):
     entries = [e for e in context.files if e['path'].lower().endswith('.nde')]
     chosen = [e for e in entries if 'views' in (e.get('roles') or [])] or entries
@@ -342,6 +377,8 @@ def run(context):
                     return
                 context.progress(f"Opening {entry['path']} in the page", (n + 0.1) / len(chosen))
                 check_file(context, browser, base, entry)
+            context.progress('OmniPC pictures side by side', 0.95)
+            side_by_side(context, browser, base)
             if browser.errors:
                 context.emit(check('Page', 'Script errors', AGAINST, [item('Errors in the page', 'none', '; '.join(map(str, browser.errors[:3])), False, 'None')]))
     except BrowserError as e:

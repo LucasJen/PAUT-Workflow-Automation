@@ -2,7 +2,7 @@ import json
 import os
 
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -90,6 +90,23 @@ def run_start(request):
 
 def run_status(request, pk):
     return JsonResponse(_run_json(get_object_or_404(ValidationRun, pk=pk)))
+
+
+def run_picture(request, pk, name):
+    """A picture kept with a run."""
+    path = os.path.join(runner.run_folder(get_object_or_404(ValidationRun, pk=pk).pk), os.path.basename(name))
+    if not os.path.isfile(path):
+        raise Http404
+    return FileResponse(open(path, 'rb'))
+
+
+def run_report(request, pk):
+    """The run's validation report (Word)."""
+    from .report import build
+    run = get_object_or_404(ValidationRun, pk=pk)
+    if run.status == ValidationRun.RUNNING:
+        raise Http404('The run is still going.')
+    return FileResponse(build(run), as_attachment=True, filename=f'Analysis validation - run {run.pk}.docx')
 
 
 @require_POST

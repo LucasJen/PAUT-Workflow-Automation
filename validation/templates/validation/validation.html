@@ -21,7 +21,8 @@
 </p>
 
 <div id="validation" data-start-url="{% url 'validation-run-start' %}" data-run-url="{% url 'validation-run' 0 %}"
-     data-cancel-url="{% url 'validation-run-cancel' 0 %}">
+     data-cancel-url="{% url 'validation-run-cancel' 0 %}" data-picture-url="{% url 'validation-run-picture' 0 'NAME' %}"
+     data-report-url="{% url 'validation-run-report' 0 %}">
     {{ shown|json_script:"shown-run" }}
 
     <section class="panel">

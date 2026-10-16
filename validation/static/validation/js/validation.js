@@ -32,7 +32,9 @@
         $('verdict').replaceChildren(
             el('i', { className: `bi ${icon}` }),
             el('span', { className: 'val-verdict-label', textContent: `Run #${run.id}: ${label}` }),
-            el('span', { className: 'val-verdict-counts', textContent: `${run.passed} passed · ${run.failed} failed` }));
+            el('span', { className: 'val-verdict-counts', textContent: `${run.passed} passed · ${run.failed} failed` }),
+            run.status === 'running' ? null : el('a', { className: 'btn btn-secondary btn-sm val-report', href: urlFor(page.dataset.reportUrl, run.id),
+                                                       innerHTML: '<i class="bi bi-file-earmark-word"></i> Report' }));
         const when = new Date(run.created).toLocaleString();
         $('run-meta').replaceChildren(...[
             meta('Started', when), meta('App version', run.version || 'unknown'), meta('Computer', run.computer || '-'),
@@ -103,6 +105,13 @@
                 el('td', { className: 'mono', textContent: x.measured }), el('td', { textContent: x.rule })))));
         row.append(el('div', { className: 'table-wrap' }, table));
         if (c.note) row.append(el('p', { className: 'form-text val-note', textContent: c.note }));
+        if (c.pictures?.length) {
+            row.append(el('div', { className: 'val-pictures' }, ...c.pictures.map(p => {
+                const src = urlFor(page.dataset.pictureUrl, run.id).replace('NAME', encodeURIComponent(p.name));
+                return el('figure', {}, el('a', { href: src, target: '_blank', rel: 'noopener' }, el('img', { src, alt: p.caption, loading: 'lazy' })),
+                          el('figcaption', { textContent: p.caption }));
+            })));
+        }
         return row;
     }
 

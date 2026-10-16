@@ -22,6 +22,12 @@ _cancel = set()
 _lock = threading.Lock()
 
 
+def run_folder(pk):
+    """Where a run keeps its pictures (screenshots, OmniPC's pictures beside them)."""
+    root = getattr(settings, 'VALIDATION_RUNS_DIR', None) or os.path.join(settings.BASE_DIR, 'outputs', 'validation')
+    return os.path.join(root, f'run-{pk}')
+
+
 def app_version():
     """The git commit the app is running at, '+ modified' with uncommitted changes; 'unknown' without git."""
     try:
@@ -41,6 +47,15 @@ class Context:
     def __init__(self, run, kit, files, layer, save):
         self.run, self.kit, self.files, self.options = run, kit, files, run.options
         self.layer, self._save = layer, save
+
+    def picture(self, name, data):
+        """Keeps a picture (PNG / JPEG bytes) with the run; returns its name, for a check's 'pictures'."""
+        folder = run_folder(self.run.pk)
+        os.makedirs(folder, exist_ok=True)
+        safe = ''.join(c if c.isalnum() or c in ' .-_' else '_' for c in name)[:120]
+        with open(os.path.join(folder, safe), 'wb') as f:
+            f.write(data)
+        return safe
 
     def with_role(self, role):
         return [e for e in self.files if role in (e.get('roles') or [])]
