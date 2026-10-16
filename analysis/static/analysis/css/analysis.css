@@ -59,7 +59,6 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-tool { display: flex; align-items: center; gap: 0.2rem; }
 .analysis-tool-label { font-size: 0.75rem; font-weight: 600; color: var(--text-2); margin-right: 0.1rem; }
 .analysis-tool-note { font-size: 0.6875rem; color: var(--text-3); white-space: nowrap; margin-left: 0.2rem; }
-.analysis-slider { width: 11rem; }
 .analysis-layout-select { width: auto; font-size: 0.75rem; }
 .analysis-status { font-size: 0.8125rem; color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 /* The selection and its value (renderSelection) */
@@ -179,6 +178,8 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-gate .gate-letter { width: 1rem; font-size: 0.6875rem; line-height: 1rem; }
 .analysis-gate-types .btn { padding: 0 0.3rem !important; font-size: 0.6875rem !important; line-height: 1.25 !important; }
 .analysis-gate-remove:hover { color: var(--danger); }
+.analysis-gate.gate-off .gate-letter { opacity: 0.35; }
+.analysis-gate.gate-off .analysis-gate-toggle { color: var(--bs-secondary-color); }
 .analysis-add-gates { display: flex; gap: 0.25rem; }
 .analysis-add-gates:empty { display: none; }
 
@@ -232,7 +233,7 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
     position: relative; display: grid; gap: 0.4rem; height: 100%; min-height: 20rem;
     grid-template-columns: minmax(0, var(--c1, 1.2fr)) minmax(0, var(--c2, 1fr)) var(--side, 9rem);
     grid-template-rows: minmax(0, 1fr);
-    grid-template-areas: "s a r";
+    grid-template-areas: "p1 p2 r";
 }
 .analysis-grid.no-readings { grid-template-columns: minmax(0, var(--c1, 1.2fr)) minmax(0, var(--c2, 1fr)) 0; column-gap: 0.4rem; }
 .analysis-grid.no-readings .analysis-readings, .analysis-grid.no-readings .analysis-splitter[data-split="side"] { display: none; }
@@ -258,7 +259,10 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-range { display: inline-flex; align-items: center; gap: 0.2rem; font-weight: 400; }
 .analysis-range[hidden] { display: none; }
 .analysis-range .form-control { width: 4.2rem; height: 1.45rem; padding: 0 0.3rem; font-size: 0.75rem; }
-.analysis-view { position: relative; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 12px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 12px; background: #0b0d11; }
+/* The view turns inside its frame (the panel's data-turn, degrees clockwise): a quarter turn swaps its
+   width and height (container units), and view_turn.js maps the pointer and keeps the text upright */
+.analysis-view-frame { position: relative; flex: 1 1 auto; min-height: 0; container-type: size; overflow: hidden; }
+.analysis-view { position: absolute; inset: 0; display: grid; grid-template-columns: 12px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 12px; background: #0b0d11; }
 .analysis-view > .analysis-stage { min-width: 0; grid-column: 2; grid-row: 1; }
 .analysis-zoombar { position: relative; background: #151922; touch-action: none; user-select: none; }
 .analysis-zoombar.is-v { grid-column: 1; grid-row: 1; border-right: 1px solid var(--border); }
@@ -278,14 +282,43 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-progress { display: inline-block; width: 6rem; height: 0.35rem; border-radius: 2px; background: var(--border); overflow: hidden; vertical-align: middle; }
 .analysis-progress span { display: block; height: 100%; background: var(--accent); }
 
-/* Layouts (like OmniPC's): A-S, A-S-C (C-scan along the bottom), A-B-C-S (C over B, S over A) */
-.analysis-panel-sscan { grid-area: s; } .analysis-panel-ascan { grid-area: a; } .analysis-readings { grid-area: r; }
-.analysis-panel-cscan { grid-area: c; } .analysis-panel-bscan { grid-area: b; }
-.analysis-grid[data-layout="A-S"] .analysis-panel-cscan, .analysis-grid[data-layout="A-S"] .analysis-panel-bscan,
-.analysis-grid[data-layout="A-S-C"] .analysis-panel-bscan { display: none; }
+.analysis-panel[data-turn="90"] .analysis-view, .analysis-panel[data-turn="270"] .analysis-view {
+    inset: auto; left: 50%; top: 50%; width: 100cqh; height: 100cqw; }
+.analysis-panel[data-turn="90"] .analysis-view { transform: translate(-50%, -50%) rotate(90deg); }
+.analysis-panel[data-turn="180"] .analysis-view { transform: rotate(180deg); }
+.analysis-panel[data-turn="270"] .analysis-view { transform: translate(-50%, -50%) rotate(270deg); }
+.analysis-panel-head .analysis-turn { display: inline-flex; align-items: center; gap: 0.15rem; font-size: 0.6875rem; font-weight: 600; }
+/* Drag a view by its header onto another to swap their places */
+.analysis-panel[data-view] > .analysis-panel-head { cursor: grab; }
+.analysis-panel[data-view] > .analysis-panel-head :is(select, input) { cursor: default; }
+.analysis-panel[data-view] > .analysis-panel-head :is(button, label) { cursor: pointer; }
+.analysis-panel.is-moving { opacity: 0.55; }
+.analysis-panel.is-drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
+body.analysis-moving, body.analysis-moving * { cursor: grabbing !important; user-select: none; }
+
+/* Layouts (like OmniPC's): A-S, A-S-C (C-scan along the bottom), A-B-C-S (C over B, S over A). The views
+   take the places p1-p4 in the order analysis_layout.js gives them (dragged, or a preset's) */
+.analysis-panel.is-off { display: none; }
+.analysis-readings { grid-area: r; }
 .analysis-grid[data-layout="A-S-C"], .analysis-grid[data-layout="A-B-C-S"] { grid-template-rows: minmax(0, var(--r1, 1fr)) minmax(0, var(--r2, 1fr)); }
-.analysis-grid[data-layout="A-S-C"] { grid-template-areas: "s a r" "c c r"; }
-.analysis-grid[data-layout="A-B-C-S"] { grid-template-areas: "c s r" "b a r"; }
+.analysis-grid[data-layout="A-S-C"] { grid-template-areas: "p1 p2 r" "p3 p3 r"; }
+.analysis-grid[data-layout="A-B-C-S"] { grid-template-areas: "p1 p2 r" "p3 p4 r"; }
+
+/* Layout presets: the menu beside the layout select */
+.analysis-presets { position: relative; display: inline-flex; }
+.analysis-presets-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; width: 15rem; padding: 0.45rem;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25); }
+.analysis-presets-menu[hidden] { display: none; }
+.analysis-presets-save { display: flex; gap: 0.3rem; }
+.analysis-presets-save .form-control { height: 1.6rem; font-size: 0.75rem; }
+.analysis-presets-list { list-style: none; margin: 0.4rem 0 0; padding: 0; font-size: 0.75rem; }
+.analysis-presets-list:empty { display: none; }
+.analysis-presets-list li { display: flex; align-items: center; gap: 0.3rem; padding: 0.1rem 0.2rem; border-radius: 4px; }
+.analysis-presets-list li:hover { background: var(--surface-2); }
+.analysis-presets-list li > button:first-child { flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: 0; padding: 0.1rem 0; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.analysis-presets-list .meta { color: var(--text-3); font-size: 0.6875rem; white-space: nowrap; }
+.analysis-presets-list .btn { padding: 0 0.25rem; line-height: 1.3; }
+.analysis-presets-menu .analysis-note { display: block; margin: 0.4rem 0 0; font-size: 0.6875rem; }
 
 /* Readings column */
 .analysis-readings-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
@@ -337,14 +370,13 @@ body.analysis-resizing { user-select: none; }
 /* Narrow windows: the top bar wraps, the views stack */
 @media (max-width: 1250px) {
     .analysis-topbar { flex-wrap: wrap; }
-    .analysis-slider { width: 7rem; }
 }
 @media (max-width: 1000px) {
     body.analysis-body { overflow: auto; }
     .analysis-app { height: auto; min-height: 100vh; }
     .analysis-drawer { width: 15rem; }
     .analysis-grid, .analysis-grid[data-layout] {
-        height: auto !important; grid-template-columns: minmax(0, 1fr); grid-template-areas: "s" "a" "c" "b" "r"; grid-template-rows: none;
+        height: auto !important; grid-template-columns: minmax(0, 1fr); grid-template-areas: "p1" "p2" "p3" "p4" "r"; grid-template-rows: none;
     }
     .analysis-panel-sscan, .analysis-panel-ascan, .analysis-panel-cscan, .analysis-panel-bscan { height: 24rem; }
     .analysis-splitter { display: none; }

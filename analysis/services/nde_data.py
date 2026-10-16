@@ -402,6 +402,48 @@ def read_status(path, group, scan_index, lateral_index):
         return int(st[scan_index] if group.single else st[scan_index, lateral_index])
 
 
+_MXU_CSCAN = 'Private/MXU/RawCScan'
+# The instrument's gate results per A-scan and gate (MXU's private record, read as little-endian bytes)
+_MXU_GATE = np.dtype([('status', '<i4'), ('amplitude', '<i4'), ('crossing', '<f4'), ('peak', '<f4'),
+                      ('start', '<f4'), ('end', '<f4')])
+
+
+def interface_time(path, group, scan_index, lateral_index):
+    """
+    On a file re-timed to the interface: when this A-scan's gate I crossed, in s from the pulse - its
+    stored samples start from there, so gate I (set from the pulse) sits at its start minus this. Read
+    from the instrument's own gate results (MXU's private RawCScan); None when the file has none or
+    they don't match the data, or gate I found nothing there.
+    """
+    if not group.synced_to_interface:
+        return None
+    synced = {g.sync_gate for g in group.gates if g.sync_mode == 'GateRelative'}
+    order = [i for i, g in enumerate(group.gates) if g.id in synced and g.sync_mode != 'GateRelative']
+    if not order:
+        return None
+    k, gate = order[0], group.gates[order[0]]
+    try:
+        with h5py.File(path, 'r') as h5:
+            if _MXU_CSCAN not in h5:
+                return None
+            ds = h5[_MXU_CSCAN]
+            kind = ds.id.get_type()
+            if (kind.get_size() != _MXU_GATE.itemsize or len(ds.shape) != 3
+                    or ds.shape[:2] != group.shape[:2] or ds.shape[2] != len(group.gates)):
+                return None
+            space = ds.id.get_space()
+            space.select_hyperslab((scan_index, lateral_index, k), (1, 1, 1))
+            out = np.empty((1, 1, 1), dtype=f'V{_MXU_GATE.itemsize}')
+            ds.id.read(h5py.h5s.create_simple((1, 1, 1)), space, out, mtype=kind)
+    except (OSError, KeyError, ValueError, TypeError):
+        return None
+    record = np.frombuffer(out.tobytes(), dtype=_MXU_GATE)[0]
+    # Its window must be gate I's own (else the record isn't what we think); 0 there = no data
+    if abs(float(record['start']) - gate.start) > 1e-9 or not record['start'] <= record['crossing'] <= record['end']:
+        return None
+    return float(record['crossing'])
+
+
 def usable(group, status):
     """Whether an A-scan with these status bits has readings: it has data, and on a file re-timed
     to the interface its gate I synchronised (OmniPC shows the rest as no data - e.g. the joins

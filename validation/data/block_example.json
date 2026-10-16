@@ -1,0 +1,11 @@
+{
+  "block": "ASME basic calibration block, 1.000 in thick, S/N 1234 (example - replace with the real block)",
+  "drawing": "pictures/block 1234 certificate.pdf",
+  "units": "in",
+  "points": "points/block 1234 scan G0.json",
+  "reflectors": [
+    {"indication": 1, "name": "SDH at 1/4 T", "depth": 0.250, "index": 1.500, "tolerance": {"depth": 0.020, "index": 0.040}},
+    {"indication": 2, "name": "SDH at 1/2 T", "depth": 0.500, "index": 2.000, "tolerance": {"depth": 0.020, "index": 0.040}},
+    {"indication": 3, "name": "SDH at 3/4 T", "depth": 0.750, "index": 2.500, "tolerance": {"depth": 0.020, "index": 0.040}}
+  ]
+}

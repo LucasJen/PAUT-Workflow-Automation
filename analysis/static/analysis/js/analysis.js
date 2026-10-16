@@ -29,11 +29,11 @@
     const $ = id => document.getElementById(id);
     const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const shell = window.AnalysisShell;
-    const slider = $('scan-slider'), scanNumber = $('scan-number'), gainInput = $('gain');
+    const scanNumber = $('scan-number'), gainInput = $('gain');
     const unitsSelect = $('units'), axisSelect = $('axis'), refInput = $('ref-level');
     const status = $('analysis-status');
     const grid = $('analysis-grid'), layoutSelect = $('layout'), kindSelect = $('cscan-kind');
-    const panels = AnalysisLayout(grid);
+    const panels = AnalysisLayout(grid, layoutSelect);
     const ampPalette = $('amplitude-palette'), rangePalette = $('range-palette');
     for (const [select, kind] of [[ampPalette, 'amplitude'], [rangePalette, 'range']]) {
         select.replaceChildren(...AnalysisPalette.list(kind).map(([v, t]) => new Option(t, v)));
@@ -62,7 +62,7 @@
     const NO_CURSORS = { u_ref: null, u_meas: null, i_ref: null, i_meas: null, s_ref: null, s_meas: null };
 
     const state = { path: '', group: 0, scan: 0, lateral: 0, gain: 0, info: null, frame: null, values: null,
-                    gates: [], gatesEdited: false, cursors: { ...NO_CURSORS }, refLevel: 80, readings: {},
+                    gates: [], gatesEdited: false, hiddenGates: [], cursors: { ...NO_CURSORS }, refLevel: 80, readings: {},
                     cscan: null, cscanGain: 0, cscanRanges: {},
                     // The soft gain the whole-file views are built at: reviewing an indication shows it at its own
                     // 80 % gain without building them again (the views' shaders take the difference)
@@ -173,7 +173,7 @@
         dragBase = null;
         scheduleReadings(0);
         loadFrameGates();
-        scheduleProjections(300);
+        if (!(state.cscan?.dependsOn && state.cscan.dependsOn === cscanDependsOn())) scheduleProjections(0);
     }
     /** The A-scan's gates with the dragged one where its settings now put it. */
     function previewDraggedGate(letter) {
@@ -194,7 +194,7 @@
                         threshold: base.threshold === null || base.threshold === undefined ? base.threshold
                             : (base.band ? base.threshold * scale : gate.threshold),
                         band: base.band ? base.band.map(b => b * scale) : base.band };
-        ascan.set({ gates: { ...(state.gateResults || dragBase), [letter]: moved } });
+        ascan.set({ gates: shownGates({ ...(state.gateResults || dragBase), [letter]: moved }) });
     }
 
     const CURSOR = '#38bdf8';
@@ -223,6 +223,7 @@
         },
         onDraw: () => drawEcho(),
         onWheel: e => wheelSelected(e, cview),
+        onGrab: select, onCursorDrag: dragCursorLine,
         formatX: x => format(x, true), formatY: y => (isRaster() ? format(y, true) : lineText(y)),
         formatRange: v => format(v, true),
         xUnit: unitLength, yUnit: () => (isRaster() ? unitLength() : 1),
@@ -250,9 +251,16 @@
             $('cscan-readout').textContent = `Scan ${format(x)} · ${isRaster() ? 'index ' + format(y) : 'beam ' + lineText(y)} · ${shown}`;
         },
     });
+    /** A cursor line dragged on the C- or B-scan: to `value` along its axis (cell: the scan line / beam there). */
+    function dragCursorLine(grab, value, cell) {
+        if (grab.kind === 'cursor') setCursors({ [grab.key]: value });
+        else if (grab.kind === 'scan') { if (cell !== state.scan) setScan(cell); }
+        else if (grab.kind === 'lateral' && cell !== state.lateral) setLateral(cell);
+    }
     const bview = new ImageView($('bscan-stage'), {
         formatX: x => format(x, true), formatY: y => format(y, true), xUnit: unitLength, yUnit: unitLength,
         onWheel: e => wheelSelected(e, bview),
+        onGrab: select, onCursorDrag: dragCursorLine,
         onPick: ({ x, y, event }) => {
             const [column] = cscanCell(x, 0);
             const inside = column >= 0 && column < currentGroup().shape[0];
@@ -271,6 +279,7 @@
     for (const [view, name] of [[sscan, 'sscan'], [ascan, 'ascan'], [cview, 'cscan'], [bview, 'bscan']]) {
         ZoomBars.attach(view, $(`${name}-zoom-x`), $(`${name}-zoom-y`));
     }
+    panels.onTurn = () => { for (const view of [sscan, ascan, cview, bview]) view.draw(); };   // the text upright again
 
     // Linked zooms (Display panel): a view zoomed or panned along a linked axis takes the others with it,
     // in world units - scan (C- and B-scan across), depth (B- and S-scan down, the A-scan across when it
@@ -307,18 +316,6 @@
     }
     for (const view of [sscan, ascan, cview, bview]) view.options.onViewChange = zoomFollow;
 
-    // The S-scan rotated 90 deg (Display panel, kept per browser): depth across, the index axis down
-    try { sscan.rotated = localStorage.getItem('analysisSscanRotated') === '1'; } catch { /* not rotated */ }
-    $('sscan-rotate').checked = sscan.rotated;
-    $('sscan-rotate').addEventListener('change', e => {
-        try { localStorage.setItem('analysisSscanRotated', e.target.checked ? '1' : '0'); } catch { /* not kept */ }
-        linking = true;   // to its own fit first
-        try { sscan.setRotated(e.target.checked); } finally { linking = false; }
-        for (const link of ['depth', 'index']) {   // then lined up with the views it's linked to
-            const other = ZOOM_LINKS[link].find(([v, axis]) => v !== sscan && linkable(link, v) && v.axisRange(axis));
-            if (zoomLinks[link] && other) zoomFollow(other[0], link);
-        }
-    });
     for (const link of Object.keys(ZOOM_LINKS)) {
         const box = $(`link-${link}`);
         box.checked = zoomLinks[link];
@@ -480,7 +477,7 @@
     function save() {
         try {
             sessionStorage.setItem(memoryKey(), JSON.stringify({
-                gates: state.gatesEdited ? state.gates : null, cursors: state.cursors, refLevel: state.refLevel,
+                gates: state.gatesEdited ? state.gates : null, hiddenGates: state.hiddenGates, cursors: state.cursors, refLevel: state.refLevel,
             }));
         } catch { /* storage full or blocked: nothing to keep */ }
     }
@@ -490,6 +487,7 @@
         const g = currentGroup();
         state.gates = saved?.gates || fileGates(g);
         state.gatesEdited = !!saved?.gates;
+        state.hiddenGates = saved?.hiddenGates || [];
         state.cursors = { ...NO_CURSORS, ...(saved?.cursors || {}) };
         state.refLevel = saved?.refLevel || 80;
         refInput.value = state.refLevel;
@@ -507,6 +505,9 @@
     }));
     const letterOf = name => (name || '').trim().split(/\s+/).pop().toUpperCase();
     const gateByLetter = letter => state.gates.find(x => letterOf(x.name) === letter);
+    /** Gates turned off in the Gates panel aren't drawn (A- and S-scan); they still read and build the C-scan. */
+    const gateShown = letter => !state.hiddenGates.includes(letter);
+    const shownGates = results => (results ? Object.fromEntries(Object.entries(results).filter(([letter]) => gateShown(letter))) : results);
 
     function remember() {
         const q = new URLSearchParams({ path: state.path, group: state.group, scan: state.scan, lateral: state.lateral });
@@ -688,9 +689,10 @@
         panels.refresh();
     }
     layoutSelect.addEventListener('change', () => {
-        grid.dataset.layout = layoutSelect.value;
+        // A preset: its layout, with its views' places, turns and sizes
+        grid.dataset.layout = panels.usePreset(layoutSelect.value) || layoutSelect.value;
         panels.refresh();
-        try { localStorage.setItem(`analysisLayout:${isRaster() ? 'raster' : 'beams'}`, layoutSelect.value); } catch { /* not kept */ }
+        try { localStorage.setItem(`analysisLayout:${isRaster() ? 'raster' : 'beams'}`, grid.dataset.layout); } catch { /* not kept */ }
         scheduleProjections();
     });
 
@@ -714,7 +716,6 @@
         $('groups-toggle').hidden = otherGroups().length === 0;
         applyWeld();
         applyLegs();
-        slider.max = g.shape[0] - 1;
         state.lateral = Math.min(lateral, g.shape[1] - 1);
         await setScan(Math.min(scan, g.shape[0] - 1));
     }
@@ -736,13 +737,12 @@
     });
     const toggleLegs = () => { $('show-legs').checked = !$('show-legs').checked; $('show-legs').dispatchEvent(new Event('change')); };
 
-    /** The top bar's scan position: the slider, the distance box and the line number. */
+    /** The top bar's scan position: the distance box, its line number on hover. */
     function showScanPosition() {
         const g = currentGroup();
-        slider.value = state.scan;
         const position = format(scanPosition(state.scan), 'value');
         if (document.activeElement !== scanNumber) scanNumber.value = position;
-        slider.title = `${position} ${units} (scan line ${state.scan + 1} of ${g.shape[0]})`;
+        scanNumber.title = `${position} ${units}: scan line ${state.scan + 1} of ${g.shape[0]} (Left / Right a line, Shift for 10, PageUp / PageDown)`;
         $('scan-unit').textContent = units;
     }
 
@@ -1020,21 +1020,20 @@
         if (!state.info) return;
         const c = state.cursors;
         const wide = on => (on ? 2.5 : 1);
-        const index = isRaster() ? [{ value: c.i_ref, colour: '#f87171', width: wide(selectedIs('cursor', 'i_ref')) },
-                                    { value: c.i_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 'i_meas')) }] : [];
-        const scanLines = [{ value: c.s_ref, colour: '#f87171', width: wide(selectedIs('cursor', 's_ref')) },
-                           { value: c.s_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 's_meas')) },
-                           { value: scanPosition(state.scan), colour: CURSOR, width: wide(selectedIs('scan')) }];
+        // Each line can be grabbed (picked for the wheel / top bar, and dragged): its selection
+        const line = (key, colour) => ({ value: c[key], colour, width: wide(selectedIs('cursor', key)), grab: { kind: 'cursor', key } });
+        const index = isRaster() ? [line('i_ref', '#f87171'), line('i_meas', '#4ade80')] : [];
+        const scanLines = [line('s_ref', '#f87171'), line('s_meas', '#4ade80'),
+                           { value: scanPosition(state.scan), colour: CURSOR, width: wide(selectedIs('scan')), grab: { kind: 'scan' } }];
         const z = zoneBox();
         const saved = (state.indications || []).filter(i => i.group === state.group && i.status !== 'rejected')
             .map(i => ({ x: scanPosition(i.scan), y: lineY(i.lateral), label: `#${i.number}`,
                          colour: i.status === 'unreviewed' ? '#f59e0b' : '#f472b6' }));
-        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR, width: wide(selectedIs('lateral')) }, ...index], contour: state.contour,
+        cview.setCursors({ x: scanLines, y: [{ value: lineY(state.lateral), colour: CURSOR, width: wide(selectedIs('lateral')), grab: { kind: 'lateral' } }, ...index], contour: state.contour,
                            box: reviewBox() || (z ? z.box : null), marks: [...(z?.mark ? [z.mark] : []), ...saved] });
         drawEcho();
         renderSelection();   // cursors, scan and beam moved: the top bar's value follows
-        bview.setCursors({ x: scanLines, y: [{ value: c.u_ref, colour: '#f87171', width: wide(selectedIs('cursor', 'u_ref')) },
-                                             { value: c.u_meas, colour: '#4ade80', width: wide(selectedIs('cursor', 'u_meas')) }] });
+        bview.setCursors({ x: scanLines, y: [line('u_ref', '#f87171'), line('u_meas', '#4ade80')] });
     }
 
     // ── whole-file views ──
@@ -1045,16 +1044,53 @@
         if (state.gatesEdited) q.gates = gatesParam();
         return q;
     }
-    function scheduleProjections(delay = 0) {
+    /** Asks for the C-scan after `delay` ms; `throttle`: not later than one already waiting (a drag keeps it coming). */
+    function scheduleProjections(delay = 0, { throttle = false } = {}) {
+        if (throttle && projectionTimer !== null) return;
         clearTimeout(projectionTimer);
-        projectionTimer = setTimeout(loadProjections, delay);
+        projectionTimer = setTimeout(() => { projectionTimer = null; loadProjections(); }, delay);
+    }
+    // Files up to this many samples have their C-scan made at once (projections.SYNC_SAMPLES): it can follow a drag
+    const QUICK_SAMPLES = 250e6;
+    const quickFile = () => { const g = currentGroup(); return !!g && g.shape.reduce((a, b) => a * b, 1) <= QUICK_SAMPLES; };
+
+    /**
+     * What the C-scan shown depends on among the gates, or null when it isn't an amplitude C-scan: its gate's
+     * window and the gates it starts from (their thresholds too - they set where it starts), but not its own
+     * threshold, detection or floating, which don't change the highest amplitude in it.
+     */
+    function cscanDependsOn() {
+        const [letter, kind] = (kindSelect.value || '').split(':');
+        if (kind !== 'amplitude') return null;
+        const chain = [], seen = new Set();
+        let gate = gateByLetter(letter);
+        while (gate && !seen.has(gate.id)) {
+            seen.add(gate.id);
+            const { threshold, detection, float_db, float_floor, ...window } = gate;
+            chain.push(chain.length ? { ...gate, detection: null } : window);
+            gate = gate.sync_gate === null || gate.sync_gate === undefined ? null : state.gates.find(x => x.id === gate.sync_gate);
+        }
+        return JSON.stringify([state.path, state.group, state.buildGain, state.refLevel, chain]);
     }
     function progress(fraction) {
         $('cscan-note').innerHTML = fraction === null ? ''
             : `Reading the file… <span class="analysis-progress"><span style="width:${Math.round(fraction * 100)}%"></span></span>`;
     }
 
+    // One request at a time: a change while one is out is asked for (as it is then) when it's back
+    let projectionBusy = false, projectionAgain = false;
     async function loadProjections() {
+        if (projectionBusy) { projectionAgain = true; return; }
+        projectionBusy = true;
+        try {
+            await loadProjectionsNow();
+        } finally {
+            projectionBusy = false;
+            if (projectionAgain) { projectionAgain = false; loadProjections(); }
+        }
+    }
+
+    async function loadProjectionsNow() {
         if (!state.info || !wholeShown()) return;
         const mine = ++projectionRequest;
         let job;
@@ -1066,10 +1102,41 @@
         }
         if (mine !== projectionRequest) return;
         if (job.state === 'error') { progress(null); cview.clear(`Couldn't read the whole file: ${job.error}`); return; }
-        if (job.state !== 'done') { progress(job.progress || 0); projectionTimer = setTimeout(loadProjections, 400); return; }
+        if (job.state !== 'done') { progress(job.progress || 0); scheduleProjections(300); return; }
         progress(null);
         await loadCscan(mine);
         loadBscan();
+    }
+
+    /*
+     * OmniPC's thickness modes, as option values '<to>:thickness:<from>' ('' from: from the A-scan's zero).
+     * A gate is its letter (it reads where its detection says) or gate I's 'I/' (its crossing) / 'I^1' (its
+     * first peak after the crossing).
+     */
+    const thicknessEnd = token => ({ gate: token[0], at: token === 'I/' ? 'crossing' : token === 'I^1' ? 'peak1' : '' });
+    /** A thickness mode named as OmniPC does: 'B/ - A/' (/ = the gate reads its edge, ^ = a peak). */
+    const thicknessLabel = (to, from) => {
+        const name = token => (token.length > 1 ? token : `${token}${detectionMark(token)}`);
+        return from ? `${name(to)} - ${name(from)}` : name(to);
+    };
+    /** The thickness options' names again (a gate's detection changed). */
+    function relabelKinds() {
+        for (const option of kindSelect.options) {
+            const [to, kind, from] = option.value.split(':');
+            if (kind === 'thickness') option.text = thicknessLabel(to, from);
+        }
+    }
+    /** OmniPC's list, in its order: A/, A/ - I^1, A/ - I/, B/, B/ - A/, B/ - I^1, B/ - I/, I/, I^1 (the gates there are). */
+    function thicknessModes(letters) {
+        const modes = [];
+        for (const L of ['A', 'B']) {
+            if (!letters.includes(L)) continue;
+            modes.push([L, '']);
+            if (L === 'B' && letters.includes('A')) modes.push(['B', 'A']);
+            if (letters.includes('I')) modes.push([L, 'I^1'], [L, 'I/']);
+        }
+        if (letters.includes('I')) modes.push(['I/', ''], ['I^1', '']);
+        return modes.map(([to, from]) => [`${to}:thickness:${from}`, thicknessLabel(to, from)]);
     }
 
     function fillKinds() {
@@ -1080,14 +1147,18 @@
             if (L === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files (A−I still works)
             options.push([`${L}:amplitude`, `Gate ${L} amplitude`], [`${L}:depth`, `Gate ${L} peak depth`]);
         }
-        if (letters.includes('A') && letters.includes('I')) options.push(['A:thickness:I', 'Thickness A−I (interface to A)']);
-        if (letters.includes('A') && letters.includes('B')) options.push(['B:thickness:A', 'Thickness B−A (peak to peak)']);
-        kindSelect.replaceChildren(...options.map(([v, t]) => new Option(t, v)));
+        const group = label => Object.assign(document.createElement('optgroup'), { label });
+        const amplitudes = group('Amplitude / depth'), thickness = group('Thickness');
+        amplitudes.append(...options.map(([v, t]) => new Option(t, v)));
+        const modes = thicknessModes(letters);
+        thickness.append(...modes.map(([v, t]) => new Option(t, v)));
+        options.push(...modes);
+        kindSelect.replaceChildren(amplitudes, ...(modes.length ? [thickness] : []));
         fillFindGates();
         const saved = localStorage.getItem(`analysisKind:${isRaster() ? 'raster' : 'beams'}`);
         const has = v => options.some(o => o[0] === v);
         // A 0 deg raster (HydroFORM): interface to A when there's an I gate, else A to B
-        const fallback = !isRaster() ? 'A:amplitude' : has('A:thickness:I') ? 'A:thickness:I' : has('B:thickness:A') ? 'B:thickness:A' : 'A:amplitude';
+        const fallback = !isRaster() ? 'A:amplitude' : has('A:thickness:I/') ? 'A:thickness:I/' : has('B:thickness:A') ? 'B:thickness:A' : 'A:amplitude';
         kindSelect.value = has(saved) ? saved : (has(fallback) ? fallback : (options[0]?.[0] || ''));
     }
     kindSelect.addEventListener('change', () => {
@@ -1097,9 +1168,14 @@
 
     async function loadCscan(request) {
         if (!kindSelect.value) { cview.clear('This group has no gates to make a C-scan from.'); return; }
-        const [gate, kind, from] = kindSelect.value.split(':');
-        const params = { ...projectionParams(), gate, kind };
-        if (from) params.from = from;
+        const [to, kind, from] = kindSelect.value.split(':');
+        const params = { ...projectionParams(), gate: to, kind };
+        const dependsOn = cscanDependsOn();
+        if (kind === 'thickness') {
+            const end = thicknessEnd(to);
+            Object.assign(params, { gate: end.gate, at: end.at });
+            if (from) Object.assign(params, { from: thicknessEnd(from).gate, from_at: thicknessEnd(from).at });
+        }
         let result;
         try {
             result = await NdeClient.whole(urls.cscan, params, Float32Array);
@@ -1112,13 +1188,13 @@
         const scans = +result.header('X-Scans'), lines = +result.header('X-Lines');
         const mode = kind === 'amplitude' ? 'amplitude' : 'range';
         // Thickness runs over the file's own expected range, like OmniPC's palette; else the data's
-        const fileRange = kind === 'thickness' ? currentGroup().thickness_range : null;
+        const fileRange = kind === 'thickness' && to[0] !== 'I' ? currentGroup().thickness_range : null;   // I/, I^1: their own
         const auto = fileRange ? [fileRange[0], fileRange[1]] : [+result.header('X-Min'), +result.header('X-Max')];
         const range = state.cscanRanges[kindSelect.value] || auto;
         state.cscanFull = range;   // the palette bar works within it
         const g = currentGroup();
         const keep = !!state.cscan && state.cscan.scans === scans && state.cscan.lines === lines;
-        state.cscan = { data: result.data, scans, lines, mode };
+        state.cscan = { data: result.data, scans, lines, mode, dependsOn };
         state.cscanGain = state.buildGain;
         cview.setGain(state.gain - state.cscanGain);
         cview.setImage(result.data, scans, lines, {
@@ -1266,9 +1342,10 @@
                 if (v > max) { max = v; maxAt = [i, j]; }
             }
         }
-        const dy = isRaster() ? g.axes[1].resolution : 1;
-        const box = { x0: scanPosition(c0) - ax.resolution / 2, x1: scanPosition(c1) + ax.resolution / 2,
-                      y0: lineY(r0) - dy / 2, y1: lineY(r1) + dy / 2 };
+        // Drawn on the cursors themselves (the stats take the cells nearest them); across the beams: whole lines
+        const index = isRaster() && has(c.i_ref) && has(c.i_meas), dy = isRaster() ? g.axes[1].resolution : 1;
+        const box = { x0: c.s_ref, x1: c.s_meas,
+                      y0: index ? c.i_ref : lineY(r0) - dy / 2, y1: index ? c.i_meas : lineY(r1) + dy / 2 };
         if (!count) return { box, stats: null, mark: null };
         const at = cs.mode === 'amplitude' ? maxAt : minAt;
         return { box, stats: { min, max, mean: sum / count, count, minAt, maxAt },
@@ -1334,7 +1411,14 @@
                 });
                 types.append(b);
             }
-            const tools = el('span', { className: 'ana-tools' }, types);
+            const shown = gateShown(letter);
+            card.classList.toggle('gate-off', !shown);
+            const eye = el('button', { type: 'button', className: 'ana-icon-btn analysis-gate-toggle',
+                                       title: shown ? `Hide ${gate.name} on the A- and S-scans` : `Show ${gate.name} on the A- and S-scans`,
+                                       innerHTML: `<i class="bi ${shown ? 'bi-eye' : 'bi-eye-slash'}"></i>` });
+            eye.setAttribute('aria-pressed', String(shown));
+            eye.addEventListener('click', e => { e.preventDefault(); toggleGate(letter); });
+            const tools = el('span', { className: 'ana-tools' }, types, eye);
             if (addedGate(gate)) {
                 const remove = el('button', { type: 'button', className: 'ana-icon-btn analysis-gate-remove', title: `Remove ${gate.name}`,
                                               innerHTML: '<i class="bi bi-trash3"></i>' });
@@ -1366,7 +1450,7 @@
             const detection = el('select', { className: 'form-select form-select-sm' });
             for (const [value, text] of [['edge', 'Edge'], ['peak', 'Peak'], ['maxpeak', 'Max peak']]) detection.add(new Option(text, value));
             detection.value = gate.detection || 'edge';
-            detection.addEventListener('change', () => { gate.detection = detection.value; gatesChanged(); renderReadings(); });
+            detection.addEventListener('change', () => { gate.detection = detection.value; gatesChanged(); renderReadings(); relabelKinds(); });
             grid.append(...field('Detection', 'Where the gate reads its position (sound path, depth, index, thicknesses, depth / thickness C-scans): Edge - where the signal crosses the threshold; Peak - the first peak after that; Max peak - the highest point in the gate. Its amplitude is always the highest point.', detection));
             const sync = el('select', { className: 'form-select form-select-sm' });
             sync.add(new Option('Pulse', ''));
@@ -1410,6 +1494,16 @@
         shell.rememberSections(box);
         $('gates-edited').hidden = !state.gatesEdited;
         renderAddGates();
+    }
+
+    /** A gate's drawing on the A- and S-scans on or off (a hidden gate can't be picked or dragged there). */
+    function toggleGate(letter) {
+        state.hiddenGates = gateShown(letter) ? [...state.hiddenGates, letter] : state.hiddenGates.filter(x => x !== letter);
+        if (!gateShown(letter) && state.selected?.kind === 'gate' && state.selected.letter === letter) select(null);
+        save();
+        renderGates();
+        renderSscanGates();
+        ascan.set({ gates: shownGates(state.gateResults) });
     }
 
     /**
@@ -1476,6 +1570,7 @@
         for (const gate of state.gates) {
             const letter = letterOf(gate.name);
             if (letter === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files
+            if (!gateShown(letter)) continue;
             const paths = synced(gate) ? syncedPaths(gate, letter) : localPaths(gate);
             if (!paths) continue;
             list.push({ letter, colour: GATE_COLOURS[letter] || '#a78bfa', editable: true, paths,
@@ -1623,12 +1718,15 @@
         renderSscanGates();
         if (!document.activeElement?.closest('#gate-rows')) renderGates();
         $('gates-edited').hidden = false;
-        if (state.draggingGate) {   // drawn here at once; the server catches up when it's let go (gateDragEnded)
+        // An amplitude C-scan that doesn't depend on what changed (its gate's own threshold, say) stays as it is
+        const cscanStands = !!state.cscan?.dependsOn && state.cscan.dependsOn === cscanDependsOn();
+        if (state.draggingGate) {   // drawn here at once; the readings catch up when it's let go (gateDragEnded)
+            if (quickFile() && !cscanStands) scheduleProjections(80, { throttle: true });   // a short file's C-scan follows the drag
             return;
         }
         loadFrameGates(150);
         scheduleReadings(delay);
-        scheduleProjections(700);   // the C-scan follows the gates once they settle
+        if (!cscanStands) scheduleProjections(quickFile() ? 100 : 500);   // the C-scan follows the gates
     }
 
     $('reset-gates').addEventListener('click', () => {
@@ -1663,7 +1761,7 @@
         }
         if (mine !== readingsRequest) return;
         show('');
-        ascan.set({ gates: data.gates });
+        ascan.set({ gates: shownGates(data.gates) });
         state.gateResults = data.gates;
         state.readings = data.readings;
         state.readingsNote = data.note || '';
@@ -2006,14 +2104,7 @@
     const shownIndications = () => (state.indications || []).filter(i => state.filter === 'all' || i.status === state.filter)
         .sort((a, b) => a.group - b.group || (a.sizing?.scan_start ?? a.scan_position ?? 0) - (b.sizing?.scan_start ?? b.scan_position ?? 0) || a.lateral - b.lateral);
 
-    // ── grading against the acceptance criteria of 100-UT-020 (Rev 9) ──
-    // B31.1 (§8): cracks, lack of fusion and incomplete penetration fail at any length; other discontinuities
-    // fail over the reference level and longer than allowed. B31.3 (§9): over the reference level and longer
-    // than allowed. Allowed: 0.25 in for T up to 0.75 in, T/3 up to 2.25 in, 0.75 in over (T: the thinner member).
-    // The page can't tell what a discontinuity is, so under B31.1 one over 20 % of reference (§7.2's
-    // investigation level) that doesn't fail on amplitude and length is yellow: characterise it.
-    const IN = 0.0254;
-    const allowedLength = T => (T <= 0.75 * IN + 1e-9 ? 0.25 * IN : T <= 2.25 * IN + 1e-9 ? T / 3 : 0.75 * IN);
+    // ── grading against the acceptance criteria of 100-UT-020 (Rev 9): criteria.js ──
     let gradeCriteria = '';
     try { gradeCriteria = localStorage.getItem('analysisCriteria') || ''; } catch { /* none */ }
     $('grade-criteria').value = gradeCriteria;
@@ -2023,39 +2114,16 @@
         renderIndications();
     });
     /** An indication's peak at the file's reference gain (% FSH), or null; Infinity when saturated. */
-    function amplitudeAtReference(item) {
-        const z = item.sizing || {}, r = item.readings || {}, g = currentGroup();
-        let recorded = null;   // % at the file's own gain (no soft gain)
-        if (z.saturated) recorded = Infinity;
-        else if (has(z.peak_amplitude)) recorded = z.peak_amplitude * 10 ** (-(z.base_gain ?? item.gain ?? 0) / 20);
-        else if (has(r['A%'])) recorded = r['A%'] * 10 ** (-(item.gain || 0) / 20);
-        if (recorded === null) return null;
-        const ref = g?.reference_gain, scanned = g?.instrument_gain;
-        return has(ref) && ref > 0 && has(scanned) ? recorded * 10 ** ((ref - scanned) / 20) : recorded;
-    }
+    const amplitudeAtReference = item => AnalysisCriteria.atReference(item, currentGroup());
     /** {grade: 'fail' | 'assess' | 'pass', reason} for the chosen criteria, or null when none chosen. */
     function gradeOf(item) {
-        if (!gradeCriteria) return null;
         const z = item.sizing || {}, r = item.readings || {};
-        const T = state.info?.specimen?.thickness;
-        const refAmp = currentGroup()?.reference_amplitude || state.refLevel || 80;
-        const amp = amplitudeAtReference(item);
-        const length = z.length ?? r.Length ?? (has(r['S(m-r)']) ? Math.abs(r['S(m-r)']) : null);
-        if (!has(amp) && amp !== Infinity) return { grade: 'assess', reason: 'No amplitude to grade - assess it' };
-        const db = amp === Infinity ? null : 20 * Math.log10(amp / refAmp);
-        const ampText = amp === Infinity ? 'saturated (over reference)' : `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB to reference (${amp.toFixed(0)} % at reference gain)`;
-        const overRef = amp > refAmp;
-        if (!T || !has(length)) {
-            if (!overRef && !(gradeCriteria === 'b31.1' && amp > 0.2 * refAmp)) return { grade: 'pass', reason: `${ampText}: not over the reference level` };
-            return { grade: 'assess', reason: `${ampText}; ${!T ? 'no part thickness T' : 'no length'} to compare - assess it` };
-        }
-        const allowed = allowedLength(T);
-        const lengthText = `${format(length)} ${length > allowed ? '>' : '≤'} ${format(allowed)} allowed (T ${format(T)})`;
-        if (overRef && length > allowed) return { grade: 'fail', reason: `Fails: ${ampText}, ${lengthText}` };
-        if (gradeCriteria === 'b31.1' && amp > 0.2 * refAmp) {
-            return { grade: 'assess', reason: `Characterise it: ${ampText}, ${lengthText}. Under B31.1 a crack, lack of fusion or incomplete penetration fails at any length` };
-        }
-        return { grade: 'pass', reason: `Passes: ${ampText}, ${lengthText}` };
+        return AnalysisCriteria.grade(gradeCriteria, {
+            amplitude: amplitudeAtReference(item),
+            reference: currentGroup()?.reference_amplitude || state.refLevel || 80,
+            length: z.length ?? r.Length ?? (has(r['S(m-r)']) ? Math.abs(r['S(m-r)']) : null),
+            thickness: state.info?.specimen?.thickness,
+        }, format);
     }
 
     /** The Indications panel: the review card, then a row each (# · scan · length · height · depth · PA^ · A% · status). */
@@ -2576,7 +2644,7 @@
     /** Each indication's picture: the views at it (as laid out now), back where we were afterwards. */
     async function picturesOf(items) {
         const here = { group: state.group, scan: state.scan, lateral: state.lateral, cursors: { ...state.cursors }, sizing: state.sizing,
-                       gain: state.gain, review: state.gain !== state.buildGain, reviewing: state.reviewing, layout: layoutSelect.value };
+                       gain: state.gain, review: state.gain !== state.buildGain, reviewing: state.reviewing, layout: grid.dataset.layout };
         // Every snip in the same four views: C-scan and B-scan over the S-scan and A-scan
         const snipLayout = here.layout !== 'A-B-C-S';
         if (snipLayout) {
@@ -2701,9 +2769,14 @@
             ctx.fillText(label, x + 6, y + 15);
             const stage = panel.querySelector('.analysis-stage');
             const stageBox = stage.getBoundingClientRect();
+            // Turned as on screen: about the stage's centre
+            ctx.save();
+            ctx.translate(stageBox.left - origin.left + stageBox.width / 2, stageBox.top - origin.top + title + stageBox.height / 2);
+            ctx.rotate(ViewTurn.quarters(stage) * Math.PI / 2);
             for (const canvas of stage.querySelectorAll('canvas')) {
-                ctx.drawImage(canvas, stageBox.left - origin.left, stageBox.top - origin.top + title, stageBox.width, stageBox.height);
+                ctx.drawImage(canvas, -stage.offsetWidth / 2, -stage.offsetHeight / 2, stage.offsetWidth, stage.offsetHeight);
             }
+            ctx.restore();
         }
         // The readings down the right
         ctx.fillStyle = '#e2e8f0';
@@ -2756,7 +2829,6 @@
 
     // ── controls ──
     groupSelect.addEventListener('change', () => setGroup(+groupSelect.value, state.scan, state.lateral));
-    slider.addEventListener('input', () => setScan(+slider.value));
     // The scan box: a distance in the page's units, to the nearest scan line
     scanNumber.addEventListener('change', () => {
         const v = parseFloat(scanNumber.value);
@@ -2922,6 +2994,8 @@
     applyPalettes();
     grid.classList.add('is-empty');
     applyWeld();
-    page.views = { sscan, ascan, cview, bview };   // for checking the page in a test browser
+    // For checking the page in a test browser (the Validation page's L4): the views, what's loaded, and moving the cursor
+    page.views = { sscan, ascan, cview, bview };
+    page.check = { state, currentGroup: () => state.info && currentGroup(), setScan, setLateral };
     loadFiles().catch(e => show(e.message));
 })();

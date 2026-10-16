@@ -1,0 +1,182 @@
+{% extends 'reports/base.html' %}
+{% load static ui %}
+
+{% block title %}Validation · Preferences · PAUT Report Automation{% endblock %}
+
+{% block styles %}<link rel="stylesheet" href="{% static_v 'validation/css/validation.css' %}">{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Preferences</h1>
+    <div class="header-actions">
+        <button type="button" class="btn btn-secondary" id="cancel-run" hidden><i class="bi bi-stop-circle"></i> Stop</button>
+        <button type="button" class="btn btn-primary" id="start-run"{% if not kit or not kit.files %} disabled title="Add files to the kit first"{% endif %}>
+            <i class="bi bi-patch-check"></i> Run validation</button>
+    </div>
+</div>
+{% include 'reports/components/library_tabs.html' with tab='validation' %}
+<p class="val-lead">
+    Proves the Analysis page against sources that share none of its code: the raw data read by an independent
+    reader, OmniPC's own exports, calibration blocks with known reflectors, and the acceptance criteria as written.
+    Every run is kept with the app version and the kit's fingerprints.
+</p>
+
+<div id="validation" data-start-url="{% url 'validation-run-start' %}" data-run-url="{% url 'validation-run' 0 %}"
+     data-cancel-url="{% url 'validation-run-cancel' 0 %}" data-picture-url="{% url 'validation-run-picture' 0 'NAME' %}"
+     data-report-url="{% url 'validation-run-report' 0 %}">
+    {{ shown|json_script:"shown-run" }}
+
+    <section class="panel">
+        <div class="panel-header"><h2 class="panel-title">What to check</h2></div>
+        <div class="val-layers">
+            {% for layer in layers %}
+            <label class="val-layer-pick{% if not layer.built %} is-unbuilt{% endif %}">
+                <input type="checkbox" class="form-check-input" name="layer" value="{{ layer.id }}"{% if layer.built %} checked{% else %} disabled{% endif %}>
+                <span class="val-layer-id">{{ layer.id }}</span>
+                <span class="val-layer-text">
+                    <strong>{{ layer.title }}</strong>
+                    <span>{{ layer.question }}</span>
+                    <span class="val-against"><i class="bi bi-arrow-left-right"></i> {{ layer.against }}{% if not layer.built %} · not built yet{% endif %}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </div>
+        <div class="val-sweep">
+            <label class="form-check-label"><input type="checkbox" class="form-check-input" id="sweep-on">
+                Also decode every .nde file under</label>
+            <input type="text" class="form-control form-control-sm mono" id="sweep-folder" value="{{ sweep_default }}" aria-label="Folder to sweep">
+            <span class="form-text">(L0 only; files outside the kit aren't fingerprinted)</span>
+        </div>
+        <details class="val-approve">
+            <summary>Approve the current results as the baseline (L6)</summary>
+            <p class="form-text">Locks what this version of the app computes on the kit's files - readings, every C-scan cell, every
+                indication found and its sizing - so later versions are compared with it. Do this once a run has passed and been reviewed.</p>
+            <div class="val-sweep">
+                <input type="text" class="form-control form-control-sm" id="approve-note" placeholder="Who approved it and why, e.g. Reviewed with J. Smith (Level III), run #12" maxlength="300">
+                <button type="button" class="btn btn-secondary btn-sm" id="approve-baseline"><i class="bi bi-lock"></i> Lock as approved</button>
+            </div>
+        </details>
+    </section>
+
+    <section class="panel mt-3" id="result-panel" hidden>
+        <div class="val-verdict" id="verdict"></div>
+        <div class="val-meta" id="run-meta"></div>
+        <div id="run-body"></div>
+    </section>
+</div>
+
+<section class="panel mt-3">
+    <div class="panel-header"><h2 class="panel-title">The kit</h2></div>
+    <form method="post" class="val-kit-path">
+        {% csrf_token %}
+        <label for="kit-path" class="form-label mb-0">Folder</label>
+        <input type="text" class="form-control form-control-sm mono" id="kit-path" name="kit_path" value="{{ settings.kit }}">
+        <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+    </form>
+    {% if kit_error %}
+    <p class="val-error">{{ kit_error }}</p>
+    {% elif not kit.exists %}
+    <p class="form-text">No kit there yet: add a file below to start one.</p>
+    {% endif %}
+    {% if kit_files %}
+    <div class="table-wrap">
+        <table class="table data-table val-kit-table">
+            <thead><tr><th>File</th><th>Used for</th><th>Source</th><th class="text-end">Size</th><th>Fingerprint (SHA-256)</th></tr></thead>
+            <tbody>
+                {% for f in kit_files %}
+                <tr{% if not f.present %} class="is-missing"{% endif %}>
+                    <td class="mono">{{ f.path }}{% if not f.present %} <span class="val-error">missing</span>{% endif %}</td>
+                    <td>{{ f.role_names|join:", " }}</td>
+                    <td>{{ f.source }}{% if f.notes %}<div class="form-text">{{ f.notes }}</div>{% endif %}</td>
+                    <td class="text-end">{{ f.size|filesizeformat }}</td>
+                    <td class="mono val-sha" title="{{ f.sha256 }}">{{ f.sha256|slice:":16" }}…</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="form-text">{{ kit_files|length }} file{{ kit_files|length|pluralize }}, {{ kit_size|filesizeformat }}.</p>
+    {% endif %}
+    <details class="val-add"{% if not kit_files %} open{% endif %}>
+        <summary>Add a file to the kit</summary>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="add_file" value="1">
+            <div class="val-add-grid">
+                <label for="add-file">File</label>
+                <input type="text" class="form-control form-control-sm mono" id="add-file" name="file" placeholder="C:\…\scan.nde" required>
+                <label>Used for</label>
+                <div class="val-roles">
+                    {% for key, name in roles %}
+                    <label class="form-check-label"><input type="checkbox" class="form-check-input" name="roles" value="{{ key }}"{% if key == 'decoding' %} checked{% endif %}> {{ name }}</label>
+                    {% endfor %}
+                </div>
+                <label for="add-source">Source</label>
+                <input type="text" class="form-control form-control-sm" id="add-source" name="source" placeholder="e.g. Scanned with OmniScan X3, exported from OmniPC 5.12 on 2026-10-09">
+                <label for="add-notes">Notes</label>
+                <input type="text" class="form-control form-control-sm" id="add-notes" name="notes">
+            </div>
+            <p class="form-text">The file is copied into the kit and fingerprinted; the original isn't touched.</p>
+            <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-plus-lg"></i> Add</button>
+        </form>
+    </details>
+    {% if kit_nde %}
+    <details class="val-add">
+        <summary>Import an OmniPC export (readings)</summary>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="import_export" value="1">
+            <div class="val-add-grid">
+                <label for="import-export">Export</label>
+                <input type="text" class="form-control form-control-sm mono" id="import-export" name="export" placeholder="C:\…\export.zip or indications.csv" required>
+                <label for="import-nde">Made from</label>
+                <select class="form-select form-select-sm" id="import-nde" name="nde">
+                    {% for e in kit_nde %}<option value="{{ e.path }}">{{ e.path }}</option>{% endfor %}
+                </select>
+                <label for="import-source">Source</label>
+                <input type="text" class="form-control form-control-sm" id="import-source" name="source" placeholder="e.g. OmniPC 5.12, soft gain 0 dB, cursors on the peaks, 2026-10-16">
+                <span></span>
+                <div class="val-roles">
+                    <label class="form-check-label" title="Each indication's data cursor on its peak, its reference and measure cursors on its -6 dB ends, S(r) and S(m) exported (L2 sizing)">
+                        <input type="checkbox" class="form-check-input" name="sized"> Cursors on the −6 dB ends (S(r) / S(m))</label>
+                    <label class="form-check-label" title="Every indication in the file was logged: Find indications must find them all (L2 detection)">
+                        <input type="checkbox" class="form-check-input" name="complete"> Lists every indication in the file</label>
+                </div>
+            </div>
+            <p class="form-text">In OmniPC: put the cursors on each indication's peak at 0 dB soft gain, log it, turn on the reading
+                columns, and Export (the zip holds indications.csv and setup.csv). Each indication becomes a check; readings that need
+                cursor positions or a zone are listed but not compared.</p>
+            <button type="submit" class="btn btn-secondary btn-sm"><i class="bi bi-box-arrow-in-down"></i> Import</button>
+        </form>
+    </details>
+    {% endif %}
+</section>
+
+{% if runs %}
+<section class="panel mt-3">
+    <div class="panel-header"><h2 class="panel-title">Runs</h2></div>
+    <div class="table-wrap">
+        <table class="table data-table">
+            <thead><tr><th>Run</th><th>When</th><th>Result</th><th class="text-end">Passed</th><th class="text-end">Failed</th><th>App version</th><th>Computer</th></tr></thead>
+            <tbody>
+                {% for r in runs %}
+                <tr>
+                    <td><a href="?run={{ r.pk }}">#{{ r.pk }}</a></td>
+                    <td>{{ r.created_at|date:"M j, Y, g:i a" }}</td>
+                    <td><span class="val-status is-{{ r.status }}">{{ r.get_status_display }}</span></td>
+                    <td class="text-end">{{ r.passed }}</td>
+                    <td class="text-end">{{ r.failed }}</td>
+                    <td class="mono">{{ r.version }}</td>
+                    <td>{{ r.computer }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static_v 'validation/js/validation.js' %}"></script>
+{% endblock %}

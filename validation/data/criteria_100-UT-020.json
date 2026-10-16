@@ -1,0 +1,42 @@
+{
+  "procedure": "100-UT-020 (Rev 9), 2025-11-18",
+  "status": "Written from §8 and §9 for review: a Level III confirms each case's expected grade (and the boundary readings: 'exceed', 'greater than', 'inclusive') before the table is relied on.",
+  "clauses": {
+    "8.0": "B31.1: Discontinuities that produce an indication greater than 20% of the reference level shall be investigated ... (1) cracks, lack of fusion or incomplete penetration are unacceptable regardless of length. (2) Other discontinuities are unacceptable if the indications exceed the reference level amplitude and have lengths exceeding: 0.25 in for T up to 0.75 in inclusive; T/3 for T from 0.75 in to 2.25 in inclusive; 0.75 in for T over 2.25 in.",
+    "9.0": "B31.3: A discontinuity is unacceptable if the amplitude of the indication exceeds the reference level and its length exceeds: 0.25 in for T up to 0.75 in; T/3 for T from 0.75 in to 2.25 in; 0.75 in for T over 2.25 in.",
+    "7.4.2.1(4)": "For flaws exhibiting indication amplitudes greater than the instrument saturation level, the flaw length shall be the distance between the flaw ends that equal the reference level (80% screen height)."
+  },
+  "grades": {"fail": "Unacceptable (red)", "assess": "Investigate / characterise (yellow)", "pass": "Acceptable (green)"},
+  "cases": [
+    {"clause": "9.0", "criteria": "b31.3", "T": 0.500, "amplitude": 100, "length": 0.250, "expect": "pass", "why": "T up to 0.75 in: 0.25 in allowed; 0.250 does not exceed it"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 0.500, "amplitude": 100, "length": 0.251, "expect": "fail", "why": "Over the reference level and longer than 0.25 in"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 0.750, "amplitude": 100, "length": 0.251, "expect": "fail", "why": "T exactly 0.75 in: still 0.25 in allowed"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 1.500, "amplitude": 100, "length": 0.500, "expect": "pass", "why": "T/3 = 0.500 in allowed; 0.500 does not exceed it"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 1.500, "amplitude": 100, "length": 0.501, "expect": "fail", "why": "Longer than T/3"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 2.250, "amplitude": 100, "length": 0.750, "expect": "pass", "why": "T exactly 2.25 in: T/3 = 0.75 in allowed"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 3.000, "amplitude": 100, "length": 0.750, "expect": "pass", "why": "T over 2.25 in: 0.75 in allowed"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 3.000, "amplitude": 100, "length": 0.760, "expect": "fail", "why": "Longer than 0.75 in"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 0.500, "amplitude": 80, "length": 2.000, "expect": "pass", "why": "Exactly at the reference level does not exceed it, however long"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 0.500, "amplitude": 80.1, "length": 2.000, "expect": "fail", "why": "Just over the reference level and long"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 0.500, "amplitude": 60, "length": 0.300, "expect": "pass", "why": "B31.3 has no investigation level: under reference passes"},
+    {"clause": "7.4.2.1(4)", "criteria": "b31.3", "T": 0.500, "amplitude": "saturated", "length": 0.300, "expect": "fail", "why": "Saturated is over the reference level; length taken at the reference level"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 0.500, "amplitude": 100, "length": null, "expect": "assess", "why": "Over reference with no length measured: can't be accepted"},
+    {"clause": "9.0", "criteria": "b31.3", "T": null, "amplitude": 100, "length": 0.300, "expect": "assess", "why": "No wall thickness T: the allowed length is unknown"},
+    {"clause": "9.0", "criteria": "b31.3", "T": 0.500, "amplitude": null, "length": 0.300, "expect": "assess", "why": "No amplitude recorded: can't be graded"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 0.500, "amplitude": 16, "length": 1.000, "expect": "pass", "why": "Exactly 20 % of reference (16 % at 80 %) is not greater than it: not investigated"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 0.500, "amplitude": 16.1, "length": 0.100, "expect": "assess", "why": "Greater than 20 % of reference: investigate (cracks, LOF, IP fail at any length)"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 0.500, "amplitude": 100, "length": 0.200, "expect": "assess", "why": "Over reference but short: still investigated and characterised under B31.1"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 0.500, "amplitude": 100, "length": 0.251, "expect": "fail", "why": "(2) exceeds the reference level and longer than 0.25 in"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 0.750, "amplitude": 100, "length": 0.250, "expect": "assess", "why": "T up to 0.75 in inclusive: 0.25 in allowed, not exceeded; over 20 % so characterise"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 2.000, "amplitude": 100, "length": 0.666, "expect": "assess", "why": "T/3 = 0.6667 in allowed, not exceeded; over 20 % so characterise"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 2.000, "amplitude": 100, "length": 0.668, "expect": "fail", "why": "Longer than T/3 and over reference"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 2.500, "amplitude": 100, "length": 0.751, "expect": "fail", "why": "T over 2.25 in: longer than 0.75 in"},
+    {"clause": "8.0", "criteria": "b31.1", "T": 0.500, "amplitude": 10, "length": 2.000, "expect": "pass", "why": "Under 20 % of reference: not investigated, whatever its length"}
+  ],
+  "reference_gain_cases": [
+    {"why": "A% read at +6 dB soft gain, file recorded 6 dB above its reference gain", "readings": {"A%": 40}, "gain": 6, "reference_gain": 20, "instrument_gain": 26},
+    {"why": "Sizing peak at 3 dB soft gain, recorded at the reference gain", "sizing": {"peak_amplitude": 90, "base_gain": 3}, "gain": 3, "reference_gain": 30, "instrument_gain": 30},
+    {"why": "Saturated sizing peak: over the reference level whatever the gain", "sizing": {"saturated": true}, "gain": 0, "reference_gain": 30, "instrument_gain": 36},
+    {"why": "No reference gain in the file: the amplitude as recorded", "readings": {"A%": 55}, "gain": 0, "reference_gain": null, "instrument_gain": 30}
+  ]
+}

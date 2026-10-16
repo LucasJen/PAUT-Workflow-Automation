@@ -81,8 +81,8 @@ def weld_file(folder=None, scans=4, beams=(45.0, 55.0, 65.0), samples=50, thickn
 
 
 def raster_file(folder=None, scans=5, index=4, samples=40, thickness=0.0254,
-                u_offset=-0.01, v_offset=0.0025, us_offset=-1e-6, period=2e-8):
-    """A 0 deg raster (corrosion) scan: (UCoordinate, VCoordinate, Ultrasound)."""
+                u_offset=-0.01, v_offset=0.0025, us_offset=-1e-6, period=2e-8, synchro='Pulse'):
+    """A 0 deg raster (corrosion) scan: (UCoordinate, VCoordinate, Ultrasound); synchro='SynchroGateRelative': re-timed to gate I."""
     folder = folder or tempfile.mkdtemp()
     data = weld_amplitudes(scans, index, samples)
     dims = [{'axis': 'UCoordinate', 'offset': u_offset, 'quantity': scans, 'resolution': 0.001},
@@ -96,6 +96,7 @@ def raster_file(folder=None, scans=5, index=4, samples=40, thickness=0.0254,
                 'path': '/Public/Groups/0/Datasets/0-AScanAmplitude', 'dimensions': dims}],
             'processes': [{'id': 0, 'ultrasonicPhasedArray': {
                 'pulseEcho': {'linearFormation': {}}, 'waveMode': 'Longitudinal', 'velocity': LONGITUDINAL,
+                'ascanSynchroMode': synchro,
                 'beams': [{'id': k, 'refractedAngle': 0.0, 'skewAngle': 0.0, 'ascanStart': us_offset, 'sumGain': 20.0}
                           for k in range(index)],
                 'gates': [{'id': 0, 'name': 'Gate I', 'start': 1.5e-5, 'length': 1e-5, 'threshold': 40.0,

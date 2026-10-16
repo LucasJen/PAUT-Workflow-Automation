@@ -6,8 +6,14 @@ the threshold" is the same test the readings use for a crossing).
     mask       amplitude >= threshold at each scan position x line
     regions    8-connected cells of the mask (no scipy here: runs of each scan position joined by a
                small union-find)
+    split      a region with several peaks is several indications: walking down from the highest cell
+               (a watershed), a peak whose signal falls at least `split_db` (the sizing drop) before it
+               meets a stronger one's area is its own indication, with the cells around it; lesser bumps
+               stay with the peak above them. Without this a long run of signal over the threshold (a
+               weld root, a scan's worth of geometry) hid every indication in it but the strongest
     merge      two regions whose line spans overlap (or touch) and that are at most `merge_gap` scan
                positions apart are one indication - a flaw that dips under the threshold for a step
+               (pieces split from the same region aren't joined again)
     minimums   regions shorter than `min_scans` positions or narrower than `min_lines` lines are dropped
 
 Each indication is then sized (sizing.size_indication): taken to 80 % of full screen, its length by
@@ -71,18 +77,69 @@ def label(mask):
     return labels, len(ids)
 
 
-def _region(labels, amplitude, n):
-    """Each region's spans and peak, from the labels."""
+def _bounds(scans, lines, values, blob):
+    top = int(np.argmax(values))
+    return {'scan_lo': int(scans.min()), 'scan_hi': int(scans.max()),
+            'line_lo': int(lines.min()), 'line_hi': int(lines.max()),
+            'peak_scan': int(scans[top]), 'peak_line': int(lines[top]),
+            'peak_amplitude': float(values[top]), 'cells': int(len(values)), 'blobs': {blob}}
+
+
+def _region(labels, amplitude, n, split_db=None):
+    """Each region's spans and peak, from the labels - split into its separate peaks (split_db)."""
     regions = []
     for k in range(1, n + 1):
         scans, lines = np.nonzero(labels == k)
         values = amplitude[scans, lines]
-        top = int(np.argmax(values))
-        regions.append({'scan_lo': int(scans.min()), 'scan_hi': int(scans.max()),
-                        'line_lo': int(lines.min()), 'line_hi': int(lines.max()),
-                        'peak_scan': int(scans[top]), 'peak_line': int(lines[top]),
-                        'peak_amplitude': float(values[top]), 'cells': int(len(values))})
+        if split_db and len(values) > 1:
+            for part in _split(scans, lines, values, split_db):
+                regions.append(_bounds(scans[part], lines[part], values[part], k))
+        else:
+            regions.append(_bounds(scans, lines, values, k))
     return regions
+
+
+def _split(scans, lines, values, drop_db):
+    """
+    The separate peaks of one region (cells scans / lines / values): index arrays of each one's cells.
+    Cells taken highest first; one touching two areas is the saddle between them, where the lower
+    area's peak counts as its own indication when it stands `drop_db` or more above the saddle (and is
+    kept as it is from then on), else the lower area joins the higher.
+    """
+    order = np.argsort(-values, kind='stable')
+    where = {(int(sc), int(ln)): i for i, (sc, ln) in enumerate(zip(scans, lines))}
+    parent, peak, kept, area_of = [], [], set(), {}
+    ratio = 10 ** (drop_db / 20)
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for i in order:
+        sc, ln = int(scans[i]), int(lines[i])
+        roots = {find(area_of[j]) for ds in (-1, 0, 1) for dl in (-1, 0, 1)
+                 if (j := where.get((sc + ds, ln + dl))) is not None and j in area_of}
+        if not roots:   # a new peak
+            parent.append(len(parent))
+            peak.append(values[i])
+            area_of[i] = len(parent) - 1
+            continue
+        # The highest-peaked area takes this cell; the others meet it here (the saddle)
+        best = max(roots, key=lambda r: peak[r])
+        for r in roots - {best}:
+            if r in kept:
+                continue
+            if peak[r] >= values[i] * ratio:   # stands out by the drop: its own indication
+                kept.add(r)
+            else:
+                parent[r] = best
+        area_of[i] = best
+    parts = {}
+    for i, area in area_of.items():
+        parts.setdefault(find(area), []).append(i)
+    return [np.array(sorted(cells)) for cells in parts.values()]
 
 
 def _merged(a, b):
@@ -90,7 +147,8 @@ def _merged(a, b):
     return {'scan_lo': min(a['scan_lo'], b['scan_lo']), 'scan_hi': max(a['scan_hi'], b['scan_hi']),
             'line_lo': min(a['line_lo'], b['line_lo']), 'line_hi': max(a['line_hi'], b['line_hi']),
             'peak_scan': first['peak_scan'], 'peak_line': first['peak_line'],
-            'peak_amplitude': first['peak_amplitude'], 'cells': a['cells'] + b['cells']}
+            'peak_amplitude': first['peak_amplitude'], 'cells': a['cells'] + b['cells'],
+            'blobs': set(a.get('blobs') or ()) | set(b.get('blobs') or ())}
 
 
 def merge(regions, gap):
@@ -102,6 +160,8 @@ def merge(regions, gap):
         for i in range(len(regions)):
             for j in range(i + 1, len(regions)):
                 a, b = regions[i], regions[j]
+                if (a.get('blobs') or set()) & (b.get('blobs') or set()):
+                    continue   # pieces split from the same region stay apart
                 lines_meet = a['line_lo'] <= b['line_hi'] + 1 and b['line_lo'] <= a['line_hi'] + 1
                 apart = max(a['scan_lo'], b['scan_lo']) - min(a['scan_hi'], b['scan_hi']) - 1
                 if lines_meet and apart <= gap:
@@ -114,14 +174,15 @@ def merge(regions, gap):
     return regions
 
 
-def find_regions(amplitude, threshold, merge_gap=2, min_scans=1, min_lines=1):
+def find_regions(amplitude, threshold, merge_gap=2, min_scans=1, min_lines=1, split_db=6.0):
     """
     The indications on a gate map (amplitude [scans, lines], NaN = nothing): a dict each with its scan
-    and line spans, its peak cell and amplitude, in scan order.
+    and line spans, its peak cell and amplitude, in scan order. split_db: a region's peaks standing that
+    far above the signal between them are separate indications (None: one per region).
     """
     a = np.where(np.isnan(amplitude), -np.inf, np.asarray(amplitude, dtype=np.float64))
     labels, n = label(a >= threshold)
-    regions = merge(_region(labels, a, n), max(0, int(merge_gap)))
+    regions = merge(_region(labels, a, n, split_db), max(0, int(merge_gap)))
     regions = [r for r in regions if r['scan_hi'] - r['scan_lo'] + 1 >= min_scans
                and r['line_hi'] - r['line_lo'] + 1 >= min_lines]
     return sorted(regions, key=lambda r: (r['scan_lo'], r['line_lo']))
@@ -164,7 +225,9 @@ def detect(path, info, group, gates, cscan, letter, threshold=None, method='6', 
         threshold = gate.threshold if gate else 20.0
     step = abs(group.axes[0].resolution) or 1.0
     min_scans = max(1, int(math.ceil(min_length / step - 1e-9))) if min_length else 1
-    regions = find_regions(cscan[key], threshold, merge_gap, min_scans, min_lines)
+    # Peaks standing the sizing drop apart are separate indications (6 dB for threshold sizing)
+    split_db = float(method) if str(method).replace('.', '', 1).isdigit() else 6.0
+    regions = find_regions(cscan[key], threshold, merge_gap, min_scans, min_lines, split_db)
     while True:
         sized, skipped = [], []
         for region in regions:

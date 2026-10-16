@@ -32,7 +32,6 @@
         <span class="analysis-sep"></span>
         <div class="analysis-tool">
             <button type="button" class="btn btn-sm btn-ghost" id="scan-prev" aria-label="Previous scan line" title="Previous scan line (Left)"><i class="bi bi-chevron-left"></i></button>
-            <input type="range" class="form-range analysis-slider" id="scan-slider" min="0" max="0" value="0" aria-label="Scan line" title="Scan position (Left / Right a line, Shift for 10, PageUp / PageDown)">
             <button type="button" class="btn btn-sm btn-ghost" id="scan-next" aria-label="Next scan line" title="Next scan line (Right)"><i class="bi bi-chevron-right"></i></button>
             <label class="analysis-value-box" title="Scan position: type a distance, or scroll over it a line at a time (Shift: 10)">
                 <input type="text" inputmode="decimal" class="mono" id="scan-number" value="0" aria-label="Scan position" autocomplete="off">
@@ -59,6 +58,17 @@
         <select class="form-select form-select-sm analysis-layout-select" id="layout" aria-label="Layout" title="Views shown, like OmniPC's layouts">
             <option value="A-S">A-S</option><option value="A-S-C">A-S-C</option><option value="A-B-C-S">A-B-C-S</option>
         </select>
+        <div class="analysis-presets">
+            <button type="button" class="btn btn-sm btn-ghost" id="layout-presets" title="Layout presets: save the layout as it is now - its views, their places, turns and sizes" aria-haspopup="true" aria-expanded="false"><i class="bi bi-bookmark-plus"></i></button>
+            <div class="analysis-presets-menu" id="layout-presets-menu" hidden>
+                <form class="analysis-presets-save" id="layout-preset-form">
+                    <input type="text" class="form-control form-control-sm" id="layout-preset-name" placeholder="Preset name" aria-label="Preset name" maxlength="40" autocomplete="off">
+                    <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                </form>
+                <ul class="analysis-presets-list" id="layout-preset-list"></ul>
+                <p class="analysis-note">Drag a view by its header onto another to swap them; <i class="bi bi-arrow-clockwise"></i> turns the S-scan or A-scan 90°.</p>
+            </div>
+        </div>
         <label class="analysis-selection" id="selection-readout" hidden title="The selection: type a value (Enter) or scroll over it to move it; the wheel over its view moves it too (Esc deselects)">
             <span class="name" id="selection-name"></span>
             <input type="text" inputmode="decimal" class="mono" id="selection-value" aria-label="Selection position" autocomplete="off">
@@ -318,8 +328,6 @@
                 <div class="ana-value"><input type="number" class="form-control form-control-sm mono" id="ref-level" value="80" min="1" step="1"><span class="ana-unit">%</span></div>
                 <label for="show-echo" title="The gate's highest amplitude along the scan, drawn under an amplitude C-scan">Echo curve</label>
                 <input type="checkbox" class="form-check-input" id="show-echo" checked>
-                <label for="sscan-rotate" title="For 0 deg longitudinal data (HydroFORM and other raster scans): depth across, lined up with the A-scan's depth axis, and the index axis down, lined up with the C-scan's index axis and its cursors">Rotate S-scan</label>
-                <input type="checkbox" class="form-check-input" id="sscan-rotate">
             </div>
             <details class="ana-section" data-section="link-zoom" open>
                 <summary title="Zooming or panning one view along a linked axis does the same to the others">Link zoom</summary>
@@ -383,27 +391,27 @@
                     <dt>Palette bar</dt><dd>Right of a thickness / depth C-scan, over the range typed at its top: drag its top down to lower the ceiling, its bottom up to raise the floor, its middle to shift the colours; double-click for the whole range</dd>
                     <dt>Zoom bars</dt><dd>Under and left of each view: drag an end of the bar to zoom that axis, its middle to move along it (the A-scan's side bar is the amplitude); double-click a bar to fit that axis</dd>
                     <dt>90° / 270°</dt><dd>The S-scan's skew view for angle-beam data (button in its head): 90° - beams top left to bottom right, the index increasing to the right; 270° - top right to bottom left, increasing to the left (the probe, upstream of the weld, reads negative). It starts at the file's skew; the other one mirrors the picture</dd>
-                    <dt>Rotate S-scan</dt><dd>Display panel: depth across and the index axis down, to line up with the A-scan's depth and a raster C-scan's index axis (link the zooms to keep them together)</dd>
                     <dt>Link zoom</dt><dd>Display panel: zoom the scan axis (C ↔ B), depth (B ↔ S ↔ A) or index axis (S ↔ C on a raster) together</dd>
                     <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
                 </dl>
                 <dl>
-                    <dt>C-scan</dt><dd>Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors; Ctrl / Shift+click put the reference / measure scan cursors. Built from the whole file (again when the gates or gain change)</dd>
+                    <dt>C-scan</dt><dd>Top view: scan position across, beam / index line down. Click or drag to move the scan and beam cursors; Ctrl / Shift+click put the reference / measure scan cursors. Click a cursor line to pick it (the wheel and the top bar move it) or drag it. The dashed box: the zone between the cursors. Built from the whole file (again when the gates or gain change)</dd>
                     <dt>Echo curve</dt><dd>Under an amplitude C-scan: the gate's highest amplitude along the scan with the sizing drop level; drag its red / green lines to move the ends, click to go to a scan position</dd>
-                    <dt>B-scan</dt><dd>Side view of the cursor's beam / index line: scan across, depth down. Click to move the scan cursor; Ctrl / Shift+click put the reference / measure scan and depth cursors</dd>
+                    <dt>B-scan</dt><dd>Side view of the cursor's beam / index line: scan across, depth down. Click to move the scan cursor; Ctrl / Shift+click put the reference / measure scan and depth cursors. Click a cursor line to pick it (the wheel and the top bar move it) or drag it</dd>
                     <dt>S-scan</dt><dd>Click or drag to move the beam cursor. Ctrl / Shift+click put the reference / measure cursors at a point; drag a cursor line or a gate's edge to move it. Dashed lines: the back wall and skips</dd>
                     <dt>A-scan</dt><dd>Click: reference cursor, Shift+click: measure cursor. Drag a gate's bar to move it (up / down: its threshold), its start tick to move it (the width stays), its end tick to change the width</dd>
                     <dt>Detection</dt><dd>Each gate's setting: where it reads its position - Edge (where the signal crosses the threshold, the default), Peak (the first peak after that) or Max peak (the highest point). Readings show / for edge and ^ for peak, as OmniPC; the amplitude is always the highest point</dd>
                     <dt>Criteria</dt><dd>Indications panel: grade every indication against 100-UT-020 - ASME B31.1 (§8) or B31.3 (§9). Red: over the reference level (peak at the file's reference gain) and longer than allowed (0.25 in up to T 0.75 in, T/3 up to 2.25 in, 0.75 in over). Yellow (B31.1): over 20 % of reference and not failing - characterise it (cracks, LOF, IP fail at any length). Green: passes. Hover a row for the reason</dd>
                     <dt>Gates</dt><dd>SP sound path (an arc on a sectorial scan), TD true depth, Box a box of depth and index. On the S-scan drag a gate's edges, or its letter tab to move it; on the A-scan its bar (up / down: the threshold) and end ticks. Floating: the height follows each A-scan's peak</dd>
                     <dt>Panels</dt><dd>Hover a label or button for what it does; click a section's header to fold it (kept)</dd>
+                    <dt>Views</dt><dd>Drag a view by its header onto another to swap their places; the turn button in the S-scan's and A-scan's headers turns them 90° clockwise (Shift+click: back). The bookmark beside the layout select saves the layout as a preset - its views, places, turns and sizes - listed in the select</dd>
                     <dt>Eraser</dt><dd>Above each view: clears that view's cursors</dd>
                 </dl>
             </div>
         </div>
 
         <div class="analysis-grid" id="analysis-grid" data-layout="A-S">
-            <section class="analysis-panel analysis-panel-cscan">
+            <section class="analysis-panel analysis-panel-cscan" data-view="cscan">
                 <header class="analysis-panel-head">
                     <select class="form-select form-select-sm analysis-head-select" id="cscan-kind" aria-label="C-scan shows"></select>
                     <span class="analysis-range" id="cscan-range" hidden>
@@ -414,47 +422,55 @@
                     <span class="analysis-panel-note" id="cscan-note"></span>
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="cscan" title="Clear the scan and index cursors" aria-label="Clear the cscan cursors"><i class="bi bi-eraser"></i></button>
                 </header>
-                <div class="analysis-view" id="cscan-view">
-                    <div class="analysis-stage" id="cscan-stage"></div>
-                    <div id="cscan-zoom-y"></div>
-                    <div id="cscan-zoom-x"></div>
-                    <div id="cscan-palette-bar" hidden></div>
+                <div class="analysis-view-frame">
+                    <div class="analysis-view" id="cscan-view">
+                        <div class="analysis-stage" id="cscan-stage"></div>
+                        <div id="cscan-zoom-y"></div>
+                        <div id="cscan-zoom-x"></div>
+                        <div id="cscan-palette-bar" hidden></div>
+                    </div>
                 </div>
                 <canvas class="analysis-echo" id="echo-strip" hidden title="Echo-dynamic: the gate's highest amplitude along the scan (over the box's or indication's lines, else the cursor's), with the sizing drop level; drag the red / green lines to move the ends, click to go to a scan position"></canvas>
                 <div class="analysis-readout mono" id="cscan-readout"></div>
             </section>
-            <section class="analysis-panel analysis-panel-bscan">
+            <section class="analysis-panel analysis-panel-bscan" data-view="bscan">
                 <header class="analysis-panel-head">
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="bscan" title="Clear the scan and depth cursors" aria-label="Clear the bscan cursors"><i class="bi bi-eraser"></i></button>
                 </header>
-                <div class="analysis-view">
-                    <div class="analysis-stage" id="bscan-stage"></div>
-                    <div id="bscan-zoom-y"></div>
-                    <div id="bscan-zoom-x"></div>
+                <div class="analysis-view-frame">
+                    <div class="analysis-view">
+                        <div class="analysis-stage" id="bscan-stage"></div>
+                        <div id="bscan-zoom-y"></div>
+                        <div id="bscan-zoom-x"></div>
+                    </div>
                 </div>
                 <div class="analysis-readout mono" id="bscan-readout"></div>
             </section>
-            <section class="analysis-panel analysis-panel-sscan">
+            <section class="analysis-panel analysis-panel-sscan" data-view="sscan">
                 <header class="analysis-panel-head">
                     <button type="button" class="btn btn-sm btn-secondary analysis-skew" id="skew-toggle" hidden>90°</button>
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="sscan" title="Clear the depth and index cursors" aria-label="Clear the sscan cursors"><i class="bi bi-eraser"></i></button>
                     <button type="button" class="btn btn-sm btn-ghost" id="sscan-fit" title="Fit the S-scan (or double-click it)"><i class="bi bi-arrows-angle-contract"></i></button>
                 </header>
-                <div class="analysis-view">
-                    <div class="analysis-stage" id="sscan-stage" data-empty="Open an .nde file to start (O, or the folder button). ? shows the keys and mouse controls."></div>
-                    <div id="sscan-zoom-y"></div>
-                    <div id="sscan-zoom-x"></div>
+                <div class="analysis-view-frame">
+                    <div class="analysis-view">
+                        <div class="analysis-stage" id="sscan-stage" data-empty="Open an .nde file to start (O, or the folder button). ? shows the keys and mouse controls."></div>
+                        <div id="sscan-zoom-y"></div>
+                        <div id="sscan-zoom-x"></div>
+                    </div>
                 </div>
                 <div class="analysis-readout mono" id="sscan-readout"></div>
             </section>
-            <section class="analysis-panel analysis-panel-ascan">
+            <section class="analysis-panel analysis-panel-ascan" data-view="ascan">
                 <header class="analysis-panel-head">
                     <button type="button" class="btn btn-sm btn-ghost analysis-clear-view ms-auto" data-clear="ascan" title="Clear the depth (sound path) cursors" aria-label="Clear the ascan cursors"><i class="bi bi-eraser"></i></button>
                 </header>
-                <div class="analysis-view">
-                    <div class="analysis-stage" id="ascan-stage"></div>
-                    <div id="ascan-zoom-y"></div>
-                    <div id="ascan-zoom-x"></div>
+                <div class="analysis-view-frame">
+                    <div class="analysis-view">
+                        <div class="analysis-stage" id="ascan-stage"></div>
+                        <div id="ascan-zoom-y"></div>
+                        <div id="ascan-zoom-x"></div>
+                    </div>
                 </div>
                 <div class="analysis-readout mono" id="ascan-readout"></div>
             </section>
@@ -484,6 +500,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{% static_v 'analysis/js/view_turn.js' %}"></script>
 <script src="{% static_v 'analysis/js/palette.js' %}"></script>
 <script src="{% static_v 'analysis/js/nde_client.js' %}"></script>
 <script src="{% static_v 'analysis/js/sscan_view.js' %}"></script>
@@ -494,5 +511,6 @@
 <script src="{% static_v 'analysis/js/weld_editor.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis_files.js' %}"></script>
 <script src="{% static_v 'analysis/js/zoom_bars.js' %}"></script>
+<script src="{% static_v 'analysis/js/criteria.js' %}"></script>
 <script src="{% static_v 'analysis/js/analysis.js' %}"></script>
 {% endblock %}

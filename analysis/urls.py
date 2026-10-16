@@ -30,4 +30,5 @@ urlpatterns = [
     path('reports.json', views.report_targets, name='analysis-report-targets'),
     path('report-preview.json', views.report_preview, name='analysis-report-preview'),
     path('report-send.json', views.report_send, name='analysis-report-send'),
+    path('report-send-items.json', views.report_send_items, name='analysis-report-send-items'),
 ]

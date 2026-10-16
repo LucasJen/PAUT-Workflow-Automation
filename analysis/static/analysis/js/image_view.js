@@ -50,7 +50,8 @@ void main() {
 
     class ImageView {
         /** options: {formatX(v), formatY(v), onPick({column, row, x, y, event}), unitLength(),
-         *  onBox({x0, y0, x1, y1}, done) - an Alt+drag box, onDraw() - after each draw} */
+         *  onBox({x0, y0, x1, y1}, done) - an Alt+drag box, onDraw() - after each draw,
+         *  onGrab(grab) - a press on a cursor line that has a `grab` (it's then dragged: onCursorDrag(grab, value))} */
         constructor(stage, options) {
             this.options = options;
             this.canvas = Object.assign(document.createElement('canvas'), { className: 'analysis-gl' });
@@ -361,6 +362,23 @@ void main() {
             }
         }
 
+        /** The cursor line (with a `grab`) within a few pixels of the pointer, nearest first: {grab, axis} or null. */
+        grabCursor(e) {
+            const rect = this.overlay.getBoundingClientRect();
+            const px = (e.clientX - rect.left) * this.overlay.width / rect.width, py = (e.clientY - rect.top) * this.overlay.height / rect.height;
+            const reach = 6 * (window.devicePixelRatio || 1);
+            let best = null;
+            for (const axis of ['x', 'y']) {
+                for (const c of this.cursors[axis] || []) {
+                    if (!c.grab || c.value === null || c.value === undefined || !Number.isFinite(c.value)) continue;
+                    const [sx, sy] = this.toScreen(axis === 'x' ? c.value : 0, axis === 'y' ? c.value : 0);
+                    const d = Math.abs(axis === 'x' ? sx - px : sy - py);
+                    if (d <= reach && (!best || d < best.d)) best = { grab: c.grab, axis, d };
+                }
+            }
+            return best;
+        }
+
         // ── pointer ──
         bind() {
             const el = this.overlay;
@@ -380,14 +398,27 @@ void main() {
                     const [x, y] = this.toWorld(e);
                     drag = { box: { x0: x, y0: y, x1: x, y1: y } };
                     this.options.onBox(drag.box, false);
-                } else if (e.button === 0) { drag = { pan: false }; pick(e); }
+                } else if (e.button === 0) {
+                    const hit = !e.ctrlKey && !e.shiftKey && this.options.onGrab ? this.grabCursor(e) : null;
+                    if (hit) {   // a cursor line: picked (the wheel and the top bar move it), and dragged
+                        drag = { cursor: hit };
+                        this.options.onGrab(hit.grab);
+                    } else { drag = { pan: false }; pick(e); }
+                }
             });
             el.addEventListener('pointermove', e => {
                 if (!this.hasImage) return;
                 const [x, y] = this.toWorld(e);
                 this.options.onHover?.(x, y, this.cell([x, y]));
-                if (!drag) return;
-                if (drag.box) {
+                if (!drag) {
+                    const hit = this.options.onGrab && !e.ctrlKey && !e.shiftKey ? this.grabCursor(e) : null;
+                    el.style.cursor = hit ? (hit.axis === 'x' ? 'ew-resize' : 'ns-resize') : '';
+                    return;
+                }
+                if (drag.cursor) {
+                    const [column, row] = this.cell([x, y]);
+                    this.options.onCursorDrag?.(drag.cursor.grab, drag.cursor.axis === 'x' ? x : y, drag.cursor.axis === 'x' ? column : row);
+                } else if (drag.box) {
                     drag.box.x1 = x; drag.box.y1 = y;
                     this.options.onBox(drag.box, false);
                 } else if (drag.pan) {

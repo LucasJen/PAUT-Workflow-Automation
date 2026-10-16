@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Max
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from reports.models import Report
@@ -19,7 +19,8 @@ from .models import Indication, OpenedFile
 from .paths import PathNotAllowed, allowed_roots, checked_path, in_working_folders, real_path
 from .services import browse, detection, geometry, projections, projects, report_export, sizing
 from .services.nde_data import (
-    RASTER, UNSUPPORTED, Gate, NdeDataError, open_file, read_ascan, read_frame, read_status, usable,
+    RASTER, UNSUPPORTED, Gate, NdeDataError, interface_time, open_file, read_ascan, read_frame, read_status,
+    usable,
 )
 from .services.readings import evaluate_gates, gate_letter, omnipc_reading
 
@@ -201,7 +202,7 @@ def readings(request):
         note = 'No interface sync (gate I) on this A-scan.' if status & 1 else 'No data on this A-scan.'
         return JsonResponse({'gates': {}, 'readings': {}, 'note': note})
     beam = group.beams[lateral]
-    results = evaluate_gates(group, beam, raw, gates)
+    results = evaluate_gates(group, beam, raw, gates, interface_time(path, group, scan, lateral))
     values = {}
     # On a 0 deg raster the peak's index position is just the line's: OmniPC doesn't list PA^ / ViA^
     skipped = ('PA^', 'ViA^', 'PB^', 'ViB^') if group.layout == RASTER else ()
@@ -251,7 +252,8 @@ def cscan(request):
     """
     A C-scan as little-endian float32 [scans x lines] (NaN = nothing), for ?gate= and ?kind=:
     amplitude (%), depth (true depth of the gate's peak, folded at the back wall, m), or thickness
-    (?gate=B&from=A: depth between the two gates' crossings, m).
+    (?gate=B&from=A: depth between the two gates' positions, m; no from: from the A-scan's zero; at= /
+    from_at= crossing or peak1 for gate I's crossing or first peak).
     """
     try:
         path, info, group, gates, gain = _whole_file(request)
@@ -277,10 +279,17 @@ def cscan(request):
             depth = np.where(leg % 2 == 0, within, thickness - within)
         values = depth
     elif kind == 'thickness':
-        other = request.GET.get('from', 'A').upper()
-        if f'{other}_position_time' not in data:
-            return _error(f'There is no gate {other}.')
-        values = velocity * (data[f'{letter}_position_time'] - data[f'{other}_position_time']) / 2 * cos
+        # OmniPC's thickness modes: a gate's position from the A-scan's zero (A/), or between two (B/ - A/);
+        # at=crossing / peak1 picks gate I's crossing (I/) or first peak (I^1), else each gate's detection
+        def times(gate, at):
+            name = {'crossing': 'crossing_time', 'peak1': 'first_peak_time'}.get(at, 'position_time')
+            return data.get(f'{gate}_{name}')
+        end = times(letter, request.GET.get('at', ''))
+        other = request.GET.get('from', '').upper()
+        start = times(other, request.GET.get('from_at', '')) if other else 0.0
+        if end is None or start is None:
+            return _error(f'There is no gate {other if end is not None else letter} for that.')
+        values = velocity * (end - start) / 2 * cos
     else:
         return _error('Unknown C-scan kind.')
     values = np.asarray(values, dtype='<f4')
@@ -702,6 +711,90 @@ def report_send(request):
     except report_export.ExportError as e:
         return _error(str(e), status=409)
     return JsonResponse({'added': added, 'edit_url': reverse('edit-report', args=[report.pk])})
+
+
+# ── Send to report from the desktop Analysis app (PAUT-Analysis-Desktop) ──
+
+DESKTOP_HEADER = 'HTTP_X_PAUT_ANALYSIS'
+_ITEM_FIELDS = {'file_path': str, 'file_name': str, 'number': int, 'group': int, 'scan': int, 'lateral': int,
+                'scan_position': float, 'index_position': float, 'angle': float, 'gain': float,
+                'readings': dict, 'cursors': dict, 'sizing': dict, 'comment': str}
+
+
+def _desktop_items(items):
+    """The desktop app's indications (sent inline, not saved here) as unsaved Indication objects."""
+    if not isinstance(items, list) or not items:
+        raise ValueError('Pick the indications to send.')
+    out = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("An indication couldn't be read.")
+        values = {}
+        for name, kind in _ITEM_FIELDS.items():
+            value = item.get(name)
+            if value is None:
+                continue
+            if kind is float:
+                value = float(value)
+                if not math.isfinite(value):
+                    continue
+            elif kind is int:
+                value = int(value)
+            elif not isinstance(value, kind):
+                raise ValueError(f"An indication's {name} couldn't be read.")
+            values[name] = value
+        if not values.get('file_path'):
+            raise ValueError('An indication has no file.')
+        values.setdefault('file_name', os.path.basename(values['file_path']))
+        values.setdefault('number', len(out) + 1)
+        values.setdefault('scan', 0)
+        values.setdefault('lateral', 0)
+        out.append(Indication(**values))
+    return out
+
+
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def report_send_items(request):
+    """
+    Send to report for the desktop Analysis app, whose indications come inline rather than saved here.
+    GET ?path=: the draft reports (as reports.json). POST JSON {report, units, indications: [{file_path,
+    file_name, number, group, scan, lateral, scan_position, index_position, angle, gain, readings, cursors,
+    sizing, comment}]}: the rows they'd make, in the report's columns (as report-preview.json); with
+    "send": true, "columns", "rows" (as previewed, maybe edited) and "pictures" (data URLs): adds them
+    (as report-send.json).
+    Only with the X-PAUT-Analysis: 1 header - a web page elsewhere can't send it to this PC without CORS
+    approval, so it stands in for the CSRF token the page's own requests carry.
+    """
+    if request.META.get(DESKTOP_HEADER) != '1':
+        return _error('This is for the desktop Analysis app.', status=403)
+    if request.method == 'GET':
+        return JsonResponse({'reports': report_export.draft_reports(request.GET.get('path', ''))})
+    try:
+        data = json.loads(request.body or b'{}')
+        report = Report.objects.filter(pk=int(data.get('report'))).first()
+        indications = _desktop_items(data.get('indications'))
+    except (ValueError, TypeError) as e:
+        return _error(str(e) if isinstance(e, ValueError) and str(e) and not str(e).startswith('invalid') else "The request couldn't be read.")
+    if report is None:
+        return _error("That report doesn't exist any more.")
+    if not data.get('send'):
+        units = 'mm' if data.get('units') == 'mm' else 'in'
+        out = report_export.preview(report, indications, units)
+        out['report'] = {'id': report.pk, 'name': report.document_filename or f'Report {report.pk}',
+                         'type': report.report_type, 'issued': report.is_issued,
+                         'has_rows': bool(getattr(report, 'results_table', None) and report.results_table.rows.exists())}
+        out['field_names'] = report_export.FIELDS
+        return JsonResponse(out)
+    rows = data.get('rows')
+    if not isinstance(rows, list) or len(rows) != len(indications) or not all(isinstance(r, list) for r in rows):
+        return _error('Each indication needs its row.')
+    captions = [f'{i.file_name} - indication {i.number}' for i in indications]
+    try:
+        added = report_export.append(report, data.get('columns') or [], rows, data.get('pictures'), captions)
+    except report_export.ExportError as e:
+        return _error(str(e), status=409)
+    return JsonResponse({'added': added, 'edit_url': request.build_absolute_uri(reverse('edit-report', args=[report.pk]))})
 
 
 @require_http_methods(['POST'])

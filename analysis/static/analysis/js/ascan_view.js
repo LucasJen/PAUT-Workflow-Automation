@@ -23,6 +23,7 @@ window.AScanView = (function () {
             this.options = options;
             this.canvas = Object.assign(document.createElement('canvas'), { className: 'analysis-ascan' });
             stage.append(this.canvas);
+            ViewTurn.upright(this.canvas);
             this.gain = 1;
             this.axis = 'depth';     // depth (true depth) or path (sound path)
             this.cursors = { ref: null, meas: null };
@@ -236,9 +237,9 @@ window.AScanView = (function () {
 
         // ── pointer ──
         point(e) {
-            const box = this.canvas.getBoundingClientRect();
+            const [x, y] = ViewTurn.point(this.canvas, e);
             const ratio = window.devicePixelRatio || 1;
-            return [(e.clientX - box.left) * ratio, (e.clientY - box.top) * ratio];
+            return [x * ratio, y * ratio];
         }
 
         /** What a press at (px, py) grabs: a cursor line, a gate end, a gate bar, or nothing. */
@@ -280,7 +281,7 @@ window.AScanView = (function () {
             c.addEventListener('pointerdown', e => {
                 if ((e.button === 2 || e.button === 1) && this.values && this.zoom) {
                     c.setPointerCapture(e.pointerId);
-                    drag = { kind: 'pan', x: e.clientX, zoom: [...this.zoom] };
+                    drag = { kind: 'pan', x: ViewTurn.point(c, e)[0], zoom: [...this.zoom] };
                     return;
                 }
                 if (e.button !== 0 || !this.values || !this.ray) return;
@@ -308,14 +309,14 @@ window.AScanView = (function () {
                 const [px, py] = this.point(e);
                 if (!drag) {
                     const hit = this.grab(px, py, f);
-                    c.style.cursor = !hit ? 'crosshair' : hit.kind === 'cursor' || hit.part !== 'move' ? 'ew-resize' : 'move';
+                    c.style.cursor = !hit ? 'crosshair' : hit.kind === 'cursor' || hit.part !== 'move' ? ViewTurn.cursor(c, 'ew-resize') : 'move';
                     this.hover(px, f);
                     return;
                 }
                 if (drag.kind === 'pan') {
-                    const box = c.getBoundingClientRect();
+                    const [x, , width] = ViewTurn.point(c, e);
                     const span = drag.zoom[1] - drag.zoom[0];
-                    const shift = -(e.clientX - drag.x) / Math.max(1, box.width - 50) * span;
+                    const shift = -(x - drag.x) / Math.max(1, width - 50) * span;
                     const lo = Math.max(f.full0, Math.min(f.full1 - span, drag.zoom[0] + shift));
                     this.zoom = [lo, lo + span];
                     this.draw();
