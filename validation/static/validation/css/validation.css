@@ -1,0 +1,73 @@
+/* The Validation page */
+.val-lead { max-width: 60rem; color: var(--text-2, inherit); margin: -0.25rem 0 1rem; }
+
+.val-layers { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 0.6rem; }
+.val-layer-pick { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.6rem 0.75rem; border: 1px solid var(--border);
+    border-radius: var(--radius); cursor: pointer; }
+.val-layer-pick:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.val-layer-pick.is-unbuilt { cursor: default; opacity: 0.6; }
+.val-layer-pick input { margin-top: 0.2rem; flex: 0 0 auto; }
+.val-layer-text { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.8125rem; }
+.val-layer-text strong { font-size: 0.875rem; }
+.val-layer-id { flex: 0 0 auto; display: inline-block; min-width: 2.2rem; padding: 0.05rem 0.35rem; border-radius: 4px; text-align: center;
+    font-size: 0.75rem; font-weight: 700; background: var(--surface-2); border: 1px solid var(--border); }
+.val-against { color: var(--text-3); font-size: 0.75rem; }
+.val-sweep { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.75rem; font-size: 0.8125rem; }
+.val-sweep .form-control { width: min(28rem, 100%); }
+
+.val-verdict { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; border-radius: var(--radius); font-size: 1.25rem; font-weight: 700;
+    background: var(--surface-2); }
+.val-verdict .bi { font-size: 1.6rem; }
+.val-verdict-counts { margin-left: auto; font-size: 0.9375rem; font-weight: 600; color: var(--text-3); }
+.val-verdict.is-passed { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.val-verdict.is-failed, .val-verdict.is-error { background: var(--danger-soft); color: var(--danger); }
+.val-verdict.is-running, .val-verdict.is-cancelled { background: var(--warning-soft); color: var(--warning); }
+.val-meta { display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem; margin: 0.6rem 0 0.25rem; font-size: 0.8125rem; }
+.val-meta-name { color: var(--text-3); }
+
+.val-block { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.val-block-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.val-block-head strong { font-size: 1rem; }
+.val-block-msg { color: var(--text-3); font-size: 0.8125rem; }
+.val-block-q { margin: 0.3rem 0 0.5rem; font-size: 0.8125rem; max-width: 70rem; }
+.val-block.is-not-built { opacity: 0.6; }
+.val-counts { margin-left: auto; display: inline-flex; gap: 0.35rem; }
+.val-count { min-width: 2rem; padding: 0.05rem 0.45rem; border-radius: 999px; text-align: center; font-size: 0.75rem; font-weight: 700; }
+.val-count.is-ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.val-count.is-bad { background: var(--danger-soft); color: var(--danger); }
+.val-progress { width: 10rem; height: 0.4rem; border-radius: 3px; background: var(--border); overflow: hidden; }
+.val-progress span { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
+
+.val-check { border: 1px solid var(--border); border-radius: 6px; margin: 0.3rem 0; font-size: 0.8125rem; }
+.val-check > summary { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem; cursor: pointer; list-style: none; }
+.val-check > summary::-webkit-details-marker { display: none; }
+.val-check.is-passed > summary .bi { color: var(--success); }
+.val-check.is-failed { border-color: var(--danger); }
+.val-check.is-failed > summary .bi, div.val-check.is-failed .bi { color: var(--danger); }
+.val-check.is-info > summary .bi { color: var(--text-3); }
+div.val-check { display: flex; gap: 0.5rem; padding: 0.35rem 0.6rem; }
+.val-check-subject { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.val-check-title { color: var(--text-3); }
+.val-check-sum { margin-left: auto; color: var(--text-3); white-space: nowrap; }
+.val-items { margin: 0; font-size: 0.75rem; }
+.val-items td:first-child { width: 1.5rem; }
+.val-items tr.is-bad td { color: var(--danger); font-weight: 600; }
+.val-items .bi-check-lg { color: var(--success); }
+.val-note { padding: 0 0.6rem 0.4rem; margin: 0; }
+.val-trace { font-size: 0.6875rem; max-height: 12rem; overflow: auto; background: var(--surface-2); padding: 0.5rem; }
+.val-error { color: var(--danger); }
+
+.val-status { font-weight: 600; }
+.val-status.is-passed { color: var(--success); }
+.val-status.is-failed, .val-status.is-error { color: var(--danger); }
+.val-status.is-running, .val-status.is-cancelled { color: var(--warning); }
+
+.val-kit-path { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.val-kit-path .form-control { max-width: 40rem; }
+.val-kit-table tr.is-missing td { color: var(--danger); }
+.val-sha { font-size: 0.75rem; }
+.val-add { margin-top: 0.5rem; }
+.val-add > summary { cursor: pointer; font-weight: 600; font-size: 0.875rem; }
+.val-add-grid { display: grid; grid-template-columns: 6rem minmax(0, 40rem); gap: 0.4rem 0.75rem; align-items: center; margin: 0.6rem 0; font-size: 0.8125rem; }
+.val-roles { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+@media (max-width: 700px) { .val-add-grid { grid-template-columns: 1fr; } }

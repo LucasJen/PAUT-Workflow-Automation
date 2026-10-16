@@ -50,6 +50,9 @@
         <a class="nav-item-link {% nav_active 'analysis' %}" href="{% url 'analysis' %}" title="Open .nde files and look through their data, like OmniPC">
             <i class="bi bi-graph-up"></i><span class="nav-label">Analysis</span>
         </a>
+        <a class="nav-item-link {% nav_active 'validation' %}" href="{% url 'validation' %}" title="Prove the Analysis page against the raw data, OmniPC and known reflectors">
+            <i class="bi bi-patch-check"></i><span class="nav-label">Validation</span>
+        </a>
 
         <div class="nav-group" data-group="reports">
             <button type="button" class="nav-group-label" aria-expanded="true" title="Show or hide Reports">
