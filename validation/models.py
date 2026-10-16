@@ -4,8 +4,12 @@ from .kit import DEFAULT_PATH
 
 
 class ValidationSettings(models.Model):
-    """The one row of settings: where the validation kit is."""
-    kit_path = models.CharField(max_length=500, default=DEFAULT_PATH)
+    """The one row of settings: where the validation kit is (blank: the usual place on this PC)."""
+    kit_path = models.CharField(max_length=500, blank=True, default='')
+
+    @property
+    def kit(self):
+        return self.kit_path or DEFAULT_PATH
 
     @classmethod
     def get(cls):

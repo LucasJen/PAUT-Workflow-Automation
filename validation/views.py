@@ -24,20 +24,20 @@ def validation(request):
     settings = ValidationSettings.get()
     if request.method == 'POST':
         if 'kit_path' in request.POST:
-            settings.kit_path = request.POST['kit_path'].strip() or settings.kit_path
+            settings.kit_path = request.POST['kit_path'].strip()
             settings.save()
             messages.success(request, 'Kit folder saved.')
         elif 'add_file' in request.POST:
             roles = request.POST.getlist('roles')
             try:
-                entry = Kit(settings.kit_path).add(request.POST.get('file', '').strip().strip('"'), roles,
+                entry = Kit(settings.kit).add(request.POST.get('file', '').strip().strip('"'), roles,
                                                    request.POST.get('source', '').strip(), request.POST.get('notes', '').strip())
                 messages.success(request, f"Added {entry['path']} to the kit.")
             except (KitError, OSError) as e:
                 messages.error(request, str(e))
         elif 'import_export' in request.POST:
             try:
-                kit = Kit(settings.kit_path)
+                kit = Kit(settings.kit)
                 nde = next((e for e in kit.nde_files() if e['path'] == request.POST.get('nde')), None)
                 if nde is None:
                     raise KitError('Pick the .nde file the export was made from (add it to the kit first).')
@@ -51,7 +51,7 @@ def validation(request):
     runner.mark_abandoned()
     kit, kit_error = None, ''
     try:
-        kit = Kit(settings.kit_path)
+        kit = Kit(settings.kit)
     except KitError as e:
         kit_error = str(e)
     runs = list(ValidationRun.objects.all()[:25])
@@ -80,7 +80,7 @@ def run_start(request):
         options['sweep'] = os.path.abspath(os.path.expanduser(body['sweep']))
         if not os.path.isdir(options['sweep']):
             return JsonResponse({'error': f"No folder {options['sweep']}"}, status=400)
-    run = runner.create(body.get('layers') or [], ValidationSettings.get().kit_path, options)
+    run = runner.create(body.get('layers') or [], ValidationSettings.get().kit, options)
     runner.start(run)
     return JsonResponse({'id': run.pk})
 

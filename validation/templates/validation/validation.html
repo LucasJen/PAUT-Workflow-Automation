@@ -28,13 +28,13 @@
         <div class="panel-header"><h2 class="panel-title">What to check</h2></div>
         <div class="val-layers">
             {% for layer in layers %}
-            <label class="val-layer-pick{% if not layer.run %} is-unbuilt{% endif %}">
-                <input type="checkbox" class="form-check-input" name="layer" value="{{ layer.id }}"{% if layer.run %} checked{% else %} disabled{% endif %}>
+            <label class="val-layer-pick{% if not layer.built %} is-unbuilt{% endif %}">
+                <input type="checkbox" class="form-check-input" name="layer" value="{{ layer.id }}"{% if layer.built %} checked{% else %} disabled{% endif %}>
                 <span class="val-layer-id">{{ layer.id }}</span>
                 <span class="val-layer-text">
                     <strong>{{ layer.title }}</strong>
                     <span>{{ layer.question }}</span>
-                    <span class="val-against"><i class="bi bi-arrow-left-right"></i> {{ layer.against }}{% if not layer.run %} · not built yet{% endif %}</span>
+                    <span class="val-against"><i class="bi bi-arrow-left-right"></i> {{ layer.against }}{% if not layer.built %} · not built yet{% endif %}</span>
                 </span>
             </label>
             {% endfor %}
@@ -59,7 +59,7 @@
     <form method="post" class="val-kit-path">
         {% csrf_token %}
         <label for="kit-path" class="form-label mb-0">Folder</label>
-        <input type="text" class="form-control form-control-sm mono" id="kit-path" name="kit_path" value="{{ settings.kit_path }}">
+        <input type="text" class="form-control form-control-sm mono" id="kit-path" name="kit_path" value="{{ settings.kit }}">
         <button type="submit" class="btn btn-secondary btn-sm">Save</button>
     </form>
     {% if kit_error %}

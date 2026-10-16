@@ -36,7 +36,7 @@ class Migration(migrations.Migration):
             name='ValidationSettings',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('kit_path', models.CharField(default='C:\\Users\\MistrasFHR-PB2/Desktop/Reports/Validation kit', max_length=500)),
+                ('kit_path', models.CharField(blank=True, default='', max_length=500)),
             ],
         ),
     ]

@@ -38,7 +38,7 @@ class Command(BaseCommand):
             p.add_argument('--kit', default=None, help='The kit folder (default: the one set on the Validation page).')
 
     def handle(self, action, kit=None, **options):
-        path = kit or ValidationSettings.get().kit_path
+        path = kit or ValidationSettings.get().kit
         try:
             if action == 'add':
                 entry = Kit(path).add(options['file'], [r.strip() for r in options['roles'].split(',') if r.strip()],

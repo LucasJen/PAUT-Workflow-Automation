@@ -16,7 +16,8 @@ import os
 import shutil
 
 MANIFEST = 'kit.json'
-DEFAULT_PATH = os.path.expanduser('~/Desktop/Reports/Validation kit')
+# Outside the Reports folder: its .nde copies would otherwise show twice in the Analysis page's file list
+DEFAULT_PATH = os.path.expanduser('~/Desktop/Validation kit')
 
 # What a file is used for: the layers that use it
 ROLES = {

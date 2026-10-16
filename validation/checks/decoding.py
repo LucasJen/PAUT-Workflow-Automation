@@ -41,6 +41,16 @@ def _fmt(v):
     return str(v)
 
 
+# Units the stored values are in, and how they're shown: (label, factor)
+UNITS = {'UCoordinate': ('mm', 1e3), 'VCoordinate': ('mm', 1e3), 'Ultrasound': ('µs', 1e6)}
+
+
+def _shown(value, axis):
+    """A stored SI value as shown: in mm / µs, every significant digit kept."""
+    unit, factor = UNITS.get(axis, ('', 1))
+    return f'{value * factor:.12g} {unit}'.strip() if isinstance(value, (int, float)) else str(value)
+
+
 def compare_group(path, info, ref, seed):
     """The checks for one group: [check]."""
     title = f"{os.path.basename(path)} · {ref['name'] or ref['id']}"
@@ -66,12 +76,15 @@ def compare_group(path, info, ref, seed):
     stored = reference.dims(ref)
     app_axes = [app.axes[0], app.axes[2]] if app.single else app.axes
     for d, a in zip(stored, app_axes):
-        for key, attr in (('quantity', 'quantity'), ('offset', 'offset'), ('resolution', 'resolution')):
+        for key in ('quantity', 'offset', 'resolution'):
             if key == 'quantity' and key not in d:
                 continue
+            if key != 'quantity' and d.get('axis') == 'Beam':
+                continue   # beams are listed one by one below, not as a stepped axis
             want = d[key] if key == 'quantity' else (d.get(key, 0.0) or 0.0)
-            got = getattr(a, attr)
-            items.append(item(f"{d.get('axis')} {key}", _fmt(want), _fmt(got), _same(want, got), EXACT))
+            got = getattr(a, key)
+            show = (lambda v: str(v)) if key == 'quantity' else (lambda v: _shown(v, d.get('axis')))
+            items.append(item(f"{d.get('axis')} {key}", show(want), show(got), _same(want, got), EXACT))
 
     # Beams: angles, skews, exit points, velocity and first-sample times as stored per beam
     if app.layout == nde_data.BEAMS and not app.single:
@@ -104,9 +117,10 @@ def compare_group(path, info, ref, seed):
         length = g.get('length', (g.get('lengths') or [0.0])[0])
         ok = g.get('name', a.name) == a.name and _same(float(g.get('threshold', 0.0)), float(a.threshold)) \
             and _same(float(start), float(a.start)) and _same(float(length), float(a.length))
-        items.append(item(f"Gate {g.get('name')}: start, length, threshold",
-                          f"{_fmt(float(start))} s, {_fmt(float(length))} s, {_fmt(float(g.get('threshold', 0.0)))} %",
-                          f'{_fmt(a.start)} s, {_fmt(a.length)} s, {_fmt(a.threshold)} %', ok, EXACT))
+        name = g.get('name') or a.name
+        items.append(item(f"{name if name.lower().startswith('gate') else 'Gate ' + name}: start, length, threshold",
+                          f"{_shown(float(start), 'Ultrasound')}, {_shown(float(length), 'Ultrasound')}, {_fmt(float(g.get('threshold', 0.0)))} %",
+                          f"{_shown(a.start, 'Ultrasound')}, {_shown(a.length, 'Ultrasound')}, {_fmt(a.threshold)} %", ok, EXACT))
 
     # Scale to % of full screen
     value = amp['value']

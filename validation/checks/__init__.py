@@ -15,6 +15,10 @@ class Layer:
     against: str           # the independent source
     run: object = None     # run(context); None = not built yet
 
+    @property
+    def built(self):
+        return self.run is not None
+
 
 def item(what, expected, measured, ok, rule):
     """One comparison: what, the independent value, the app's value, whether they agree (None: shown,

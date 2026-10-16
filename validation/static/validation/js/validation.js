@@ -34,10 +34,10 @@
             el('span', { className: 'val-verdict-label', textContent: `Run #${run.id}: ${label}` }),
             el('span', { className: 'val-verdict-counts', textContent: `${run.passed} passed · ${run.failed} failed` }));
         const when = new Date(run.created).toLocaleString();
-        $('run-meta').replaceChildren(
+        $('run-meta').replaceChildren(...[
             meta('Started', when), meta('App version', run.version || 'unknown'), meta('Computer', run.computer || '-'),
             meta('Kit', run.kit_path), meta('Kit fingerprint', run.manifest_sha ? `${run.manifest_sha.slice(0, 16)}…` : '-'),
-            run.options?.sweep ? meta('Also swept', run.options.sweep) : null);
+            run.options?.sweep ? meta('Also swept', run.options.sweep) : null].filter(Boolean));
         const body = [kitBlock(run.results.kit)];
         for (const layer of run.results.layers || []) body.push(layerBlock(layer));
         if (run.results.error) body.push(el('p', { className: 'val-error', textContent: run.results.error }));
