@@ -134,6 +134,13 @@
                 </select>
                 <label for="import-source">Source</label>
                 <input type="text" class="form-control form-control-sm" id="import-source" name="source" placeholder="e.g. OmniPC 5.12, soft gain 0 dB, cursors on the peaks, 2026-10-16">
+                <span></span>
+                <div class="val-roles">
+                    <label class="form-check-label" title="Each indication's data cursor on its peak, its reference and measure cursors on its -6 dB ends, S(r) and S(m) exported (L2 sizing)">
+                        <input type="checkbox" class="form-check-input" name="sized"> Cursors on the −6 dB ends (S(r) / S(m))</label>
+                    <label class="form-check-label" title="Every indication in the file was logged: Find indications must find them all (L2 detection)">
+                        <input type="checkbox" class="form-check-input" name="complete"> Lists every indication in the file</label>
+                </div>
             </div>
             <p class="form-text">In OmniPC: put the cursors on each indication's peak at 0 dB soft gain, log it, turn on the reading
                 columns, and Export (the zip holds indications.csv and setup.csv). Each indication becomes a check; readings that need

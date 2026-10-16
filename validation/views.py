@@ -42,7 +42,9 @@ def validation(request):
                 if nde is None:
                     raise KitError('Pick the .nde file the export was made from (add it to the kit first).')
                 entries = importer.import_export(kit, request.POST.get('export', '').strip().strip('"'), nde,
-                                                 request.POST.get('source', '').strip())
+                                                 request.POST.get('source', '').strip(),
+                                                 sizing='6' if request.POST.get('sized') else None,
+                                                 complete=bool(request.POST.get('complete')))
                 messages.success(request, f"Imported: {', '.join(e['notes'] for e in entries)} from the export.")
             except (KitError, importer.ImportError_, OSError, ValueError) as e:
                 messages.error(request, str(e))

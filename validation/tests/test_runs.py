@@ -52,9 +52,11 @@ class KitRunTests(TestCase):
         self.assertFalse(any('weld.nde' in s for s in subjects))
 
     def test_unbuilt_layers_are_listed_not_run(self):
-        run = runner.execute(runner.create(['L0', 'L2'], self.root))
+        from validation.checks import BY_ID, Layer
+        with mock.patch.dict(BY_ID, {'L3': Layer('L3', 'Physical accuracy', '?', '?')}):
+            run = runner.execute(runner.create(['L0', 'L3'], self.root))
         layer = run.results['layers'][1]
-        self.assertEqual((layer['id'], layer['status']), ('L2', 'not built'))
+        self.assertEqual((layer['id'], layer['status']), ('L3', 'not built'))
 
     def test_a_missing_kit_is_an_error(self):
         run = runner.execute(runner.create(['L0'], os.path.join(self.folder, 'nowhere')))

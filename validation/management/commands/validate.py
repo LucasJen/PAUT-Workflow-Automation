@@ -35,6 +35,8 @@ class Command(BaseCommand):
         imp.add_argument('export')
         imp.add_argument('--nde', required=True, help="The kit path of the .nde file it was made from, e.g. 'nde/x.nde'.")
         imp.add_argument('--source', default='')
+        imp.add_argument('--sized', action='store_true', help="The cursors were put on the -6 dB ends (S(r) / S(m) exported): L2 sizing.")
+        imp.add_argument('--complete', action='store_true', help='The export lists every indication in the file: L2 detection.')
         sub.add_parser('check', help="Check the kit's fingerprints.")
         for p in (run, add, imp, sub.choices['check']):
             p.add_argument('--kit', default=None, help='The kit folder (default: the one set on the Validation page).')
@@ -51,7 +53,8 @@ class Command(BaseCommand):
                 nde = next((e for e in k.nde_files() if e['path'] == options['nde'].replace(os.sep, '/')), None)
                 if nde is None:
                     raise CommandError(f"{options['nde']} isn't an .nde file in the kit.")
-                for entry in importer.import_export(k, options['export'], nde, options['source']):
+                for entry in importer.import_export(k, options['export'], nde, options['source'],
+                                                    sizing='6' if options['sized'] else None, complete=options['complete']):
                     self.stdout.write(f"Imported {entry['path']}: {entry['notes']}")
             elif action == 'check':
                 for c in Kit(path).verify():

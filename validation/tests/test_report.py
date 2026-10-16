@@ -30,7 +30,7 @@ class ReportTests(TestCase):
                         'L2 Sizing and detection', 'Review and approval'):
             self.assertIn(heading, text)
         self.assertIn(f'Run #{self.run.pk}: PASSED', text)
-        self.assertIn('L2 Sizing and detection: not built yet - nothing is claimed for it.', text)
+        self.assertIn('L2 Sizing and detection: No sized or fully evaluated OmniPC exports in the kit yet', text)
         cells = {c.text for t in doc.tables for r in t.rows for c in r.cells}
         self.assertIn('nde/weld.nde', cells)
         self.assertIn(self.run.manifest_sha, cells)

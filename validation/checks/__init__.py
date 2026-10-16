@@ -36,16 +36,16 @@ def check(title, subject, against, items, note='', kind='check', pictures=None):
 
 
 def _layers():
-    from . import baseline, decoding, grading, readings, views
+    from . import baseline, blocks, decoding, grading, readings, sizing, views
     return [
         Layer('L0', 'Decoding', 'Does the app read exactly what the scope recorded - every sample, axis, beam and gate?',
               'An independent HDF5 reader', decoding.run),
         Layer('L1', 'Readings', "Do the readings the app shows (A%, SA^, DA^, PA^, ViA^, thickness) match OmniPC's, digit for digit?",
               "OmniPC's indication exports", readings.run),
         Layer('L2', 'Sizing and detection', 'Does the app size indications like OmniPC, and find every indication a tech logged?',
-              'Indications sized and logged in OmniPC'),
+              'Indications sized and logged in OmniPC', sizing.run),
         Layer('L3', 'Physical accuracy', 'Are reflectors where they really are, as accurately as OmniPC places them?',
-              'Calibration blocks with known reflectors'),
+              'Calibration blocks with known reflectors', blocks.run),
         Layer('L4', 'Views', 'Is every pixel the right colour, in the right place, for the data under it?',
               'The data under each pixel', views.run),
         Layer('L5', 'Grading and export', 'Are indications graded by the code exactly as written, and sent to reports unchanged?',

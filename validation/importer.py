@@ -5,10 +5,13 @@ indication's scan / index position, angle or VPA, and the reading columns chosen
 cells like ="12.940 in". Positions are turned into the file's cells from its own axes, read by the
 independent reference reader.
 
-A points file (kit points/*.json, role 'readings'):
+A points file (kit points/*.json, role 'readings'; also 'sizing' when the cursors were put on the -6 dB
+ends, 'detection' when the export lists every indication in the file):
     {"file": "nde/x.nde", "group": 0, "units": "in", "source": "...", "detection": {"A": "maxpeak"},
+     "sizing": "6" | null, "complete": true | false,
      "points": [{"number": 1, "scan": 329, "beam": 21, "expected": {"A%": 44.008, "SA^": 1.047},
-                 "decimals": {"A%": 3, "SA^": 3}, "not_compared": {"S(m-r)": "needs the cursor positions"}}]}
+                 "decimals": {"A%": 3, "SA^": 3}, "cursors": {"S(r)": 12.1, "S(m)": 13.4},
+                 "not_compared": {"S(m-r)": "needs the cursor positions"}}]}
 """
 import csv
 import io
@@ -25,9 +28,10 @@ _NUMBER = re.compile(r'^\s*(-?\d+(?:\.\d+)?)\s*(.*?)\s*$')
 FIXED = {'#', 'Group', 'Scan', 'Index', 'Angle', 'VPA', 'Reference', 'Type', 'Status', 'Comment'}
 # Readings that need more than the cursor's A-scan: the cursors' positions or a zone
 NEEDS = {'S(m-r)': 'the reference and measure cursor positions', 'U(m-r)': 'the reference and measure cursor positions',
-         'I(m-r)': 'the reference and measure cursor positions', 'I(m)': 'the measure cursor position',
-         'S(m)': 'the measure cursor position', 'U(m)': 'the measure cursor position',
+         'I(m-r)': 'the reference and measure cursor positions',
          'TminZ': 'the zone it was taken over', 'S(TminZ)': 'the zone it was taken over', 'I(TminZ)': 'the zone it was taken over'}
+# The cursors' own positions: kept with the point (L2 sizes against them when they were put on the dB-drop ends)
+CURSORS = ('S(r)', 'S(m)', 'U(r)', 'U(m)', 'I(r)', 'I(m)')
 PEAK_SELECTION = {'highest': 'maxpeak', 'first': 'peak', 'last': 'maxpeak'}
 
 
@@ -108,7 +112,7 @@ def _metres(value, unit):
     return float(value) * (INCH if unit == 'in' else MM)
 
 
-def to_points(rows, nde_path, kit_file, source='', detection=None):
+def to_points(rows, nde_path, kit_file, source='', detection=None, sizing=None, complete=False):
     """
     {group id: points file dict} for the rows, their positions turned into cells with the file's axes.
     A row whose position can't be placed is kept with a 'problem' instead of a cell, so it shows.
@@ -122,8 +126,8 @@ def to_points(rows, nde_path, kit_file, source='', detection=None):
         dims = reference.dims(group)
         units = next((u for _, u in (row['scan'], row['index']) if u in ('in', 'mm')), 'in')
         spec = out.setdefault(group['id'], {'file': kit_file, 'group': group['id'], 'units': units, 'source': source,
-                                            'detection': detection or {}, 'points': []})
-        point = {'number': row['number'], 'expected': {}, 'decimals': {}, 'not_compared': {}}
+                                            'detection': detection or {}, 'sizing': sizing, 'complete': complete, 'points': []})
+        point = {'number': row['number'], 'expected': {}, 'decimals': {}, 'cursors': {}, 'not_compared': {}}
         scan_value, scan_unit = row['scan']
         u = dims[0]
         if scan_value is None:
@@ -155,6 +159,9 @@ def to_points(rows, nde_path, kit_file, source='', detection=None):
         for name, (value, unit) in row['readings'].items():
             if value is None:
                 continue
+            if name in CURSORS:
+                point['cursors'][name] = float(value)
+                continue
             if name in NEEDS:
                 point['not_compared'][name] = f'needs {NEEDS[name]}, which the export does not include'
                 continue
@@ -164,10 +171,12 @@ def to_points(rows, nde_path, kit_file, source='', detection=None):
     return out
 
 
-def import_export(kit, export_path, nde_entry, source=''):
+def import_export(kit, export_path, nde_entry, source='', sizing=None, complete=False):
     """
     Adds an OmniPC export to the kit: the export itself (role 'readings', as received) and a points
-    file per group made from it (role 'readings'). Returns the points entries.
+    file per group made from it (role 'readings', plus 'sizing' when its cursors were put on the
+    `sizing` dB-drop ends, plus 'detection' when it lists every indication in the file). Returns the
+    points entries.
     """
     text, setup = read_export(export_path)
     rows = parse_indications(text)
@@ -178,7 +187,8 @@ def import_export(kit, export_path, nde_entry, source=''):
     if name.lower() in ('indications.csv', 'export.zip'):   # OmniPC's own names: say which file it's from
         name = f'{stem} - {name}'
     export_entry = kit.add(export_path, ['readings'], source or 'OmniPC export', 'As exported from OmniPC.', name=name)
-    specs = to_points(rows, kit.full_path(nde_entry), nde_entry['path'], source or export_entry['path'], parse_setup(setup) if setup else {})
+    specs = to_points(rows, kit.full_path(nde_entry), nde_entry['path'], source or export_entry['path'], parse_setup(setup) if setup else {},
+                      sizing=sizing, complete=complete)
     entries = []
     for gid, spec in specs.items():
         spec['export'] = export_entry['path']
@@ -187,5 +197,6 @@ def import_export(kit, export_path, nde_entry, source=''):
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, 'w', encoding='utf-8') as f:
             json.dump(spec, f, indent=2)
-        entries.append(kit.add(target, ['readings'], f"Made from {export_entry['path']}", f"{len(spec['points'])} indications"))
+        roles = ['readings'] + (['sizing'] if sizing else []) + (['detection'] if complete else [])
+        entries.append(kit.add(target, roles, f"Made from {export_entry['path']}", f"{len(spec['points'])} indications"))
     return entries
