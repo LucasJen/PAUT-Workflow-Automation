@@ -6,7 +6,7 @@ import unittest
 from unittest import mock
 
 from django.contrib.staticfiles import finders
-from django.test import SimpleTestCase
+from django.test import TestCase
 
 from validation.browser import find_browser
 from validation.checks import grading
@@ -30,7 +30,7 @@ class Context:
 
 
 @unittest.skipUnless(find_browser(), 'No Edge or Chrome on this PC')
-class GradingTests(SimpleTestCase):
+class GradingTests(TestCase):
     def run_layer(self):
         context = Context()
         grading.run(context)

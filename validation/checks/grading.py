@@ -88,4 +88,7 @@ def run(context):
             context.emit(check('Grading', 'Script errors', AGAINST, [item('Errors in the page', 'none', '; '.join(browser.errors[:3]), False, 'None')]))
     finally:
         browser.__exit__(None, None, None)
+    context.progress('Sending indications to each report type', 0.9)
+    from . import export
+    export.run(context)
     context.message(f"{len(table['cases'])} cases from {table['procedure']} - {table['status']}")
