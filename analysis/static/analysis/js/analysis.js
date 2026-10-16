@@ -1101,6 +1101,19 @@
         loadBscan();
     }
 
+    /** A thickness C-scan named as OmniPC does: 'B/ - A/' (/ = the gate reads its edge, ^ = a peak). */
+    const thicknessLabel = (to, from) => {
+        const mark = L => (L === 'I' && currentGroup()?.synced_to_interface ? '/' : detectionMark(L));   // the interface: its crossing
+        return `${to}${mark(to)} - ${from}${mark(from)}`;
+    };
+    /** The thickness options' names again (a gate's detection changed). */
+    function relabelKinds() {
+        for (const option of kindSelect.options) {
+            const [to, kind, from] = option.value.split(':');
+            if (kind === 'thickness') option.text = thicknessLabel(to, from);
+        }
+    }
+
     function fillKinds() {
         const g = currentGroup();
         const letters = state.gates.map(x => letterOf(x.name));   // the gates as edited (added ones too)
@@ -1109,8 +1122,8 @@
             if (L === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files (A−I still works)
             options.push([`${L}:amplitude`, `Gate ${L} amplitude`], [`${L}:depth`, `Gate ${L} peak depth`]);
         }
-        if (letters.includes('A') && letters.includes('I')) options.push(['A:thickness:I', 'Thickness A−I (interface to A)']);
-        if (letters.includes('A') && letters.includes('B')) options.push(['B:thickness:A', 'Thickness B−A (peak to peak)']);
+        if (letters.includes('A') && letters.includes('I')) options.push(['A:thickness:I', thicknessLabel('A', 'I')]);
+        if (letters.includes('A') && letters.includes('B')) options.push(['B:thickness:A', thicknessLabel('B', 'A')]);
         kindSelect.replaceChildren(...options.map(([v, t]) => new Option(t, v)));
         fillFindGates();
         const saved = localStorage.getItem(`analysisKind:${isRaster() ? 'raster' : 'beams'}`);
@@ -1403,7 +1416,7 @@
             const detection = el('select', { className: 'form-select form-select-sm' });
             for (const [value, text] of [['edge', 'Edge'], ['peak', 'Peak'], ['maxpeak', 'Max peak']]) detection.add(new Option(text, value));
             detection.value = gate.detection || 'edge';
-            detection.addEventListener('change', () => { gate.detection = detection.value; gatesChanged(); renderReadings(); });
+            detection.addEventListener('change', () => { gate.detection = detection.value; gatesChanged(); renderReadings(); relabelKinds(); });
             grid.append(...field('Detection', 'Where the gate reads its position (sound path, depth, index, thicknesses, depth / thickness C-scans): Edge - where the signal crosses the threshold; Peak - the first peak after that; Max peak - the highest point in the gate. Its amplitude is always the highest point.', detection));
             const sync = el('select', { className: 'form-select form-select-sm' });
             sync.add(new Option('Pulse', ''));
