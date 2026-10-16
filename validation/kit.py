@@ -23,6 +23,7 @@ DEFAULT_PATH = os.path.expanduser('~/Desktop/Validation kit')
 ROLES = {
     'decoding': 'Raw data decoding (L0)',
     'readings': 'OmniPC readings (L1)',
+    'setup': "OmniPC's setup (L1)",
     'fields': 'OmniPC C-scan export (L1)',
     'sizing': 'OmniPC sizing (L2)',
     'detection': 'Fully evaluated in OmniPC (L2)',
@@ -101,7 +102,10 @@ class Kit:
         for entry in self.files:
             path = self.full_path(entry)
             if not os.path.isfile(path):
-                out.append({'path': entry['path'], 'ok': False, 'reason': 'missing from the kit'})
+                if entry.get('in_place'):   # listed where it was, outside the kit: on another PC it isn't there
+                    out.append({'path': entry['path'], 'ok': None, 'reason': 'kept outside the kit - not on this PC, not used'})
+                else:
+                    out.append({'path': entry['path'], 'ok': False, 'reason': 'missing from the kit'})
                 continue
             base = done
             report = (lambda d, t, b=base, name=entry['path']: progress(f'Fingerprinting {name}', (b + d) / total)) if progress else None
@@ -117,8 +121,9 @@ class Kit:
     def add(self, source, roles, origin='', notes='', copy=True, name=None):
         """
         Adds a file to the kit (copied into its folder by type, or listed in place when it's already
-        inside the kit) with its fingerprint, under `name` if given; a file of the same kit path is replaced.
-        Returns the entry.
+        inside the kit - or with copy=False, where it is: fingerprinted all the same, but the kit then
+        needs it there) with its fingerprint, under `name` if given; a file of the same kit path is
+        replaced. Returns the entry.
         """
         source = os.path.abspath(source)
         if not os.path.isfile(source):
@@ -127,7 +132,9 @@ class Kit:
         if unknown:
             raise KitError(f"Unknown role{'s' if len(unknown) > 1 else ''}: {', '.join(unknown)}")
         os.makedirs(self.root, exist_ok=True)
-        if os.path.commonpath([source, self.root]) == self.root:
+        inside = os.path.splitdrive(source)[0].lower() == os.path.splitdrive(self.root)[0].lower() and \
+            os.path.commonpath([source, self.root]) == self.root
+        if inside or not copy:
             target = source
         else:
             folder = FOLDERS.get(os.path.splitext(source)[1].lower(), 'other')
@@ -135,9 +142,11 @@ class Kit:
             if copy:
                 os.makedirs(os.path.dirname(target), exist_ok=True)
                 shutil.copy2(source, target)
-        rel = os.path.relpath(target, self.root).replace(os.sep, '/')
+        rel = os.path.relpath(target, self.root).replace(os.sep, '/') if inside or copy else target
         entry = {'path': rel, 'sha256': sha256(target), 'size': os.path.getsize(target), 'roles': list(roles),
                  'source': origin, 'notes': notes, 'added': datetime.datetime.now().isoformat(timespec='seconds')}
+        if not (inside or copy):
+            entry['in_place'] = True
         self.manifest['files'] = [e for e in self.files if e['path'] != rel] + [entry]
         self.save()
         return entry

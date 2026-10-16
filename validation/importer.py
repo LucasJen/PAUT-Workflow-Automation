@@ -92,6 +92,57 @@ def parse_setup(text):
     return detection
 
 
+def parse_setup_values(text):
+    """
+    setup.csv's values: {'values': {name: cell text}, 'gates': [{name, start, width, threshold, synchro}]}
+    (name / value pairs along each line; the gate table under its Gates / Start / Width header).
+    """
+    lines = list(csv.reader(io.StringIO(text.lstrip('\ufeff'))))
+    values, gates = {}, []
+    for n, line in enumerate(lines):
+        cells = [c.strip() for c in line]
+        if 'Gates' in cells and 'Start' in cells:
+            first = cells.index('Gates')
+            columns = {name.lower(): k - first for k, name in enumerate(cells[first:], first) if name}
+            for gate_line in lines[n + 1:]:
+                g = [c.strip() for c in gate_line]
+                if not g or not re.fullmatch(r'[A-Z]', g[0] or ''):
+                    break
+                cell = lambda key: g[columns[key]] if key in columns and columns[key] < len(g) else ''
+                gates.append({'name': g[0], 'start': cell('start'), 'width': cell('width'),
+                              'threshold': cell('threshold'), 'synchro': cell('synchro')})
+            cells = cells[:first]
+        for k in range(0, len(cells) - 1, 2):
+            if cells[k] and cells[k + 1] and cells[k] not in values:
+                values[cells[k]] = cells[k + 1]
+    return {'values': values, 'gates': gates}
+
+
+def read_setup(path):
+    """setup.csv's text from an export zip (or the CSV itself), or ''."""
+    if path.lower().endswith('.zip'):
+        with zipfile.ZipFile(path) as z:
+            name = next((n for n in z.namelist() if os.path.basename(n).lower() == 'setup.csv'), None)
+            return z.read(name).decode('utf-8-sig') if name else ''
+    with open(path, encoding='utf-8-sig') as f:
+        return f.read()
+
+
+def import_setup(kit, export_path, nde_entry, source='', copy=True):
+    """Adds an OmniPC export's setup.csv (the zip as received) and a setup file made from it (role 'setup')."""
+    text = read_setup(export_path)
+    if not text:
+        raise ImportError_('The export has no setup.csv.')
+    setup = parse_setup_values(text)
+    export_entry = kit.add(export_path, ['setup'], source or 'OmniPC export', 'As exported from OmniPC.', copy=copy)
+    stem = os.path.splitext(os.path.basename(export_entry['path']))[0]
+    target = os.path.join(kit.root, 'points', f'{stem} setup.json')
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target, 'w', encoding='utf-8') as f:
+        json.dump({'file': nde_entry['path'], 'export': export_entry['path'], 'source': source, 'setup': setup}, f, indent=2)
+    return kit.add(target, ['setup'], f"Made from {export_entry['path']}", f"{len(setup['values'])} values, {len(setup['gates'])} gates")
+
+
 def read_export(path):
     """(indications.csv text, setup.csv text or '') from an OmniPC export zip, or a CSV on its own."""
     if path.lower().endswith('.zip'):

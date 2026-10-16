@@ -53,7 +53,7 @@
     }
 
     function kitBlock(kit) {
-        const bad = (kit.files || []).filter(f => !f.ok);
+        const bad = (kit.files || []).filter(f => f.ok === false);
         const block = el('section', { className: 'val-block' },
             el('header', { className: 'val-block-head' },
                 el('span', { className: 'val-layer-id', textContent: 'Kit' }),

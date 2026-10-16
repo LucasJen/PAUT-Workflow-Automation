@@ -3,6 +3,7 @@ The validation from the command line, the same as the Validation page:
     manage.py validate run [--layers L0,L1] [--kit PATH] [--sweep [FOLDER]]
     manage.py validate add FILE --roles decoding,readings [--source "..."] [--notes "..."] [--kit PATH]
     manage.py validate import EXPORT --nde KIT_PATH [--source "..."] [--kit PATH]   (an OmniPC export)
+    manage.py validate import-setups [FOLDER] [--in-place] [--kit PATH]   (every export with a setup.csv beside its .nde)
     manage.py validate check [--kit PATH]          (fingerprints only)
 The run is saved like one started on the page, and shows there.
 """
@@ -37,8 +38,11 @@ class Command(BaseCommand):
         imp.add_argument('--source', default='')
         imp.add_argument('--sized', action='store_true', help="The cursors were put on the -6 dB ends (S(r) / S(m) exported): L2 sizing.")
         imp.add_argument('--complete', action='store_true', help='The export lists every indication in the file: L2 detection.')
+        setups = sub.add_parser('import-setups', help="Every OmniPC export with a setup.csv under a folder, with the .nde beside it.")
+        setups.add_argument('folder', nargs='?', default=runner.default_sweep())
+        setups.add_argument('--in-place', action='store_true', help='List the .nde files where they are instead of copying them into the kit.')
         sub.add_parser('check', help="Check the kit's fingerprints.")
-        for p in (run, add, imp, sub.choices['check']):
+        for p in (run, add, imp, setups, sub.choices['check']):
             p.add_argument('--kit', default=None, help='The kit folder (default: the one set on the Validation page).')
 
     def handle(self, action, kit=None, **options):
@@ -56,9 +60,11 @@ class Command(BaseCommand):
                 for entry in importer.import_export(k, options['export'], nde, options['source'],
                                                     sizing='6' if options['sized'] else None, complete=options['complete']):
                     self.stdout.write(f"Imported {entry['path']}: {entry['notes']}")
+            elif action == 'import-setups':
+                self.import_setups(Kit(path), options['folder'], not options['in_place'])
             elif action == 'check':
                 for c in Kit(path).verify():
-                    self.stdout.write(f"{'ok  ' if c['ok'] else 'FAIL'} {c['path']} {c['reason']}")
+                    self.stdout.write(f"{'ok  ' if c['ok'] else 'FAIL' if c['ok'] is False else 'away'} {c['path']} {c['reason']}")
             else:
                 layers = [x.strip().upper() for x in options['layers'].split(',') if x.strip()]
                 extra = {'sweep': os.path.abspath(options['sweep'])} if options['sweep'] else {}
@@ -71,11 +77,36 @@ class Command(BaseCommand):
         except (KitError, importer.ImportError_) as e:
             raise CommandError(str(e)) from e
 
+    def import_setups(self, kit, folder, copy):
+        import glob
+        import zipfile
+        added = 0
+        for z in sorted(glob.glob(os.path.join(folder, '**', '*.zip'), recursive=True)):
+            try:
+                with zipfile.ZipFile(z) as f:
+                    if not any(os.path.basename(n).lower() == 'setup.csv' for n in f.namelist()):
+                        continue
+            except (zipfile.BadZipFile, OSError):
+                continue
+            stem = os.path.basename(z)[:-4].lower()
+            ndes = [n for n in glob.glob(os.path.join(os.path.dirname(z), '*.nde'))
+                    if stem.startswith(os.path.splitext(os.path.basename(n))[0].lower().strip())]
+            if not ndes:
+                self.stdout.write(f'  no .nde beside {z}')
+                continue
+            nde = max(ndes, key=lambda n: len(os.path.basename(n)))
+            entry = next((e for e in kit.nde_files() if os.path.normcase(kit.full_path(e)) == os.path.normcase(os.path.abspath(nde))), None) \
+                or kit.add(nde, ['decoding'], f'Job scan ({os.path.relpath(os.path.dirname(nde), folder)})', copy=copy)
+            setup = importer.import_setup(kit, z, entry, 'OmniPC export from the job folder', copy=copy)
+            self.stdout.write(f"Added {os.path.basename(nde)} with {setup['notes']}")
+            added += 1
+        self.stdout.write(f'{added} setups added.')
+
     def _print(self, run):
         r = run.results
         self.stdout.write(f"Kit: {r['kit'].get('message', r['kit'].get('status'))}")
         for c in r['kit'].get('files') or []:
-            if not c['ok']:
+            if c['ok'] is False:
                 self.stdout.write(f"  FAIL {c['path']}: {c['reason']}")
         for layer in r['layers']:
             self.stdout.write(f"{layer['id']} {layer['title']}: {layer['status']} - {layer['message']}")

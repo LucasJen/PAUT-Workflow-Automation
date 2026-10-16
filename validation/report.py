@@ -128,8 +128,10 @@ def build(run):
         [layer['id'] + ' ' + layer['title'], layer['question'], layer['against'], layer['passed'], layer['failed'], layer_result(layer)]
         for layer in layers], widths=[1.2, 2.6, 1.5, 0.5, 0.5, 0.6])
     kit_files = results.get('kit', {}).get('files') or []
-    bad = [f for f in kit_files if not f['ok']]
-    doc.add_paragraph(f"Kit fingerprints: {len(kit_files) - len(bad)} of {len(kit_files)} files match." +
+    bad = [f for f in kit_files if f['ok'] is False]
+    away = [f for f in kit_files if f['ok'] is None]
+    doc.add_paragraph(f"Kit fingerprints: {len(kit_files) - len(bad) - len(away)} of {len(kit_files) - len(away)} files match." +
+                      (f' {len(away)} kept outside the kit were not on this PC and were not used.' if away else '') +
                       (' Not used: ' + '; '.join(f"{f['path']} ({f['reason']})" for f in bad) if bad else ''))
 
     doc.add_heading('Scope and limitations', 1)

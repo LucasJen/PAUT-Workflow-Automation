@@ -112,9 +112,12 @@ def _letter(name):
 
 
 def run(context):
+    from . import setup
+    setup.run(context)   # the setups OmniPC exported, read the same?
     entries = [e for e in context.with_role('readings') if e['path'].lower().endswith('.json')]
     if not entries:
-        context.message('No OmniPC readings in the kit yet: import an OmniPC export.')
+        if not context.with_role('setup'):
+            context.message('No OmniPC exports in the kit yet: import one.')
         return
     client = RequestFactory()
     # The kit's files are opened through the page's own endpoint, which only opens allowed folders

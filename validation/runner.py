@@ -118,11 +118,13 @@ def execute(run):
             kit_state['message'], kit_state['progress'] = message, round(fraction, 3)
             save(throttle=True)
         checked = kit.verify(fingerprint)
+        away = sum(c['ok'] is None for c in checked)
         kit_state.update(status='done', files=checked, progress=1.0,
-                         message=f"{sum(c['ok'] for c in checked)} of {len(checked)} files match their fingerprints")
-        bad = sum(not c['ok'] for c in checked)
+                         message=f"{sum(c['ok'] is True for c in checked)} of {len(checked) - away} files match their fingerprints"
+                                 + (f'; {away} kept outside the kit are not on this PC' if away else ''))
+        bad = sum(c['ok'] is False for c in checked)
         run.failed += bad
-        good = {c['path'] for c in checked if c['ok']}
+        good = {c['path'] for c in checked if c['ok'] is True}
         files = [e for e in kit.files if e['path'] in good]
         save()
 
@@ -165,7 +167,7 @@ def execute(run):
 
 
 def _total_and_save(run, save, throttle=False):
-    kit_failed = sum(not c['ok'] for c in run.results['kit'].get('files') or [])
+    kit_failed = sum(c['ok'] is False for c in run.results['kit'].get('files') or [])
     run.passed = sum(layer['passed'] for layer in run.results['layers'])
     run.failed = kit_failed + sum(layer['failed'] for layer in run.results['layers'])
     save(throttle)
