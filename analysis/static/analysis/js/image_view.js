@@ -56,6 +56,7 @@ void main() {
             this.canvas = Object.assign(document.createElement('canvas'), { className: 'analysis-gl' });
             this.overlay = Object.assign(document.createElement('canvas'), { className: 'analysis-overlay' });
             stage.append(this.canvas, this.overlay);
+            ViewTurn.upright(this.overlay);
             const gl = this.canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
             if (!gl) throw new Error('This browser has no WebGL2.');
             this.gl = gl;
@@ -205,9 +206,9 @@ void main() {
         }
 
         toWorld(e) {
-            const box = this.canvas.getBoundingClientRect();
+            const [px, py, bw, bh] = ViewTurn.point(this.canvas, e);
             const [cx, cy, w, h] = this.currentView();
-            return [cx + ((e.clientX - box.left) / box.width - 0.5) * w, cy + ((e.clientY - box.top) / box.height - 0.5) * h];
+            return [cx + (px / bw - 0.5) * w, cy + (py / bh - 0.5) * h];
         }
         toScreen(x, y) {
             const [cx, cy, w, h] = this.currentView();
@@ -374,7 +375,10 @@ void main() {
             el.addEventListener('pointerdown', e => {
                 if (!this.hasImage) return;
                 el.setPointerCapture(e.pointerId);
-                if (e.button === 1 || e.button === 2) drag = { pan: true, x: e.clientX, y: e.clientY, view: this.currentView() };
+                if (e.button === 1 || e.button === 2) {
+                    const [x, y] = ViewTurn.point(el, e);
+                    drag = { pan: true, x, y, view: this.currentView() };
+                }
                 else if (e.button === 0 && e.altKey && this.options.onBox) {
                     e.preventDefault();
                     const [x, y] = this.toWorld(e);
@@ -391,9 +395,9 @@ void main() {
                     drag.box.x1 = x; drag.box.y1 = y;
                     this.options.onBox(drag.box, false);
                 } else if (drag.pan) {
-                    const box = el.getBoundingClientRect();
+                    const [px, py, bw, bh] = ViewTurn.point(el, e);
                     const [cx, cy, w, h] = drag.view;
-                    this.view = [cx - (e.clientX - drag.x) / box.width * w, cy - (e.clientY - drag.y) / box.height * h, w, h];
+                    this.view = [cx - (px - drag.x) / bw * w, cy - (py - drag.y) / bh * h, w, h];
                     this.draw();
                     this.options.onViewChange?.(this);
                 } else {

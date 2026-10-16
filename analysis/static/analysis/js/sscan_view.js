@@ -62,6 +62,7 @@ void main() {
             this.canvas = Object.assign(document.createElement('canvas'), { className: 'analysis-gl' });
             this.overlay = Object.assign(document.createElement('canvas'), { className: 'analysis-overlay' });
             stage.append(this.canvas, this.overlay);
+            ViewTurn.upright(this.overlay);
             this.stage = stage;
             const gl = this.canvas.getContext('webgl2', { antialias: true, preserveDrawingBuffer: true });
             if (!gl) throw new Error('This browser has no WebGL2.');
@@ -374,9 +375,9 @@ void main() {
         /** The editable gate part under a press: {letter, part: move | start | end | d0 | d1 | i0 | i1, line} or null. */
         grabGate(e) {
             if (this.showGates === false || !this.gates?.length) return null;
-            const box = this.overlay.getBoundingClientRect();
+            const [bx, by] = ViewTurn.point(this.overlay, e);
             const ratio = window.devicePixelRatio || 1;
-            const px = (e.clientX - box.left) * ratio, py = (e.clientY - box.top) * ratio;
+            const px = bx * ratio, py = by * ratio;
             const reach = 7 * ratio;
             const editable = this.gates.filter(g => g.editable);
             for (const tab of this.gateTabs || []) {
@@ -476,10 +477,9 @@ void main() {
 
         /** A pointer event's point in display axes (across, down). */
         toDisplay(event) {
-            const box = this.canvas.getBoundingClientRect();
+            const [px, py, bw, bh] = ViewTurn.point(this.canvas, event);
             const [cx, cy, width, height] = this.currentView();
-            return [cx + ((event.clientX - box.left) / box.width - 0.5) * width,
-                    cy + ((event.clientY - box.top) / box.height - 0.5) * height];
+            return [cx + (px / bw - 0.5) * width, cy + (py / bh - 0.5) * height];
         }
 
         /** A pointer event's point in the world: [index, depth]. */
@@ -699,9 +699,9 @@ void main() {
 
         /** The cursor line within a few pixels of a press: {key: 'u_ref' ...} or null. */
         grabLine(e) {
-            const box = this.overlay.getBoundingClientRect();
+            const [bx, by] = ViewTurn.point(this.overlay, e);
             const ratio = window.devicePixelRatio || 1;
-            const px = (e.clientX - box.left) * ratio, py = (e.clientY - box.top) * ratio;
+            const px = bx * ratio, py = by * ratio;
             const reach = 6 * ratio;
             for (const key of ['u_meas', 'i_meas', 'u_ref', 'i_ref']) {
                 const value = this.cursors[key];
@@ -721,7 +721,8 @@ void main() {
                 if (!this.rays) return;
                 el.setPointerCapture(e.pointerId);
                 if (e.button === 2 || e.button === 1) {
-                    drag = { pan: true, x: e.clientX, y: e.clientY, view: this.currentView(), stretch: this.stretch() };
+                    const [x, y] = ViewTurn.point(el, e);
+                    drag = { pan: true, x, y, view: this.currentView(), stretch: this.stretch() };
                 } else if (e.button === 0) {
                     const [x, y] = this.toWorld(e);
                     const line = this.grabLine(e);
@@ -756,9 +757,9 @@ void main() {
                     const gate = line ? null : this.grabGate(e);
                     const [ns, ew] = this.rotated ? ['ew-resize', 'ns-resize'] : ['ns-resize', 'ew-resize'];   // depth, index
                     const gateCursor = { move: 'move', i0: ew, i1: ew, d0: ns, d1: ns };
-                    el.style.cursor = e.altKey && this.weld && this.showWeld ? ew
+                    el.style.cursor = ViewTurn.cursor(el, e.altKey && this.weld && this.showWeld ? ew
                         : line ? (line.startsWith('u') ? ns : ew)
-                            : gate ? (gateCursor[gate.part] || 'grab') : '';
+                            : gate ? (gateCursor[gate.part] || 'grab') : '');
                     return;
                 }
                 if (drag.gate) {   // world deltas since the press; along the grabbed line for sound path edges
@@ -784,9 +785,9 @@ void main() {
                     return;
                 }
                 if (drag.pan) {
-                    const box = el.getBoundingClientRect();
+                    const [px, py, bw, bh] = ViewTurn.point(el, e);
                     const [cx, cy, width, height] = drag.view;
-                    this.view = [cx - (e.clientX - drag.x) / box.width * width, cy - (e.clientY - drag.y) / box.height * height, width, height, drag.stretch];
+                    this.view = [cx - (px - drag.x) / bw * width, cy - (py - drag.y) / bh * height, width, height, drag.stretch];
                     this.draw();
                     this.options.onViewChange?.(this);
                 } else {

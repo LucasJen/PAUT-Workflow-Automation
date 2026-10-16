@@ -29,11 +29,11 @@ window.ZoomBars = (function () {
             const [f0, f1] = r.full, span = f1 - f0;
             return r.flip ? [f1 - u1 * span, f1 - u0 * span] : [f0 + u0 * span, f0 + u1 * span];
         };
-        const along = e => {
-            const box = el.getBoundingClientRect();
-            return vertical ? (e.clientY - box.top) / (box.height || 1) : (e.clientX - box.left) / (box.width || 1);
+        const along = e => {   // in the bar's own (unturned) box: a turned view turns its bars with it
+            const [x, y, w, h] = ViewTurn.point(el, e);
+            return vertical ? y / (h || 1) : x / (w || 1);
         };
-        const length = () => { const box = el.getBoundingClientRect(); return (vertical ? box.height : box.width) || 1; };
+        const length = () => (vertical ? el.offsetHeight : el.offsetWidth) || 1;
 
         function render() {
             const r = range();
@@ -73,7 +73,7 @@ window.ZoomBars = (function () {
                 if (!r) return;
                 const [u0, u1] = toFraction(r, r.shown), u = along(e), grip = GRIP / length();
                 const end = (Math.abs(u - u0) <= grip || Math.abs(u - u1) <= grip) && u >= u0 - grip && u <= u1 + grip;
-                el.style.cursor = end ? (vertical ? 'ns-resize' : 'ew-resize') : u >= u0 && u <= u1 ? 'grab' : 'pointer';
+                el.style.cursor = end ? ViewTurn.cursor(el, vertical ? 'ns-resize' : 'ew-resize') : u >= u0 && u <= u1 ? 'grab' : 'pointer';
                 return;
             }
             const d = along(e) - held.u;

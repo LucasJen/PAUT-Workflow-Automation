@@ -33,7 +33,7 @@
     const unitsSelect = $('units'), axisSelect = $('axis'), refInput = $('ref-level');
     const status = $('analysis-status');
     const grid = $('analysis-grid'), layoutSelect = $('layout'), kindSelect = $('cscan-kind');
-    const panels = AnalysisLayout(grid);
+    const panels = AnalysisLayout(grid, layoutSelect);
     const ampPalette = $('amplitude-palette'), rangePalette = $('range-palette');
     for (const [select, kind] of [[ampPalette, 'amplitude'], [rangePalette, 'range']]) {
         select.replaceChildren(...AnalysisPalette.list(kind).map(([v, t]) => new Option(t, v)));
@@ -271,6 +271,7 @@
     for (const [view, name] of [[sscan, 'sscan'], [ascan, 'ascan'], [cview, 'cscan'], [bview, 'bscan']]) {
         ZoomBars.attach(view, $(`${name}-zoom-x`), $(`${name}-zoom-y`));
     }
+    panels.onTurn = () => { for (const view of [sscan, ascan, cview, bview]) view.draw(); };   // the text upright again
 
     // Linked zooms (Display panel): a view zoomed or panned along a linked axis takes the others with it,
     // in world units - scan (C- and B-scan across), depth (B- and S-scan down, the A-scan across when it
@@ -688,9 +689,10 @@
         panels.refresh();
     }
     layoutSelect.addEventListener('change', () => {
-        grid.dataset.layout = layoutSelect.value;
+        // A preset: its layout, with its views' places, turns and sizes
+        grid.dataset.layout = panels.usePreset(layoutSelect.value) || layoutSelect.value;
         panels.refresh();
-        try { localStorage.setItem(`analysisLayout:${isRaster() ? 'raster' : 'beams'}`, layoutSelect.value); } catch { /* not kept */ }
+        try { localStorage.setItem(`analysisLayout:${isRaster() ? 'raster' : 'beams'}`, grid.dataset.layout); } catch { /* not kept */ }
         scheduleProjections();
     });
 
@@ -2576,7 +2578,7 @@
     /** Each indication's picture: the views at it (as laid out now), back where we were afterwards. */
     async function picturesOf(items) {
         const here = { group: state.group, scan: state.scan, lateral: state.lateral, cursors: { ...state.cursors }, sizing: state.sizing,
-                       gain: state.gain, review: state.gain !== state.buildGain, reviewing: state.reviewing, layout: layoutSelect.value };
+                       gain: state.gain, review: state.gain !== state.buildGain, reviewing: state.reviewing, layout: grid.dataset.layout };
         // Every snip in the same four views: C-scan and B-scan over the S-scan and A-scan
         const snipLayout = here.layout !== 'A-B-C-S';
         if (snipLayout) {
@@ -2701,9 +2703,14 @@
             ctx.fillText(label, x + 6, y + 15);
             const stage = panel.querySelector('.analysis-stage');
             const stageBox = stage.getBoundingClientRect();
+            // Turned as on screen: about the stage's centre
+            ctx.save();
+            ctx.translate(stageBox.left - origin.left + stageBox.width / 2, stageBox.top - origin.top + title + stageBox.height / 2);
+            ctx.rotate(ViewTurn.quarters(stage) * Math.PI / 2);
             for (const canvas of stage.querySelectorAll('canvas')) {
-                ctx.drawImage(canvas, stageBox.left - origin.left, stageBox.top - origin.top + title, stageBox.width, stageBox.height);
+                ctx.drawImage(canvas, -stage.offsetWidth / 2, -stage.offsetHeight / 2, stage.offsetWidth, stage.offsetHeight);
             }
+            ctx.restore();
         }
         // The readings down the right
         ctx.fillStyle = '#e2e8f0';
