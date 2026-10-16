@@ -45,6 +45,15 @@
             <input type="text" class="form-control form-control-sm mono" id="sweep-folder" value="{{ sweep_default }}" aria-label="Folder to sweep">
             <span class="form-text">(L0 only; files outside the kit aren't fingerprinted)</span>
         </div>
+        <details class="val-approve">
+            <summary>Approve the current results as the baseline (L6)</summary>
+            <p class="form-text">Locks what this version of the app computes on the kit's files - readings, every C-scan cell, every
+                indication found and its sizing - so later versions are compared with it. Do this once a run has passed and been reviewed.</p>
+            <div class="val-sweep">
+                <input type="text" class="form-control form-control-sm" id="approve-note" placeholder="Who approved it and why, e.g. Reviewed with J. Smith (Level III), run #12" maxlength="300">
+                <button type="button" class="btn btn-secondary btn-sm" id="approve-baseline"><i class="bi bi-lock"></i> Lock as approved</button>
+            </div>
+        </details>
     </section>
 
     <section class="panel mt-3" id="result-panel" hidden>

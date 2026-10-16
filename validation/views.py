@@ -80,6 +80,9 @@ def run_start(request):
         options['sweep'] = os.path.abspath(os.path.expanduser(body['sweep']))
         if not os.path.isdir(options['sweep']):
             return JsonResponse({'error': f"No folder {options['sweep']}"}, status=400)
+    if body.get('approve'):   # lock the current results as the approved baseline (L6 only)
+        options['approve'] = str(body['approve']).strip()[:300]
+        body['layers'] = ['L6']
     run = runner.create(body.get('layers') or [], ValidationSettings.get().kit, options)
     runner.start(run)
     return JsonResponse({'id': run.pk})

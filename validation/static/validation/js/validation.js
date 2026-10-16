@@ -71,7 +71,7 @@
             el('header', { className: 'val-block-head' },
                 el('span', { className: 'val-layer-id', textContent: layer.id }),
                 el('strong', { textContent: layer.title }),
-                el('span', { className: 'val-block-msg', textContent: layer.message || layer.status }),
+                el('span', { className: 'val-block-msg', textContent: (layer.status === 'running' && layer.activity) || layer.message || layer.status }),
                 layer.status === 'running' ? progress(layer.progress, 'running') : null,
                 layer.status === 'not built' ? null : el('span', { className: 'val-counts' }, count(layer.passed, 'ok'), count(layer.failed, 'bad'))),
             el('p', { className: 'val-block-q' }, layer.question, ' ', el('span', { className: 'val-against', textContent: `Checked against: ${layer.against}.` })));
@@ -116,9 +116,7 @@
         else if (new URLSearchParams(location.search).get('run') !== String(run.id)) history.replaceState(null, '', `?run=${run.id}`);
     }
 
-    $('start-run').addEventListener('click', async () => {
-        const layers = [...document.querySelectorAll('input[name=layer]:checked')].map(i => i.value);
-        const body = { layers, sweep: $('sweep-on').checked ? $('sweep-folder').value : '' };
+    async function start(body) {
         $('start-run').disabled = true;
         try {
             const response = await fetch(page.dataset.startUrl, { method: 'POST', body: JSON.stringify(body),
@@ -134,6 +132,15 @@
         } finally {
             $('start-run').disabled = false;
         }
+    }
+    $('start-run').addEventListener('click', () => start({
+        layers: [...document.querySelectorAll('input[name=layer]:checked')].map(i => i.value),
+        sweep: $('sweep-on').checked ? $('sweep-folder').value : '',
+    }));
+    $('approve-baseline').addEventListener('click', () => {
+        const note = $('approve-note').value.trim();
+        if (!note) { $('approve-note').focus(); return; }
+        start({ approve: note });
     });
     $('cancel-run').addEventListener('click', () => {
         fetch(urlFor(page.dataset.cancelUrl, run.id), { method: 'POST', headers: { 'X-CSRFToken': csrf() } });

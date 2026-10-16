@@ -52,7 +52,7 @@ class Context:
         self._save()
 
     def progress(self, message, fraction):
-        self.layer['message'], self.layer['progress'] = message, round(min(1.0, max(0.0, fraction)), 3)
+        self.layer['activity'], self.layer['progress'] = message, round(min(1.0, max(0.0, fraction)), 3)
         self._save(throttle=True)
 
     def message(self, text):
@@ -124,7 +124,8 @@ def execute(run):
                 spec.run(context)
                 layer['status'] = 'done'
                 layer['progress'] = 1.0
-                if not layer['message'] or layer['message'].startswith(('Reading', 'Checking')):
+                layer['activity'] = ''
+                if not layer['message']:
                     layer['message'] = f"{layer['passed']} passed, {layer['failed']} failed"
             except Exception as e:   # one layer going wrong is reported, the others still run
                 layer['status'] = 'error'

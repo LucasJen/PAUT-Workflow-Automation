@@ -14,6 +14,9 @@
 .val-against { color: var(--text-3); font-size: 0.75rem; }
 .val-sweep { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.75rem; font-size: 0.8125rem; }
 .val-sweep .form-control { width: min(28rem, 100%); }
+.val-approve { margin-top: 0.75rem; font-size: 0.8125rem; }
+.val-approve > summary { cursor: pointer; font-weight: 600; }
+.val-approve .form-control { width: min(36rem, 100%); }
 
 .val-verdict { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1rem; border-radius: var(--radius); font-size: 1.25rem; font-weight: 700;
     background: var(--surface-2); }

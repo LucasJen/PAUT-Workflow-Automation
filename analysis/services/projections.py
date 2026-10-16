@@ -187,12 +187,13 @@ def volume_info(path, group):
         return json.load(f)
 
 
-def build(path, group, gates, gain=0.0, progress=None, cancelled=None):
+def build(path, group, gates, gain=0.0, progress=None, cancelled=None, folder=None):
     """
     Builds whatever isn't cached yet for this group: the volume (once per file) and the C-scan for
-    these gates and gain. `progress(fraction)` is called as it goes.
+    these gates and gain. `progress(fraction)` is called as it goes. `folder`: build there instead of
+    the cache (the validation builds from scratch into its own folder).
     """
-    folder = cache_dir(path)
+    folder = folder or cache_dir(path)
     data_path, meta_path = _volume_paths(folder, group.id)
     cscan_path = _cscan_path(folder, group.id, gates_key(gates, gain))
     need_volume = not (os.path.exists(data_path) and os.path.exists(meta_path))
@@ -279,9 +280,10 @@ def read_volume_line(path, group, line):
     return np.ascontiguousarray(volume[line]), info
 
 
-def read_cscan(path, group, gates, gain=0.0):
-    """{'A_amplitude': [scans, lines], ...} for these gates and gain, or None when not built yet."""
-    cscan_path = _cscan_path(cache_dir(path), group.id, gates_key(gates, gain))
+def read_cscan(path, group, gates, gain=0.0, folder=None):
+    """{'A_amplitude': [scans, lines], ...} for these gates and gain, or None when not built yet
+    (`folder`: built there by build(folder=) instead of the cache)."""
+    cscan_path = _cscan_path(folder or cache_dir(path), group.id, gates_key(gates, gain))
     if not os.path.exists(cscan_path):
         return None
     mtime = os.path.getmtime(cscan_path)

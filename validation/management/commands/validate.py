@@ -22,6 +22,8 @@ class Command(BaseCommand):
         sub = parser.add_subparsers(dest='action', required=True)
         run = sub.add_parser('run', help='Run the validation.')
         run.add_argument('--layers', default='', help='Comma-separated layer ids (default: all).')
+        run.add_argument('--approve', default=None, metavar='NOTE',
+                         help='Lock the current results as the approved baseline (L6), with a note of who and why.')
         run.add_argument('--sweep', nargs='?', const=runner.default_sweep(), default=None,
                          help='Also decode every .nde file under this folder (default: the Reports folder).')
         add = sub.add_parser('add', help='Add a file to the kit (copied in, fingerprinted).')
@@ -56,7 +58,10 @@ class Command(BaseCommand):
                     self.stdout.write(f"{'ok  ' if c['ok'] else 'FAIL'} {c['path']} {c['reason']}")
             else:
                 layers = [x.strip().upper() for x in options['layers'].split(',') if x.strip()]
-                run = runner.create(layers, path, {'sweep': os.path.abspath(options['sweep'])} if options['sweep'] else {})
+                extra = {'sweep': os.path.abspath(options['sweep'])} if options['sweep'] else {}
+                if options['approve']:
+                    layers, extra = ['L6'], {'approve': options['approve']}
+                run = runner.create(layers, path, extra)
                 self.stdout.write(f'Run {run.pk} at {run.version} on {path}')
                 runner.execute(run)
                 self._print(run)
