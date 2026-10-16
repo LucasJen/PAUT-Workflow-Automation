@@ -1587,6 +1587,9 @@ form[data-wizard] .section-nav { display: none; }
 .page-tab:hover { color: var(--text); }
 .page-tab.active { color: var(--text); border-bottom-color: var(--accent, #0f766e); }
 .page-tabs-end { margin: 0 0 0.35rem auto; align-self: center; white-space: nowrap; }
+/* A group of tabs after the settings (Tools): its label, set off by a rule */
+.page-tabs-group { align-self: center; margin-left: 0.75rem; padding: 0 0.25rem 0 0.75rem; border-left: 1px solid var(--border);
+    font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
 
 /* Documentation libraries: files being dragged over the page */
 body.drop-target .content { outline: 2px dashed var(--bs-primary); outline-offset: -0.5rem; }

@@ -1,19 +1,20 @@
 {% extends 'reports/base.html' %}
 {% load static ui %}
 
-{% block title %}Validation · PAUT Report Automation{% endblock %}
+{% block title %}Validation · Preferences · PAUT Report Automation{% endblock %}
 
 {% block styles %}<link rel="stylesheet" href="{% static_v 'validation/css/validation.css' %}">{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Validation</h1>
+    <h1>Preferences</h1>
     <div class="header-actions">
         <button type="button" class="btn btn-secondary" id="cancel-run" hidden><i class="bi bi-stop-circle"></i> Stop</button>
         <button type="button" class="btn btn-primary" id="start-run"{% if not kit or not kit.files %} disabled title="Add files to the kit first"{% endif %}>
             <i class="bi bi-patch-check"></i> Run validation</button>
     </div>
 </div>
+{% include 'reports/components/library_tabs.html' with tab='validation' %}
 <p class="val-lead">
     Proves the Analysis page against sources that share none of its code: the raw data read by an independent
     reader, OmniPC's own exports, calibration blocks with known reflectors, and the acceptance criteria as written.
