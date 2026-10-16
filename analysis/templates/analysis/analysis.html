@@ -329,8 +329,6 @@
                 <div class="ana-value"><input type="number" class="form-control form-control-sm mono" id="ref-level" value="80" min="1" step="1"><span class="ana-unit">%</span></div>
                 <label for="show-echo" title="The gate's highest amplitude along the scan, drawn under an amplitude C-scan">Echo curve</label>
                 <input type="checkbox" class="form-check-input" id="show-echo" checked>
-                <label for="sscan-rotate" title="For 0 deg longitudinal data (HydroFORM and other raster scans): depth across, lined up with the A-scan's depth axis, and the index axis down, lined up with the C-scan's index axis and its cursors">Rotate S-scan</label>
-                <input type="checkbox" class="form-check-input" id="sscan-rotate">
             </div>
             <details class="ana-section" data-section="link-zoom" open>
                 <summary title="Zooming or panning one view along a linked axis does the same to the others">Link zoom</summary>
@@ -394,7 +392,6 @@
                     <dt>Palette bar</dt><dd>Right of a thickness / depth C-scan, over the range typed at its top: drag its top down to lower the ceiling, its bottom up to raise the floor, its middle to shift the colours; double-click for the whole range</dd>
                     <dt>Zoom bars</dt><dd>Under and left of each view: drag an end of the bar to zoom that axis, its middle to move along it (the A-scan's side bar is the amplitude); double-click a bar to fit that axis</dd>
                     <dt>90° / 270°</dt><dd>The S-scan's skew view for angle-beam data (button in its head): 90° - beams top left to bottom right, the index increasing to the right; 270° - top right to bottom left, increasing to the left (the probe, upstream of the weld, reads negative). It starts at the file's skew; the other one mirrors the picture</dd>
-                    <dt>Rotate S-scan</dt><dd>Display panel: depth across and the index axis down, to line up with the A-scan's depth and a raster C-scan's index axis (link the zooms to keep them together)</dd>
                     <dt>Link zoom</dt><dd>Display panel: zoom the scan axis (C ↔ B), depth (B ↔ S ↔ A) or index axis (S ↔ C on a raster) together</dd>
                     <dt>Drag a gap</dt><dd>Resize the panels (double-click it to reset)</dd>
                 </dl>

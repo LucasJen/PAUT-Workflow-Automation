@@ -308,18 +308,6 @@
     }
     for (const view of [sscan, ascan, cview, bview]) view.options.onViewChange = zoomFollow;
 
-    // The S-scan rotated 90 deg (Display panel, kept per browser): depth across, the index axis down
-    try { sscan.rotated = localStorage.getItem('analysisSscanRotated') === '1'; } catch { /* not rotated */ }
-    $('sscan-rotate').checked = sscan.rotated;
-    $('sscan-rotate').addEventListener('change', e => {
-        try { localStorage.setItem('analysisSscanRotated', e.target.checked ? '1' : '0'); } catch { /* not kept */ }
-        linking = true;   // to its own fit first
-        try { sscan.setRotated(e.target.checked); } finally { linking = false; }
-        for (const link of ['depth', 'index']) {   // then lined up with the views it's linked to
-            const other = ZOOM_LINKS[link].find(([v, axis]) => v !== sscan && linkable(link, v) && v.axisRange(axis));
-            if (zoomLinks[link] && other) zoomFollow(other[0], link);
-        }
-    });
     for (const link of Object.keys(ZOOM_LINKS)) {
         const box = $(`link-${link}`);
         box.checked = zoomLinks[link];
