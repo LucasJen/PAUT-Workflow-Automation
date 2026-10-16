@@ -252,7 +252,8 @@ def cscan(request):
     """
     A C-scan as little-endian float32 [scans x lines] (NaN = nothing), for ?gate= and ?kind=:
     amplitude (%), depth (true depth of the gate's peak, folded at the back wall, m), or thickness
-    (?gate=B&from=A: depth between the two gates' crossings, m).
+    (?gate=B&from=A: depth between the two gates' positions, m; no from: from the A-scan's zero; at= /
+    from_at= crossing or peak1 for gate I's crossing or first peak).
     """
     try:
         path, info, group, gates, gain = _whole_file(request)
@@ -278,10 +279,17 @@ def cscan(request):
             depth = np.where(leg % 2 == 0, within, thickness - within)
         values = depth
     elif kind == 'thickness':
-        other = request.GET.get('from', 'A').upper()
-        if f'{other}_position_time' not in data:
-            return _error(f'There is no gate {other}.')
-        values = velocity * (data[f'{letter}_position_time'] - data[f'{other}_position_time']) / 2 * cos
+        # OmniPC's thickness modes: a gate's position from the A-scan's zero (A/), or between two (B/ - A/);
+        # at=crossing / peak1 picks gate I's crossing (I/) or first peak (I^1), else each gate's detection
+        def times(gate, at):
+            name = {'crossing': 'crossing_time', 'peak1': 'first_peak_time'}.get(at, 'position_time')
+            return data.get(f'{gate}_{name}')
+        end = times(letter, request.GET.get('at', ''))
+        other = request.GET.get('from', '').upper()
+        start = times(other, request.GET.get('from_at', '')) if other else 0.0
+        if end is None or start is None:
+            return _error(f'There is no gate {other if end is not None else letter} for that.')
+        values = velocity * (end - start) / 2 * cos
     else:
         return _error('Unknown C-scan kind.')
     values = np.asarray(values, dtype='<f4')

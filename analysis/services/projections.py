@@ -36,11 +36,12 @@ from .readings import _order, gate_letter, gate_level, gate_window
 
 MAX_BINS = 512
 VOLUME_FULL = 200.0       # % at uint8 255
-CACHE_VERSION = 4         # bump when the rules change, so old C-scans are rebuilt
+CACHE_VERSION = 5         # bump when the rules change, so old C-scans are rebuilt
 BLOCK_SAMPLES = 4_000_000 # samples worked on at a time (~16 MB as float32; a few arrays of that)
 KEEP_CACHES = 12          # files whose caches are kept (most recently used)
 KEEP_CSCANS = 6           # C-scans kept per group (one per gate / gain setting tried)
 WORKERS = max(1, min(6, (os.cpu_count() or 2) - 1))   # blocks worked on side by side (numpy lets go of the GIL)
+INTERFACE_PEAK_SPAN = 2e-6  # s after the interface (t = 0) its first peak is looked for, on a file re-timed to it
 SYNC_SAMPLES = 250_000_000  # files up to this many samples have their C-scan built in the request itself
 
 _jobs = {}                # build key -> {'state', 'progress', 'error', 'started', 'cancel'}
@@ -113,7 +114,8 @@ def gates_block(group, raw, gates, times, gain=0.0):
     """
     Gate results for every line of one scan position: raw int16 [lines, samples] ->
     {letter: {'found', 'amplitude', 'peak_time', 'crossing_time', 'position_time'}} as arrays over the lines
-    (amplitude / times NaN where the gate found nothing). Same rules as readings.evaluate_gates.
+    (amplitude / times NaN where the gate found nothing). Same rules as readings.evaluate_gates. Gate I also
+    gives 'first_peak_time': the first peak after its crossing (OmniPC's I^1), whatever its detection.
     Each gate works only on the samples its window can reach on some line (the rest can't be in it).
     """
     lines, samples = raw.shape
@@ -152,6 +154,16 @@ def gates_block(group, raw, gates, times, gain=0.0):
                 return k
             k = k - back + on
 
+    def first_peak(amplitudes, gate_times, inside, first, crossed):
+        """Each line's first peak from sample `first` on (the last sample before it falls, or the gate ends)."""
+        cols, rows = np.arange(amplitudes.shape[1]), np.arange(amplitudes.shape[0])
+        nxt_falls = np.zeros_like(inside)
+        nxt_falls[:, :-1] = (amplitudes[:, 1:] < amplitudes[:, :-1]) | ~inside[:, 1:]
+        nxt_falls[:, -1] = True
+        peaks = inside & nxt_falls & (cols[None, :] >= first[:, None])
+        at = np.argmax(peaks, axis=1)
+        return np.where(crossed & peaks.any(axis=1), gate_times[rows, at], np.nan)
+
     results, by_id = {}, {}
     for gate in _order(gates):
         letter = gate_letter(gate.name)
@@ -170,6 +182,13 @@ def gates_block(group, raw, gates, times, gain=0.0):
             zeros = np.zeros(lines)
             by_id[gate.id] = results[letter] = {'found': np.ones(lines, dtype=bool), 'amplitude': np.full(lines, np.nan),
                                                 'peak_time': zeros, 'crossing_time': zeros, 'position_time': zeros}
+            if letter == 'I':   # its crossing is t = 0: the first peak from there
+                c0, c1 = columns(zeros, zeros + INTERFACE_PEAK_SPAN, np.ones(lines, dtype=bool))
+                amplitudes, gate_times = amplitudes_of(c0, c1), times[:, c0:c1]
+                after = count(gate_times, zeros, np.less)
+                cols = np.arange(gate_times.shape[1])
+                inside = cols[None, :] >= after[:, None]
+                results[letter]['first_peak_time'] = first_peak(amplitudes, gate_times, inside, after, after < cols.size)
             continue
         else:
             # Each line's own window (a true-depth or box gate differs per beam; a box may miss some)
@@ -203,15 +222,11 @@ def gates_block(group, raw, gates, times, gain=0.0):
         first = np.argmax(over, axis=1)
         crossing_time = np.where(crossed, gate_times[rows, first], np.nan)
         # Where the gate measures from: its edge, the first peak after it (where it stops rising), or its max peak
+        peak1 = first_peak(amplitudes, gate_times, inside, first, crossed) if gate.detection == 'peak' or letter == 'I' else None
         if gate.detection == 'maxpeak':
             position_time = np.where(crossed, peak_time, np.nan)
         elif gate.detection == 'peak':
-            nxt_falls = np.zeros_like(inside)
-            nxt_falls[:, :-1] = (amplitudes[:, 1:] < amplitudes[:, :-1]) | ~inside[:, 1:]
-            nxt_falls[:, -1] = True
-            peaks = inside & nxt_falls & (cols[None, :] >= first[:, None])
-            at = np.argmax(peaks, axis=1)
-            position_time = np.where(crossed & peaks.any(axis=1), gate_times[rows, at], np.nan)
+            position_time = peak1
         else:
             position_time = crossing_time
         if zero is not None:
@@ -219,6 +234,8 @@ def gates_block(group, raw, gates, times, gain=0.0):
             found = found | zero
         by_id[gate.id] = results[letter] = {'found': found, 'amplitude': amplitude, 'peak_time': peak_time,
                                             'crossing_time': crossing_time, 'position_time': position_time}
+        if letter == 'I':
+            results[letter]['first_peak_time'] = peak1
     return results
 
 
@@ -264,8 +281,10 @@ def build(path, group, gates, gain=0.0, progress=None, cancelled=None, folder=No
         volume = np.lib.format.open_memmap(data_path + '.tmp.npy', mode='w+', dtype=np.uint8, shape=(lines, scans, bins))
     cscan = {}
     if need_cscan:   # every gate gives a result
+        names = ('amplitude', 'peak_time', 'crossing_time', 'position_time')
         cscan = {gate_letter(g.name): {name: np.full((scans, lines), np.nan, dtype=np.float32)
-                                       for name in ('amplitude', 'peak_time', 'crossing_time', 'position_time')} for g in gates}
+                                       for name in names + (('first_peak_time',) if gate_letter(g.name) == 'I' else ())}
+                 for g in gates}
     # Blocks small enough that the workers share even a short file
     block_scans = max(1, min(64, BLOCK_SAMPLES // (lines * samples), math.ceil(scans / (2 * WORKERS))))
     tiled = {}

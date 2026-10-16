@@ -1101,10 +1101,16 @@
         loadBscan();
     }
 
-    /** A thickness C-scan named as OmniPC does: 'B/ - A/' (/ = the gate reads its edge, ^ = a peak). */
+    /*
+     * OmniPC's thickness modes, as option values '<to>:thickness:<from>' ('' from: from the A-scan's zero).
+     * A gate is its letter (it reads where its detection says) or gate I's 'I/' (its crossing) / 'I^1' (its
+     * first peak after the crossing).
+     */
+    const thicknessEnd = token => ({ gate: token[0], at: token === 'I/' ? 'crossing' : token === 'I^1' ? 'peak1' : '' });
+    /** A thickness mode named as OmniPC does: 'B/ - A/' (/ = the gate reads its edge, ^ = a peak). */
     const thicknessLabel = (to, from) => {
-        const mark = L => (L === 'I' && currentGroup()?.synced_to_interface ? '/' : detectionMark(L));   // the interface: its crossing
-        return `${to}${mark(to)} - ${from}${mark(from)}`;
+        const name = token => (token.length > 1 ? token : `${token}${detectionMark(token)}`);
+        return from ? `${name(to)} - ${name(from)}` : name(to);
     };
     /** The thickness options' names again (a gate's detection changed). */
     function relabelKinds() {
@@ -1112,6 +1118,18 @@
             const [to, kind, from] = option.value.split(':');
             if (kind === 'thickness') option.text = thicknessLabel(to, from);
         }
+    }
+    /** OmniPC's list, in its order: A/, A/ - I^1, A/ - I/, B/, B/ - A/, B/ - I^1, B/ - I/, I/, I^1 (the gates there are). */
+    function thicknessModes(letters) {
+        const modes = [];
+        for (const L of ['A', 'B']) {
+            if (!letters.includes(L)) continue;
+            modes.push([L, '']);
+            if (L === 'B' && letters.includes('A')) modes.push(['B', 'A']);
+            if (letters.includes('I')) modes.push([L, 'I^1'], [L, 'I/']);
+        }
+        if (letters.includes('I')) modes.push(['I/', ''], ['I^1', '']);
+        return modes.map(([to, from]) => [`${to}:thickness:${from}`, thicknessLabel(to, from)]);
     }
 
     function fillKinds() {
@@ -1122,14 +1140,18 @@
             if (L === 'I' && g.synced_to_interface) continue;   // the interface is t = 0 on these files (A−I still works)
             options.push([`${L}:amplitude`, `Gate ${L} amplitude`], [`${L}:depth`, `Gate ${L} peak depth`]);
         }
-        if (letters.includes('A') && letters.includes('I')) options.push(['A:thickness:I', thicknessLabel('A', 'I')]);
-        if (letters.includes('A') && letters.includes('B')) options.push(['B:thickness:A', thicknessLabel('B', 'A')]);
-        kindSelect.replaceChildren(...options.map(([v, t]) => new Option(t, v)));
+        const group = label => Object.assign(document.createElement('optgroup'), { label });
+        const amplitudes = group('Amplitude / depth'), thickness = group('Thickness');
+        amplitudes.append(...options.map(([v, t]) => new Option(t, v)));
+        const modes = thicknessModes(letters);
+        thickness.append(...modes.map(([v, t]) => new Option(t, v)));
+        options.push(...modes);
+        kindSelect.replaceChildren(amplitudes, ...(modes.length ? [thickness] : []));
         fillFindGates();
         const saved = localStorage.getItem(`analysisKind:${isRaster() ? 'raster' : 'beams'}`);
         const has = v => options.some(o => o[0] === v);
         // A 0 deg raster (HydroFORM): interface to A when there's an I gate, else A to B
-        const fallback = !isRaster() ? 'A:amplitude' : has('A:thickness:I') ? 'A:thickness:I' : has('B:thickness:A') ? 'B:thickness:A' : 'A:amplitude';
+        const fallback = !isRaster() ? 'A:amplitude' : has('A:thickness:I/') ? 'A:thickness:I/' : has('B:thickness:A') ? 'B:thickness:A' : 'A:amplitude';
         kindSelect.value = has(saved) ? saved : (has(fallback) ? fallback : (options[0]?.[0] || ''));
     }
     kindSelect.addEventListener('change', () => {
@@ -1139,10 +1161,14 @@
 
     async function loadCscan(request) {
         if (!kindSelect.value) { cview.clear('This group has no gates to make a C-scan from.'); return; }
-        const [gate, kind, from] = kindSelect.value.split(':');
-        const params = { ...projectionParams(), gate, kind };
+        const [to, kind, from] = kindSelect.value.split(':');
+        const params = { ...projectionParams(), gate: to, kind };
         const dependsOn = cscanDependsOn();
-        if (from) params.from = from;
+        if (kind === 'thickness') {
+            const end = thicknessEnd(to);
+            Object.assign(params, { gate: end.gate, at: end.at });
+            if (from) Object.assign(params, { from: thicknessEnd(from).gate, from_at: thicknessEnd(from).at });
+        }
         let result;
         try {
             result = await NdeClient.whole(urls.cscan, params, Float32Array);
@@ -1155,7 +1181,7 @@
         const scans = +result.header('X-Scans'), lines = +result.header('X-Lines');
         const mode = kind === 'amplitude' ? 'amplitude' : 'range';
         // Thickness runs over the file's own expected range, like OmniPC's palette; else the data's
-        const fileRange = kind === 'thickness' ? currentGroup().thickness_range : null;
+        const fileRange = kind === 'thickness' && to[0] !== 'I' ? currentGroup().thickness_range : null;   // I/, I^1: their own
         const auto = fileRange ? [fileRange[0], fileRange[1]] : [+result.header('X-Min'), +result.header('X-Max')];
         const range = state.cscanRanges[kindSelect.value] || auto;
         state.cscanFull = range;   // the palette bar works within it

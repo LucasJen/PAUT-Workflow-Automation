@@ -151,6 +151,18 @@ class HydroformThicknessMapTests(SimpleTestCase):
                     response = client.get(reverse('analysis-cscan'), {'path': path, 'gate': gate, 'kind': 'thickness', 'from': frm})
                     values = np.frombuffer(response.content, dtype='<f4').reshape(306, 306)
                     self.assertAlmostEqual(values[118, 29] / 0.0254, expected, delta=0.0006, msg=f'{gate}-{frm}')
+                # OmniPC's other modes: the A-scan's zero is the interface, so A/ = A/ - I/ and I/ = 0;
+                # B/ - I/ = B/ - A/ + A/ - I/; the interface's first peak (I^1) is just after it
+                def mode(**q):
+                    response = client.get(reverse('analysis-cscan'), {'path': path, 'kind': 'thickness', **q})
+                    return np.frombuffer(response.content, dtype='<f4').reshape(306, 306)[118, 29] / 0.0254
+                a = mode(gate='A')
+                self.assertAlmostEqual(a, mode(gate='A', **{'from': 'I', 'from_at': 'crossing'}), places=6)
+                self.assertEqual(mode(gate='I', at='crossing'), 0.0)
+                self.assertAlmostEqual(mode(gate='B', **{'from': 'I', 'from_at': 'crossing'}), a + 0.385, delta=0.0006)
+                i1 = mode(gate='I', at='peak1')
+                self.assertTrue(0 < i1 < 0.1, i1)
+                self.assertAlmostEqual(mode(gate='A', **{'from': 'I', 'from_at': 'peak1'}), a - i1, places=5)
 
 
 
