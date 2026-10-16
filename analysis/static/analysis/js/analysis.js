@@ -29,7 +29,7 @@
     const $ = id => document.getElementById(id);
     const fileList = $('file-list'), fileFilter = $('file-filter'), groupSelect = $('group-select');
     const shell = window.AnalysisShell;
-    const slider = $('scan-slider'), scanNumber = $('scan-number'), gainInput = $('gain');
+    const scanNumber = $('scan-number'), gainInput = $('gain');
     const unitsSelect = $('units'), axisSelect = $('axis'), refInput = $('ref-level');
     const status = $('analysis-status');
     const grid = $('analysis-grid'), layoutSelect = $('layout'), kindSelect = $('cscan-kind');
@@ -704,7 +704,6 @@
         $('groups-toggle').hidden = otherGroups().length === 0;
         applyWeld();
         applyLegs();
-        slider.max = g.shape[0] - 1;
         state.lateral = Math.min(lateral, g.shape[1] - 1);
         await setScan(Math.min(scan, g.shape[0] - 1));
     }
@@ -726,13 +725,12 @@
     });
     const toggleLegs = () => { $('show-legs').checked = !$('show-legs').checked; $('show-legs').dispatchEvent(new Event('change')); };
 
-    /** The top bar's scan position: the slider, the distance box and the line number. */
+    /** The top bar's scan position: the distance box, its line number on hover. */
     function showScanPosition() {
         const g = currentGroup();
-        slider.value = state.scan;
         const position = format(scanPosition(state.scan), 'value');
         if (document.activeElement !== scanNumber) scanNumber.value = position;
-        slider.title = `${position} ${units} (scan line ${state.scan + 1} of ${g.shape[0]})`;
+        scanNumber.title = `${position} ${units}: scan line ${state.scan + 1} of ${g.shape[0]} (Left / Right a line, Shift for 10, PageUp / PageDown)`;
         $('scan-unit').textContent = units;
     }
 
@@ -2751,7 +2749,6 @@
 
     // ── controls ──
     groupSelect.addEventListener('change', () => setGroup(+groupSelect.value, state.scan, state.lateral));
-    slider.addEventListener('input', () => setScan(+slider.value));
     // The scan box: a distance in the page's units, to the nearest scan line
     scanNumber.addEventListener('change', () => {
         const v = parseFloat(scanNumber.value);

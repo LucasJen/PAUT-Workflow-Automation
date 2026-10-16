@@ -59,7 +59,6 @@ body.analysis-body { margin: 0; overflow: hidden; background: var(--bg); color: 
 .analysis-tool { display: flex; align-items: center; gap: 0.2rem; }
 .analysis-tool-label { font-size: 0.75rem; font-weight: 600; color: var(--text-2); margin-right: 0.1rem; }
 .analysis-tool-note { font-size: 0.6875rem; color: var(--text-3); white-space: nowrap; margin-left: 0.2rem; }
-.analysis-slider { width: 11rem; }
 .analysis-layout-select { width: auto; font-size: 0.75rem; }
 .analysis-status { font-size: 0.8125rem; color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 /* The selection and its value (renderSelection) */
@@ -369,7 +368,6 @@ body.analysis-resizing { user-select: none; }
 /* Narrow windows: the top bar wraps, the views stack */
 @media (max-width: 1250px) {
     .analysis-topbar { flex-wrap: wrap; }
-    .analysis-slider { width: 7rem; }
 }
 @media (max-width: 1000px) {
     body.analysis-body { overflow: auto; }
